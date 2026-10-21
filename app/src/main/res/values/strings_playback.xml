@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Transitions.kt: TransitionType labels -->
+    <string name="transitions_cross_dissolve">Cross Dissolve</string>
+    <string name="transitions_dip_to_black">Dip to Black</string>
+    <string name="transitions_dip_to_white">Dip to White</string>
+    <string name="transitions_wipe">Wipe</string>
+    <string name="transitions_push">Push</string>
+    <string name="transitions_slide">Slide</string>
+    <string name="transitions_zoom">Zoom</string>
+    <string name="transitions_iris">Iris</string>
+
+    <!-- Reversals.kt -->
+    <string name="reversals_preparing">Preparing reverse…</string>
+    <string name="reversals_failed">Reverse failed: %1$s</string>
+
+    <!-- Playback.kt -->
+    <string name="playback_error">Playback: %1$s</string>
+    <string name="playback_no_message">no message</string>
+    <plurals name="playback_clips_missing_file">
+        <item quantity="one">%1$d video clip, %2$d without a file</item>
+        <item quantity="other">%1$d video clips, %2$d without a file</item>
+    </plurals>
+    <string name="playback_could_not_start">Playback could not start (%1$s)</string>
+    <string name="playback_nothing_to_play">Nothing to play yet – add a clip to the timeline</string>
+    <string name="playback_timeline_empty">The timeline is empty</string>
+    <string name="playback_create_file_failed">Could not create the file in Movies</string>
+    <string name="playback_write_file_failed">Could not write the file in Movies</string>
+</resources>

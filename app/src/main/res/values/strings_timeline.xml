@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="crashreport_title">Klipp closed unexpectedly last time</string>
+    <string name="crashreport_intro">Copy the crash report and send it to me, and I\'ll find the bug.</string>
+    <string name="crashreport_copy">Copy report</string>
+    <string name="crashreport_close">Close</string>
+    <string name="monitor_no_clip">No clip</string>
+    <string name="monitor_sample_chapter">Chapter 2</string>
+    <string name="monitor_sample_credits">Credits</string>
+    <string name="monitor_sample_chapter_sub">The Sea</string>
+    <string name="monitor_program">Program</string>
+    <string name="keyframeui_animate">Animate</string>
+    <string name="keyframeui_prev_keyframe">Previous keyframe</string>
+    <string name="keyframeui_remove_keyframe">Remove keyframe</string>
+    <string name="keyframeui_add_keyframe">Add keyframe</string>
+    <string name="keyframeui_next_keyframe">Next keyframe</string>
+    <string name="timeline_hide_captions">Hide captions</string>
+    <string name="timeline_show_captions">Show captions</string>
+    <string name="timeline_locked">Locked</string>
+    <string name="timeline_hide_track">Hide track</string>
+    <string name="timeline_show_track">Show track</string>
+    <string name="timeline_unmute">Unmute</string>
+    <string name="timeline_mute_track">Mute track</string>
+    <string name="timeline_track_locked">The track is locked</string>
+    <string name="timeline_clip_off_prefix">OFF ·\u0020</string>
+    <string name="timeline_lock_track">Lock track</string>
+    <string name="timeline_mute">Mute</string>
+    <string name="timeline_solo">Solo</string>
+    <string name="timeline_sync_lock">Sync lock (follows ripple)</string>
+    <string name="timeline_release_to_delete">Release to delete</string>
+</resources>

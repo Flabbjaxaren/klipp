@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ProjectController: messages -->
+    <string name="projectcontroller_files_open_failed">The files couldn\'t be opened</string>
+    <plurals name="projectcontroller_files_import_failed">
+        <item quantity="one">%1$d file couldn\'t be imported</item>
+        <item quantity="other">%1$d files couldn\'t be imported</item>
+    </plurals>
+    <plurals name="projectcontroller_clips_imported">
+        <item quantity="one">%1$d clip imported</item>
+        <item quantity="other">%1$d clips imported</item>
+    </plurals>
+    <string name="projectcontroller_import_failed">Import failed: %1$s</string>
+    <string name="projectcontroller_default_media_name">Clip</string>
+    <string name="projectcontroller_set_marks_failed">Couldn\'t set In/Out</string>
+    <string name="projectcontroller_new_bin_failed">Couldn\'t create the bin</string>
+    <string name="projectcontroller_move_failed">Couldn\'t move</string>
+    <string name="projectcontroller_rename_failed">Couldn\'t rename</string>
+    <string name="projectcontroller_rename_failed_reason">Couldn\'t rename: %1$s</string>
+    <string name="projectcontroller_remove_failed">Couldn\'t remove</string>
+    <string name="projectcontroller_edit_failed">The edit failed</string>
+    <string name="projectcontroller_generic_failed">That didn\'t work</string>
+    <string name="projectcontroller_sync_lock_blocks_ripple">A sync-locked track prevents the ripple – unlock the track</string>
+    <string name="projectcontroller_track_locked">The track is locked</string>
+    <string name="projectcontroller_freeze_failed">Freeze Frame failed: %1$s</string>
+    <string name="projectcontroller_read_project_failed">Couldn\'t read the project: %1$s</string>
+    <plurals name="projectcontroller_media_count">
+        <item quantity="one">%1$d clip</item>
+        <item quantity="other">%1$d clips</item>
+    </plurals>
+    <string name="projectcontroller_save_failed">Couldn\'t save: %1$s</string>
+    <string name="projectcontroller_save_media_failed">Couldn\'t save the media file: %1$s</string>
+    <string name="projectcontroller_side_backup_used">the media file was damaged – the backup was used</string>
+    <string name="projectcontroller_side_broken">the media file is damaged – the clips couldn\'t be linked</string>
+    <string name="projectcontroller_default_project_name">Project %1$s</string>
+    <string name="projectcontroller_restore_last_failed">Couldn\'t open the last project: %1$s. Nothing is saved until you open or create a project.</string>
+    <string name="projectcontroller_my_project">My Project</string>
+    <string name="projectcontroller_restored">Project restored</string>
+    <plurals name="projectcontroller_restored_missing">
+        <item quantity="one">Project restored – %1$d clip missing</item>
+        <item quantity="other">Project restored – %1$d clips missing</item>
+    </plurals>
+    <string name="projectcontroller_archive_name">Archive %1$s</string>
+    <string name="projectcontroller_default_sequence_name">Sequence 1</string>
+    <string name="projectcontroller_new_project">New project: %1$s</string>
+    <string name="projectcontroller_project_missing">The project doesn\'t exist</string>
+    <string name="projectcontroller_open_failed">Couldn\'t open the project: %1$s</string>
+    <string name="projectcontroller_open_failed_blocked">Couldn\'t open the project: %1$s. Nothing is saved until you open or create a project.</string>
+    <string name="projectcontroller_copy_name">%1$s (copy)</string>
+    <string name="projectcontroller_project_fallback_name">Project</string>
+    <string name="projectcontroller_duplicate_failed">Couldn\'t duplicate the project: %1$s</string>
+    <string name="projectcontroller_open_another_first">Open another project first</string>
+    <string name="projectcontroller_change_failed">Couldn\'t change: %1$s</string>
+    <string name="projectcontroller_sequence_now">The project is now %1$d×%2$d · %3$s fps</string>
+    <string name="projectcontroller_add_marker_failed">Couldn\'t add a marker</string>
+    <string name="projectcontroller_target_failed">Couldn\'t set the target track</string>
+    <string name="projectcontroller_track_change_failed">Couldn\'t change the track</string>
+    <string name="projectcontroller_timeline_empty">The timeline is empty</string>
+    <string name="projectcontroller_no_music">No music on A%1$d</string>
+    <string name="projectcontroller_no_speech">No speech on the other audio tracks to duck against</string>
+    <string name="projectcontroller_ducking_failed">Ducking failed: %1$s</string>
+    <string name="projectcontroller_no_audio">There\'s no audio on the timeline</string>
+    <string name="projectcontroller_mix_silent">The mix is silent</string>
+    <string name="projectcontroller_voiceover_placed">Voice-over placed on A%1$d</string>
+    <string name="projectcontroller_voiceover_failed">Couldn\'t add the voice-over: %1$s</string>
+    <string name="projectcontroller_fade_failed">Fade failed: %1$s</string>
+    <string name="projectcontroller_fade_too_long">The fade can\'t be that long – the clips have no media beyond the edit</string>
+    <string name="projectcontroller_transition_change_failed">Couldn\'t change the transition</string>
+    <string name="projectcontroller_transition_failed">Transition failed: %1$s</string>
+    <string name="projectcontroller_add_clip_first">Add a clip first</string>
+    <string name="projectcontroller_default_title">Title</string>
+    <string name="projectcontroller_title_failed">Couldn\'t create the title: %1$s</string>
+    <string name="projectcontroller_new_caption">New caption</string>
+    <string name="projectcontroller_caption_exists">There\'s already a caption at the playhead</string>
+    <string name="projectcontroller_picker_not_ready">The file picker isn\'t ready</string>
+    <string name="projectcontroller_captions_file_fallback">captions.srt</string>
+    <plurals name="projectcontroller_captions_imported">
+        <item quantity="one">%1$d caption imported</item>
+        <item quantity="other">%1$d captions imported</item>
+    </plurals>
+    <string name="projectcontroller_captions_read_failed">Couldn\'t read the captions: %1$s</string>
+
+    <!-- ProjectController: undo steps -->
+    <string name="projectcontroller_undo_import">Import</string>
+    <string name="projectcontroller_undo_remove_media">Remove Media</string>
+    <string name="projectcontroller_undo_overwrite">Overwrite</string>
+    <string name="projectcontroller_undo_insert">Insert</string>
+    <string name="projectcontroller_undo_move">Move</string>
+    <string name="projectcontroller_undo_trim">Trim</string>
+    <string name="projectcontroller_undo_reverse">Reverse</string>
+    <string name="projectcontroller_undo_group">Group</string>
+    <string name="projectcontroller_undo_ungroup">Ungroup</string>
+    <string name="projectcontroller_undo_razor">Razor</string>
+    <string name="projectcontroller_undo_roll">Roll</string>
+    <string name="projectcontroller_undo_clean_slivers">Clean Up Slivers</string>
+    <string name="projectcontroller_undo_speed_ramp">Speed Ramp</string>
+    <string name="projectcontroller_undo_duck_music">Duck Music</string>
+    <string name="projectcontroller_undo_remove_ducking">Remove Ducking</string>
+    <string name="projectcontroller_undo_voiceover">Voice-over</string>
+    <string name="projectcontroller_undo_transition">Transition</string>
+    <string name="projectcontroller_undo_auto_captions">Auto Captions</string>
+
+    <!-- ProjectController: speed ramp presets -->
+    <string name="projectcontroller_ramp_slow_mid">Slow-mo in the Middle</string>
+    <string name="projectcontroller_ramp_into_slow">Into Slow-mo</string>
+    <string name="projectcontroller_ramp_from_slow">Out of Slow-mo</string>
+    <string name="projectcontroller_ramp_fast_mid">Fast in the Middle</string>
+
+    <!-- AudioFxCatalog -->
+    <string name="audiofxcatalog_denoise">Noise Reduction</string>
+    <string name="audiofxcatalog_denoise_hint">Removes steady noise (fans, hiss, wind).</string>
+    <string name="audiofxcatalog_amount">Amount</string>
+    <string name="audiofxcatalog_speech_enhance">Speech Enhance</string>
+    <string name="audiofxcatalog_speech_enhance_hint">Clearer speech: tames the room and lifts the voice.</string>
+    <string name="audiofxcatalog_mix">Mix</string>
+    <string name="audiofxcatalog_eq">EQ</string>
+    <string name="audiofxcatalog_eq_hint">Drag the points on the curve: sideways = frequency, up/down = level. Double-tap resets a band.</string>
+    <string name="audiofxcatalog_output_level">Output</string>
+    <string name="audiofxcatalog_compressor">Compressor</string>
+    <string name="audiofxcatalog_compressor_hint">Drag the knee (threshold) and the handle on the right (ratio). Above the knee the audio is turned down.</string>
+    <string name="audiofxcatalog_threshold">Threshold</string>
+    <string name="audiofxcatalog_ratio">Ratio</string>
+    <string name="audiofxcatalog_attack">Attack</string>
+    <string name="audiofxcatalog_release">Release</string>
+    <string name="audiofxcatalog_makeup">Makeup Gain</string>
+    <string name="audiofxcatalog_limiter_after">Limiter After</string>
+    <string name="audiofxcatalog_limiter_ceiling">Limiter Ceiling</string>
+    <string name="audiofxcatalog_limiter">Limiter</string>
+    <string name="audiofxcatalog_limiter_hint">A ceiling for the level – nothing clips.</string>
+    <string name="audiofxcatalog_ceiling">Ceiling</string>
+    <string name="audiofxcatalog_boost">Boost</string>
+    <string name="audiofxcatalog_on">on</string>
+    <string name="audiofxcatalog_off">off</string>
+    <string name="projectcontroller_undo_delete_text">Delete text</string>
+    <string name="projectcontroller_undo_remove_pauses">Remove pauses</string>
+    <string name="projectcontroller_undo_remove_fillers">Remove filler words</string>
+    <string name="projectcontroller_nothing_removed">Nothing to remove</string>
+    <plurals name="projectcontroller_parts_removed">
+        <item quantity="one">Removed %1$d part (%2$.1f s)</item>
+        <item quantity="other">Removed %1$d parts (%2$.1f s)</item>
+    </plurals>
+</resources>

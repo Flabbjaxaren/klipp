@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Model.kt -->
+    <string name="model_subtitle_prototype">Prototyp · låtsasklipp</string>
+    <string name="model_track_locked">Spåret är låst</string>
+    <string name="model_select_two_clips">Markera minst två klipp</string>
+    <string name="model_locked_not_moved">Klipp på låsta spår flyttas inte</string>
+    <string name="model_locked_left">Klipp på låsta spår lämnas kvar</string>
+    <string name="model_freeze_video_only">Frysbild går bara på videoklipp</string>
+    <string name="model_freeze_no_direction">En frysbild har ingen riktning</string>
+    <string name="model_reverse_av_only">Baklänges går bara på video och ljud</string>
+
+    <!-- Properties.kt -->
+    <string name="properties_title">Egenskaper</string>
+    <string name="properties_done">Klar</string>
+    <string name="properties_select_clip">Markera ett klipp i tidslinjen</string>
+    <string name="properties_audio">Ljud</string>
+    <string name="properties_volume">Volym</string>
+    <string name="properties_motion">Rörelse</string>
+    <string name="properties_reset">Återställ</string>
+    <string name="properties_position_x">Position X</string>
+    <string name="properties_position_y">Position Y</string>
+    <string name="properties_scale">Skala</string>
+    <string name="properties_rotation">Rotation</string>
+    <string name="properties_opacity">Opacitet</string>
+    <string name="properties_motion_hint">Dra, nyp och vrid direkt i bilden ovanför</string>
+    <string name="properties_fade">Övertoning</string>
+    <string name="properties_fade_in">In</string>
+    <string name="properties_fade_out">Ut</string>
+    <string name="properties_fade_half">0,5 s</string>
+    <string name="properties_off">Av</string>
+    <string name="properties_green_screen">Grön skärm</string>
+    <string name="properties_key_green">Grön</string>
+    <string name="properties_key_blue">Blå</string>
+    <string name="properties_key_tolerance">Tolerans</string>
+    <string name="properties_key_softness">Mjuk kant</string>
+    <string name="properties_key_spill">Ta bort spill</string>
+    <string name="properties_key_hint">Lägg klippet på ett spår ovanför det som ska synas igenom</string>
+    <string name="properties_blend">Blandning</string>
+    <string name="properties_blend_hint">Blandas med spåren under</string>
+    <string name="properties_mask">Mask</string>
+    <string name="properties_mask_rect">Rektangel</string>
+    <string name="properties_mask_ellipse">Ellips</string>
+    <string name="properties_mask_invert">Invertera</string>
+    <string name="properties_mask_center_x">Mitt X</string>
+    <string name="properties_mask_center_y">Mitt Y</string>
+    <string name="properties_mask_width">Bredd</string>
+    <string name="properties_mask_height">Höjd</string>
+    <string name="properties_mask_feather">Mjuk kant</string>
+    <string name="properties_cancel">Avbryt</string>
+    <string name="properties_track_again">Spåra om</string>
+    <string name="properties_track_object">Spåra föremålet</string>
+    <string name="properties_clear_keyframes">Ta bort nyckelbilder</string>
+    <string name="properties_tracking_progress">Spårar … %1$.0f %%</string>
+    <string name="properties_track_hint">Placera masken runt föremålet och tryck Spåra – masken följer det genom klippet och blir nyckelbilder som du kan ändra.</string>
+
+    <!-- Panels.kt -->
+    <string name="panels_style_slide">Glid</string>
+    <string name="panels_style_bounce">Studs</string>
+    <string name="panels_style_scale">Skala</string>
+    <string name="panels_title_role_default">Fiskare, Smögen</string>
+    <string name="panels_color">Färg</string>
+    <string name="panels_reset">Återställ</string>
+    <string name="panels_preset_none">Ingen</string>
+    <string name="panels_preset_warm">Varm</string>
+    <string name="panels_preset_cool">Kall</string>
+    <string name="panels_preset_film">Film</string>
+    <string name="panels_preset_bw">S/V</string>
+    <string name="panels_lut_none">Ingen</string>
+    <string name="panels_lut_import">+ Importera .cube</string>
+    <string name="panels_lut_strength">Styrka</string>
+    <string name="panels_lut_tetra">Tetraedrisk</string>
+    <string name="panels_lut_trilinear">Trilinjär</string>
+    <string name="panels_lut_tetra_desc">Hög kvalitet · GPU</string>
+    <string name="panels_lut_trilinear_desc">Snabb · GPU-textur</string>
+    <string name="panels_tone">Ton</string>
+    <string name="panels_exposure">Exponering</string>
+    <string name="panels_contrast">Kontrast</string>
+    <string name="panels_white_balance">Vitbalans</string>
+    <string name="panels_temperature">Temperatur</string>
+    <string name="panels_tint">Nyans</string>
+    <string name="panels_creative">Kreativ</string>
+    <string name="panels_saturation">Mättnad</string>
+    <string name="panels_color_placeholder">Kurvor · färghjul · HSL · vinjett · scopes kommer</string>
+    <string name="panels_duck_title">Ducka musiken</string>
+    <string name="panels_duck_desc">Musiken sänks automatiskt när någon pratar på de andra spåren</string>
+    <string name="panels_duck_music_on">Musik på</string>
+    <string name="panels_duck_lower">Sänk</string>
+    <string name="panels_duck_listening">Lyssnar …</string>
+    <string name="panels_duck_go">Ducka</string>
+    <string name="panels_duck_no_speech">Inget tal hördes under musiken på A%1$d</string>
+    <plurals name="panels_duck_done">
+        <item quantity="one">Musiken på A%1$d sänks under talet (%2$d klipp). Ändra i klippets volym om du vill.</item>
+        <item quantity="other">Musiken på A%1$d sänks under talet (%2$d klipp). Ändra i klippets volym om du vill.</item>
+    </plurals>
+    <string name="panels_duck_remove">Ta bort</string>
+    <string name="panels_duck_none">Ingen duckning på A%1$d</string>
+    <plurals name="panels_duck_removed">
+        <item quantity="one">Duckningen borttagen (%1$d klipp)</item>
+        <item quantity="other">Duckningen borttagen (%1$d klipp)</item>
+    </plurals>
+    <string name="panels_target_youtube">YouTube / Spotify</string>
+    <string name="panels_target_podcast">Podd / Apple</string>
+    <string name="panels_target_tv">TV (EBU R128)</string>
+    <string name="panels_audio">Ljud</string>
+    <string name="panels_integrated_loudness">Integrerad loudness (mixen)</string>
+    <string name="panels_measuring_value">mäter …</string>
+    <string name="panels_peak_lra">Topp %1$.1f dBTP · LRA %2$.1f LU</string>
+    <string name="panels_measuring">Mäter …</string>
+    <string name="panels_measure">Mät</string>
+    <string name="panels_normalize">Normalisera mixen</string>
+    <string name="panels_normalize_limited">Toppen begränsar: mixen hamnar på %1$.1f LUFS (sann topp −1 dBTP). Lägg en limiter på klippen för att nå ända fram.</string>
+    <string name="panels_normalize_done">Normalisering %1$+.1f dB → %2$.1f LUFS</string>
+    <string name="panels_volume_automation">Volymautomation</string>
+    <string name="panels_automation_hint">◆ lägger en nyckelruta vid spelhuvudet med faderns värde (eller tar bort den som ligger där). Med nyckelrutor följer fadern dem, och när du drar i den skrivs en ny ruta.</string>
+    <string name="panels_clear_track">Rensa A%1$d</string>
+    <string name="panels_voice_over">Voice-over</string>
+    <string name="panels_record">● Spela in</string>
+    <string name="panels_stop">■ Stoppa</string>
+    <string name="panels_recording_hint">Spelar in – tidslinjen spelas tyst så att högtalaren inte hörs i mikrofonen.</string>
+    <string name="panels_record_hint">Spelar in från spelhuvudet medan tidslinjen spelas, och lägger inspelningen på det valda spåret.</string>
+    <string name="panels_text_title">Text &amp; undertexter</string>
+    <string name="panels_templates">Mallar</string>
+    <string name="panels_template_lower_third">Namnskylt</string>
+    <string name="panels_template_chapter">Kapitelkort</string>
+    <string name="panels_template_credits">Rulltext</string>
+    <string name="panels_content">Innehåll</string>
+    <string name="panels_name">Namn</string>
+    <string name="panels_role">Roll</string>
+    <string name="panels_animation_in">Animation in</string>
+    <string name="panels_play">Spela</string>
+    <string name="panels_text_placeholder">Undertexter · transkribera · SRT / VTT · bränn in</string>
+
+    <!-- MaskTrack.kt -->
+    <string name="masktrack_file_missing">Klippets fil saknas</string>
+    <string name="masktrack_freeze_frame">En frysbild står still – det finns inget att spåra</string>
+    <plurals name="masktrack_done">
+        <item quantity="one">Spårat %1$.1f s på %2$.1f s · %3$d nyckelbild</item>
+        <item quantity="other">Spårat %1$.1f s på %2$.1f s · %3$d nyckelbilder</item>
+    </plurals>
+    <plurals name="masktrack_weak_frames">
+        <item quantity="one">%1$d osäker bildruta</item>
+        <item quantity="other">%1$d osäkra bildrutor</item>
+    </plurals>
+    <string name="masktrack_canceled">Spårningen avbröts</string>
+    <string name="masktrack_failed">Spårningen misslyckades: %1$s</string>
+</resources>

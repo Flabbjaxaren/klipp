@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="names_node_primary">Primär</string>
+    <string name="names_lut_bleach">Blekt</string>
+    <string name="names_font_sans_bold">Sans fet</string>
+    <string name="names_font_condensed">Smal</string>
+    <string name="names_font_light">Lätt</string>
+    <string name="names_font_handwriting">Handskrift</string>
+    <string name="names_font_casual">Avslappnad</string>
+</resources>

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MainActivity.kt -->
+    <string name="mainactivity_no_media_yet">Inget material än</string>
+    <string name="mainactivity_engine_failed">Motorn kunde inte laddas – prototypläge</string>
+    <string name="mainactivity_crash_clip_label">Klipp felrapport</string>
+    <string name="mainactivity_crash_copied">Felrapporten är kopierad</string>
+
+    <!-- Theme.kt -->
+    <string name="theme_accent_amber">Bärnsten</string>
+    <string name="theme_accent_blue">Blå</string>
+    <string name="theme_accent_green">Grön</string>
+    <string name="theme_accent_purple">Lila</string>
+    <string name="theme_accent_pink">Rosa</string>
+    <string name="theme_accent_red">Röd</string>
+    <string name="theme_accent_yellow">Gul</string>
+    <string name="theme_accent_cyan">Cyan</string>
+    <string name="theme_base_dark">Mörk</string>
+    <string name="theme_base_dark_hint">standard</string>
+    <string name="theme_base_black">Svart</string>
+    <string name="theme_base_black_hint">OLED – sparar batteri</string>
+    <string name="theme_base_graphite">Grafit</string>
+    <string name="theme_base_graphite_hint">lite ljusare</string>
+
+    <!-- AudioUi.kt -->
+    <string name="audioui_effects">Ljudeffekter</string>
+    <string name="audioui_effects_hint">Effekterna gäller bara det här klippet och hörs direkt.</string>
+    <string name="audioui_on">På</string>
+    <string name="audioui_off">Av</string>
+    <string name="audioui_remove">Ta bort</string>
+    <string name="audioui_not_controlled">Effekten styrs inte härifrån.</string>
+
+    <!-- App.kt -->
+    <string name="app_mode_edit">Redigera</string>
+    <string name="app_mode_color">Färg</string>
+    <string name="app_mode_audio">Ljud</string>
+    <string name="app_mode_text">Text</string>
+    <string name="app_lut_imported">LUT importerad: %1$s</string>
+    <string name="app_lut_read_failed">Kunde inte läsa LUT:en: %1$s</string>
+    <string name="app_export_needs_clips">Export kräver riktiga klipp</string>
+    <string name="app_timeline_empty">Tidslinjen är tom</string>
+    <string name="app_export_saved">Sparad i Filmer/Klipp</string>
+    <string name="app_export_failed">Export misslyckades: %1$s</string>
+    <string name="app_hdr_blocked">Klippen är färgkorrigerade – färgningen görs i SDR, så exporten blir SDR för rätt färger.</string>
+    <string name="app_mic_failed">Mikrofonen kunde inte startas: %1$s</string>
+    <string name="app_nothing_recorded">Inget spelades in</string>
+    <string name="app_voiceover_name">Voice-over %1$s</string>
+    <string name="app_mic_permission">Klipp behöver mikrofonen för voice-over</string>
+    <string name="app_playback_rebuild_failed">Uppspelningen kunde inte byggas om (%1$s)</string>
+    <string name="app_render_failed">Renderingen misslyckades: %1$s</string>
+    <string name="app_timeline_rendered">Tidslinjen är renderad</string>
+    <string name="app_lut_fallback">Färgpasset fungerade inte på den här GPU:n – använder standardeffekter (trilinjär LUT)</string>
+    <string name="app_marker_at">Markör vid %1$s</string>
+    <string name="app_copied_to_source">Kopierat till källan – välj plats och infoga</string>
+    <string name="app_undone">Ångrat</string>
+    <string name="app_redone">Gjort om</string>
+    <string name="app_prototype_mode">Prototypläge</string>
+    <string name="app_gesture_three">Svep = byt läge · tryck = gör om</string>
+    <string name="app_gesture_two">Nyp = zooma · tryck = ångra</string>
+    <string name="app_new_project_title">Nytt projekt?</string>
+    <string name="app_new_project_text">Det nuvarande projektet sparas i arkivet och du börjar med en tom tidslinje.</string>
+    <string name="app_new_project">Nytt projekt</string>
+    <string name="app_cancel">Avbryt</string>
+    <string name="app_render_timeline">Rendera tidslinjen</string>
+    <string name="app_render_timeline_hint">allt spelas ur färdiga filer – flyter utan lagg. Ändras något renderas den delen om när du ber om det</string>
+    <string name="app_render_auto_on">Rendera automatiskt: på</string>
+    <string name="app_render_auto_off">Rendera automatiskt: av</string>
+    <string name="app_render_auto_hint">tunga delar (lager, effekter, övergångar) renderas i bakgrunden när du inte spelar eller drar – tar batteri</string>
+    <string name="app_delete_renders">Ta bort renderingar</string>
+    <string name="app_megabytes">%1$.0f MB</string>
+    <string name="app_renders_deleted">Renderingarna är borttagna</string>
+    <string name="app_app_settings">Appinställningar</string>
+    <string name="app_app_settings_hint">tema, tidslinje, proxy, exportens standard …</string>
+    <string name="app_projects">Projekt</string>
+    <string name="app_settings">Inställningar</string>
+    <string name="app_undo">Ångra</string>
+    <string name="app_redo">Gör om</string>
+    <string name="app_export">Exportera</string>
+    <string name="app_add_marker">Lägg till markör</string>
+    <string name="app_prev_frame">Föregående bildruta</string>
+    <string name="app_pause">Pausa</string>
+    <string name="app_play">Spela</string>
+    <string name="app_next_frame">Nästa bildruta</string>
+    <string name="app_next_edit">Nästa klippkant</string>
+    <string name="app_tool_move">Flytta</string>
+    <string name="app_tool_ripple">Rippla</string>
+    <string name="app_tool_trim">Trimma</string>
+    <string name="app_tool_razor">Rakblad</string>
+    <string name="app_linked_selection">Länkad markering</string>
+    <string name="app_linked_on">Länkad markering på – bild och ljud följer varandra</string>
+    <string name="app_linked_off">Länkad markering av – bild och ljud var för sig</string>
+    <string name="app_locked_playhead">Låst spelhuvud</string>
+    <string name="app_playhead_locked">Spelhuvudet låst i mitten – dra tidslinjen</string>
+    <string name="app_playhead_free">Fri tidslinje – dra spelhuvudet</string>
+    <string name="app_magnetic_snapping">Magnetisk fästning</string>
+    <string name="app_snapping_on">Magnetisk fästning på</string>
+    <string name="app_snapping_off">Magnetisk fästning av</string>
+    <string name="app_back">Tillbaka</string>
+    <string name="app_ramp">Ramp</string>
+    <string name="app_freeze">Frys</string>
+    <string name="app_seconds">%1$d s</string>
+    <string name="app_half_second">0,5 s</string>
+    <string name="app_copy">Kopiera</string>
+    <string name="app_split">Dela</string>
+    <string name="app_properties">Egenskaper</string>
+    <string name="app_speed">Hastighet</string>
+    <string name="app_forward">Framlänges</string>
+    <string name="app_reverse">Baklänges</string>
+    <string name="app_enable">Slå på</string>
+    <string name="app_disable">Stäng av</string>
+    <string name="app_delete">Radera</string>
+    <string name="app_ripple_delete">Ripple-radera</string>
+    <plurals name="app_n_clips">
+        <item quantity="one">%1$d klipp</item>
+        <item quantity="other">%1$d klipp</item>
+    </plurals>
+    <plurals name="app_n_captions">
+        <item quantity="one">%1$d undertext</item>
+        <item quantity="other">%1$d undertexter</item>
+    </plurals>
+    <string name="app_toggle_enabled">Av/på</string>
+    <string name="app_ungroup">Dela upp</string>
+    <string name="app_group">Gruppera</string>
+    <string name="app_deselect">Avmarkera</string>
+    <string name="app_rendering_progress">Renderar %1$d %%  ✕</string>
+    <string name="app_waiting">Väntar …</string>
+    <string name="app_render">Rendera</string>
+    <string name="app_crossfade">Övertoning</string>
+    <string name="app_length">Längd</string>
+    <string name="app_fade_in_from_white">Tona in från vitt</string>
+    <string name="app_fade_in">Tona in</string>
+    <string name="app_fade_out_to_white">Tona ut till vitt</string>
+    <string name="app_fade_out">Tona ut</string>
+    <string name="app_to_white">Mot vitt</string>
+    <string name="app_to_black">Mot svart (genomskinlig)</string>
+    <string name="app_reverse_direction">Vänd riktning</string>
+    <string name="app_prerender">Förrendera</string>
+    <string name="app_rendered">Renderad</string>
+    <string name="app_rendering">Renderar…</string>
+    <string name="app_remove">Ta bort</string>
+    <string name="app_add_clip">Lägg till klipp</string>
+    <string name="app_short_link">Länk</string>
+    <string name="app_short_center">Lås</string>
+    <string name="app_short_snap">Fäst</string>
+    <string name="app_edit_text">Redigera text</string>
+    <string name="app_volume">Volym</string>
+    <string name="app_fade">Tona</string>
+    <string name="app_go_to_time">Gå till tid</string>
+    <string name="app_go">Gå</string>
+    <string name="app_timecode_hint">Siffror fylls från höger: 1512 = 15 s 12 bildrutor. +200 = 2 s framåt.</string>
+</resources>

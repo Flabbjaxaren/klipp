@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FilmFx: diffusion filter descriptions -->
+    <string name="filmfx_hint_glimmerglass">thin, sharp, faint long tail</string>
+    <string name="filmfx_hint_black_pro_mist">compact warm halo, deep blacks</string>
+    <string name="filmfx_hint_pro_mist">broad pastel veil</string>
+    <string name="filmfx_hint_cinebloom">across the whole image, warm, retro</string>
+
+    <!-- OpenDrt: tonescale, white point and display labels -->
+    <string name="opendrt_input_rec709">Rec.709 video</string>
+    <string name="opendrt_from_look">From look</string>
+    <string name="opendrt_tonescale_low">Low contrast</string>
+    <string name="opendrt_tonescale_medium">Medium contrast</string>
+    <string name="opendrt_tonescale_high">High contrast</string>
+    <string name="opendrt_display_phone_web">Phone &amp; web (sRGB 2.2)</string>
+
+    <!-- Lut: .cube import errors -->
+    <string name="lut_error_size_unsupported">LUT size %1$d is not supported</string>
+    <string name="lut_error_1d_unsupported">1D LUTs are not supported yet – choose a 3D LUT</string>
+    <string name="lut_error_no_size">No LUT_3D_SIZE found</string>
+    <string name="lut_error_value_count">Wrong number of values: %1$d, expected %2$d</string>
+    <string name="lut_error_domain">Invalid DOMAIN_MIN/MAX in the LUT</string>
+</resources>

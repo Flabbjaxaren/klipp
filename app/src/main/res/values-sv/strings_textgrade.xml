@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TitleUi.kt -->
+    <string name="titleui_sample_lower_third">Anna Berg\nFiskare, Smögen</string>
+    <string name="titleui_sample_chapter">Kapitel 2\nHavet</string>
+    <string name="titleui_sample_roll">Medverkande:\nAnna Berg\nJonas Ek\nFoto:\nGustav\nKlipp:\nGustav</string>
+    <string name="titleui_title">Titel</string>
+    <string name="titleui_field_name">Namn</string>
+    <string name="titleui_field_role">Roll</string>
+    <string name="titleui_field_heading">Rubrik</string>
+    <string name="titleui_field_sub">Under</string>
+    <string name="titleui_field_lines">Rader</string>
+    <string name="titleui_field_text">Text</string>
+    <string name="titleui_roll_hint">Rader som slutar med kolon blir små rubriker. Texten rullar under hela klippet.</string>
+    <string name="titleui_panel_title">Text &amp; undertexter</string>
+    <string name="titleui_template">Mall</string>
+    <string name="titleui_entrance">Kommer in</string>
+    <string name="titleui_content">Innehåll</string>
+    <string name="titleui_titles_on_timeline">Titlar på tidslinjen</string>
+    <string name="titleui_captions">Undertexter</string>
+    <string name="titleui_captions_shown">Visas</string>
+    <string name="titleui_captions_hidden">Dolda</string>
+    <string name="titleui_new_caption">Ny undertext</string>
+    <string name="titleui_import_captions">Importera SRT / VTT</string>
+    <string name="titleui_hide_style">Dölj stil</string>
+    <string name="titleui_font_and_style">Typsnitt &amp; stil</string>
+    <string name="titleui_captions_hint">Undertexterna visas i bilden och bränns in vid export.</string>
+    <string name="titleui_add_at">Lägg till vid %1$s</string>
+    <string name="titleui_size">Storlek</string>
+    <string name="titleui_save">Spara</string>
+    <string name="titleui_delete">Ta bort</string>
+    <string name="titleui_auto_captions_title">Skapa undertexter automatiskt</string>
+    <string name="titleui_auto_captions_info">Talet blir text direkt på telefonen – inget ljud skickas någonstans. Svenska använder KB-Whisper från Kungliga biblioteket.</string>
+    <string name="titleui_model_ready">%1$s · hämtad</string>
+    <string name="titleui_model_needs_download">%1$s · behöver hämtas en gång</string>
+    <string name="titleui_track_empty">A%1$d (tomt)</string>
+    <string name="titleui_cancel">Avbryt</string>
+    <string name="titleui_download_model">Hämta modellen (%1$d MB)</string>
+    <string name="titleui_generate_captions">Skapa undertexter</string>
+    <string name="titleui_follow_node">%1$s · nod %2$02d</string>
+    <string name="titleui_follow_object">Följ ett föremål</string>
+    <string name="titleui_follow_hint">Spåra ett föremål i färgläget (Fönster → Spåra föremålet) på klippet under titeln, så kan titeln följa det.</string>
+    <string name="titleui_follow_none">Står still</string>
+
+    <!-- CaptionUi.kt -->
+    <string name="captionui_edit">Redigera</string>
+    <string name="captionui_split">Dela</string>
+    <string name="captionui_new">Ny</string>
+    <string name="captionui_delete">Ta bort</string>
+    <string name="captionui_deselect">Avmarkera</string>
+    <string name="captionui_playhead_inside">Ställ spelhuvudet inne i undertexten</string>
+    <string name="captionui_caption">Undertext</string>
+    <string name="captionui_done">Klar</string>
+    <string name="captionui_select_caption">Markera en undertext i tidslinjen</string>
+    <string name="captionui_time_hint">%1$s – %2$s  ·  dra blocket i tidslinjen för att flytta, kanterna för att ändra längden</string>
+    <string name="captionui_font_error">Kunde inte läsa typsnittet: %1$s</string>
+    <string name="captionui_font">Typsnitt</string>
+    <string name="captionui_import">+ Importera</string>
+    <string name="captionui_size">Storlek</string>
+    <string name="captionui_color">Färg</string>
+    <string name="captionui_background">Platta bakom texten</string>
+    <string name="captionui_bg_none">Ingen</string>
+    <string name="captionui_bg_semi">Halvgenomskinlig</string>
+    <string name="captionui_bg_solid">Hel</string>
+    <string name="captionui_outline">Kontur</string>
+    <string name="captionui_off">Av</string>
+    <string name="captionui_position">Placering</string>
+    <string name="captionui_top">Uppe</string>
+    <string name="captionui_middle">Mitten</string>
+    <string name="captionui_bottom">Nere</string>
+    <string name="captionui_left">Vänster</string>
+    <string name="captionui_center">Centrerad</string>
+    <string name="captionui_right">Höger</string>
+    <string name="captionui_margin">Avstånd från kanten</string>
+    <string name="captionui_reset_style">Återställ stilen</string>
+
+    <!-- AudioGraphs.kt -->
+    <string name="audiographs_low_cut">Lågskärning</string>
+    <string name="audiographs_high_cut">Högskärning</string>
+    <string name="audiographs_on">På</string>
+    <string name="audiographs_off">Av</string>
+    <string name="audiographs_q_width">Q (bredd)</string>
+    <string name="audiographs_slope">%1$s dB/okt</string>
+    <string name="audiographs_comp_readout">Knä %1$s · %2$.1f:1 · dämpning vid 0 dB: %3$s</string>
+
+    <!-- engine/Transcribe.kt -->
+    <string name="transcribe_model_sv_best">Svenska</string>
+    <string name="transcribe_model_sv_best_detail">KB-Whisper small · 175 MB · bäst</string>
+    <string name="transcribe_model_sv_fast">Svenska, snabb</string>
+    <string name="transcribe_model_sv_fast_detail">KB-Whisper base · 55 MB</string>
+    <string name="transcribe_model_multi">Andra språk</string>
+    <string name="transcribe_model_multi_detail">Whisper small · 190 MB · känner igen språket</string>
+    <string name="transcribe_downloading">Hämtar modellen (%1$d MB, en gång)</string>
+    <string name="transcribe_downloaded">Modellen är hämtad</string>
+    <string name="transcribe_canceled">Avbrutet</string>
+    <string name="transcribe_download_failed">Hämtningen misslyckades: %1$s</string>
+    <string name="transcribe_no_sequence">Ingen sekvens</string>
+    <string name="transcribe_no_audio">Inget ljud på A%1$d</string>
+    <string name="transcribe_unavailable">Taligenkänningen kunde inte startas på den här telefonen</string>
+    <string name="transcribe_starting">Startar taligenkänningen</string>
+    <string name="transcribe_listening">Lyssnar på klipp %1$d av %2$d</string>
+    <string name="transcribe_no_speech">Inget tal hittades</string>
+    <string name="transcribe_track_name">Automatiska undertexter</string>
+    <plurals name="transcribe_done">
+        <item quantity="one">%1$d undertext på %2$.0f s – tryck på en rad för att rätta</item>
+        <item quantity="other">%1$d undertexter på %2$.0f s – tryck på en rad för att rätta</item>
+    </plurals>
+    <string name="transcribe_failed">Det gick inte: %1$s</string>
+    <string name="transcribe_no_speech_clips">Det finns inget ljud på ljudspåren att skriva ut</string>
+    <plurals name="transcribe_words_done">
+        <item quantity="one">%1$d ord på %2$.0f s</item>
+        <item quantity="other">%1$d ord på %2$.0f s</item>
+    </plurals>
+</resources>

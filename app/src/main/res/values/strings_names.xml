@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Display names for values that are saved in projects in Swedish (see Str.name) -->
+    <string name="names_node_primary">Primary</string>
+    <string name="names_lut_bleach">Bleach</string>
+    <string name="names_font_sans_bold">Sans Bold</string>
+    <string name="names_font_condensed">Condensed</string>
+    <string name="names_font_light">Light</string>
+    <string name="names_font_handwriting">Handwriting</string>
+    <string name="names_font_casual">Casual</string>
+</resources>

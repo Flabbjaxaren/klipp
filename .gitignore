@@ -1,0 +1,28 @@
+# Gradle / Android Studio
+.gradle/
+.kotlin/
+build/
+.cxx/
+.externalNativeBuild/
+captures/
+.idea/
+*.iml
+local.properties
+
+# Rust
+rust/target/
+
+# The built engine bridge (libklipp_bridge.so): built from rust/ with cargo-ndk (see README), CI builds it too
+app/src/main/jniLibs/
+
+# Signing keys – never in the repository
+*.jks
+*.keystore
+keystore.properties
+
+# Python (tools/spektrafilm)
+venv/
+__pycache__/
+
+# macOS
+.DS_Store

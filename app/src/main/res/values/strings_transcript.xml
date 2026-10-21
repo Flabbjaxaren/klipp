@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="transcript_title">Edit by text</string>
+    <string name="transcript_info">The speech becomes text, word by word. Delete words and the video is cut along with them.</string>
+    <string name="transcript_open">Open transcript</string>
+    <string name="transcript_empty">No transcript yet. Choose a speech model and let the phone listen to the audio tracks (nothing leaves the phone).</string>
+    <string name="transcript_transcribe">Transcribe</string>
+    <string name="transcript_remove_pauses">Remove pauses</string>
+    <string name="transcript_remove_fillers">Remove filler words</string>
+    <string name="transcript_hint">Tap a word to jump there. Tap another word to select everything in between.</string>
+    <string name="transcript_hint_selected">Delete cuts the words out of the video, sound and captions.</string>
+    <plurals name="transcript_delete_words">
+        <item quantity="one">Delete %1$d word</item>
+        <item quantity="other">Delete %1$d words</item>
+    </plurals>
+</resources>

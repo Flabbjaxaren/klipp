@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TitleUi.kt -->
+    <string name="titleui_sample_lower_third">Anna Berg\nFisher, Smögen</string>
+    <string name="titleui_sample_chapter">Chapter 2\nThe Sea</string>
+    <string name="titleui_sample_roll">Cast:\nAnna Berg\nJonas Ek\nCamera:\nGustav\nEditor:\nGustav</string>
+    <string name="titleui_title">Title</string>
+    <string name="titleui_field_name">Name</string>
+    <string name="titleui_field_role">Role</string>
+    <string name="titleui_field_heading">Heading</string>
+    <string name="titleui_field_sub">Subtitle</string>
+    <string name="titleui_field_lines">Lines</string>
+    <string name="titleui_field_text">Text</string>
+    <string name="titleui_roll_hint">Lines ending in a colon become small headings. The text scrolls for the whole clip.</string>
+    <string name="titleui_panel_title">Text &amp; Captions</string>
+    <string name="titleui_template">Template</string>
+    <string name="titleui_entrance">Entrance</string>
+    <string name="titleui_content">Content</string>
+    <string name="titleui_titles_on_timeline">Titles on the Timeline</string>
+    <string name="titleui_captions">Captions</string>
+    <string name="titleui_captions_shown">Shown</string>
+    <string name="titleui_captions_hidden">Hidden</string>
+    <string name="titleui_new_caption">New Caption</string>
+    <string name="titleui_import_captions">Import SRT / VTT</string>
+    <string name="titleui_hide_style">Hide Style</string>
+    <string name="titleui_font_and_style">Font &amp; Style</string>
+    <string name="titleui_captions_hint">Captions appear in the picture and are burned in on export.</string>
+    <string name="titleui_add_at">Add at %1$s</string>
+    <string name="titleui_size">Size</string>
+    <string name="titleui_save">Save</string>
+    <string name="titleui_delete">Delete</string>
+    <string name="titleui_auto_captions_title">Auto-Generate Captions</string>
+    <string name="titleui_auto_captions_info">Speech becomes text right on your phone – no audio is sent anywhere. Swedish uses KB-Whisper from the National Library of Sweden.</string>
+    <string name="titleui_model_ready">%1$s · downloaded</string>
+    <string name="titleui_model_needs_download">%1$s · needs a one-time download</string>
+    <string name="titleui_track_empty">A%1$d (empty)</string>
+    <string name="titleui_cancel">Cancel</string>
+    <string name="titleui_download_model">Download Model (%1$d MB)</string>
+    <string name="titleui_generate_captions">Generate Captions</string>
+    <string name="titleui_follow_node">%1$s · node %2$02d</string>
+    <string name="titleui_follow_object">Follow an Object</string>
+    <string name="titleui_follow_hint">Track an object in Color (Window → Track Object) on the clip under the title, and the title can follow it.</string>
+    <string name="titleui_follow_none">Static</string>
+
+    <!-- CaptionUi.kt -->
+    <string name="captionui_edit">Edit</string>
+    <string name="captionui_split">Split</string>
+    <string name="captionui_new">New</string>
+    <string name="captionui_delete">Delete</string>
+    <string name="captionui_deselect">Deselect</string>
+    <string name="captionui_playhead_inside">Place the playhead inside the caption</string>
+    <string name="captionui_caption">Caption</string>
+    <string name="captionui_done">Done</string>
+    <string name="captionui_select_caption">Select a caption in the timeline</string>
+    <string name="captionui_time_hint">%1$s – %2$s  ·  drag the block in the timeline to move it, the edges to change its length</string>
+    <string name="captionui_font_error">Couldn\'t read the font: %1$s</string>
+    <string name="captionui_font">Font</string>
+    <string name="captionui_import">+ Import</string>
+    <string name="captionui_size">Size</string>
+    <string name="captionui_color">Color</string>
+    <string name="captionui_background">Box Behind Text</string>
+    <string name="captionui_bg_none">None</string>
+    <string name="captionui_bg_semi">Semi-transparent</string>
+    <string name="captionui_bg_solid">Solid</string>
+    <string name="captionui_outline">Outline</string>
+    <string name="captionui_off">Off</string>
+    <string name="captionui_position">Position</string>
+    <string name="captionui_top">Top</string>
+    <string name="captionui_middle">Middle</string>
+    <string name="captionui_bottom">Bottom</string>
+    <string name="captionui_left">Left</string>
+    <string name="captionui_center">Center</string>
+    <string name="captionui_right">Right</string>
+    <string name="captionui_margin">Distance from Edge</string>
+    <string name="captionui_reset_style">Reset Style</string>
+
+    <!-- AudioGraphs.kt -->
+    <string name="audiographs_low_cut">Low Cut</string>
+    <string name="audiographs_high_cut">High Cut</string>
+    <string name="audiographs_on">On</string>
+    <string name="audiographs_off">Off</string>
+    <string name="audiographs_q_width">Q (Width)</string>
+    <string name="audiographs_slope">%1$s dB/oct</string>
+    <string name="audiographs_comp_readout">Knee %1$s · %2$.1f:1 · reduction at 0 dB: %3$s</string>
+
+    <!-- engine/Transcribe.kt -->
+    <string name="transcribe_model_sv_best">Swedish</string>
+    <string name="transcribe_model_sv_best_detail">KB-Whisper small · 175 MB · best</string>
+    <string name="transcribe_model_sv_fast">Swedish, fast</string>
+    <string name="transcribe_model_sv_fast_detail">KB-Whisper base · 55 MB</string>
+    <string name="transcribe_model_multi">Other languages</string>
+    <string name="transcribe_model_multi_detail">Whisper small · 190 MB · detects the language</string>
+    <string name="transcribe_downloading">Downloading the model (%1$d MB, one time only)</string>
+    <string name="transcribe_downloaded">Model downloaded</string>
+    <string name="transcribe_canceled">Canceled</string>
+    <string name="transcribe_download_failed">Download failed: %1$s</string>
+    <string name="transcribe_no_sequence">No sequence</string>
+    <string name="transcribe_no_audio">No audio on A%1$d</string>
+    <string name="transcribe_unavailable">Speech recognition couldn\'t start on this phone</string>
+    <string name="transcribe_starting">Starting speech recognition</string>
+    <string name="transcribe_listening">Listening to clip %1$d of %2$d</string>
+    <string name="transcribe_no_speech">No speech found</string>
+    <string name="transcribe_track_name">Auto Captions</string>
+    <plurals name="transcribe_done">
+        <item quantity="one">%1$d caption in %2$.0f s – tap a line to fix it</item>
+        <item quantity="other">%1$d captions in %2$.0f s – tap a line to fix it</item>
+    </plurals>
+    <string name="transcribe_failed">Something went wrong: %1$s</string>
+    <string name="transcribe_no_speech_clips">There is no sound on the audio tracks to transcribe</string>
+    <plurals name="transcribe_words_done">
+        <item quantity="one">%1$d word in %2$.0f s</item>
+        <item quantity="other">%1$d words in %2$.0f s</item>
+    </plurals>
+</resources>

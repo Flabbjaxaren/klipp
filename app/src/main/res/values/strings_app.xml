@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MainActivity.kt -->
+    <string name="mainactivity_no_media_yet">No media yet</string>
+    <string name="mainactivity_engine_failed">Couldn\'t load the engine – prototype mode</string>
+    <string name="mainactivity_crash_clip_label">Klipp crash report</string>
+    <string name="mainactivity_crash_copied">Crash report copied</string>
+
+    <!-- Theme.kt -->
+    <string name="theme_accent_amber">Amber</string>
+    <string name="theme_accent_blue">Blue</string>
+    <string name="theme_accent_green">Green</string>
+    <string name="theme_accent_purple">Purple</string>
+    <string name="theme_accent_pink">Pink</string>
+    <string name="theme_accent_red">Red</string>
+    <string name="theme_accent_yellow">Yellow</string>
+    <string name="theme_accent_cyan">Cyan</string>
+    <string name="theme_base_dark">Dark</string>
+    <string name="theme_base_dark_hint">default</string>
+    <string name="theme_base_black">Black</string>
+    <string name="theme_base_black_hint">OLED – saves battery</string>
+    <string name="theme_base_graphite">Graphite</string>
+    <string name="theme_base_graphite_hint">a bit lighter</string>
+
+    <!-- AudioUi.kt -->
+    <string name="audioui_effects">Audio Effects</string>
+    <string name="audioui_effects_hint">Effects apply only to this clip and play right away.</string>
+    <string name="audioui_on">On</string>
+    <string name="audioui_off">Off</string>
+    <string name="audioui_remove">Remove</string>
+    <string name="audioui_not_controlled">This effect isn\'t controlled from here.</string>
+
+    <!-- App.kt -->
+    <string name="app_mode_edit">Edit</string>
+    <string name="app_mode_color">Color</string>
+    <string name="app_mode_audio">Audio</string>
+    <string name="app_mode_text">Text</string>
+    <string name="app_lut_imported">LUT imported: %1$s</string>
+    <string name="app_lut_read_failed">Couldn\'t read the LUT: %1$s</string>
+    <string name="app_export_needs_clips">Export needs real clips</string>
+    <string name="app_timeline_empty">The timeline is empty</string>
+    <string name="app_export_saved">Saved to Movies/Klipp</string>
+    <string name="app_export_failed">Export failed: %1$s</string>
+    <string name="app_hdr_blocked">The clips are color graded – grading happens in SDR, so the export will be SDR for correct colors.</string>
+    <string name="app_mic_failed">Couldn\'t start the microphone: %1$s</string>
+    <string name="app_nothing_recorded">Nothing was recorded</string>
+    <string name="app_voiceover_name">Voice-over %1$s</string>
+    <string name="app_mic_permission">Klipp needs the microphone for voice-over</string>
+    <string name="app_playback_rebuild_failed">Couldn\'t rebuild playback (%1$s)</string>
+    <string name="app_render_failed">Rendering failed: %1$s</string>
+    <string name="app_timeline_rendered">The timeline is rendered</string>
+    <string name="app_lut_fallback">The color pass didn\'t work on this GPU – using standard effects (trilinear LUT)</string>
+    <string name="app_marker_at">Marker at %1$s</string>
+    <string name="app_copied_to_source">Copied to Source – pick a spot and insert</string>
+    <string name="app_undone">Undone</string>
+    <string name="app_redone">Redone</string>
+    <string name="app_prototype_mode">Prototype mode</string>
+    <string name="app_gesture_three">Swipe = switch mode · tap = redo</string>
+    <string name="app_gesture_two">Pinch = zoom · tap = undo</string>
+    <string name="app_new_project_title">New project?</string>
+    <string name="app_new_project_text">The current project is saved in the archive and you start with an empty timeline.</string>
+    <string name="app_new_project">New Project</string>
+    <string name="app_cancel">Cancel</string>
+    <string name="app_render_timeline">Render Timeline</string>
+    <string name="app_render_timeline_hint">everything plays from finished files – smooth, no lag. If something changes, that part is re-rendered when you ask</string>
+    <string name="app_render_auto_on">Render automatically: on</string>
+    <string name="app_render_auto_off">Render automatically: off</string>
+    <string name="app_render_auto_hint">heavy parts (layers, effects, transitions) render in the background when you\'re not playing or dragging – uses battery</string>
+    <string name="app_delete_renders">Delete Renders</string>
+    <string name="app_megabytes">%1$.0f MB</string>
+    <string name="app_renders_deleted">Renders deleted</string>
+    <string name="app_app_settings">App Settings</string>
+    <string name="app_app_settings_hint">theme, timeline, proxy, export defaults …</string>
+    <string name="app_projects">Projects</string>
+    <string name="app_settings">Settings</string>
+    <string name="app_undo">Undo</string>
+    <string name="app_redo">Redo</string>
+    <string name="app_export">Export</string>
+    <string name="app_add_marker">Add marker</string>
+    <string name="app_prev_frame">Previous frame</string>
+    <string name="app_pause">Pause</string>
+    <string name="app_play">Play</string>
+    <string name="app_next_frame">Next frame</string>
+    <string name="app_next_edit">Next edit point</string>
+    <string name="app_tool_move">Move</string>
+    <string name="app_tool_ripple">Ripple</string>
+    <string name="app_tool_trim">Trim</string>
+    <string name="app_tool_razor">Razor</string>
+    <string name="app_linked_selection">Linked selection</string>
+    <string name="app_linked_on">Linked selection on – video and audio move together</string>
+    <string name="app_linked_off">Linked selection off – video and audio move separately</string>
+    <string name="app_locked_playhead">Locked playhead</string>
+    <string name="app_playhead_locked">Playhead locked in the center – drag the timeline</string>
+    <string name="app_playhead_free">Free timeline – drag the playhead</string>
+    <string name="app_magnetic_snapping">Magnetic snapping</string>
+    <string name="app_snapping_on">Magnetic snapping on</string>
+    <string name="app_snapping_off">Magnetic snapping off</string>
+    <string name="app_back">Back</string>
+    <string name="app_ramp">Ramp</string>
+    <string name="app_freeze">Freeze</string>
+    <string name="app_seconds">%1$d s</string>
+    <string name="app_half_second">0.5 s</string>
+    <string name="app_copy">Copy</string>
+    <string name="app_split">Split</string>
+    <string name="app_properties">Properties</string>
+    <string name="app_speed">Speed</string>
+    <string name="app_forward">Forward</string>
+    <string name="app_reverse">Reverse</string>
+    <string name="app_enable">Enable</string>
+    <string name="app_disable">Disable</string>
+    <string name="app_delete">Delete</string>
+    <string name="app_ripple_delete">Ripple Delete</string>
+    <plurals name="app_n_clips">
+        <item quantity="one">%1$d clip</item>
+        <item quantity="other">%1$d clips</item>
+    </plurals>
+    <plurals name="app_n_captions">
+        <item quantity="one">%1$d caption</item>
+        <item quantity="other">%1$d captions</item>
+    </plurals>
+    <string name="app_toggle_enabled">On/Off</string>
+    <string name="app_ungroup">Ungroup</string>
+    <string name="app_group">Group</string>
+    <string name="app_deselect">Deselect</string>
+    <string name="app_rendering_progress">Rendering %1$d%%  ✕</string>
+    <string name="app_waiting">Waiting …</string>
+    <string name="app_render">Render</string>
+    <string name="app_crossfade">Crossfade</string>
+    <string name="app_length">Length</string>
+    <string name="app_fade_in_from_white">Fade in from white</string>
+    <string name="app_fade_in">Fade in</string>
+    <string name="app_fade_out_to_white">Fade out to white</string>
+    <string name="app_fade_out">Fade out</string>
+    <string name="app_to_white">To white</string>
+    <string name="app_to_black">To black (transparent)</string>
+    <string name="app_reverse_direction">Reverse direction</string>
+    <string name="app_prerender">Pre-render</string>
+    <string name="app_rendered">Rendered</string>
+    <string name="app_rendering">Rendering…</string>
+    <string name="app_remove">Remove</string>
+    <string name="app_add_clip">Add clip</string>
+    <string name="app_short_link">Link</string>
+    <string name="app_short_center">Lock</string>
+    <string name="app_short_snap">Snap</string>
+    <string name="app_edit_text">Edit text</string>
+    <string name="app_volume">Volume</string>
+    <string name="app_fade">Fade</string>
+    <string name="app_go_to_time">Go to time</string>
+    <string name="app_go">Go</string>
+    <string name="app_timecode_hint">Digits fill from the right: 1512 = 15 s 12 frames. +200 = 2 s forward.</string>
+</resources>
