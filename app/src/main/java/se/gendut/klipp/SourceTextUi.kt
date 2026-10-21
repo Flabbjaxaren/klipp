@@ -122,6 +122,8 @@ fun SourceTextView(
             ws.isEmpty() || redo -> Column(Modifier.verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
                 Text(stringResource(if (redo) R.string.transcript_redo_hint else R.string.source_text_empty), color = K.OnSurfaceVar, fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                // the last run's result ("No speech found" …) right under the hint, where it is seen
+                ac.message?.let { Text(it, color = K.Primary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("src:message")) }
                 val pick = rememberSpeechPick()
                 SpeechPicker(pick, "src")
                 val model = pick.model
@@ -135,7 +137,6 @@ fun SourceTextView(
                     else -> PillButton(stringResource(R.string.transcript_transcribe), { haptics.confirm(); redo = false; onSelect(null); text.transcribe(ctx, pick) },
                         Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("src:transcribe"), icon = Ic.Transcript)
                 }
-                ac.message?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
                 if (redo) ToggleChip(stringResource(R.string.titleui_cancel), false, { redo = false }, Modifier.padding(horizontal = 14.dp))
             }
             else -> {
