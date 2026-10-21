@@ -813,6 +813,14 @@ class ProgramPlayback(private val context: Context) {
         nudgeUp = !nudgeUp
     }
 
+    /**
+     * Draw the current frame again (the view changed size while paused: the surface keeps the old frame, drawn at the
+     * old size and shifted, until the player renders a new one).
+     */
+    fun redraw() {
+        if (hasContent && !player.isPlaying) nudge()
+    }
+
     fun start(positionSec: Double): String? {
         if (lastKey == null || player.playbackState == androidx.media3.common.Player.STATE_IDLE || !hasContent) {
             // a failed build is retried once before it becomes an error (an empty timeline is not)

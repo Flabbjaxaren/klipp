@@ -58,6 +58,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.shadow
@@ -1690,7 +1691,7 @@ private fun FullViewer(
             when {
                 isSource -> FitPlayerSurface(source.player, Modifier.fillMaxSize())
                 controller != null && playback != null -> {
-                    ProgramSurface(playback.player, usesBlendModes(), Modifier.fillMaxSize())
+                    ProgramSurface(playback.player, usesBlendModes(), Modifier.fillMaxSize().redrawOnResize(playback, state))
                     UpperLayers(controller, state, playback.player, gradeOf = { gs?.grades?.get(it) }, look = playback.look, gradesKey = gs?.revision)
                     LaunchedEffect(Unit) { playback.onSurfaceAttached(state.playhead.toDouble()) }
                 }

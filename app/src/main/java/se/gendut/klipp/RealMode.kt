@@ -66,6 +66,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
@@ -159,6 +160,25 @@ fun durText(sec: Double): String {
 
 // ------------------------------------------------------------------ program monitor
 
+/**
+ * A resized monitor (the handle, rotation) shows the paused frame drawn at the old size and shifted until the player
+ * renders again: once the size has settled, the frame is drawn anew.
+ */
+@Composable
+fun Modifier.redrawOnResize(playback: ProgramPlayback, state: EditorState): Modifier {
+    var size by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    LaunchedEffect(size) {
+        if (size == androidx.compose.ui.unit.IntSize.Zero) return@LaunchedEffect
+        // the surface's new size reaches the player's video pipeline a moment later (its own thread): once soon, and
+        // again when it has surely arrived
+        kotlinx.coroutines.delay(150)
+        if (!state.playing) playback.redraw()
+        kotlinx.coroutines.delay(350)
+        if (!state.playing) playback.redraw()
+    }
+    return this.then(Modifier.onSizeChanged { size = it })
+}
+
 @OptIn(UnstableApi::class)
 @Composable
 fun ProgramMonitor(
@@ -178,7 +198,7 @@ fun ProgramMonitor(
             // clipped to the frame: nothing (scaled/moved layer, still) is drawn outside the program image
             Box(Modifier.fillMaxSize().wrapContentSize().aspectRatio(aspect, matchHeightConstraintsFirst = aspect < 16f / 9f).clipToBounds()) {
                 // the composition always outputs the sequence format (each clip is fitted in Playback), the box has the same shape
-                ProgramSurface(playback.player, usesBlendModes(), Modifier.fillMaxSize())
+                ProgramSurface(playback.player, usesBlendModes(), Modifier.fillMaxSize().redrawOnResize(playback, state))
                 // no image under the playhead (empty track, gap, everything deleted): black – the player surface could
                 // otherwise keep showing its last frame
                 val noVideo by remember(q) {
