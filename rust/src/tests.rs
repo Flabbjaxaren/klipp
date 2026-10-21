@@ -1248,3 +1248,22 @@ fn keyframe_ease_and_influence() {
 const EASE_Q1: f64 = 8.51905335501151;
 const EASE_HALF: f64 = 62.66094097352554;
 const EASE_Q3: f64 = 77.29654326012408;
+
+#[test]
+fn transcript_of_a_media_item() {
+    let mut b = Bridge::new();
+    ok(&mut b, "file.import", json!({"paths": [media("klipp_a.mp4")]}));
+    let tps = filmcraft_engine::time::TICKS_PER_SECOND;
+    let words = json!([{"text": "Hej", "start": tps, "end": 2 * tps}, {"text": "där.", "start": 2 * tps, "end": 3 * tps}]);
+    ok(&mut b, "transcript.set", json!({"item": 1, "transcript": {"language": "sv", "source": "whisper", "speakers": [], "words": words}}));
+    let r = ok(&mut b, "klipp.transcriptOf", json!({"item": 1}));
+    assert_eq!(r["words"].as_array().unwrap().len(), 2);
+    assert_eq!(r["words"][1]["text"], "där.");
+    assert_eq!(r["words"][0]["start"].as_i64().unwrap(), tps as i64);
+    assert_eq!(r["language"], "sv");
+    let s: Value = serde_json::from_str(&b.snapshot()).unwrap();
+    assert_eq!(s["media"][0]["words"], 2);
+    // no transcript: empty
+    ok(&mut b, "transcript.delete", json!({"items": [1]}));
+    assert!(ok(&mut b, "klipp.transcriptOf", json!({"item": 1}))["words"].as_array().unwrap().is_empty());
+}

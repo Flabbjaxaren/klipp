@@ -15,4 +15,12 @@
     </plurals>
     <string name="transcript_redo">Transcribe again</string>
     <string name="transcript_redo_hint">Listen again, for example in another language or at a higher quality. The new transcript replaces the old one.</string>
+    <string name="source_text">Text</string>
+    <string name="source_show_text">Show the clip as text</string>
+    <string name="source_show_picture">Show the picture</string>
+    <string name="source_text_empty">No transcript yet. Transcribe the clip and pick its sentences as text – nothing leaves the phone.</string>
+    <string name="source_text_hint">Tap a sentence to mark it, tap another to extend. Then Insert or Overwrite.</string>
+    <string name="source_text_selected">Marked: %1$s</string>
+    <string name="source_transcribing_other">Another transcription is running.</string>
+    <string name="medialibrary_has_text">Has transcript</string>
 </resources>

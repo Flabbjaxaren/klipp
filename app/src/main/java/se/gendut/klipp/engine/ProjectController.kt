@@ -1640,6 +1640,15 @@ class ProjectController(
         transcriptRevision++
     }
 
+    /** One media item's transcript: words with media seconds (empty without a transcript). */
+    suspend fun mediaWords(item: Long): List<SpeechLine> = editLock.withLock {
+        val a = engine.tryExec("klipp.transcriptOf", JSONObject().put("item", item)).getOrNull()?.optJSONArray("words") ?: return@withLock emptyList()
+        (0 until a.length()).map { k ->
+            val o = a.getJSONObject(k)
+            SpeechLine(o.optLong("start") / TICKS_PER_SECOND.toDouble(), o.optLong("end") / TICKS_PER_SECOND.toDouble(), o.optString("text"))
+        }
+    }
+
     /** Remove a media item's transcript (a new run found no speech in it). */
     suspend fun deleteTranscript(item: Long) = editLock.withLock {
         if (engine.tryExec("transcript.delete", JSONObject().put("items", JSONArray().put(item))).isSuccess) { refresh(); transcriptRevision++ }

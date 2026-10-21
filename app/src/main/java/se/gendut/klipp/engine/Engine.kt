@@ -138,6 +138,8 @@ data class MediaInfo(
     /** The bin in the media panel; null = top level. */
     val bin: Long? = null,
     val offline: Boolean = false,
+    /** Words in the item's transcript (0 = none). */
+    val words: Int = 0,
 )
 
 /** A bin in the media panel. */
@@ -367,6 +369,7 @@ data class Snapshot(
                     markOut = it.dbl("markOut"),
                     bin = if (it.isNull("bin") || !it.has("bin")) null else it.optLong("bin"),
                     offline = it.optBoolean("offline"),
+                    words = it.optInt("words"),
                 )
             }
             val seq = o.optJSONObject("sequence")?.let { q ->

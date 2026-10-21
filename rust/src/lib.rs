@@ -176,6 +176,17 @@ impl Bridge {
                     Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
                 };
             }
+            "klipp.transcriptOf" => {
+                // one media item's transcript (the engine only lists the sequence's): words with media times
+                let Some(id) = params["item"].as_u64() else {
+                    return json!({"ok": false, "error": "needs item"}).to_string();
+                };
+                let words: Vec<Value> = self.session.project.transcripts.get(&filmcraft_engine::project::ItemId(id))
+                    .map(|t| t.words.iter().map(|w| json!({"text": w.text, "start": w.start.0, "end": w.end.0})).collect())
+                    .unwrap_or_default();
+                let language = self.session.project.transcripts.get(&filmcraft_engine::project::ItemId(id)).map(|t| t.language.clone());
+                return json!({"ok": true, "result": {"words": words, "language": language}}).to_string();
+            }
             "klipp.clearRedo" => {
                 // a change outside the engine (color) after an undo: the engine's redo steps no longer apply
                 self.session.history.redo.clear();
@@ -495,6 +506,8 @@ fn collect_items(p: &Project, entries: &[BinEntry], out: &mut Vec<Value>, s: &Se
                         "markOut": mc.mark_out.map(secs),
                         "bin": bin,
                         "offline": mc.offline,
+                        // words in the item's transcript (0 = none) – the media library shows which files have text
+                        "words": p.transcripts.get(id).map(|t| t.words.len()).unwrap_or(0),
                     }));
                 }
             }

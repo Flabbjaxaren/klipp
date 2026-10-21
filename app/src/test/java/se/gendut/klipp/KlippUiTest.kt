@@ -213,6 +213,51 @@ class KlippUiTest {
     }
 
     @Test
+    fun sourceTextPicksSentencesAsMarks() {
+        val state = EditorState()
+        val media = se.gendut.klipp.engine.MediaInfo(
+            id = 1, name = "intervju.mp4", path = null, duration = 30.0, hasVideo = true, hasAudio = true,
+            width = 1920, height = 1080, fps = 25.0, markIn = null, markOut = null, words = 7,
+        )
+        fun L(a: Double, b: Double, t: String) = se.gendut.klipp.engine.SpeechLine(a, b, t)
+        val words = listOf(L(1.0, 1.4, "Vi"), L(1.4, 1.8, "åker"), L(1.8, 2.3, "ut."), L(3.0, 3.4, "Havet"), L(3.4, 3.9, "är"), L(3.9, 4.5, "stilla."), L(9.0, 9.5, "Slut"))
+        val marks = ArrayList<Pair<Double?, Double?>>()
+        val edits = ArrayList<Boolean>()
+        val text = object : SourceText {
+            override val revision = 0
+            override suspend fun words() = words
+            override fun transcribe(context: android.content.Context, pick: SpeechPick) {}
+        }
+        rule.setContent {
+            KlippTheme {
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val src = androidx.compose.runtime.remember { se.gendut.klipp.engine.SourcePlayback(ctx) }
+                androidx.compose.foundation.layout.Column(androidx.compose.ui.Modifier.fillMaxSize()) {
+                    SourcePanel(media, android.net.Uri.parse("file:///none.mp4"), src, state, setMarks = { a, b -> marks += a to b },
+                        edit = { ow, done -> edits += ow; done() }, onClose = { edits += false }, text = text)
+                }
+            }
+        }
+        rule.onNodeWithTag("source:text").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("src:s1").performClick()
+        rule.waitForIdle()
+        // "Havet är stilla.": a little air before, after the last word, never into the neighbours
+        assertEquals(2.88, marks.last().first!!, 1e-6)
+        assertEquals(4.7 - 0.04, marks.last().second!!, 1e-6)
+        // another sentence = the marks stretch to it
+        rule.onNodeWithTag("src:s0").performClick()
+        rule.waitForIdle()
+        assertEquals(0.88, marks.last().first!!, 1e-6)
+        rule.onRoot().captureRoboImage("$dir/13b_kalla_text.png")
+        // insert: the panel stays open (pick the next sentences), the marks were pushed first
+        rule.onNodeWithText("Infoga").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf(false), edits)
+        rule.onNodeWithTag("sourceText").assertExists()
+    }
+
+    @Test
     fun copyActionSendsSelectedClip() {
         val state = EditorState()
         var copied: Long? = null
