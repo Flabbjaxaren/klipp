@@ -793,6 +793,8 @@ fun KlippApp(
                 exit = slideOutVertically(spring(1f, 500f)) { it / 4 } + fadeOut(),
             ) {
                 val backend = remember(controller) { controllerProjects(controller) }
+                // the system back closes the page (it left the app)
+                androidx.activity.compose.BackHandler { showProjects = false }
                 ProjectsScreen(backend) { showProjects = false }
             }
             if (showSettings) {
