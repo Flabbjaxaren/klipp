@@ -13,12 +13,15 @@ A multi-track video editor for Android phones, built for touch. A Kotlin/Jetpack
 - **Touch first:** swipe down through a clip to cut it, drag a clip up out of the timeline to delete it, drag any
   edge to trim (with a loupe and a two-frame trim view), long-press to lift, pinch to zoom; scrub on the ruler or the
   picture and slide the finger down for ½, ¼, ⅛ speed; two-finger tap = undo, three = redo.
-- **Text-based editing:** on-device speech recognition (whisper.cpp, Swedish and multilingual models) turns the
-  audio into text; delete words to cut the video, remove pauses and filler words. Automatic captions.
+- **Text-based editing:** on-device speech recognition (whisper.cpp with voice activity detection; Swedish,
+  English and multilingual models in three quality steps) turns the audio into text. In the timeline: delete words to
+  cut the video, remove pauses and filler words. In the source monitor: read a clip as sentences and tap the ones you
+  want to insert – one transcript per clip, shared by both. Automatic captions.
 - **Color:** node-based grading (wheels, curves, qualifiers, power windows with object tracking), LUTs, scopes,
   spektrafilm film simulation, OpenDRT, floating point through the whole video chain.
 - **Video layers:** transitions, titles and templates, captions, blend modes, masks with keyframes and tracking,
-  keyframed motion and opacity.
+  keyframed motion, opacity and volume – linear, easy ease, ease in/out or hold, and a value graph with bezier
+  handles (evaluated with the engine's own curve math, so preview and export match).
 - **Audio:** mixer with automation, effects (noise reduction, speech enhance, EQ, compressor …), auto ducking,
   loudness measurement, voice-over, downloadable sound effect packs.
 - **Performance:** proxies, pre-rendering of heavy parts, render cache, HDR and 10-bit.
@@ -68,6 +71,30 @@ Requirements: Android Studio (or SDK + JDK 21), Rust (rustup), Android NDK.
    ```
    ./gradlew assembleDebug
    ```
+
+### Signing
+
+Android only updates an installed app with an APK signed by the same key. The release build reads its key from
+`~/.klipp/keystore.properties` (outside the repository; or a file named by the `KLIPP_KEYSTORE` environment variable):
+
+```
+storeFile=/path/to/klipp-release.jks
+storePassword=…
+keyAlias=klipp
+keyPassword=…
+```
+
+Without it (e.g. on CI) the release build is signed with the debug key. `-Pklipp.debugSigned=true` forces the debug key,
+to update an install that was signed with it. Keep the key and its password backed up – without them no update can
+replace an installed Klipp.
+
+## Known limitations
+
+- Keyframes that end up before a clip's start (after trimming its start later) are drawn at the lane's edge but can't
+  be grabbed until the clip is extended again.
+- Clips imported through the system photo picker get generic names (e.g. `28.mp4`) – Android hides the file names.
+- Projects live inside the app; there is no project export yet, so uninstalling Klipp removes them.
+- Speech recognition runs on the CPU (the GPU path was tried and dropped: unstable drivers, slower on phones).
 
 ## Tests
 
