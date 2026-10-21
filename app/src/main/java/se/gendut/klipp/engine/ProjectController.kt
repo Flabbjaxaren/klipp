@@ -1164,7 +1164,7 @@ class ProjectController(
             fadeIn = t.transitions.firstOrNull { it.to == id }?.duration?.toFloat(),
             fadeOut = t.transitions.firstOrNull { it.from == id }?.duration?.toFloat(),
             seqW = q.width, seqH = q.height,
-            kf = c0.kf.mapValues { (_, l) -> l.map { se.gendut.klipp.UiKf(it.t.toFloat(), it.mt, it.interp) } },
+            kf = c0.kf.mapValues { (_, l) -> l.map { se.gendut.klipp.UiKf(it.t.toFloat(), it.mt, it.interp, it.v, it.inInf, it.outInf) } },
             clipStart = c0.start.toFloat(), clipEnd = c0.end.toFloat(),
             afx = c0.afx,
         )
@@ -1260,6 +1260,60 @@ class ProjectController(
             val (eff, param) = KfKeys.engine(key)
             engine.tryExec("effects.setInterpolation", JSONObject().put("clip", id).put("effect", eff).put("param", param)
                 .put("mediaTime", mt).put("interpolation", interp)).onFailure { onMessage(friendly(it.message)) }
+            refresh()
+        } }
+    }
+
+    override fun setEase(id: Long, key: String, mt: Long, ease: String) {
+        scope.launch { editLock.withLock {
+            val (eff, param) = KfKeys.engine(key)
+            fun p() = JSONObject().put("clip", id).put("effect", eff).put("param", param).put("mediaTime", mt)
+            val interp = when (ease) {
+                KfEase.EASY -> "bezier"
+                KfEase.IN -> "easeIn"
+                KfEase.OUT -> "easeOut"
+                KfEase.HOLD -> "hold"
+                else -> "linear"
+            }
+            group(Str.t(R.string.keyframeui_interp_title)) {
+                engine.tryExec("effects.setInterpolation", p().put("interpolation", interp)).onFailure { onMessage(friendly(it.message)) }
+                // the classic easy ease: a third of the segment on each eased side
+                if (ease != KfEase.LINEAR && ease != KfEase.HOLD) {
+                    val k = p()
+                    if (ease != KfEase.OUT) k.put("inInfluence", DEFAULT_INFLUENCE)
+                    if (ease != KfEase.IN) k.put("outInfluence", DEFAULT_INFLUENCE)
+                    engine.tryExec("effects.setKeyframe", k).onFailure { onMessage(friendly(it.message)) }
+                }
+            }
+            refresh()
+        } }
+    }
+
+    override fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?) {
+        if (inInf == null && outInf == null) return
+        scope.launch { editLock.withLock {
+            val (eff, param) = KfKeys.engine(key)
+            val p = JSONObject().put("clip", id).put("effect", eff).put("param", param).put("mediaTime", mt)
+            inInf?.let { p.put("inInfluence", it.coerceIn(0.01, 1.0)) }
+            outInf?.let { p.put("outInfluence", it.coerceIn(0.01, 1.0)) }
+            engine.tryExec("effects.setKeyframe", p).onFailure { onMessage(friendly(it.message)) }
+            refresh()
+        } }
+    }
+
+    override fun setKeyframeValue(id: Long, key: String, mt: Long, v: List<Double>) {
+        if (v.isEmpty()) return
+        scope.launch { editLock.withLock {
+            val (eff, param) = KfKeys.engine(key)
+            val value: Any = when (key) {
+                KfKeys.POSITION -> JSONArray().apply { v.forEach { put(it) } }
+                KfKeys.OPACITY -> v[0].coerceIn(0.0, 100.0)
+                KfKeys.LEVEL -> v[0].coerceIn(-60.0, 15.0)
+                KfKeys.SCALE -> v[0].coerceAtLeast(0.0)
+                else -> v[0]
+            }
+            engine.tryExec("effects.setKeyframe", JSONObject().put("clip", id).put("effect", eff).put("param", param)
+                .put("mediaTime", mt).put("value", value)).onFailure { onMessage(friendly(it.message)) }
             refresh()
         } }
     }

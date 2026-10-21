@@ -231,6 +231,15 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
             onMove = { k, t -> backend.moveKeyframe(p.id, key, k.mt, t) },
             onInterp = { k -> backend.setInterpolation(p.id, key, k.mt, nextInterp(k.interp)) },
             view = kfView, zoomBar = key == lowest,
+            onEase = { k, ease -> backend.setEase(p.id, key, k.mt, ease) },
+            onInfluence = { k, i, o -> backend.setInfluence(p.id, key, k.mt, i, o) },
+            onValue = { k, v -> backend.setKeyframeValue(p.id, key, k.mt, v) },
+            format = when (key) {
+                "level" -> { v -> "%+.1f dB".format(v).replace('-', '−') }
+                "scale", "opacity" -> { v -> fmtNum(v, " %") }
+                "rotation" -> { v -> fmtNum(v, "°") }
+                else -> { v -> "%.0f".format(v) }
+            },
         )
         Text(
             p.name, color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,

@@ -188,8 +188,16 @@ data class ClipProps(
     val isTitle get() = title != null
 }
 
-/** A keyframe in the UI: timeline time, media time (the engine's id for the keyframe) and interpolation. */
-data class UiKf(val t: Float, val mt: Long, val interp: String)
+/**
+ * A keyframe in the UI: timeline time, media time (the engine's id for the keyframe) and interpolation; for the value
+ * graph also its value(s) [v] and the ease handles' influence ([inInf], [outInf], 0..1).
+ */
+data class UiKf(
+    val t: Float, val mt: Long, val interp: String,
+    val v: List<Double> = emptyList(),
+    val inInf: Double = se.gendut.klipp.engine.DEFAULT_INFLUENCE,
+    val outInf: Double = se.gendut.klipp.engine.DEFAULT_INFLUENCE,
+)
 
 /**
  * A transition drawn by the timeline. anchor: −1 = fade in (locked to the clip's start), +1 = fade out (locked to the
@@ -249,6 +257,15 @@ interface PropsBackend {
     fun toggleKeyframe(id: Long, key: String, at: Float) {}
     fun moveKeyframe(id: Long, key: String, mt: Long, to: Float) {}
     fun setInterpolation(id: Long, key: String, mt: Long, interp: String) {}
+    /**
+     * The keyframe's ease (see KfEase): linear, easy ease (both sides, 33 % influence), ease in, ease out or hold.
+     * One undo step.
+     */
+    fun setEase(id: Long, key: String, mt: Long, ease: String) {}
+    /** The ease handles' influence (0..1); null = unchanged. */
+    fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?) {}
+    /** The keyframe's value (position: x, y). */
+    fun setKeyframeValue(id: Long, key: String, mt: Long, v: List<Double>) {}
     fun deleteCaption(id: Long) {}
     /** Move a caption [dt] seconds (the engine keeps it clear of its neighbors). One undo step. */
     fun moveCaption(id: Long, dt: Float) {}

@@ -83,6 +83,7 @@ object Ic {
     val Center = stroke("center", "M12 3v18", "M6 9l-3 3 3 3", "M18 9l3 3-3 3", "M9 3h6")
     // color mode
     val Wheels = stroke("wheels", "M12 3a9 9 0 1 0 0.01 0", "M14.5 9.5a1.5 1.5 0 1 0 0.01 0")
+    val Graph = stroke("graph", "M3 4v16h18", "M6 16c5 0 5-9 12-9")
     val Curves = stroke("curves", "M4 4h16v16H4z", "M4 20c6 0 4-12 16-16")
     val Cube = stroke("cube", "M12 3l8 4.5v9L12 21l-8-4.5v-9z", "M4 7.5l8 4.5 8-4.5", "M12 12v9")
     val Dropper = stroke("dropper", "M19.5 4.5a2.1 2.1 0 0 0-3 0L14 7l3 3 2.5-2.5a2.1 2.1 0 0 0 0-3z", "M15 8l-9.5 9.5L5 19l1.5-.5L16 9")
