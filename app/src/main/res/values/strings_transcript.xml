@@ -13,4 +13,6 @@
         <item quantity="one">Delete %1$d word</item>
         <item quantity="other">Delete %1$d words</item>
     </plurals>
+    <string name="transcript_redo">Transcribe again</string>
+    <string name="transcript_redo_hint">Listen again, for example in another language or at a higher quality. The new transcript replaces the old one.</string>
 </resources>

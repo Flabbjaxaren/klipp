@@ -439,7 +439,7 @@ private fun AutoCaptionsCard(controller: se.gendut.klipp.engine.ProjectControlle
     val haptics = rememberHaptics()
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val ac = se.gendut.klipp.engine.AutoCaptions
-    var model by remember { mutableStateOf(se.gendut.klipp.engine.SpeechModel.SV_BEST) }
+    val pick = rememberSpeechPick()
     val tracks = controller.snapshot.sequence?.audio.orEmpty()
     // the first audio track with clips (usually the camera audio on A1)
     var track by remember(tracks.size) { mutableStateOf(tracks.indexOfFirst { it.clips.isNotEmpty() }.coerceAtLeast(0)) }
@@ -448,11 +448,9 @@ private fun AutoCaptionsCard(controller: se.gendut.klipp.engine.ProjectControlle
             stringResource(R.string.titleui_auto_captions_info),
             color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp),
         )
-        val models = se.gendut.klipp.engine.SpeechModel.entries
-        ConnectedToggleGroup(models.map { it.label }, models.indexOf(model), { model = models[it] },
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "asr:model$it" })
+        SpeechPicker(pick, "asr")
+        val model = pick.model
         val ready = remember(model, ac.modelRevision, ac.running) { se.gendut.klipp.engine.SpeechModels.ready(ctx, model) }
-        Text(stringResource(if (ready) R.string.titleui_model_ready else R.string.titleui_model_needs_download, model.detail), color = K.Outline, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp))
         if (tracks.size > 1) {
             androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((i, t) in tracks.withIndex()) ToggleChip(if (t.clips.isEmpty()) stringResource(R.string.titleui_track_empty, i + 1) else "A${i + 1}", track == i, { track = i }, Modifier.testTag("asr:track$i"))
@@ -467,7 +465,7 @@ private fun AutoCaptionsCard(controller: se.gendut.klipp.engine.ProjectControlle
             PillButton(stringResource(R.string.titleui_download_model, model.bytes / 1_000_000), { haptics.confirm(); ac.download(ctx, model) },
                 Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("asr:download"), icon = Ic.Download, filled = false)
         } else {
-            PillButton(stringResource(R.string.titleui_generate_captions), { haptics.confirm(); ac.start(ctx, controller, model, track) },
+            PillButton(stringResource(R.string.titleui_generate_captions), { haptics.confirm(); ac.start(ctx, controller, model, pick.language, track) },
                 Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("asr:start"), icon = Ic.Subs)
         }
         ac.message?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp).testTag("asr:msg")) }

@@ -13,4 +13,6 @@
         <item quantity="one">Radera %1$d ord</item>
         <item quantity="other">Radera %1$d ord</item>
     </plurals>
+    <string name="transcript_redo">Skriv ut igen</string>
+    <string name="transcript_redo_hint">Lyssna igen, till exempel på ett annat språk eller med högre kvalitet. Den nya utskriften ersätter den gamla.</string>
 </resources>

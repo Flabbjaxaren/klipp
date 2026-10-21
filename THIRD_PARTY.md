@@ -26,8 +26,8 @@ Klipp itself is licensed under the GNU General Public License v3.0 (`LICENSE`). 
 
 | Content | Source | License |
 |---|---|---|
-| Speech models **KB-Whisper** small/base (ggml) | KBLab, National Library of Sweden – huggingface.co/KBLab | Apache-2.0 |
-| Speech model **Whisper** small (ggml) | OpenAI, converted by ggml – huggingface.co/ggerganov/whisper.cpp | MIT |
+| Speech models **KB-Whisper** base/small/medium (ggml, for Swedish) | KBLab, National Library of Sweden – huggingface.co/KBLab | Apache-2.0 |
+| Speech models **Whisper** base/small/large-v3-turbo and base.en/small.en (ggml) | OpenAI, converted by ggml – huggingface.co/ggerganov/whisper.cpp | MIT |
 | Sound effect packs | Kenney (kenney.nl) | CC0 |
 | Sound effect packs | BigSoundBank (bigsoundbank.com) | CC0 |
 | Sound search | Freesound (freesound.org) – only CC0 sounds, with the user's own API key | CC0 |

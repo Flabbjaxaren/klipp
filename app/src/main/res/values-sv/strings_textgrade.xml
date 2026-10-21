@@ -30,7 +30,7 @@
     <string name="titleui_save">Spara</string>
     <string name="titleui_delete">Ta bort</string>
     <string name="titleui_auto_captions_title">Skapa undertexter automatiskt</string>
-    <string name="titleui_auto_captions_info">Talet blir text direkt på telefonen – inget ljud skickas någonstans. Svenska använder KB-Whisper från Kungliga biblioteket.</string>
+    <string name="titleui_auto_captions_info">Talet blir text direkt på telefonen – inget ljud skickas någonstans. Whisper (OpenAI) på ett hundratal språk; svenska använder KB-Whisper från Kungliga biblioteket. Välj det talade språket – det är säkrare än att låta det kännas igen.</string>
     <string name="titleui_model_ready">%1$s · hämtad</string>
     <string name="titleui_model_needs_download">%1$s · behöver hämtas en gång</string>
     <string name="titleui_track_empty">A%1$d (tomt)</string>
@@ -84,12 +84,6 @@
     <string name="audiographs_comp_readout">Knä %1$s · %2$.1f:1 · dämpning vid 0 dB: %3$s</string>
 
     <!-- engine/Transcribe.kt -->
-    <string name="transcribe_model_sv_best">Svenska</string>
-    <string name="transcribe_model_sv_best_detail">KB-Whisper small · 175 MB · bäst</string>
-    <string name="transcribe_model_sv_fast">Svenska, snabb</string>
-    <string name="transcribe_model_sv_fast_detail">KB-Whisper base · 55 MB</string>
-    <string name="transcribe_model_multi">Andra språk</string>
-    <string name="transcribe_model_multi_detail">Whisper small · 190 MB · känner igen språket</string>
     <string name="transcribe_downloading">Hämtar modellen (%1$d MB, en gång)</string>
     <string name="transcribe_downloaded">Modellen är hämtad</string>
     <string name="transcribe_canceled">Avbrutet</string>
@@ -111,4 +105,10 @@
         <item quantity="one">%1$d ord på %2$.0f s</item>
         <item quantity="other">%1$d ord på %2$.0f s</item>
     </plurals>
+    <string name="transcribe_language">Talat språk</string>
+    <string name="transcribe_language_auto">Känn igen automatiskt</string>
+    <string name="transcribe_tier_fast">Snabb</string>
+    <string name="transcribe_tier_balanced">Balanserad</string>
+    <string name="transcribe_tier_best">Bäst</string>
+    <string name="transcribe_best_hint">Bäst är långsam: det kan ta lika lång tid som ljudet, eller längre.</string>
 </resources>
