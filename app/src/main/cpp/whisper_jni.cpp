@@ -4,9 +4,7 @@
 #include <android/log.h>
 #include <atomic>
 #include <string>
-#include <mutex>
 #include <vector>
-#include "ggml-backend.h"
 #include "whisper.h"
 
 namespace {
@@ -54,44 +52,16 @@ void json_escape(std::string &out, const char *s) {
 
 void silent_log(ggml_log_level, const char *, void *) {}
 
-// The CPU backend is always loaded; the OpenCL one (Adreno) only when the GPU is actually asked for – loading it
-// initializes the phone's OpenCL driver, which must never happen on the CPU path (a driver crash takes the app down).
-void load_cpu() {
-    static std::once_flag once;
-    std::call_once(once, [] { ggml_backend_load("libggml-cpu.so"); });
-}
-
-bool load_gpu() {
-    load_cpu();
-    static std::once_flag once;
-    static bool gpu = false;
-    std::call_once(once, [] {
-        ggml_backend_load("libggml-opencl.so");
-        for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
-            auto t = ggml_backend_dev_type(ggml_backend_dev_get(i));
-            if (t == GGML_BACKEND_DEVICE_TYPE_GPU || t == GGML_BACKEND_DEVICE_TYPE_IGPU) gpu = true;
-        }
-    });
-    return gpu;
-}
-
 } // namespace
 
 extern "C" {
 
-JNIEXPORT jboolean JNICALL Java_se_gendut_klipp_engine_Whisper_nativeGpuAvailable(JNIEnv *, jclass) {
+JNIEXPORT jlong JNICALL Java_se_gendut_klipp_engine_Whisper_nativeInit(JNIEnv *env, jclass, jstring path) {
     whisper_log_set(silent_log, nullptr);
-    return load_gpu() ? JNI_TRUE : JNI_FALSE;
-}
-
-JNIEXPORT jlong JNICALL Java_se_gendut_klipp_engine_Whisper_nativeInit(JNIEnv *env, jclass, jstring path, jboolean useGpu) {
-    whisper_log_set(silent_log, nullptr);
-    load_cpu();
-    const bool gpu = useGpu && load_gpu();
     const char *p = path ? env->GetStringUTFChars(path, nullptr) : nullptr;
     if (!p) return 0;
     whisper_context_params cp = whisper_context_default_params();
-    cp.use_gpu = gpu;
+    cp.use_gpu = false;
     whisper_context *w = whisper_init_from_file_with_params(p, cp);
     env->ReleaseStringUTFChars(path, p);
     if (!w) return 0;

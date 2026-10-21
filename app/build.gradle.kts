@@ -19,8 +19,6 @@ android {
         externalNativeBuild { cmake { arguments += listOf("-DCMAKE_BUILD_TYPE=Release", "-DANDROID_STL=c++_shared") } }
     }
     ndkVersion = "29.0.14206865"
-    // libOpenCL.so is only linked against (src/main/cpp/opencl_stub.c): the phone's own driver is loaded at run time
-    packaging { jniLibs { excludes += "**/libOpenCL.so" } }
     // per-app language in the system settings (Android 13+): English (default) and Swedish
     androidResources { generateLocaleConfig = true }
     lint {

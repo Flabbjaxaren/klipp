@@ -233,6 +233,4 @@
         <item quantity="one">De används %1$d gånger i tidslinjen – de klippen tas också bort.</item>
         <item quantity="other">De används %1$d gånger i tidslinjen – de klippen tas också bort.</item>
     </plurals>
-    <string name="settings_speech_gpu">Taligenkänning på grafikprocessorn (experimentellt)</string>
-    <string name="settings_speech_gpu_hint">Snabbare på Snapdragon, men kan krascha med vissa grafikdrivrutiner. Kraschar appen under en körning går den tillbaka till processorn.</string>
 </resources>

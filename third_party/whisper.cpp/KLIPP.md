@@ -3,14 +3,11 @@
 whisper.cpp 1.9.4 (commit 927cfce, MIT, © The ggml authors – see `LICENSE` and `AUTHORS`) for on-device speech recognition (auto captions,
 text-based editing), built by `app/src/main/cpp/CMakeLists.txt`.
 
-Trimmed to what the app builds: `src/`, `include/` and `ggml/` with only the CPU and OpenCL backends. Removed: the
-examples, bindings, test models, tests, CI scripts and every other ggml backend (CUDA, Vulkan, Metal, SYCL …).
+Trimmed to what the app builds: `src/`, `include/` and `ggml/` with only the CPU backend. Removed: the examples,
+bindings, test models, tests, CI scripts and every GPU backend (CUDA, Vulkan, Metal, SYCL, OpenCL …).
 
-## Changes
+No changes to the source.
 
-- `ggml/src/ggml-opencl/ggml-opencl.cpp` ("Klipp patch"): the buffer type's alignment, max size and alloc size and
-  `supports_op` initialize the OpenCL device on demand (`ggml_cl_init`). whisper.cpp asks them while it loads the
-  model, before the device is initialized; the device context was still null and the app crashed (SIGSEGV) on the
-  Adreno GPU of a Snapdragon 8 Elite Gen 5.
-
-Redo the patch when updating whisper.cpp.
+The Adreno GPU (the OpenCL backend) was tried and dropped: on a Snapdragon 8 Gen 3 it was ~90× slower than the CPU
+(whisper decodes token by token – too little work per GPU dispatch), and on a Snapdragon 8 Elite Gen 5 it crashed
+(the buffer type read the device context before the device was initialized).

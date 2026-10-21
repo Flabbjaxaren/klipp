@@ -27,7 +27,7 @@ A multi-track video editor for Android phones, built for touch. A Kotlin/Jetpack
 
 - `app/` – the Android app (Compose, Media3 for playback and export)
 - `rust/` – `klipp-bridge`, the JNI bridge to FilmCraft (`Session::execute`)
-- `third_party/` – Media3 effect (modified), whisper.cpp (trimmed, patched), OpenCL headers – see `THIRD_PARTY.md`
+- `third_party/` – Media3 effect (modified), whisper.cpp (trimmed), the Silero VAD model – see `THIRD_PARTY.md`
 
 ## Languages
 
