@@ -30,7 +30,7 @@
     <string name="titleui_save">Save</string>
     <string name="titleui_delete">Delete</string>
     <string name="titleui_auto_captions_title">Auto-Generate Captions</string>
-    <string name="titleui_auto_captions_info">Speech becomes text right on your phone – no audio is sent anywhere. Swedish uses KB-Whisper from the National Library of Sweden.</string>
+    <string name="titleui_auto_captions_info">Speech becomes text right on your phone – no audio is sent anywhere. Whisper (OpenAI) in about 100 languages; Swedish uses KB-Whisper from the National Library of Sweden. Choose the spoken language – it is more reliable than detecting it.</string>
     <string name="titleui_model_ready">%1$s · downloaded</string>
     <string name="titleui_model_needs_download">%1$s · needs a one-time download</string>
     <string name="titleui_track_empty">A%1$d (empty)</string>
@@ -84,12 +84,6 @@
     <string name="audiographs_comp_readout">Knee %1$s · %2$.1f:1 · reduction at 0 dB: %3$s</string>
 
     <!-- engine/Transcribe.kt -->
-    <string name="transcribe_model_sv_best">Swedish</string>
-    <string name="transcribe_model_sv_best_detail">KB-Whisper small · 175 MB · best</string>
-    <string name="transcribe_model_sv_fast">Swedish, fast</string>
-    <string name="transcribe_model_sv_fast_detail">KB-Whisper base · 55 MB</string>
-    <string name="transcribe_model_multi">Other languages</string>
-    <string name="transcribe_model_multi_detail">Whisper small · 190 MB · detects the language</string>
     <string name="transcribe_downloading">Downloading the model (%1$d MB, one time only)</string>
     <string name="transcribe_downloaded">Model downloaded</string>
     <string name="transcribe_canceled">Canceled</string>
@@ -111,4 +105,10 @@
         <item quantity="one">%1$d word in %2$.0f s</item>
         <item quantity="other">%1$d words in %2$.0f s</item>
     </plurals>
+    <string name="transcribe_language">Spoken language</string>
+    <string name="transcribe_language_auto">Detect automatically</string>
+    <string name="transcribe_tier_fast">Fast</string>
+    <string name="transcribe_tier_balanced">Balanced</string>
+    <string name="transcribe_tier_best">Best</string>
+    <string name="transcribe_best_hint">Best is slow: it can take as long as the audio itself, or longer.</string>
 </resources>

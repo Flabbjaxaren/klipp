@@ -4,7 +4,6 @@ import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.net.Uri
-import androidx.annotation.StringRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -60,17 +59,63 @@ object Whisper {
     @JvmStatic external fun nativeTranscribe(handle: Long, pcm: FloatArray, language: String, threads: Int, maxLen: Int, prompt: String?, listener: Listener?): ByteArray?
 }
 
-/** The models: KBLab's KB-Whisper (National Library of Sweden, trained on Swedish) and OpenAI's multilingual Whisper. */
-enum class SpeechModel(@StringRes private val labelRes: Int, @StringRes private val detailRes: Int, val url: String, val bytes: Long, val language: String) {
-    SV_BEST(R.string.transcribe_model_sv_best, R.string.transcribe_model_sv_best_detail, "https://huggingface.co/KBLab/kb-whisper-small/resolve/main/ggml-model-q5_0.bin", 175_209_680, "sv"),
-    SV_FAST(R.string.transcribe_model_sv_fast, R.string.transcribe_model_sv_fast_detail, "https://huggingface.co/KBLab/kb-whisper-base/resolve/main/ggml-model-q5_0.bin", 55_295_450, "sv"),
-    MULTI(R.string.transcribe_model_multi, R.string.transcribe_model_multi_detail, "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin", 190_085_487, "auto");
+/**
+ * The speech models: KBLab's KB-Whisper (National Library of Sweden, trained on Swedish – clearly best for Swedish) and
+ * OpenAI's Whisper (multilingual, and English-only variants). [language] = the model's fixed language, "" = any.
+ * [tier]: 0 fast, 1 balanced, 2 best. The file name is the enum name (downloaded models keep their names).
+ */
+enum class SpeechModel(val title: String, val url: String, val bytes: Long, val language: String, val tier: Int) {
+    SV_FAST("KB-Whisper base", "https://huggingface.co/KBLab/kb-whisper-base/resolve/main/ggml-model-q5_0.bin", 55_295_450, "sv", 0),
+    SV_BEST("KB-Whisper small", "https://huggingface.co/KBLab/kb-whisper-small/resolve/main/ggml-model-q5_0.bin", 175_209_680, "sv", 1),
+    SV_LARGE("KB-Whisper medium", "https://huggingface.co/KBLab/kb-whisper-medium/resolve/main/ggml-model-q5_0.bin", 539_212_484, "sv", 2),
+    MULTI_BASE("Whisper base", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin", 59_707_625, "", 0),
+    MULTI("Whisper small", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin", 190_085_487, "", 1),
+    MULTI_TURBO("Whisper large-v3-turbo", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin", 574_041_195, "", 2),
+    EN_BASE("Whisper base.en", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin", 59_721_011, "en", 0),
+    EN_SMALL("Whisper small.en", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q5_1.bin", 190_098_681, "en", 1);
 
-    /** Resolved on use, so the UI language is followed. */
-    val label: String get() = Str.t(labelRes)
-    val detail: String get() = Str.t(detailRes)
-
+    /** "KB-Whisper small · 175 MB". */
+    val detail: String get() = "$title · ${bytes / 1_000_000} MB"
     val fileName get() = "${name.lowercase()}.bin"
+}
+
+/**
+ * What to listen for: a language ("auto" = whisper detects it, per 30 s window) and a quality tier. The model follows
+ * from both – KB-Whisper for Swedish, the English-only models for English (best: large-v3-turbo), multilingual Whisper
+ * for everything else. Saved in the app's preferences; the default language is the phone's, when Whisper knows it.
+ */
+object SpeechChoice {
+    /** Languages offered first (Whisper's codes); any of Whisper's others can be set too. */
+    val LANGUAGES = listOf("auto", "en", "sv", "da", "no", "fi", "de", "nl", "fr", "es", "it", "pt", "pl", "cs", "ru", "uk", "tr", "ar", "fa", "hi", "ja", "ko", "zh")
+
+    fun model(language: String, tier: Int): SpeechModel {
+        val t = tier.coerceIn(0, 2)
+        return when (language) {
+            "sv" -> listOf(SpeechModel.SV_FAST, SpeechModel.SV_BEST, SpeechModel.SV_LARGE)[t]
+            "en" -> listOf(SpeechModel.EN_BASE, SpeechModel.EN_SMALL, SpeechModel.MULTI_TURBO)[t]
+            else -> listOf(SpeechModel.MULTI_BASE, SpeechModel.MULTI, SpeechModel.MULTI_TURBO)[t]
+        }
+    }
+
+    /** The language whisper is told: the model's own (KB, .en) or the chosen one. */
+    fun whisperLanguage(model: SpeechModel, language: String): String = model.language.ifEmpty { language }
+
+    /** The phone's language when Whisper has it ("nb"/"nn" are Norwegian, "no"), otherwise automatic. */
+    fun defaultLanguage(): String {
+        val l = java.util.Locale.getDefault().language.let { if (it == "nb" || it == "nn") "no" else it }
+        return if (l in LANGUAGES) l else "auto"
+    }
+
+    fun language(c: Context): String = c.getSharedPreferences("klipp", Context.MODE_PRIVATE).getString("speechLang", null) ?: defaultLanguage()
+    fun tier(c: Context): Int = c.getSharedPreferences("klipp", Context.MODE_PRIVATE).getInt("speechTier", 1)
+    fun save(c: Context, language: String, tier: Int) {
+        c.getSharedPreferences("klipp", Context.MODE_PRIVATE).edit().putString("speechLang", language).putInt("speechTier", tier).apply()
+    }
+
+    /** The language's name in the app's language ("Svenska", "English" …). */
+    fun label(language: String): String =
+        if (language == "auto") Str.t(R.string.transcribe_language_auto)
+        else java.util.Locale.forLanguageTag(language).getDisplayLanguage(java.util.Locale.getDefault()).replaceFirstChar { it.titlecase() }
 }
 
 object SpeechModels {
@@ -334,12 +379,12 @@ object AutoCaptions {
         private set
 
     /** The clips on audio track [track] (index into the sequence's audio tracks). The model must be downloaded. */
-    fun start(context: Context, controller: ProjectController, model: SpeechModel, track: Int) {
+    fun start(context: Context, controller: ProjectController, model: SpeechModel, language: String, track: Int) {
         if (running) return
         val q = controller.snapshot.sequence ?: run { message = Str.t(R.string.transcribe_no_sequence); return }
         val clips = q.audio.getOrNull(track)?.clips.orEmpty().filter { it.duration > 0.2 }.sortedBy { it.start }
         if (clips.isEmpty()) { message = Str.t(R.string.transcribe_no_audio, track + 1); return }
-        launchJob(context, model) { recognize ->
+        launchJob(context, model, language) { recognize ->
             val lines = ArrayList<SpeechLine>()
             val total = clips.sumOf { it.duration * kotlin.math.abs(it.speed) }.coerceAtLeast(1e-3)
             var done = 0.0
@@ -379,11 +424,11 @@ object AutoCaptions {
      * A word-level transcript of every media item on the audio tracks (text-based editing): each file's audio, word by
      * word, stored in the project with media times (the engine maps them to the timeline and follows every edit).
      */
-    fun transcript(context: Context, controller: ProjectController, model: SpeechModel) {
+    fun transcript(context: Context, controller: ProjectController, model: SpeechModel, language: String) {
         if (running) return
         val items = controller.speechItems()
         if (items.isEmpty()) { message = Str.t(R.string.transcribe_no_speech_clips); return }
-        launchJob(context, model) { recognize ->
+        launchJob(context, model, language) { recognize ->
             val durations = items.associateWith { id -> controller.snapshot.media.firstOrNull { it.id == id }?.duration ?: 0.0 }
             val total = durations.values.sum().coerceAtLeast(1e-3)
             var done = 0.0
@@ -410,7 +455,7 @@ object AutoCaptions {
                     a = b
                 }
                 if (words.isNotEmpty()) {
-                    controller.setTranscript(item, model.language.takeIf { it != "auto" } ?: "", words)
+                    controller.setTranscript(item, SpeechChoice.whisperLanguage(model, language).takeIf { it != "auto" } ?: "", words)
                     count += words.size
                 }
             }
@@ -429,7 +474,7 @@ object AutoCaptions {
      * when the GPU fails midway) and freed afterwards. [work] gets a recognizer (pcm, max segment length, progress → JSON)
      * and returns the message to show.
      */
-    private fun launchJob(context: Context, model: SpeechModel, work: suspend Run.(recognize: suspend (FloatArray, Int, (Int) -> Unit) -> String) -> String) {
+    private fun launchJob(context: Context, model: SpeechModel, language: String, work: suspend Run.(recognize: suspend (FloatArray, Int, (Int) -> Unit) -> String) -> String) {
         if (!Whisper.available) { message = Str.t(R.string.transcribe_unavailable); return }
         message = null
         progress = 0f
@@ -450,7 +495,8 @@ object AutoCaptions {
                 val path = SpeechModels.file(context, model).absolutePath
                 // the guard is set before the GPU is even probed (probing initializes the OpenCL driver)
                 val wantGpu = Whisper.useGpu(context) && !Whisper.gpuBroken
-                se.gendut.klipp.CrashReport.note("speech: start ${model.name}, gpu wanted=$wantGpu")
+                val lang = SpeechChoice.whisperLanguage(model, language)
+                se.gendut.klipp.CrashReport.note("speech: start ${model.name}, language=$lang, gpu wanted=$wantGpu")
                 if (wantGpu) gpuRunning(true)
                 var onGpu = wantGpu && Whisper.gpu
                 if (wantGpu && !onGpu) gpuRunning(false)
@@ -462,7 +508,7 @@ object AutoCaptions {
                 try {
                     message = run.work { pcm, maxLen, onPct ->
                         suspend fun once() = withContext(Dispatchers.Default) {
-                            Whisper.nativeTranscribe(h, pcm, model.language, threads, maxLen, null) { pct -> scope.launch { onPct(pct) } }
+                            Whisper.nativeTranscribe(h, pcm, lang, threads, maxLen, null) { pct -> scope.launch { onPct(pct) } }
                         }
                         var out = once()
                         if (out == null && onGpu) {

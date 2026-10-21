@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import se.gendut.klipp.engine.AutoCaptions
 import se.gendut.klipp.engine.ProjectController
-import se.gendut.klipp.engine.SpeechModel
 import se.gendut.klipp.engine.SpeechModels
 
 /**
@@ -74,6 +73,8 @@ fun TranscriptSheet(controller: ProjectController, state: EditorState, onDismiss
     var end by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(text) { anchor = null; end = null }
     val sel = anchor?.let { a -> val b = end ?: a; minOf(a, b)..maxOf(a, b) }
+    /** Listen again (another language or quality): the picker instead of the words. */
+    var redo by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = K.Surface) {
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.92f).testTag("transcriptSheet")) {
             Text(stringResource(R.string.transcript_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
@@ -83,18 +84,18 @@ fun TranscriptSheet(controller: ProjectController, state: EditorState, onDismiss
                 Text(ac.phase, color = K.OnSurface, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                 androidx.compose.material3.LinearProgressIndicator(progress = { busy }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), color = K.Primary)
                 PillButton(stringResource(R.string.titleui_cancel), { ac.cancel() }, Modifier.padding(horizontal = 14.dp, vertical = 6.dp), icon = Ic.Close, filled = false)
-            } else if (t == null || t.words.isEmpty()) {
-                // no transcript yet: pick a model and listen
-                var model by remember { mutableStateOf(SpeechModel.SV_BEST) }
-                Text(stringResource(R.string.transcript_empty), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-                val models = SpeechModel.entries
-                ConnectedToggleGroup(models.map { it.label }, models.indexOf(model), { model = models[it] },
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "tx:model$it" })
+            } else if (t == null || t.words.isEmpty() || redo) {
+                // no transcript yet (or listen again, e.g. in another language): pick a language and quality and listen
+                val pick = rememberSpeechPick()
+                Text(stringResource(if (redo) R.string.transcript_redo_hint else R.string.transcript_empty), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                SpeechPicker(pick, "tx")
+                val model = pick.model
                 val ready = remember(model, ac.modelRevision, ac.running) { SpeechModels.ready(ctx, model) }
                 if (!ready) PillButton(stringResource(R.string.titleui_download_model, model.bytes / 1_000_000), { haptics.confirm(); ac.download(ctx, model) },
                     Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("tx:download"), icon = Ic.Download, filled = false)
-                else PillButton(stringResource(R.string.transcript_transcribe), { haptics.confirm(); ac.transcript(ctx, controller, model) },
+                else PillButton(stringResource(R.string.transcript_transcribe), { haptics.confirm(); redo = false; ac.transcript(ctx, controller, model, pick.language) },
                     Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("tx:start"), icon = Ic.Transcript)
+                if (redo) ToggleChip(stringResource(R.string.titleui_cancel), false, { redo = false }, Modifier.padding(horizontal = 14.dp))
             } else {
                 // actions: the selection's delete, pauses, filler words
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -111,6 +112,8 @@ fun TranscriptSheet(controller: ProjectController, state: EditorState, onDismiss
                             Modifier.testTag("tx:pauses"), filled = false)
                         PillButton(stringResource(R.string.transcript_remove_fillers), { haptics.confirm(); state.playing = false; controller.removeFillers() },
                             Modifier.testTag("tx:fillers"), filled = false)
+                        PillButton(stringResource(R.string.transcript_redo), { haptics.tick(); redo = true },
+                            Modifier.testTag("tx:redo"), icon = Ic.Transcript, filled = false)
                     }
                 }
                 Text(stringResource(if (sel == null) R.string.transcript_hint else R.string.transcript_hint_selected), color = K.Outline, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp))
