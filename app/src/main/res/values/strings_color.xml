@@ -148,7 +148,7 @@
     <string name="colortools_tripod">Tripod</string>
     <string name="colortools_softness_at_cap">Softness at limit</string>
     <string name="colortools_max_zoom">Max Zoom</string>
-    <string name="colorui_drag_to_scrub">Drag to scrub through the clip</string>
+    <string name="colorui_drag_to_scrub">Drag to scrub</string>
     <string name="colorpage_history_color">Color</string>
     <string name="colorpage_pick_hint_color">Tap the color you want to select</string>
     <string name="colorpage_history_follow">Follow</string>

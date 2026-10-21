@@ -229,7 +229,8 @@ fun KeyframeLane(anim: AnimUi) {
         }
         androidx.compose.foundation.layout.Column {
         Row(Modifier.fillMaxWidth().height(36.dp).padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.width(108.dp), contentAlignment = Alignment.CenterEnd) {
+            // the graph button keeps clear of the lane (a keyframe at the clip's start sits right at its edge)
+            Box(Modifier.width(108.dp).padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
                 if (anim.onValue != null) {
                     val open = anim.key in anim.view.graphs
                     SmallIcon(Ic.Graph, stringResource(if (open) R.string.keyframeui_hide_graph else R.string.keyframeui_show_graph), true, "kfgraph:${anim.key}", filled = open) {

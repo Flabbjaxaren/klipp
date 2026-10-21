@@ -274,8 +274,10 @@ fun ClipScrubber(state: EditorState, clip: ColorClip, track: ClosedFloatingPoint
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             ScrubTc(state, clip.start, len)
             Text(" / " + formatTc(len), color = K.Outline, fontSize = 13.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-            Spacer(Modifier.weight(1f))
-            Text(stringResource(R.string.colorui_drag_to_scrub), color = K.Outline, fontSize = 11.sp)
+            // one line at the right, shortened when narrow (it wrapped into three lines beside the timecode)
+            Text(stringResource(R.string.colorui_drag_to_scrub), color = K.Outline, fontSize = 11.sp, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                modifier = Modifier.weight(1f).padding(start = 8.dp))
         }
         BoxWithConstraints(
             Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh).testTag("scrub")

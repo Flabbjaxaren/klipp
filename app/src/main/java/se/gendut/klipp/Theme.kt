@@ -40,6 +40,18 @@ enum class Base(@StringRes private val labelId: Int, @StringRes private val hint
  * The colors (dark Material 3 theme). Accent and background are chosen in settings; they are read as state, so
  * everything drawn with them changes immediately when the choice changes.
  */
+/**
+ * Labels under an icon: the font's extra space above and below the line is trimmed, so icon + label sit in the middle
+ * of their button (with it the label's box was taller than its letters and pushed the icon toward the top edge).
+ */
+val IconLabel = androidx.compose.ui.text.TextStyle(
+    lineHeight = androidx.compose.ui.unit.TextUnit(1.15f, androidx.compose.ui.unit.TextUnitType.Em),
+    lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+        androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+        androidx.compose.ui.text.style.LineHeightStyle.Trim.Both,
+    ),
+)
+
 object K {
     var accent by mutableStateOf(Accent.ORANGE)
     var base by mutableStateOf(Base.DARK)
