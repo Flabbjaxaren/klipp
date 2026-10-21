@@ -350,6 +350,11 @@ private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, onCli
                 durText(m.duration), color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xAA000000)).padding(horizontal = 6.dp, vertical = 2.dp)
             )
+            // has a transcript: can be picked by text in the source monitor
+            if (m.words > 0) Box(
+                Modifier.align(Alignment.BottomStart).padding(6.dp).size(22.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xAA000000)),
+                contentAlignment = Alignment.Center,
+            ) { androidx.compose.material3.Icon(Ic.Transcript, stringResource(R.string.medialibrary_has_text), tint = Color.White, modifier = Modifier.size(15.dp)) }
             if (m.markIn != null || m.markOut != null) {
                 Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(10.dp).clip(RoundedCornerShape(5.dp)).background(K.Primary))
             }

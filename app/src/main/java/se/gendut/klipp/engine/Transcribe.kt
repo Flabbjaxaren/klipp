@@ -428,6 +428,17 @@ object AutoCaptions {
         if (running) return
         val items = controller.speechItems()
         if (items.isEmpty()) { message = Str.t(R.string.transcribe_no_speech_clips); return }
+        transcriptOf(context, controller, model, language, items)
+    }
+
+    /** The media item being transcribed by [transcriptOf] (the source monitor shows the progress for its clip). */
+    var item by mutableStateOf<Long?>(null)
+        private set
+
+    /** A word-level transcript of the given media items (the source monitor: one clip from the media library). */
+    fun transcriptOf(context: Context, controller: ProjectController, model: SpeechModel, language: String, items: List<Long>) {
+        if (running || items.isEmpty()) return
+        item = items.singleOrNull()
         launchJob(context, model, language) { recognize ->
             val durations = items.associateWith { id -> controller.snapshot.media.firstOrNull { it.id == id }?.duration ?: 0.0 }
             val total = durations.values.sum().coerceAtLeast(1e-3)
@@ -471,7 +482,7 @@ object AutoCaptions {
      * length, progress → JSON) and returns the message to show.
      */
     private fun launchJob(context: Context, model: SpeechModel, language: String, work: suspend Run.(recognize: suspend (FloatArray, Int, (Int) -> Unit) -> String) -> String) {
-        if (!Whisper.available) { message = Str.t(R.string.transcribe_unavailable); return }
+        if (!Whisper.available) { message = Str.t(R.string.transcribe_unavailable); item = null; return }
         message = null
         progress = 0f
         running = true
@@ -510,6 +521,7 @@ object AutoCaptions {
                 progress = null
                 phase = ""
                 running = false
+                item = null
             }
         }
     }

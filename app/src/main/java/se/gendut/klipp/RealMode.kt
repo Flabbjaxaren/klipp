@@ -408,6 +408,8 @@ fun SourcePanel(
     onClose: () -> Unit,
     /** Fill the given height (landscape column): the picture takes what the controls leave. */
     fill: Boolean = false,
+    /** The clip's transcript: the Text view picks sentences as in/out (null = no text view). */
+    text: SourceText? = null,
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
@@ -417,6 +419,9 @@ fun SourcePanel(
     var markOut by remember(m) { mutableStateOf(m.markOut) }
     var playing by remember(m) { mutableStateOf(false) }
     val frame = 1.0 / (if (m.fps > 1) m.fps else 25.0)
+    // the Text view instead of the picture, and its marked sentences
+    var textMode by remember(m) { mutableStateOf(false) }
+    var sentencesMarked by remember(m) { mutableStateOf<IntRange?>(null) }
 
     LaunchedEffect(m) { state.playing = false; source.open(m.id, uri, pos) }
     LaunchedEffect(playing) {
@@ -436,7 +441,8 @@ fun SourcePanel(
         haptics.confirm()
         scope.launch {
             setMarks(markIn, markOut)
-            edit(overwrite) { onClose() }
+            // picking by text: stay in the source for the next sentences (the timeline playhead moved past the new clip)
+            edit(overwrite) { if (textMode) sentencesMarked = null else onClose() }
         }
     }
 
@@ -450,18 +456,34 @@ fun SourcePanel(
             }
             Text(
                 formatTc(pos.toFloat()), color = K.Primary, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(end = 12.dp)
+                modifier = Modifier.padding(end = 4.dp)
             )
+            if (text != null) {
+                val bg by androidx.compose.animation.animateColorAsState(if (textMode) K.Primary else Color.Transparent, label = "tx")
+                Box(
+                    Modifier.padding(end = 6.dp).size(40.dp).clip(RoundedCornerShape(20.dp)).background(bg)
+                        .clickable(onClickLabel = stringResource(if (textMode) R.string.source_show_picture else R.string.source_show_text)) { haptics.tick(); textMode = !textMode }
+                        .testTag("source:text"),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Ic.Transcript, stringResource(R.string.source_text), tint = if (textMode) K.OnPrimary else K.OnSurface, modifier = Modifier.size(20.dp)) }
+            }
         }
-        // Image
-        Box(Modifier.fillMaxWidth().then(if (fill) Modifier.weight(1f) else Modifier.aspectRatio(16f / 9f)).background(Color.Black)) {
+        // Image (or the clip as text)
+        val area = Modifier.fillMaxWidth().then(if (fill) Modifier.weight(1f) else if (textMode) Modifier.height(300.dp) else Modifier.aspectRatio(16f / 9f))
+        Box(area.background(Color.Black)) {
             FitPlayerSurface(source.player, Modifier.fillMaxSize())
+            if (textMode && text != null) SourceTextView(
+                m.id, m.duration, frame, text, pos, Modifier.fillMaxSize(),
+                selection = sentencesMarked, onSelect = { sentencesMarked = it },
+                onMarks = { a, b -> markIn = a; markOut = b; pushMarks() },
+                onSeek = { playing = false; seek(it) },
+            )
         }
         // Scrub bar with in/out
         ScrubBar(
             duration = m.duration, pos = pos, markIn = markIn, markOut = markOut,
             onScrub = { playing = false; seek(it) },
-            onMoveIn = { markIn = it }, onMoveOut = { markOut = it },
+            onMoveIn = { markIn = it; sentencesMarked = null }, onMoveOut = { markOut = it; sentencesMarked = null },
             onMarksDone = { pushMarks() },
         )
         val len = ((markOut ?: m.duration) - (markIn ?: 0.0)).coerceAtLeast(0.0) + if (markOut != null) frame else 0.0

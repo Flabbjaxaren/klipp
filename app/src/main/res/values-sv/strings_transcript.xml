@@ -15,4 +15,12 @@
     </plurals>
     <string name="transcript_redo">Skriv ut igen</string>
     <string name="transcript_redo_hint">Lyssna igen, till exempel på ett annat språk eller med högre kvalitet. Den nya utskriften ersätter den gamla.</string>
+    <string name="source_text">Text</string>
+    <string name="source_show_text">Visa klippet som text</string>
+    <string name="source_show_picture">Visa bilden</string>
+    <string name="source_text_empty">Inget transkript ännu. Transkribera klippet och välj dess meningar som text – inget lämnar telefonen.</string>
+    <string name="source_text_hint">Tryck på en mening för att markera den, tryck på en till för att utöka. Sedan Infoga eller Skriv över.</string>
+    <string name="source_text_selected">Markerat: %1$s</string>
+    <string name="source_transcribing_other">En annan transkribering pågår.</string>
+    <string name="medialibrary_has_text">Har transkript</string>
 </resources>

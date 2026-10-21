@@ -616,6 +616,14 @@ fun KlippApp(
                         edit = { ow, done -> controller.editFromSource(media.id, state.playhead.toDouble(), ow, done) },
                         onClose = { sourceMedia = null },
                         fill = fill,
+                        text = remember(controller, media.id) {
+                            object : SourceText {
+                                override val revision get() = controller.transcriptRevision
+                                override suspend fun words() = controller.mediaWords(media.id)
+                                override fun transcribe(context: android.content.Context, pick: SpeechPick) =
+                                    se.gendut.klipp.engine.AutoCaptions.transcriptOf(context, controller, pick.model, pick.language, listOf(media.id))
+                            }
+                        },
                     )
                 } else Column(if (fill) Modifier.fillMaxHeight() else Modifier) {
                     MonitorArea(monitorMod)
