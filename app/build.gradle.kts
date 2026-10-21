@@ -1,3 +1,17 @@
+import java.util.Properties
+
+/**
+ * The release key lives outside the repository: ~/.klipp/keystore.properties (storeFile, storePassword, keyAlias,
+ * keyPassword) – or another file named by the KLIPP_KEYSTORE environment variable. Without it (CI, other machines) the
+ * release build is signed with the debug key; -Pklipp.debugSigned=true forces that (to update an install that still
+ * has the old debug signature).
+ */
+val releaseKey: Properties? = run {
+    val f = System.getenv("KLIPP_KEYSTORE")?.let { file(it) } ?: file("${System.getProperty("user.home")}/.klipp/keystore.properties")
+    if (!f.isFile || project.findProperty("klipp.debugSigned") == "true") null
+    else Properties().apply { f.inputStream().use { load(it) } }
+}
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
@@ -12,8 +26,8 @@ android {
         applicationId = "se.gendut.klipp"
         minSdk = 29
         targetSdk = 36
-        versionCode = 28
-        versionName = "0.16.1"
+        versionCode = 29
+        versionName = "0.17.0"
         ndk { abiFilters += "arm64-v8a" }
         // speech recognition is always built optimized (the debug build's -O0 would be tens of times slower)
         externalNativeBuild { cmake { arguments += listOf("-DCMAKE_BUILD_TYPE=Release", "-DANDROID_STL=c++_shared") } }
@@ -33,15 +47,24 @@ android {
         }
     }
 
+    signingConfigs {
+        if (releaseKey != null) create("release") {
+            storeFile = file(releaseKey.getProperty("storeFile"))
+            storePassword = releaseKey.getProperty("storePassword")
+            keyAlias = releaseKey.getProperty("keyAlias")
+            keyPassword = releaseKey.getProperty("keyPassword")
+        }
+    }
+
     buildTypes {
         // Release: R8 (shrinks and optimizes the code), ahead-of-time compilation and the baseline profiles from Compose and
-        // Media3 – several times faster startup and smoother UI than the debug build. Signed with the debug
-        // key so it can be installed over earlier versions (the projects are kept).
+        // Media3 – several times faster startup and smoother UI than the debug build. Signed with the release key
+        // (see releaseKey above); an app signed with another key can't be updated by it – Android requires the same key.
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {

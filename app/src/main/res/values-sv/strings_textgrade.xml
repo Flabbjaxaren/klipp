@@ -3,7 +3,7 @@
     <!-- TitleUi.kt -->
     <string name="titleui_sample_lower_third">Anna Berg\nFiskare, Smögen</string>
     <string name="titleui_sample_chapter">Kapitel 2\nHavet</string>
-    <string name="titleui_sample_roll">Medverkande:\nAnna Berg\nJonas Ek\nFoto:\nGustav\nKlipp:\nGustav</string>
+    <string name="titleui_sample_roll">Medverkande:\nAnna Berg\nJonas Ek\nFoto:\nSara Lind\nKlipp:\nOla Strand</string>
     <string name="titleui_title">Titel</string>
     <string name="titleui_field_name">Namn</string>
     <string name="titleui_field_role">Roll</string>
