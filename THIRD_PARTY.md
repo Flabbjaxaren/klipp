@@ -10,6 +10,7 @@ Klipp itself is licensed under the GNU General Public License v3.0 (`LICENSE`). 
 | **whisper.cpp** 1.9.4 and **ggml** – © The ggml authors | `third_party/whisper.cpp` | MIT (`third_party/whisper.cpp/LICENSE`) | Trimmed to the CPU and OpenCL backends; OpenCL initialization fix – see `third_party/whisper.cpp/KLIPP.md` |
 | **OpenCL-Headers** (v2024.10.24) – © The Khronos Group | `third_party/OpenCL-Headers` | Apache-2.0 (`third_party/OpenCL-Headers/LICENSE`) | None |
 | **spektrafilm** – © Andrea Volpato et al. | ported to `engine/Spektra.kt`; tables in `app/src/main/assets/spektrafilm` | GPL-3.0; film profiles and the tables/LUTs that encode them CC BY-SA 4.0 (`assets/spektrafilm/SPEKTRAFILM_LICENSE.txt`) | Ported to Kotlin/GPU; tables computed with `tools/spektrafilm/export_tables.py` |
+| **Silero VAD** v6.2.0 (voice activity detection) – © Silero Team, ggml conversion by ggml-org | `app/src/main/assets/silero-vad-v6.2.0.bin` | MIT | None |
 | Spectral upsampling after **hanatos** (vkdt) | `engine/Spektra.kt` | BSD-2-Clause | Ported |
 | **OpenDRT** – © Jed Smith | `engine/OpenDrt.kt` | GPL-3.0 | Ported |
 

@@ -56,7 +56,7 @@ object Whisper {
     @JvmStatic external fun nativeInit(modelPath: String, useGpu: Boolean): Long
     @JvmStatic external fun nativeFree(handle: Long)
     @JvmStatic external fun nativeAbort(handle: Long)
-    @JvmStatic external fun nativeTranscribe(handle: Long, pcm: FloatArray, language: String, threads: Int, maxLen: Int, prompt: String?, listener: Listener?): ByteArray?
+    @JvmStatic external fun nativeTranscribe(handle: Long, pcm: FloatArray, language: String, threads: Int, maxLen: Int, prompt: String?, vadModel: String?, listener: Listener?): ByteArray?
 }
 
 /**
@@ -120,6 +120,23 @@ object SpeechChoice {
 
 object SpeechModels {
     private fun dir(c: Context) = File(c.filesDir, "speech").apply { mkdirs() }
+
+    /**
+     * The voice activity model (Silero VAD, MIT, 885 kB), shipped in the app's assets and copied out once – whisper.cpp
+     * needs a file path. Null if it can't be copied (then speech recognition runs without VAD).
+     */
+    fun vad(c: Context): String? = runCatching {
+        val f = File(dir(c), VAD_FILE)
+        if (f.length() != VAD_BYTES) {
+            val tmp = File(dir(c), "$VAD_FILE.part")
+            c.assets.open(VAD_FILE).use { i -> tmp.outputStream().use { i.copyTo(it) } }
+            if (tmp.length() != VAD_BYTES || !tmp.renameTo(f)) error("vad copy")
+        }
+        f.absolutePath
+    }.getOrNull()
+
+    private const val VAD_FILE = "silero-vad-v6.2.0.bin"
+    private const val VAD_BYTES = 885_098L
     fun file(c: Context, m: SpeechModel) = File(dir(c), m.fileName)
     fun ready(c: Context, m: SpeechModel) = file(c, m).let { it.isFile && it.length() == m.bytes }
 
@@ -454,10 +471,10 @@ object AutoCaptions {
                     progress = (done / total).toFloat().coerceIn(0f, 1f)
                     a = b
                 }
-                if (words.isNotEmpty()) {
-                    controller.setTranscript(item, SpeechChoice.whisperLanguage(model, language).takeIf { it != "auto" } ?: "", words)
-                    count += words.size
-                }
+                // no speech found: an earlier transcript of the item (another language, model) must not stay behind
+                if (words.isNotEmpty()) controller.setTranscript(item, SpeechChoice.whisperLanguage(model, language).takeIf { it != "auto" } ?: "", words)
+                else controller.deleteTranscript(item)
+                count += words.size
             }
             if (count == 0) Str.t(R.string.transcribe_no_speech) else Str.p(R.plurals.transcribe_words_done, count, count, seconds())
         }
@@ -496,6 +513,7 @@ object AutoCaptions {
                 // the guard is set before the GPU is even probed (probing initializes the OpenCL driver)
                 val wantGpu = Whisper.useGpu(context) && !Whisper.gpuBroken
                 val lang = SpeechChoice.whisperLanguage(model, language)
+                val vad = withContext(Dispatchers.IO) { SpeechModels.vad(context) }
                 se.gendut.klipp.CrashReport.note("speech: start ${model.name}, language=$lang, gpu wanted=$wantGpu")
                 if (wantGpu) gpuRunning(true)
                 var onGpu = wantGpu && Whisper.gpu
@@ -508,7 +526,7 @@ object AutoCaptions {
                 try {
                     message = run.work { pcm, maxLen, onPct ->
                         suspend fun once() = withContext(Dispatchers.Default) {
-                            Whisper.nativeTranscribe(h, pcm, lang, threads, maxLen, null) { pct -> scope.launch { onPct(pct) } }
+                            Whisper.nativeTranscribe(h, pcm, lang, threads, maxLen, null, vad) { pct -> scope.launch { onPct(pct) } }
                         }
                         var out = once()
                         if (out == null && onGpu) {

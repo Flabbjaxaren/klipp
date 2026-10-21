@@ -1586,6 +1586,11 @@ class ProjectController(
         transcriptRevision++
     }
 
+    /** Remove a media item's transcript (a new run found no speech in it). */
+    suspend fun deleteTranscript(item: Long) = editLock.withLock {
+        if (engine.tryExec("transcript.delete", JSONObject().put("items", JSONArray().put(item))).isSuccess) { refresh(); transcriptRevision++ }
+    }
+
     /** Remove words [from]..[to] (indices) from the timeline and close the gap on all synced tracks – one undo step. */
     fun extractWords(from: Int, to: Int) = scope.launch { editLock.withLock {
         se.gendut.klipp.CrashReport.note("text edit: extract words $from..$to")

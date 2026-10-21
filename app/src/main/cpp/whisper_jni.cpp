@@ -5,6 +5,7 @@
 #include <atomic>
 #include <string>
 #include <mutex>
+#include <vector>
 #include "ggml-backend.h"
 #include "whisper.h"
 
@@ -53,8 +54,6 @@ void json_escape(std::string &out, const char *s) {
 
 void silent_log(ggml_log_level, const char *, void *) {}
 
-// ggml's backends are separate libraries (CMakeLists.txt): the CPU one always; the OpenCL one (Adreno) only loads where
-// the phone has an OpenCL driver – otherwise dlopen fails and transcription runs on the CPU.
 // The CPU backend is always loaded; the OpenCL one (Adreno) only when the GPU is actually asked for – loading it
 // initializes the phone's OpenCL driver, which must never happen on the CPU path (a driver crash takes the app down).
 void load_cpu() {
@@ -114,7 +113,7 @@ JNIEXPORT void JNICALL Java_se_gendut_klipp_engine_Whisper_nativeAbort(JNIEnv *,
 }
 
 JNIEXPORT jbyteArray JNICALL Java_se_gendut_klipp_engine_Whisper_nativeTranscribe(
-        JNIEnv *env, jclass, jlong h, jfloatArray pcm, jstring lang, jint threads, jint maxLen, jstring prompt, jobject listener) {
+        JNIEnv *env, jclass, jlong h, jfloatArray pcm, jstring lang, jint threads, jint maxLen, jstring prompt, jstring vadModel, jobject listener) {
     auto *c = reinterpret_cast<Ctx *>(h);
     if (!c || !pcm) return nullptr;
     c->abort.store(false);
@@ -138,6 +137,14 @@ JNIEXPORT jbyteArray JNICALL Java_se_gendut_klipp_engine_Whisper_nativeTranscrib
     wp.detect_language = false;
     const char *pr = prompt ? env->GetStringUTFChars(prompt, nullptr) : nullptr;
     if (pr && *pr) wp.initial_prompt = pr;
+    // voice activity detection (Silero): only the parts with speech are transcribed – no invented text over room
+    // noise, music or silence, and long pauses are skipped
+    const char *vm = vadModel ? env->GetStringUTFChars(vadModel, nullptr) : nullptr;
+    if (vm && *vm) {
+        wp.vad = true;
+        wp.vad_model_path = vm;
+        wp.vad_params = whisper_vad_default_params();
+    }
 
     Progress prog;
     prog.env = env;
@@ -165,15 +172,26 @@ JNIEXPORT jbyteArray JNICALL Java_se_gendut_klipp_engine_Whisper_nativeTranscrib
     env->ReleaseFloatArrayElements(pcm, data, JNI_ABORT);
     if (l) env->ReleaseStringUTFChars(lang, l);
     if (pr) env->ReleaseStringUTFChars(prompt, pr);
+    if (vm) env->ReleaseStringUTFChars(vadModel, vm);
     if (r != 0 || c->abort.load()) return nullptr;
+
+    // With VAD, a segment's start after a long pause is placed where the previous speech ended (whisper maps the
+    // joined speech back to the original time only roughly) – it is clamped into the speech segment it ends in.
+    std::vector<std::pair<int64_t, int64_t>> speech;
+    for (int i = 0; i < whisper_full_n_vad_segments(c->w); ++i)
+        speech.emplace_back(whisper_full_get_vad_segment_t0(c->w, i), whisper_full_get_vad_segment_t1(c->w, i));
 
     std::string out = "[";
     const int segs = whisper_full_n_segments(c->w);
     for (int i = 0; i < segs; ++i) {
         if (i) out += ',';
+        int64_t t0 = whisper_full_get_segment_t0(c->w, i), t1 = whisper_full_get_segment_t1(c->w, i);
+        for (auto &sp : speech) {
+            if (t1 > sp.first && t1 <= sp.second + 2) { if (t0 < sp.first) t0 = sp.first; break; }
+        }
         // times in hundredths of a second → ms
-        out += "{\"t0\":" + std::to_string(whisper_full_get_segment_t0(c->w, i) * 10);
-        out += ",\"t1\":" + std::to_string(whisper_full_get_segment_t1(c->w, i) * 10);
+        out += "{\"t0\":" + std::to_string(t0 * 10);
+        out += ",\"t1\":" + std::to_string(t1 * 10);
         out += ",\"text\":\"";
         json_escape(out, whisper_full_get_segment_text(c->w, i));
         out += "\"}";
