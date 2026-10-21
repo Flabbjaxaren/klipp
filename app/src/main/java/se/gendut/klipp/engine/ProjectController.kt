@@ -1289,14 +1289,19 @@ class ProjectController(
         } }
     }
 
-    override fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?) {
+    override fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?, interp: String?) {
         if (inInf == null && outInf == null) return
         scope.launch { editLock.withLock {
             val (eff, param) = KfKeys.engine(key)
-            val p = JSONObject().put("clip", id).put("effect", eff).put("param", param).put("mediaTime", mt)
+            fun base() = JSONObject().put("clip", id).put("effect", eff).put("param", param).put("mediaTime", mt)
+            val p = base()
             inInf?.let { p.put("inInfluence", it.coerceIn(0.01, 1.0)) }
             outInf?.let { p.put("outInfluence", it.coerceIn(0.01, 1.0)) }
-            engine.tryExec("effects.setKeyframe", p).onFailure { onMessage(friendly(it.message)) }
+            group(Str.t(R.string.keyframeui_interp_title), on = interp != null) {
+                // a handle on a side without ease: that side eases from now on
+                if (interp != null) engine.tryExec("effects.setInterpolation", base().put("interpolation", interp)).onFailure { onMessage(friendly(it.message)) }
+                engine.tryExec("effects.setKeyframe", p).onFailure { onMessage(friendly(it.message)) }
+            }
             refresh()
         } }
     }

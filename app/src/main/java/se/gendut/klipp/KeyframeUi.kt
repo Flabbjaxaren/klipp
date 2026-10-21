@@ -108,8 +108,11 @@ class AnimUi(
     val zoomBar: Boolean = true,
     /** Long-press menu: linear / easy ease / ease in / ease out / hold (KfEase). Null = long-press cycles via [onInterp]. */
     val onEase: ((UiKf, String) -> Unit)? = null,
-    /** The value graph: the ease handles' influence (in, out; null = unchanged) … */
-    val onInfluence: ((UiKf, Double?, Double?) -> Unit)? = null,
+    /**
+     * The value graph: the ease handles' influence (in, out; null = unchanged) and, when the dragged side didn't ease
+     * yet, the keyframe's new interpolation (see handleEase) …
+     */
+    val onInfluence: ((UiKf, Double?, Double?, String?) -> Unit)? = null,
     /** … and a keyframe's new value(s). Null = no graph. */
     val onValue: ((UiKf, List<Double>) -> Unit)? = null,
     /** The value as shown next to the slider (while dragging a point in the graph). */
@@ -506,7 +509,12 @@ private fun KfGraph(anim: AnimUi) {
         return sorted.map { k ->
             var n = k
             if (v != null && k.mt == v.first) n = n.copy(v = n.v.toMutableList().also { l -> if (v.second < l.size) l[v.second] = v.third })
-            if (h != null && k.mt == h.first) n = if (h.second) n.copy(outInf = h.third) else n.copy(inInf = h.third)
+            if (h != null && k.mt == h.first) {
+                n = if (h.second) n.copy(outInf = h.third) else n.copy(inInf = h.third)
+                // a side without ease eases while its handle is dragged (as it will after release)
+                val i = sorted.indexOf(k)
+                se.gendut.klipp.engine.handleEase(sorted.getOrNull(i - 1)?.interp, k.interp, h.second)?.let { n = n.copy(interp = it) }
+            }
             n
         }
     }
@@ -527,12 +535,12 @@ private fun KfGraph(anim: AnimUi) {
                             for ((i, k) in ks.withIndex()) {
                                 val y = g.y(k.v.getOrNull(0) ?: continue)
                                 val kx = g.x(k.t)
-                                if (i < ks.size - 1 && se.gendut.klipp.engine.easesOut(k.interp)) {
+                                if (hasOut(ks, i)) {
                                     val seg = g.x(ks[i + 1].t) - kx
                                     val d = kotlin.math.hypot(kx + seg * k.outInf.toFloat() - down.position.x, y - down.position.y)
                                     if (d < best) { best = d; handle = Triple(k, true, seg) }
                                 }
-                                if (i > 0 && se.gendut.klipp.engine.easesIn(ks[i - 1].interp, k.interp)) {
+                                if (hasIn(ks, i)) {
                                     val seg = kx - g.x(ks[i - 1].t)
                                     val d = kotlin.math.hypot(kx - seg * k.inInf.toFloat() - down.position.x, y - down.position.y)
                                     if (d < best) { best = d; handle = Triple(k, false, seg) }
@@ -576,7 +584,11 @@ private fun KfGraph(anim: AnimUi) {
                             }
                             val h = handle; val pt = point
                             when {
-                                h != null && moved -> infl?.let { (_, out, ni) -> haptics.confirm(); a.onInfluence?.invoke(h.first, if (out) null else ni, if (out) ni else null) }
+                                h != null && moved -> infl?.let { (_, out, ni) ->
+                                    haptics.confirm()
+                                    val ease = se.gendut.klipp.engine.handleEase(ks.getOrNull(ks.indexOf(h.first) - 1)?.interp, h.first.interp, out)
+                                    a.onInfluence?.invoke(h.first, if (out) null else ni, if (out) ni else null, ease)
+                                }
                                 pt != null && moved -> value?.let { (_, c, nv) ->
                                     haptics.confirm()
                                     a.onValue?.invoke(pt.first, pt.first.v.toMutableList().also { it[c] = nv })
@@ -611,20 +623,17 @@ private fun KfGraph(anim: AnimUi) {
                     }
                     drawPath(path, colors[c % colors.size], style = Stroke(2.dp.toPx()))
                 }
-                // handles (on the first component's curve)
+                // handles (on the first component's curve): light = the side eases, small gray = linear (drag it to ease)
+                fun handle(kx: Float, hx: Float, y: Float, eased: Boolean) {
+                    drawLine(K.OnSurfaceVar.copy(alpha = if (eased) 0.6f else 0.3f), Offset(kx, y), Offset(hx, y), 1.5f * density)
+                    if (eased) drawCircle(K.PrimarySoft, 5.dp.toPx(), Offset(hx, y))
+                    else drawCircle(K.Outline, 3.5f.dp.toPx(), Offset(hx, y))
+                }
                 for ((i, k) in ks.withIndex()) {
                     val y = g.y(k.v.getOrNull(0) ?: continue)
                     val kx = g.x(k.t)
-                    if (i < ks.size - 1 && se.gendut.klipp.engine.easesOut(k.interp)) {
-                        val hx = kx + (g.x(ks[i + 1].t) - kx) * k.outInf.toFloat()
-                        drawLine(K.OnSurfaceVar.copy(alpha = 0.6f), Offset(kx, y), Offset(hx, y), 1.5f * density)
-                        drawCircle(K.PrimarySoft, 5.dp.toPx(), Offset(hx, y))
-                    }
-                    if (i > 0 && se.gendut.klipp.engine.easesIn(ks[i - 1].interp, k.interp)) {
-                        val hx = kx - (kx - g.x(ks[i - 1].t)) * k.inInf.toFloat()
-                        drawLine(K.OnSurfaceVar.copy(alpha = 0.6f), Offset(kx, y), Offset(hx, y), 1.5f * density)
-                        drawCircle(K.PrimarySoft, 5.dp.toPx(), Offset(hx, y))
-                    }
+                    if (hasOut(ks, i)) handle(kx, kx + (g.x(ks[i + 1].t) - kx) * k.outInf.toFloat(), y, se.gendut.klipp.engine.easesOut(k.interp))
+                    if (hasIn(ks, i)) handle(kx, kx - (kx - g.x(ks[i - 1].t)) * k.inInf.toFloat(), y, se.gendut.klipp.engine.easesIn(ks[i - 1].interp, k.interp))
                 }
                 for (k in ks) for (c in k.v.indices) {
                     val center = Offset(g.x(k.t), g.y(k.v[c]))
@@ -651,6 +660,12 @@ private fun KfGraph(anim: AnimUi) {
         }
     }
 }
+
+/** Keyframe [i] has an outgoing handle: there is a next keyframe and the segment isn't a hold (a step has no curve). */
+internal fun hasOut(ks: List<UiKf>, i: Int) = i < ks.size - 1 && ks[i].interp != "Hold"
+
+/** Keyframe [i] has an incoming handle: there is a previous keyframe that doesn't hold. */
+internal fun hasIn(ks: List<UiKf>, i: Int) = i > 0 && ks[i - 1].interp != "Hold"
 
 /** Graph geometry: timeline time ↔ x through the lanes' zoom, value ↔ y over [range]. */
 private class Geo(val anim: AnimUi, val w: Float, val h: Float, val range: Pair<Double, Double>) {

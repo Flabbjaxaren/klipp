@@ -262,8 +262,11 @@ interface PropsBackend {
      * One undo step.
      */
     fun setEase(id: Long, key: String, mt: Long, ease: String) {}
-    /** The ease handles' influence (0..1); null = unchanged. */
-    fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?) {}
+    /**
+     * The ease handles' influence (0..1); null = unchanged. [interp] (engine name, e.g. "EaseOut") is set first when the
+     * dragged side didn't ease yet – one undo step.
+     */
+    fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?, interp: String? = null) {}
     /** The keyframe's value (position: x, y). */
     fun setKeyframeValue(id: Long, key: String, mt: Long, v: List<Double>) {}
     fun deleteCaption(id: Long) {}

@@ -59,7 +59,9 @@ class FakeProps : PropsBackend {
     override fun moveKeyframe(id: Long, key: String, mt: Long, to: Float) { log += "move $key $mt -> $to" }
     override fun setInterpolation(id: Long, key: String, mt: Long, interp: String) { log += "interp $key $mt $interp" }
     override fun setEase(id: Long, key: String, mt: Long, ease: String) { log += "ease $key $mt $ease" }
-    override fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?) { log += "infl $key $mt $inInf $outInf" }
+    override fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?, interp: String?) {
+        log += "infl $key $mt $inInf $outInf" + (interp?.let { " $it" } ?: "")
+    }
     override fun setKeyframeValue(id: Long, key: String, mt: Long, v: List<Double>) { log += "value $key $mt $v" }
     override fun setCaptionsVisible(visible: Boolean) { log += "visible $visible" }
     override fun addAudioFx(id: Long, effect: String) {
@@ -320,5 +322,44 @@ class PropertiesUiTest {
         val ks = fake.p.kf.getValue("scale")
         val mid = ks.graphValueAt(2.5f, 0)!!
         assertEquals(50.0 + 50.0 * se.gendut.klipp.engine.ease("Bezier", 1.0 / 3, "AutoBezier", 1.0 / 3, 0.5), mid, 1e-9)
+    }
+
+    @Test
+    fun linearKeyframesHaveHandlesThatEase() {
+        val fake = FakeProps().apply {
+            p = p.copy(clipStart = 0f, clipEnd = 8f, kf = mapOf("scale" to listOf(
+                UiKf(1f, 100L, "Linear", listOf(50.0)), UiKf(4f, 400L, "Linear", listOf(100.0)), UiKf(6f, 600L, "Hold", listOf(100.0)),
+            )))
+        }
+        val st = state(fake).apply { playhead = 2f }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { PropertiesPanel(st) { } } } }
+        rule.onNodeWithTag("kfgraph:scale").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("kfgraphview:scale").performScrollTo()
+        rule.onRoot().captureRoboImage("$dir/31d_linjara_handtag.png")
+        val (lo, hi) = graphRange(fake.p.kf.getValue("scale"))
+        fun yOf(v: Double, h: Float) = (10f + (1 - (v - lo) / (hi - lo)) * (h - 20f)).toFloat()
+        // the linear keyframe at 1 s: its (hollow) out handle a third of the way to 4 s; dragging it = ease out
+        rule.onNodeWithTag("kfgraphview:scale").performTouchInput {
+            val y = yOf(50.0, height.toFloat())
+            down(Offset(width * 2f / 8f, y))
+            for (i in 1..10) moveTo(Offset(width * (2f + i / 10f) / 8f, y))
+            up()
+        }
+        rule.waitForIdle()
+        val out = fake.log.last()
+        assertTrue(out, out.startsWith("infl scale 100 null ") && out.endsWith(" EaseOut"))
+        // the keyframe at 4 s: its in handle a third back toward 1 s (x = 3/8) → ease in
+        rule.onNodeWithTag("kfgraphview:scale").performTouchInput {
+            val y = yOf(100.0, height.toFloat())
+            down(Offset(width * 3f / 8f, y))
+            for (i in 1..10) moveTo(Offset(width * (3f - 0.5f * i / 10f) / 8f, y))
+            up()
+        }
+        rule.waitForIdle()
+        val inn = fake.log.last()
+        assertTrue(inn, inn.startsWith("infl scale 400 ") && inn.endsWith(" null EaseIn"))
+        // the hold keyframe at 6 s has no outgoing handle (a step has no curve) – nothing beyond it to drag
+        assertEquals(2, fake.log.count { it.startsWith("infl") })
     }
 }
