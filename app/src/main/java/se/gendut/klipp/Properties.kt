@@ -232,7 +232,7 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
             onInterp = { k -> backend.setInterpolation(p.id, key, k.mt, nextInterp(k.interp)) },
             view = kfView, zoomBar = key == lowest,
             onEase = { k, ease -> backend.setEase(p.id, key, k.mt, ease) },
-            onInfluence = { k, i, o -> backend.setInfluence(p.id, key, k.mt, i, o) },
+            onInfluence = { k, i, o, interp -> backend.setInfluence(p.id, key, k.mt, i, o, interp) },
             onValue = { k, v -> backend.setKeyframeValue(p.id, key, k.mt, v) },
             format = when (key) {
                 "level" -> { v -> "%+.1f dB".format(v).replace('-', '−') }

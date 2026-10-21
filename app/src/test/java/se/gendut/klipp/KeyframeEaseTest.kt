@@ -5,6 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import se.gendut.klipp.engine.Kf
 import se.gendut.klipp.engine.ease
+import se.gendut.klipp.engine.handleEase
 import se.gendut.klipp.engine.valueAt
 
 /** The app draws and previews keyframe curves with the engine's math (crates/project keyframe.rs `ease`). */
@@ -29,5 +30,20 @@ class KeyframeEaseTest {
         assertTrue(ease("Linear", 1.0 / 3, "EaseIn", 1.0 / 3, 0.9) > 0.9)
         // more influence = softer start
         assertTrue(ease("EaseOut", 0.9, "Linear", 1.0 / 3, 0.3) < ease("EaseOut", 0.2, "Linear", 1.0 / 3, 0.3))
+    }
+
+    /** Dragging a handle on a side without ease gives the keyframe the interpolation that eases that side. */
+    @Test fun handleEaseRules() {
+        assertEquals("EaseOut", handleEase("Linear", "Linear", out = true))
+        assertEquals("EaseIn", handleEase("Linear", "Linear", out = false))
+        // the other side already eases: both = Bezier (Easy ease)
+        assertEquals("Bezier", handleEase("Linear", "EaseIn", out = true))
+        assertEquals("Bezier", handleEase("Linear", "EaseOut", out = false))
+        // already easing: unchanged
+        assertEquals(null, handleEase("Linear", "Bezier", out = true))
+        assertEquals(null, handleEase("Linear", "EaseOut", out = true))
+        // an incoming ease can come from the previous keyframe's Bezier
+        assertEquals(null, handleEase("Bezier", "Linear", out = false))
+        assertEquals(null, handleEase(null, "EaseIn", out = false))
     }
 }

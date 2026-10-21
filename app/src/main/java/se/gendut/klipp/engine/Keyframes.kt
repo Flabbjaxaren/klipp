@@ -58,6 +58,18 @@ fun easesIn(aInterp: String, bInterp: String): Boolean =
         aInterp == "Bezier" || aInterp == "ContinuousBezier"
 
 /**
+ * The interpolation a keyframe needs so that its [out] (else in) side eases, when its handle is dragged in the graph;
+ * null = the side already eases. [prevInterp] = the previous keyframe's (an incoming ease can also come from there).
+ * Both sides = Bezier (Easy ease).
+ */
+fun handleEase(prevInterp: String?, interp: String, out: Boolean): String? = when {
+    out && easesOut(interp) -> null
+    !out && easesIn(prevInterp ?: "Linear", interp) -> null
+    out -> if (interp == "EaseIn") "Bezier" else "EaseOut"
+    else -> if (interp == "EaseOut") "Bezier" else "EaseIn"
+}
+
+/**
  * The curve for the segment from [a] to [b] (0..1 → 0..1), exactly as the engine evaluates it (keyframe.rs `ease`):
  * a 1D cubic Bezier in normalized (time, value) space; eased ends have flat handles as long as their influence.
  */
