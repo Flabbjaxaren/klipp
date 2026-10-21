@@ -487,6 +487,17 @@ fun KlippApp(
         if (target != page.targetValue.roundToInt()) haptics.tick()
         scope.launch { page.animateTo(target.toFloat(), Springs.page()) }
     }
+    // the system back closes what is open, innermost first, and only then leaves the app (it used to leave from
+    // everywhere); the projects and settings pages have their own (they are composed later and win while shown)
+    val pageNow = page.targetValue.roundToInt()
+    androidx.activity.compose.BackHandler(enabled = mediaOpen || sourceMedia != null || state.inspecting || pageNow != 0) {
+        when {
+            mediaOpen -> mediaOpen = false
+            sourceMedia != null -> sourceMedia = null
+            state.inspecting -> state.inspecting = false
+            else -> goTo(0)
+        }
+    }
     fun undo() { if (state.undo()) { haptics.confirm(); toaster.show(Str.t(R.string.app_undone)) } }
     fun redo() { if (state.redo()) { haptics.confirm(); toaster.show(Str.t(R.string.app_redone)) } }
 
@@ -661,7 +672,7 @@ fun KlippApp(
                                 .background(K.Bg)
                         ) {
                             when (i) {
-                                0 -> EditPage(state, tool, { tool = it }, toaster, tips = controller != null && !landscape, barSpace = !landscape)
+                                0 -> EditPage(state, tool, { tool = it }, toaster, tips = controller != null && !landscape, barSpace = !landscape, overlays = sourceMedia == null)
                                 1 -> if (controller != null) {
                                     val q = controller.snapshot.sequence
                                     val clips = remember(q) {
@@ -977,7 +988,11 @@ private fun TimecodeDialog(now: Float, onDismiss: () -> Unit, onGo: (Float) -> U
 }
 
 @Composable
-private fun EditPage(state: EditorState, tool: Tool, setTool: (Tool) -> Unit, toaster: Toaster, tips: Boolean = false, barSpace: Boolean = true) {
+private fun EditPage(
+    state: EditorState, tool: Tool, setTool: (Tool) -> Unit, toaster: Toaster, tips: Boolean = false, barSpace: Boolean = true,
+    /** The clip/transition/cut bars and the render chip over the timeline; off while the source monitor is open (the timeline is short then and they covered its ruler). */
+    overlays: Boolean = true,
+) {
     // the selection bars sit above the floating toolbar (portrait); in landscape the toolbar is elsewhere
     val barPad = if (barSpace) 92.dp else 12.dp
     val haptics = rememberHaptics()
@@ -1023,10 +1038,12 @@ private fun EditPage(state: EditorState, tool: Tool, setTool: (Tool) -> Unit, to
                 state, tool,
                 Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
             )
-            ContextBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad))
-            TransitionBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad))
-            CutBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad, start = 12.dp, end = 12.dp))
-            RenderChip(Modifier.align(Alignment.TopEnd).padding(top = 34.dp, end = 10.dp))
+            if (overlays) {
+                ContextBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad))
+                TransitionBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad))
+                CutBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad, start = 12.dp, end = 12.dp))
+                RenderChip(Modifier.align(Alignment.TopEnd).padding(top = 34.dp, end = 10.dp))
+            }
             MultiBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad))
             // first-run tips about the gestures, only when nothing is selected (the selection bars use the same place)
             val nothingSelected = state.selected == null && !state.groupSelected && state.selectedTransition == null && state.selectedCut == null && state.selectedCaption == null
@@ -1422,7 +1439,7 @@ private fun ContextAction(icon: ImageVector, label: String, selected: Boolean = 
     ) {
         Icon(icon, null, tint = if (selected) K.OnPrimary else K.OnSurface, modifier = Modifier.size(22.dp))
         Spacer(Modifier.height(2.dp))
-        Text(label, color = if (selected) K.OnPrimary else K.OnSurface, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
+        Text(label, color = if (selected) K.OnPrimary else K.OnSurface, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, style = IconLabel)
     }
 }
 
@@ -1451,7 +1468,7 @@ private fun ToolButton(label: String, icon: ImageVector, selected: Boolean, firs
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(icon, label, tint = fg, modifier = Modifier.size(18.dp))
-        Text(label, color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        Text(label, color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, style = IconLabel)
     }
 }
 
@@ -1471,7 +1488,7 @@ private fun ToggleIcon(icon: ImageVector, desc: String, label: String, on: Boole
         verticalArrangement = Arrangement.Center,
     ) {
         Icon(icon, desc, tint = if (on) K.PrimarySoft else K.OnSurfaceVar, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rot.value })
-        Text(label, color = if (on) K.PrimarySoft else K.OnSurfaceVar, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+        Text(label, color = if (on) K.PrimarySoft else K.OnSurfaceVar, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, style = IconLabel)
     }
 }
 
@@ -1530,7 +1547,7 @@ private fun FloatingModes(pageOf: () -> Float, modifier: Modifier, onPick: (Int)
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(MODE_ICONS[i], name, tint = fg, modifier = Modifier.size(20.dp))
-                    Text(name, color = fg, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(name, color = fg, fontSize = 11.sp, fontWeight = FontWeight.Bold, style = IconLabel)
                 }
             }
         }

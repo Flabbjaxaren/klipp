@@ -106,7 +106,7 @@ private fun CaptionAction(icon: androidx.compose.ui.graphics.vector.ImageVector,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, null, tint = K.OnSurface, modifier = Modifier.size(22.dp))
-        Text(label, color = K.OnSurfaceVar, fontSize = 11.sp)
+        Text(label, color = K.OnSurfaceVar, fontSize = 11.sp, style = IconLabel)
     }
 }
 
