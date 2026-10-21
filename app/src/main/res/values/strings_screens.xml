@@ -233,6 +233,4 @@
         <item quantity="one">They are used %1$d time in the timeline – those clips will be removed too.</item>
         <item quantity="other">They are used %1$d times in the timeline – those clips will be removed too.</item>
     </plurals>
-    <string name="settings_speech_gpu">Speech recognition on the GPU (experimental)</string>
-    <string name="settings_speech_gpu_hint">Faster on Snapdragon, but can crash with some graphics drivers. If the app crashes during a run, it switches back to the CPU.</string>
 </resources>

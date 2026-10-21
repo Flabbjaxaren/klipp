@@ -36,24 +36,7 @@ object Whisper {
     /** Called from whisper.cpp with the percentage (0–100) of what is currently being transcribed. */
     fun interface Listener { fun onProgress(percent: Int) }
 
-    /**
-     * The Adreno GPU (ggml's OpenCL backend with Qualcomm's kernels), when the phone has an OpenCL driver. Probing it
-     * initializes the driver, so it is only done for a run that asked for the GPU (see [useGpu]).
-     */
-    val gpu: Boolean by lazy { loaded && runCatching { nativeGpuAvailable() }.getOrDefault(false) }
-    /** The GPU failed (this session, or a GPU run took the app down earlier): the CPU is used. */
-    @Volatile var gpuBroken = false
-
-    /** Speech recognition on the GPU: off by default (experimental – the CPU path is proven), a setting. */
-    fun useGpu(c: Context): Boolean = c.getSharedPreferences("klipp", Context.MODE_PRIVATE).getBoolean("speechGpu", false)
-    fun setUseGpu(c: Context, on: Boolean) {
-        // turning it on again is a new try: a previous crash no longer blocks it
-        c.getSharedPreferences("klipp", Context.MODE_PRIVATE).edit().putBoolean("speechGpu", on).putBoolean("speechGpuOff", false).apply()
-        if (on) gpuBroken = false
-    }
-
-    @JvmStatic external fun nativeGpuAvailable(): Boolean
-    @JvmStatic external fun nativeInit(modelPath: String, useGpu: Boolean): Long
+    @JvmStatic external fun nativeInit(modelPath: String): Long
     @JvmStatic external fun nativeFree(handle: Long)
     @JvmStatic external fun nativeAbort(handle: Long)
     @JvmStatic external fun nativeTranscribe(handle: Long, pcm: FloatArray, language: String, threads: Int, maxLen: Int, prompt: String?, vadModel: String?, listener: Listener?): ByteArray?
@@ -480,16 +463,12 @@ object AutoCaptions {
         }
     }
 
-    private const val GPU_RUNNING = "speechGpuRunning"
-    private const val GPU_OFF = "speechGpuOff"
-
     /** The job's start time (for "… in 12 s"). */
     private class Run(val t0: Long = System.nanoTime()) { fun seconds() = (System.nanoTime() - t0) / 1e9 }
 
     /**
-     * One speech job: the model is loaded (the Adreno GPU when there is one and it hasn't failed, otherwise the CPU – also
-     * when the GPU fails midway) and freed afterwards. [work] gets a recognizer (pcm, max segment length, progress → JSON)
-     * and returns the message to show.
+     * One speech job: the model is loaded (on the CPU) and freed afterwards. [work] gets a recognizer (pcm, max segment
+     * length, progress → JSON) and returns the message to show.
      */
     private fun launchJob(context: Context, model: SpeechModel, language: String, work: suspend Run.(recognize: suspend (FloatArray, Int, (Int) -> Unit) -> String) -> String) {
         if (!Whisper.available) { message = Str.t(R.string.transcribe_unavailable); return }
@@ -498,48 +477,21 @@ object AutoCaptions {
         running = true
         job = scope.launch {
             val run = Run()
-            // a GPU run that took the whole app down (a driver crash can't be caught): the next run uses the CPU, for good
-            val prefs = context.getSharedPreferences("klipp", Context.MODE_PRIVATE)
-            if (prefs.getBoolean(GPU_RUNNING, false)) {
-                prefs.edit().putBoolean(GPU_RUNNING, false).putBoolean(GPU_OFF, true).commit()
-                se.gendut.klipp.CrashReport.note("speech: the previous GPU run did not finish – the CPU is used from now on")
-            }
-            if (prefs.getBoolean(GPU_OFF, false)) Whisper.gpuBroken = true
-            fun gpuRunning(on: Boolean) { prefs.edit().putBoolean(GPU_RUNNING, on).commit() }
             try {
                 if (!SpeechModels.ready(context, model)) error("the model is not downloaded")
                 phase = Str.t(R.string.transcribe_starting)
                 val path = SpeechModels.file(context, model).absolutePath
-                // the guard is set before the GPU is even probed (probing initializes the OpenCL driver)
-                val wantGpu = Whisper.useGpu(context) && !Whisper.gpuBroken
                 val lang = SpeechChoice.whisperLanguage(model, language)
                 val vad = withContext(Dispatchers.IO) { SpeechModels.vad(context) }
-                se.gendut.klipp.CrashReport.note("speech: start ${model.name}, language=$lang, gpu wanted=$wantGpu")
-                if (wantGpu) gpuRunning(true)
-                var onGpu = wantGpu && Whisper.gpu
-                if (wantGpu && !onGpu) gpuRunning(false)
-                var h = withContext(Dispatchers.IO) { Whisper.nativeInit(path, onGpu) }
-                if (h == 0L && onGpu) { Whisper.gpuBroken = true; onGpu = false; gpuRunning(false); h = withContext(Dispatchers.IO) { Whisper.nativeInit(path, false) } }
+                se.gendut.klipp.CrashReport.note("speech: start ${model.name}, language=$lang, vad=${vad != null}")
+                val h = withContext(Dispatchers.IO) { Whisper.nativeInit(path) }
                 if (h == 0L) error("the model could not be loaded")
                 synchronized(handleLock) { handle = h }
                 val threads = (Runtime.getRuntime().availableProcessors() / 2 + 1).coerceIn(2, 6)
                 try {
                     message = run.work { pcm, maxLen, onPct ->
-                        suspend fun once() = withContext(Dispatchers.Default) {
+                        val out = withContext(Dispatchers.Default) {
                             Whisper.nativeTranscribe(h, pcm, lang, threads, maxLen, null, vad) { pct -> scope.launch { onPct(pct) } }
-                        }
-                        var out = once()
-                        if (out == null && onGpu) {
-                            // the GPU failed: the rest on the CPU (a new context – the GPU one is freed)
-                            currentCoroutineContext().ensureActive()
-                            Whisper.gpuBroken = true; onGpu = false; gpuRunning(false)
-                            se.gendut.klipp.CrashReport.note("speech: the GPU failed – continuing on the CPU")
-                            synchronized(handleLock) { handle = 0L }
-                            withContext(NonCancellable + Dispatchers.IO) { Whisper.nativeFree(h) }
-                            h = withContext(Dispatchers.IO) { Whisper.nativeInit(path, false) }
-                            if (h == 0L) error("the model could not be loaded")
-                            synchronized(handleLock) { handle = h }
-                            out = once()
                         }
                         out?.toString(Charsets.UTF_8) ?: run { currentCoroutineContext().ensureActive(); error("speech recognition failed") }
                     }
@@ -554,7 +506,6 @@ object AutoCaptions {
             } catch (e: Throwable) {
                 message = Str.t(R.string.transcribe_failed, e.message ?: e.javaClass.simpleName)
             } finally {
-                gpuRunning(false)
                 se.gendut.klipp.CrashReport.note("speech: finished after %.1f s".format(java.util.Locale.ROOT, run.seconds()))
                 progress = null
                 phase = ""

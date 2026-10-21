@@ -181,11 +181,6 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                 Opt(1, stringResource(R.string.settings_tonemap_codec), stringResource(R.string.settings_tonemap_codec_hint), enabled = android.os.Build.VERSION.SDK_INT >= 33, key = "tmCodec"),
             ), vp.hdrToneMap, "set:toneMap") { vp.setHdrToneMap(ctx, it) }
             Text(stringResource(R.string.settings_ten_bit_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-            // speech recognition on the Adreno GPU: experimental, off by default (a driver crash takes the app down)
-            var speechGpu by remember { mutableStateOf(se.gendut.klipp.engine.Whisper.useGpu(ctx)) }
-            SwitchRow(stringResource(R.string.settings_speech_gpu), stringResource(R.string.settings_speech_gpu_hint), speechGpu, "set:speechGpu") {
-                speechGpu = it; se.gendut.klipp.engine.Whisper.setUseGpu(ctx, it)
-            }
 
             Group(stringResource(R.string.settings_group_playback))
             ProxySection(ctx)

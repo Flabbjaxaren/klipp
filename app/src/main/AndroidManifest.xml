@@ -15,8 +15,6 @@
         android:roundIcon="@drawable/ic_launcher"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
-        <!-- Qualcomm's OpenCL driver (Adreno) for speech recognition; optional – without it the CPU is used -->
-        <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <!-- performance measurement of the release build (simpleperf, Android Studio's profiler) -->
         <profileable android:shell="true" />
         <activity
