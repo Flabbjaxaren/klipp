@@ -1,0 +1,73 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  android:
+    name: App (unit tests, lint, release APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: NDK and CMake
+        run: sdkmanager --install "ndk;29.0.14206865" "cmake;3.31.6"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      # the FilmCraft engine bridge (libklipp_bridge.so) is not in the repository – built here
+      - name: Build the engine bridge
+        working-directory: rust
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+          cargo ndk -t arm64-v8a --platform 29 -o ../app/src/main/jniLibs build --release
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest
+      - name: Lint and release build
+        run: ./gradlew lintRelease assembleRelease
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports
+          path: |
+            app/build/reports/
+            app/build/test-results/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: klipp-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+
+  bridge:
+    name: Engine bridge (Rust tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - name: Test media (generated)
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          mkdir -p "$RUNNER_TEMP/media" && cd "$RUNNER_TEMP/media"
+          for n in a b; do
+            ffmpeg -loglevel error -f lavfi -i testsrc=size=1280x720:rate=25:duration=10 -f lavfi -i sine=frequency=440:duration=10 \
+              -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest "klipp_$n.mp4"
+          done
+          ffmpeg -loglevel error -f lavfi -i "sine=frequency=300:duration=8,volume='if(lt(mod(t,4),2),1,0)':eval=frame" -c:a aac tal.m4a
+      - name: Tests
+        working-directory: rust
+        run: KLIPP_TEST_MEDIA="$RUNNER_TEMP/media" cargo test --release

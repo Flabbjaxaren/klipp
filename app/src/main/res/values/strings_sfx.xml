@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sfx_title">Sound effects</string>
+    <string name="sfx_license_note">All sounds are CC0 – free to use in any film, no credit required.</string>
+    <string name="sfx_tab_packs">Packs</string>
+    <string name="sfx_size_mb">%1$.1f MB</string>
+    <string name="sfx_download">Download</string>
+    <string name="sfx_download_failed">Download failed: %1$s</string>
+    <string name="sfx_remove_pack">Remove pack</string>
+    <string name="sfx_freesound_key_intro">Search Freesound for free (CC0) sounds. Freesound needs a free API key: create an account and get a key at</string>
+    <string name="sfx_freesound_key_hint">Paste your API key</string>
+    <string name="sfx_save">Save</string>
+    <string name="sfx_no_results">No CC0 sounds found</string>
+    <string name="sfx_search_failed">Search failed: %1$s</string>
+    <string name="sfx_search_hint">Search, e.g. whoosh, door, rain</string>
+    <string name="sfx_search">Search</string>
+    <string name="sfx_downloaded">Downloaded</string>
+    <string name="sfx_forget_key">Forget the API key</string>
+    <string name="sfx_seconds">%1$.1f s</string>
+    <string name="sfx_add">Add</string>
+    <string name="sfx_browse">Browse sound effects</string>
+    <string name="sfx_section_hint">Free sound effects (CC0) – they are placed at the playhead on the first free audio track.</string>
+    <string name="sfx_pack_impact">footsteps, hits, thuds, glass, metal</string>
+    <string name="sfx_pack_interface">clicks, confirmations, errors, switches</string>
+    <string name="sfx_pack_ui">soft UI clicks and switches</string>
+    <string name="sfx_pack_rpg">doors, coins, cloth, footsteps, drawing a sword</string>
+    <string name="sfx_pack_scifi">lasers, engines, computers, force fields</string>
+    <string name="sfx_pack_digital">digital beeps, power-ups, zaps</string>
+    <string name="sfx_pack_jingles">short music stings and jingles</string>
+    <string name="projectcontroller_undo_sound">Sound effect</string>
+    <string name="projectcontroller_sound_placed">Sound effect added on A%1$d</string>
+    <string name="projectcontroller_sound_failed">The sound effect could not be added: %1$s</string>
+    <string name="sfx_pack_whoosh">whooshes, swishes and swipes for cuts and transitions</string>
+    <string name="sfx_pack_social">notifications, pops, camera shutters, clicks, dings</string>
+    <string name="sfx_pack_comedy">boings, rimshots, record scratches, drum rolls, applause, laughter</string>
+    <string name="sfx_pack_accent">heartbeats, magic chimes, punches, booms, cymbals</string>
+</resources>

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="crashreport_title">Klipp stängdes oväntat förra gången</string>
+    <string name="crashreport_intro">Kopiera felrapporten och skicka den till mig, så hittar jag felet.</string>
+    <string name="crashreport_copy">Kopiera rapporten</string>
+    <string name="crashreport_close">Stäng</string>
+    <string name="monitor_no_clip">Inget klipp</string>
+    <string name="monitor_sample_chapter">Kapitel 2</string>
+    <string name="monitor_sample_credits">Medverkande</string>
+    <string name="monitor_sample_chapter_sub">Havet</string>
+    <string name="monitor_program">Program</string>
+    <string name="keyframeui_animate">Animera</string>
+    <string name="keyframeui_prev_keyframe">Föregående nyckelruta</string>
+    <string name="keyframeui_remove_keyframe">Ta bort nyckelruta</string>
+    <string name="keyframeui_add_keyframe">Lägg till nyckelruta</string>
+    <string name="keyframeui_next_keyframe">Nästa nyckelruta</string>
+    <string name="timeline_hide_captions">Dölj undertexter</string>
+    <string name="timeline_show_captions">Visa undertexter</string>
+    <string name="timeline_locked">Låst</string>
+    <string name="timeline_hide_track">Dölj spåret</string>
+    <string name="timeline_show_track">Visa spåret</string>
+    <string name="timeline_unmute">Slå på ljudet</string>
+    <string name="timeline_mute_track">Tysta spåret</string>
+    <string name="timeline_track_locked">Spåret är låst</string>
+    <string name="timeline_clip_off_prefix">AV ·\u0020</string>
+    <string name="timeline_lock_track">Lås spåret</string>
+    <string name="timeline_mute">Tysta</string>
+    <string name="timeline_solo">Solo</string>
+    <string name="timeline_sync_lock">Synk-lås (följer ripple)</string>
+    <string name="timeline_release_to_delete">Släpp för att radera</string>
+</resources>

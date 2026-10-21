@@ -1,0 +1,27 @@
+[package]
+name = "klipp-bridge"
+version = "0.1.0"
+edition = "2024"
+license = "GPL-3.0-or-later"
+description = "JNI bridge between Klipp (Android) and the FilmCraft engine"
+
+[lib]
+name = "klipp_bridge"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The FilmCraft engine, pinned to a reviewed commit. Update rev deliberately.
+filmcraft-engine = { git = "https://github.com/storytold/filmcraft", rev = "70f0fc7a75f2681bc18302e67eaf0c9d41c68873" }
+# DSP (real-time audio effects, BS.1770 loudness) – same commit as the engine
+filmcraft-audio-dsp = { git = "https://github.com/storytold/filmcraft", rev = "70f0fc7a75f2681bc18302e67eaf0c9d41c68873" }
+filmcraft-media = { git = "https://github.com/storytold/filmcraft", rev = "70f0fc7a75f2681bc18302e67eaf0c9d41c68873" }
+serde_json = "1"
+jni = { version = "0.21", default-features = false }
+
+[profile.release]
+opt-level = 3
+# the whole engine is optimized as one unit (faster DSP and decoding on the phone's cores; longer build)
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "unwind"

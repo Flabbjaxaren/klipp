@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- FilmFx: diffusion filter descriptions -->
+    <string name="filmfx_hint_glimmerglass">tunt, skarpt, svag lång svans</string>
+    <string name="filmfx_hint_black_pro_mist">kompakt varm gloria, djupa svärtor</string>
+    <string name="filmfx_hint_pro_mist">bred pastellslöja</string>
+    <string name="filmfx_hint_cinebloom">över hela bilden, varm, retro</string>
+
+    <!-- OpenDrt: tonescale, white point and display labels -->
+    <string name="opendrt_input_rec709">Rec.709-video</string>
+    <string name="opendrt_from_look">Lookens</string>
+    <string name="opendrt_tonescale_low">Låg kontrast</string>
+    <string name="opendrt_tonescale_medium">Medel kontrast</string>
+    <string name="opendrt_tonescale_high">Hög kontrast</string>
+    <string name="opendrt_display_phone_web">Telefon &amp; webb (sRGB 2.2)</string>
+
+    <!-- Lut: .cube import errors -->
+    <string name="lut_error_size_unsupported">LUT-storlek %1$d stöds inte</string>
+    <string name="lut_error_1d_unsupported">1D-LUT:ar stöds inte än – välj en 3D-LUT</string>
+    <string name="lut_error_no_size">Hittar ingen LUT_3D_SIZE</string>
+    <string name="lut_error_value_count">Fel antal värden: %1$d, väntade %2$d</string>
+    <string name="lut_error_domain">Ogiltigt DOMAIN_MIN/MAX i LUT:en</string>
+</resources>

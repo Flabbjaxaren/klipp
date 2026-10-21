@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tip_knife">Swipe down quickly through a clip to cut it there.</string>
+    <string name="tip_out">Drag a clip up out of the timeline (or flick it up) to delete it.</string>
+    <string name="tip_edge">Drag any clip\'s edge to trim it – a loupe shows where you are.</string>
+    <string name="tip_scrub">Scrub on the ruler or the picture and slide your finger down for ½, ¼, ⅛ speed.</string>
+    <string name="tip_undo">Tap with two fingers to undo, three fingers to redo.</string>
+    <string name="tip_picture">Double-tap the picture for full screen. Hold a finger on it and tap beside it to step frames.</string>
+    <string name="tip_text">In Text mode you can edit by text: delete words and the video is cut along.</string>
+    <string name="tip_next">Next</string>
+    <string name="tip_done">Got it</string>
+    <string name="tip_hide_all">Hide tips</string>
+</resources>

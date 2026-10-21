@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Model.kt -->
+    <string name="model_subtitle_prototype">Prototype · mock clips</string>
+    <string name="model_track_locked">Track is locked</string>
+    <string name="model_select_two_clips">Select at least two clips</string>
+    <string name="model_locked_not_moved">Clips on locked tracks aren\'t moved</string>
+    <string name="model_locked_left">Clips on locked tracks are left in place</string>
+    <string name="model_freeze_video_only">Freeze Frame only works on video clips</string>
+    <string name="model_freeze_no_direction">A freeze frame has no direction</string>
+    <string name="model_reverse_av_only">Reverse only works on video and audio</string>
+
+    <!-- Properties.kt -->
+    <string name="properties_title">Properties</string>
+    <string name="properties_done">Done</string>
+    <string name="properties_select_clip">Select a clip in the timeline</string>
+    <string name="properties_audio">Audio</string>
+    <string name="properties_volume">Volume</string>
+    <string name="properties_motion">Motion</string>
+    <string name="properties_reset">Reset</string>
+    <string name="properties_position_x">Position X</string>
+    <string name="properties_position_y">Position Y</string>
+    <string name="properties_scale">Scale</string>
+    <string name="properties_rotation">Rotation</string>
+    <string name="properties_opacity">Opacity</string>
+    <string name="properties_motion_hint">Drag, pinch and rotate directly in the image above</string>
+    <string name="properties_fade">Fade</string>
+    <string name="properties_fade_in">In</string>
+    <string name="properties_fade_out">Out</string>
+    <string name="properties_fade_half">0.5 s</string>
+    <string name="properties_off">Off</string>
+    <string name="properties_green_screen">Green Screen</string>
+    <string name="properties_key_green">Green</string>
+    <string name="properties_key_blue">Blue</string>
+    <string name="properties_key_tolerance">Tolerance</string>
+    <string name="properties_key_softness">Softness</string>
+    <string name="properties_key_spill">Spill Removal</string>
+    <string name="properties_key_hint">Put the clip on a track above what should show through</string>
+    <string name="properties_blend">Blend Mode</string>
+    <string name="properties_blend_hint">Blends with the tracks below</string>
+    <string name="properties_mask">Mask</string>
+    <string name="properties_mask_rect">Rectangle</string>
+    <string name="properties_mask_ellipse">Ellipse</string>
+    <string name="properties_mask_invert">Invert</string>
+    <string name="properties_mask_center_x">Center X</string>
+    <string name="properties_mask_center_y">Center Y</string>
+    <string name="properties_mask_width">Width</string>
+    <string name="properties_mask_height">Height</string>
+    <string name="properties_mask_feather">Feather</string>
+    <string name="properties_cancel">Cancel</string>
+    <string name="properties_track_again">Track Again</string>
+    <string name="properties_track_object">Track Object</string>
+    <string name="properties_clear_keyframes">Remove Keyframes</string>
+    <string name="properties_tracking_progress">Tracking … %1$.0f %%</string>
+    <string name="properties_track_hint">Place the mask around the object and tap Track – the mask follows it through the clip and becomes keyframes you can edit.</string>
+
+    <!-- Panels.kt -->
+    <string name="panels_style_slide">Slide</string>
+    <string name="panels_style_bounce">Bounce</string>
+    <string name="panels_style_scale">Scale</string>
+    <string name="panels_title_role_default">Fisherman, Smögen</string>
+    <string name="panels_color">Color</string>
+    <string name="panels_reset">Reset</string>
+    <string name="panels_preset_none">None</string>
+    <string name="panels_preset_warm">Warm</string>
+    <string name="panels_preset_cool">Cool</string>
+    <string name="panels_preset_film">Film</string>
+    <string name="panels_preset_bw">B&amp;W</string>
+    <string name="panels_lut_none">None</string>
+    <string name="panels_lut_import">+ Import .cube</string>
+    <string name="panels_lut_strength">Strength</string>
+    <string name="panels_lut_tetra">Tetrahedral</string>
+    <string name="panels_lut_trilinear">Trilinear</string>
+    <string name="panels_lut_tetra_desc">High quality · GPU</string>
+    <string name="panels_lut_trilinear_desc">Fast · GPU texture</string>
+    <string name="panels_tone">Tone</string>
+    <string name="panels_exposure">Exposure</string>
+    <string name="panels_contrast">Contrast</string>
+    <string name="panels_white_balance">White Balance</string>
+    <string name="panels_temperature">Temperature</string>
+    <string name="panels_tint">Tint</string>
+    <string name="panels_creative">Creative</string>
+    <string name="panels_saturation">Saturation</string>
+    <string name="panels_color_placeholder">Curves · color wheels · HSL · vignette · scopes coming soon</string>
+    <string name="panels_duck_title">Duck music</string>
+    <string name="panels_duck_desc">The music is lowered automatically when someone speaks on the other tracks</string>
+    <string name="panels_duck_music_on">Music on</string>
+    <string name="panels_duck_lower">Lower by</string>
+    <string name="panels_duck_listening">Listening …</string>
+    <string name="panels_duck_go">Duck</string>
+    <string name="panels_duck_no_speech">No speech heard under the music on A%1$d</string>
+    <plurals name="panels_duck_done">
+        <item quantity="one">The music on A%1$d is lowered under the speech (%2$d clip). Adjust the clip volume if you like.</item>
+        <item quantity="other">The music on A%1$d is lowered under the speech (%2$d clips). Adjust the clip volume if you like.</item>
+    </plurals>
+    <string name="panels_duck_remove">Remove</string>
+    <string name="panels_duck_none">No ducking on A%1$d</string>
+    <plurals name="panels_duck_removed">
+        <item quantity="one">Ducking removed (%1$d clip)</item>
+        <item quantity="other">Ducking removed (%1$d clips)</item>
+    </plurals>
+    <string name="panels_target_youtube">YouTube / Spotify</string>
+    <string name="panels_target_podcast">Podcast / Apple</string>
+    <string name="panels_target_tv">TV (EBU R128)</string>
+    <string name="panels_audio">Audio</string>
+    <string name="panels_integrated_loudness">Integrated loudness (mix)</string>
+    <string name="panels_measuring_value">measuring …</string>
+    <string name="panels_peak_lra">Peak %1$.1f dBTP · LRA %2$.1f LU</string>
+    <string name="panels_measuring">Measuring …</string>
+    <string name="panels_measure">Measure</string>
+    <string name="panels_normalize">Normalize Mix</string>
+    <string name="panels_normalize_limited">The peak sets the limit: the mix lands at %1$.1f LUFS (true peak −1 dBTP). Put a limiter on the clips to reach the target.</string>
+    <string name="panels_normalize_done">Normalization %1$+.1f dB → %2$.1f LUFS</string>
+    <string name="panels_volume_automation">Volume Automation</string>
+    <string name="panels_automation_hint">◆ adds a keyframe at the playhead with the fader\'s value (or removes the one already there). With keyframes the fader follows them, and dragging it writes a new keyframe.</string>
+    <string name="panels_clear_track">Clear A%1$d</string>
+    <string name="panels_voice_over">Voice-over</string>
+    <string name="panels_record">● Record</string>
+    <string name="panels_stop">■ Stop</string>
+    <string name="panels_recording_hint">Recording – the timeline plays muted so the speaker isn\'t picked up by the mic.</string>
+    <string name="panels_record_hint">Records from the playhead while the timeline plays, and puts the recording on the selected track.</string>
+    <string name="panels_text_title">Text &amp; Captions</string>
+    <string name="panels_templates">Templates</string>
+    <string name="panels_template_lower_third">Lower Third</string>
+    <string name="panels_template_chapter">Chapter Card</string>
+    <string name="panels_template_credits">Credits Roll</string>
+    <string name="panels_content">Content</string>
+    <string name="panels_name">Name</string>
+    <string name="panels_role">Role</string>
+    <string name="panels_animation_in">Animation In</string>
+    <string name="panels_play">Play</string>
+    <string name="panels_text_placeholder">Captions · transcribe · SRT / VTT · burn in</string>
+
+    <!-- MaskTrack.kt -->
+    <string name="masktrack_file_missing">The clip\'s file is missing</string>
+    <string name="masktrack_freeze_frame">A freeze frame stands still – there\'s nothing to track</string>
+    <plurals name="masktrack_done">
+        <item quantity="one">Tracked %1$.1f s in %2$.1f s · %3$d keyframe</item>
+        <item quantity="other">Tracked %1$.1f s in %2$.1f s · %3$d keyframes</item>
+    </plurals>
+    <plurals name="masktrack_weak_frames">
+        <item quantity="one">%1$d uncertain frame</item>
+        <item quantity="other">%1$d uncertain frames</item>
+    </plurals>
+    <string name="masktrack_canceled">Tracking canceled</string>
+    <string name="masktrack_failed">Tracking failed: %1$s</string>
+</resources>

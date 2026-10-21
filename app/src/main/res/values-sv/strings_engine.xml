@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="export_quality_low">Låg</string>
+    <string name="export_quality_standard">Standard</string>
+    <string name="export_quality_high">Hög</string>
+    <string name="export_quality_max">Max</string>
+    <string name="export_codec_h264">H.264 · fungerar överallt</string>
+    <string name="export_codec_hevc">HEVC (H.265) · halva storleken</string>
+    <string name="export_codec_av1">AV1 · minst, nyare enheter</string>
+    <string name="titles_template_lower_third">Namnskylt</string>
+    <string name="titles_template_chapter">Kapitelkort</string>
+    <string name="titles_template_roll">Rulltext</string>
+    <string name="titles_template_free">Fri text</string>
+    <string name="titles_anim_slide">Glid</string>
+    <string name="titles_anim_bounce">Studs</string>
+    <string name="titles_anim_scale">Skala</string>
+    <string name="titles_anim_fade">Tona</string>
+    <string name="titles_anim_none">Ingen</string>
+    <string name="layerfx_blend_normal">Normal</string>
+    <string name="layerfx_blend_multiply">Multiplicera</string>
+    <string name="layerfx_blend_screen">Raster</string>
+    <string name="layerfx_blend_overlay">Täcka</string>
+    <string name="layerfx_blend_soft_light">Mjukt ljus</string>
+    <string name="layerfx_blend_add">Addera</string>
+    <string name="layerfx_blend_darken">Mörkare</string>
+    <string name="layerfx_blend_lighten">Ljusare</string>
+    <string name="layerfx_blend_difference">Differens</string>
+    <string name="nodecache_status_queued">i kö</string>
+    <string name="nodecache_status_caching">cachar %1$d %%</string>
+    <string name="nodecache_status_cached">cachad</string>
+    <string name="nodecache_status_failed">misslyckades</string>
+    <string name="nodecache_status_waiting">väntar</string>
+    <string name="proxies_quality_low">Låg</string>
+    <string name="proxies_quality_normal">Normal</string>
+    <string name="proxies_quality_high">Hög</string>
+    <string name="proxies_quality_very_high">Mycket hög</string>
+    <string name="fxcurves_band_low_shelf">Låg hylla</string>
+    <string name="fxcurves_band_high_shelf">Hög hylla</string>
+    <string name="fxcurves_band_n">Band %1$d</string>
+</resources>

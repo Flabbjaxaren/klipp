@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="transcript_title">Klipp med text</string>
+    <string name="transcript_info">Talet blir text, ord för ord. Radera ord så klipps videon bort med dem.</string>
+    <string name="transcript_open">Öppna utskriften</string>
+    <string name="transcript_empty">Ingen utskrift än. Välj en talmodell och låt telefonen lyssna på ljudspåren (inget lämnar telefonen).</string>
+    <string name="transcript_transcribe">Skriv ut talet</string>
+    <string name="transcript_remove_pauses">Ta bort pauser</string>
+    <string name="transcript_remove_fillers">Ta bort utfyllnadsord</string>
+    <string name="transcript_hint">Tryck på ett ord för att hoppa dit. Tryck på ett annat ord för att markera allt emellan.</string>
+    <string name="transcript_hint_selected">Radera klipper bort orden ur video, ljud och undertexter.</string>
+    <plurals name="transcript_delete_words">
+        <item quantity="one">Radera %1$d ord</item>
+        <item quantity="other">Radera %1$d ord</item>
+    </plurals>
+</resources>

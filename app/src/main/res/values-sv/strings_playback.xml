@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Transitions.kt: TransitionType labels -->
+    <string name="transitions_cross_dissolve">Korstoning</string>
+    <string name="transitions_dip_to_black">Via svart</string>
+    <string name="transitions_dip_to_white">Via vitt</string>
+    <string name="transitions_wipe">Svep</string>
+    <string name="transitions_push">Skjut</string>
+    <string name="transitions_slide">Glid</string>
+    <string name="transitions_zoom">Zoom</string>
+    <string name="transitions_iris">Iris</string>
+
+    <!-- Reversals.kt -->
+    <string name="reversals_preparing">Baklänges förbereds …</string>
+    <string name="reversals_failed">Baklänges gick inte: %1$s</string>
+
+    <!-- Playback.kt -->
+    <string name="playback_error">Uppspelning: %1$s</string>
+    <string name="playback_no_message">inget meddelande</string>
+    <plurals name="playback_clips_missing_file">
+        <item quantity="one">%1$d bildklipp, %2$d utan fil</item>
+        <item quantity="other">%1$d bildklipp, %2$d utan fil</item>
+    </plurals>
+    <string name="playback_could_not_start">Uppspelningen kunde inte starta (%1$s)</string>
+    <string name="playback_nothing_to_play">Inget att spela upp än – lägg ett klipp på tidslinjen</string>
+    <string name="playback_timeline_empty">Tidslinjen är tom</string>
+    <string name="playback_create_file_failed">Kunde inte skapa filen i Filmer</string>
+    <string name="playback_write_file_failed">Kunde inte skriva filen i Filmer</string>
+</resources>

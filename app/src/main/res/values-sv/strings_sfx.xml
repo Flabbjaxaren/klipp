@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sfx_title">Ljudeffekter</string>
+    <string name="sfx_license_note">Alla ljud är CC0 – fria att använda i vilken film som helst, utan namnangivelse.</string>
+    <string name="sfx_tab_packs">Paket</string>
+    <string name="sfx_size_mb">%1$.1f MB</string>
+    <string name="sfx_download">Hämta</string>
+    <string name="sfx_download_failed">Det gick inte att hämta: %1$s</string>
+    <string name="sfx_remove_pack">Ta bort paketet</string>
+    <string name="sfx_freesound_key_intro">Sök efter fria ljud (CC0) på Freesound. Freesound kräver en gratis API-nyckel: skapa ett konto och hämta en nyckel på</string>
+    <string name="sfx_freesound_key_hint">Klistra in din API-nyckel</string>
+    <string name="sfx_save">Spara</string>
+    <string name="sfx_no_results">Inga CC0-ljud hittades</string>
+    <string name="sfx_search_failed">Sökningen misslyckades: %1$s</string>
+    <string name="sfx_search_hint">Sök, t.ex. whoosh, dörr, regn</string>
+    <string name="sfx_search">Sök</string>
+    <string name="sfx_downloaded">Hämtade</string>
+    <string name="sfx_forget_key">Glöm API-nyckeln</string>
+    <string name="sfx_seconds">%1$.1f s</string>
+    <string name="sfx_add">Lägg till</string>
+    <string name="sfx_browse">Bläddra bland ljudeffekter</string>
+    <string name="sfx_section_hint">Fria ljudeffekter (CC0) – de läggs vid spelhuvudet på första lediga ljudspår.</string>
+    <string name="sfx_pack_impact">steg, slag, dunsar, glas, metall</string>
+    <string name="sfx_pack_interface">klick, bekräftelser, fel, reglage</string>
+    <string name="sfx_pack_ui">mjuka klick och reglage</string>
+    <string name="sfx_pack_rpg">dörrar, mynt, tyg, steg, svärd som dras</string>
+    <string name="sfx_pack_scifi">laser, motorer, datorer, kraftfält</string>
+    <string name="sfx_pack_digital">digitala pip, power-ups, zappar</string>
+    <string name="sfx_pack_jingles">korta musikstötar och jinglar</string>
+    <string name="projectcontroller_undo_sound">Ljudeffekt</string>
+    <string name="projectcontroller_sound_placed">Ljudeffekten lades på A%1$d</string>
+    <string name="projectcontroller_sound_failed">Ljudeffekten kunde inte läggas till: %1$s</string>
+    <string name="sfx_pack_whoosh">whooshar, svischar och svep för klipp och övergångar</string>
+    <string name="sfx_pack_social">notiser, pop, kameraslutare, klick, pling</string>
+    <string name="sfx_pack_comedy">boing, rimshots, skivscratch, trumvirvlar, applåder, skratt</string>
+    <string name="sfx_pack_accent">hjärtslag, magiska klockspel, slag, smällar, cymbaler</string>
+</resources>

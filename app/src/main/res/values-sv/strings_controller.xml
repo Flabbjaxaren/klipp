@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ProjectController: messages -->
+    <string name="projectcontroller_files_open_failed">Filerna kunde inte öppnas</string>
+    <plurals name="projectcontroller_files_import_failed">
+        <item quantity="one">%1$d fil kunde inte importeras</item>
+        <item quantity="other">%1$d filer kunde inte importeras</item>
+    </plurals>
+    <plurals name="projectcontroller_clips_imported">
+        <item quantity="one">%1$d klipp importerat</item>
+        <item quantity="other">%1$d klipp importerade</item>
+    </plurals>
+    <string name="projectcontroller_import_failed">Import misslyckades: %1$s</string>
+    <string name="projectcontroller_default_media_name">Klipp</string>
+    <string name="projectcontroller_set_marks_failed">Kunde inte sätta in/ut</string>
+    <string name="projectcontroller_new_bin_failed">Kunde inte skapa mappen</string>
+    <string name="projectcontroller_move_failed">Kunde inte flytta</string>
+    <string name="projectcontroller_rename_failed">Kunde inte byta namn</string>
+    <string name="projectcontroller_rename_failed_reason">Kunde inte byta namn: %1$s</string>
+    <string name="projectcontroller_remove_failed">Kunde inte ta bort</string>
+    <string name="projectcontroller_edit_failed">Redigeringen misslyckades</string>
+    <string name="projectcontroller_generic_failed">Det gick inte</string>
+    <string name="projectcontroller_sync_lock_blocks_ripple">Synklåst spår hindrar ripple – lås upp spåret</string>
+    <string name="projectcontroller_track_locked">Spåret är låst</string>
+    <string name="projectcontroller_freeze_failed">Frysbilden gick inte: %1$s</string>
+    <string name="projectcontroller_read_project_failed">Kunde inte läsa projektet: %1$s</string>
+    <plurals name="projectcontroller_media_count">
+        <item quantity="one">%1$d klipp</item>
+        <item quantity="other">%1$d klipp</item>
+    </plurals>
+    <string name="projectcontroller_save_failed">Kunde inte spara: %1$s</string>
+    <string name="projectcontroller_save_media_failed">Kunde inte spara mediafilen: %1$s</string>
+    <string name="projectcontroller_side_backup_used">mediafilen var trasig – reservkopian användes</string>
+    <string name="projectcontroller_side_broken">mediafilen är trasig – klippen kunde inte länkas</string>
+    <string name="projectcontroller_default_project_name">Projekt %1$s</string>
+    <string name="projectcontroller_restore_last_failed">Kunde inte öppna senaste projektet: %1$s. Inget sparas förrän du öppnar eller skapar ett projekt.</string>
+    <string name="projectcontroller_my_project">Mitt projekt</string>
+    <string name="projectcontroller_restored">Projektet återställt</string>
+    <plurals name="projectcontroller_restored_missing">
+        <item quantity="one">Projektet återställt – %1$d klipp saknas</item>
+        <item quantity="other">Projektet återställt – %1$d klipp saknas</item>
+    </plurals>
+    <string name="projectcontroller_archive_name">Arkiv %1$s</string>
+    <string name="projectcontroller_default_sequence_name">Sekvens 1</string>
+    <string name="projectcontroller_new_project">Nytt projekt: %1$s</string>
+    <string name="projectcontroller_project_missing">Projektet finns inte</string>
+    <string name="projectcontroller_open_failed">Kunde inte öppna projektet: %1$s</string>
+    <string name="projectcontroller_open_failed_blocked">Kunde inte öppna projektet: %1$s. Inget sparas förrän du öppnar eller skapar ett projekt.</string>
+    <string name="projectcontroller_copy_name">%1$s (kopia)</string>
+    <string name="projectcontroller_project_fallback_name">Projekt</string>
+    <string name="projectcontroller_duplicate_failed">Kunde inte kopiera projektet: %1$s</string>
+    <string name="projectcontroller_open_another_first">Öppna ett annat projekt först</string>
+    <string name="projectcontroller_change_failed">Kunde inte ändra: %1$s</string>
+    <string name="projectcontroller_sequence_now">Projektet är nu %1$d×%2$d · %3$s bilder/s</string>
+    <string name="projectcontroller_add_marker_failed">Kunde inte lägga till markör</string>
+    <string name="projectcontroller_target_failed">Kunde inte välja målspår</string>
+    <string name="projectcontroller_track_change_failed">Kunde inte ändra spåret</string>
+    <string name="projectcontroller_timeline_empty">Tidslinjen är tom</string>
+    <string name="projectcontroller_no_music">Ingen musik på A%1$d</string>
+    <string name="projectcontroller_no_speech">Inget tal på de andra ljudspåren att ducka mot</string>
+    <string name="projectcontroller_ducking_failed">Duckningen gick inte: %1$s</string>
+    <string name="projectcontroller_no_audio">Det finns inget ljud på tidslinjen</string>
+    <string name="projectcontroller_mix_silent">Mixen är tyst</string>
+    <string name="projectcontroller_voiceover_placed">Voice-over lagd på A%1$d</string>
+    <string name="projectcontroller_voiceover_failed">Voice-over kunde inte läggas in: %1$s</string>
+    <string name="projectcontroller_fade_failed">Övertoningen gick inte: %1$s</string>
+    <string name="projectcontroller_fade_too_long">Övertoningen kan inte bli så lång – klippen saknar material bortom kanten</string>
+    <string name="projectcontroller_transition_change_failed">Övergången gick inte att byta</string>
+    <string name="projectcontroller_transition_failed">Övergången gick inte: %1$s</string>
+    <string name="projectcontroller_add_clip_first">Lägg in ett klipp först</string>
+    <string name="projectcontroller_default_title">Titel</string>
+    <string name="projectcontroller_title_failed">Kunde inte skapa titeln: %1$s</string>
+    <string name="projectcontroller_new_caption">Ny undertext</string>
+    <string name="projectcontroller_caption_exists">Det finns redan en undertext vid spelhuvudet</string>
+    <string name="projectcontroller_picker_not_ready">Filväljaren är inte redo</string>
+    <string name="projectcontroller_captions_file_fallback">undertexter.srt</string>
+    <plurals name="projectcontroller_captions_imported">
+        <item quantity="one">%1$d undertext inläst</item>
+        <item quantity="other">%1$d undertexter inlästa</item>
+    </plurals>
+    <string name="projectcontroller_captions_read_failed">Kunde inte läsa undertexterna: %1$s</string>
+
+    <!-- ProjectController: undo steps -->
+    <string name="projectcontroller_undo_import">Importera</string>
+    <string name="projectcontroller_undo_remove_media">Ta bort media</string>
+    <string name="projectcontroller_undo_overwrite">Skriv över</string>
+    <string name="projectcontroller_undo_insert">Infoga</string>
+    <string name="projectcontroller_undo_move">Flytta</string>
+    <string name="projectcontroller_undo_trim">Trimma</string>
+    <string name="projectcontroller_undo_reverse">Baklänges</string>
+    <string name="projectcontroller_undo_group">Gruppera</string>
+    <string name="projectcontroller_undo_ungroup">Dela upp grupp</string>
+    <string name="projectcontroller_undo_razor">Rakblad</string>
+    <string name="projectcontroller_undo_roll">Rulla</string>
+    <string name="projectcontroller_undo_clean_slivers">Rensa små bitar</string>
+    <string name="projectcontroller_undo_speed_ramp">Hastighetsramp</string>
+    <string name="projectcontroller_undo_duck_music">Ducka musik</string>
+    <string name="projectcontroller_undo_remove_ducking">Ta bort duckning</string>
+    <string name="projectcontroller_undo_voiceover">Voice-over</string>
+    <string name="projectcontroller_undo_transition">Övergång</string>
+    <string name="projectcontroller_undo_auto_captions">Automatiska undertexter</string>
+
+    <!-- ProjectController: speed ramp presets -->
+    <string name="projectcontroller_ramp_slow_mid">Slow-mo i mitten</string>
+    <string name="projectcontroller_ramp_into_slow">Ut i slow-mo</string>
+    <string name="projectcontroller_ramp_from_slow">Från slow-mo</string>
+    <string name="projectcontroller_ramp_fast_mid">Snabbt i mitten</string>
+
+    <!-- AudioFxCatalog -->
+    <string name="audiofxcatalog_denoise">Brusreducering</string>
+    <string name="audiofxcatalog_denoise_hint">Tar bort jämnt brus (fläktar, sus, vind).</string>
+    <string name="audiofxcatalog_amount">Styrka</string>
+    <string name="audiofxcatalog_speech_enhance">Röstförbättring</string>
+    <string name="audiofxcatalog_speech_enhance_hint">Tydligare tal: dämpar rummet och lyfter rösten.</string>
+    <string name="audiofxcatalog_mix">Mängd</string>
+    <string name="audiofxcatalog_eq">EQ</string>
+    <string name="audiofxcatalog_eq_hint">Dra punkterna i kurvan: åt sidan = frekvens, upp/ned = nivå. Dubbeltryck nollställer ett band.</string>
+    <string name="audiofxcatalog_output_level">Utnivå</string>
+    <string name="audiofxcatalog_compressor">Kompressor</string>
+    <string name="audiofxcatalog_compressor_hint">Dra knät (tröskeln) och handtaget till höger (förhållandet). Ovanför knät dämpas ljudet.</string>
+    <string name="audiofxcatalog_threshold">Tröskel</string>
+    <string name="audiofxcatalog_ratio">Förhållande</string>
+    <string name="audiofxcatalog_attack">Attack</string>
+    <string name="audiofxcatalog_release">Release</string>
+    <string name="audiofxcatalog_makeup">Utjämning</string>
+    <string name="audiofxcatalog_limiter_after">Limiter efter</string>
+    <string name="audiofxcatalog_limiter_ceiling">Limiterns tak</string>
+    <string name="audiofxcatalog_limiter">Limiter</string>
+    <string name="audiofxcatalog_limiter_hint">Ett tak för nivån – inget klipper.</string>
+    <string name="audiofxcatalog_ceiling">Tak</string>
+    <string name="audiofxcatalog_boost">Förstärkning</string>
+    <string name="audiofxcatalog_on">på</string>
+    <string name="audiofxcatalog_off">av</string>
+    <string name="projectcontroller_undo_delete_text">Radera text</string>
+    <string name="projectcontroller_undo_remove_pauses">Ta bort pauser</string>
+    <string name="projectcontroller_undo_remove_fillers">Ta bort utfyllnadsord</string>
+    <string name="projectcontroller_nothing_removed">Inget att ta bort</string>
+    <plurals name="projectcontroller_parts_removed">
+        <item quantity="one">Tog bort %1$d del (%2$.1f s)</item>
+        <item quantity="other">Tog bort %1$d delar (%2$.1f s)</item>
+    </plurals>
+</resources>
