@@ -58,6 +58,9 @@ class FakeProps : PropsBackend {
     override fun toggleKeyframe(id: Long, key: String, at: Float) { log += "kf $key @$at" }
     override fun moveKeyframe(id: Long, key: String, mt: Long, to: Float) { log += "move $key $mt -> $to" }
     override fun setInterpolation(id: Long, key: String, mt: Long, interp: String) { log += "interp $key $mt $interp" }
+    override fun setEase(id: Long, key: String, mt: Long, ease: String) { log += "ease $key $mt $ease" }
+    override fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?) { log += "infl $key $mt $inInf $outInf" }
+    override fun setKeyframeValue(id: Long, key: String, mt: Long, v: List<Double>) { log += "value $key $mt $v" }
     override fun setCaptionsVisible(visible: Boolean) { log += "visible $visible" }
     override fun addAudioFx(id: Long, effect: String) {
         log += "addfx $effect"
@@ -259,12 +262,63 @@ class PropertiesUiTest {
         val mv = fake.log.last()
         assertTrue(mv, mv.startsWith("move scale 400 -> "))
         assertEquals(5f, mv.substringAfter("-> ").toFloat(), 0.1f)
-        // long press = change interpolation (smooth → hold)
+        // long press = the interpolation menu; easy ease
         rule.onNodeWithTag("lane:scale").performTouchInput { longClick(Offset(width * 4f / 8f, height / 2f)) }
         rule.waitForIdle()
-        assertEquals("interp scale 400 hold", fake.log.last())
+        rule.onNodeWithTag("kfmenu:scale").assertExists()
+        rule.onNodeWithTag("kfease:easy").performClick()
+        rule.waitForIdle()
+        assertEquals("ease scale 400 easy", fake.log.last())
+        rule.onNodeWithTag("kfmenu:scale").assertDoesNotExist()
         // tap the lane = move the playhead there
         rule.onNodeWithTag("lane:scale").performTouchInput { click(Offset(width * 7f / 8f, height / 2f)) }
         assertEquals(7f, st.playhead, 0.1f)
+    }
+
+    @Test
+    fun valueGraphHandlesAndPoints() {
+        val fake = FakeProps().apply {
+            p = p.copy(clipStart = 0f, clipEnd = 8f, kf = mapOf("scale" to listOf(
+                UiKf(1f, 100L, "Bezier", listOf(50.0)), UiKf(4f, 400L, "AutoBezier", listOf(100.0)), UiKf(6f, 600L, "Hold", listOf(100.0)),
+            )))
+        }
+        val st = state(fake).apply { playhead = 2f }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { PropertiesPanel(st) { } } } }
+        rule.onNodeWithTag("kfgraph:scale").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("kfgraphview:scale").performScrollTo()
+        rule.onRoot().captureRoboImage("$dir/31b_vardegraf.png")
+        // the geometry the graph uses: values 50..100 with 15 % air, 10 px padding
+        val (lo, hi) = graphRange(fake.p.kf.getValue("scale"))
+        fun yOf(v: Double, h: Float) = (10f + (1 - (v - lo) / (hi - lo)) * (h - 20f)).toFloat()
+        // the out handle of the keyframe at 1 s sits a third of the way to 4 s (x = 2/8); drag it to 3/8 = influence 2/3
+        rule.onNodeWithTag("kfgraphview:scale").performTouchInput {
+            val y = yOf(50.0, height.toFloat())
+            down(Offset(width * 2f / 8f, y))
+            for (i in 1..10) moveTo(Offset(width * (2f + i / 10f) / 8f, y))
+            up()
+        }
+        rule.waitForIdle()
+        val infl = fake.log.last()
+        assertTrue(infl, infl.startsWith("infl scale 100 null "))
+        assertEquals(2.0 / 3.0, infl.substringAfterLast(' ').toDouble(), 0.02)
+        // the point at 4 s dragged to the top = the top of the range
+        rule.onNodeWithTag("kfgraphview:scale").performTouchInput {
+            val x = width * 4f / 8f
+            val y0 = yOf(100.0, height.toFloat())
+            down(Offset(x, y0))
+            for (i in 1..10) moveTo(Offset(x, y0 + (y0 - 10f) * -i / 10f))
+        }
+        rule.waitForIdle()
+        rule.onRoot().captureRoboImage("$dir/31c_graf_drag.png")
+        rule.onNodeWithTag("kfgraphview:scale").performTouchInput { up() }
+        rule.waitForIdle()
+        val v = fake.log.last()
+        assertTrue(v, v.startsWith("value scale 400 ["))
+        assertEquals(hi, v.substringAfter('[').substringBefore(']').toDouble(), 0.5)
+        // the curve between the keyframes is the engine's
+        val ks = fake.p.kf.getValue("scale")
+        val mid = ks.graphValueAt(2.5f, 0)!!
+        assertEquals(50.0 + 50.0 * se.gendut.klipp.engine.ease("Bezier", 1.0 / 3, "AutoBezier", 1.0 / 3, 0.5), mid, 1e-9)
     }
 }

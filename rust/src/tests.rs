@@ -1204,3 +1204,47 @@ fn keyframe_times_on_reverse_and_freeze_frame() {
     let t = clip(&b, 1)["kf"]["scale"][0]["t"].as_f64().unwrap();
     assert!((t - 3.0).abs() < 0.001, "freeze frame keyframe at {t}");
 }
+
+#[test]
+fn keyframe_ease_and_influence() {
+    let mut b = Bridge::new();
+    ok(&mut b, "file.import", json!({"paths": [media("klipp_a.mp4")]}));
+    ok(&mut b, "file.newSequence", json!({"width": 1280, "height": 720, "fps": 25.0}));
+    let tps = filmcraft_engine::time::TICKS_PER_SECOND;
+    ok(&mut b, "source.open", json!({"item": 1}));
+    ok(&mut b, "source.insert", json!({}));
+    let clip = |b: &Bridge| { let s: Value = serde_json::from_str(&b.snapshot()).unwrap(); s["sequence"]["video"][0]["clips"][0].clone() };
+    let id = clip(&b)["id"].as_u64().unwrap();
+    for (at, v) in [(0, 0.0), (2, 100.0)] {
+        ok(&mut b, "effects.setParam", json!({"clip": id, "effect": "opacity", "param": "opacity", "value": v, "keyframe": true, "time": at * tps}));
+    }
+    let ks = clip(&b)["kf"]["opacity"].clone();
+    let (m0, m1) = (ks[0]["mt"].as_i64().unwrap(), ks[1]["mt"].as_i64().unwrap());
+    // what the app's easy ease sends: bezier + a third on both sides (as one group), then a softer landing
+    ok(&mut b, "effects.setInterpolation", json!({"clip": id, "effect": "opacity", "param": "opacity", "mediaTime": m0, "interpolation": "bezier"}));
+    ok(&mut b, "effects.setKeyframe", json!({"clip": id, "effect": "opacity", "param": "opacity", "mediaTime": m0, "outInfluence": 0.6}));
+    ok(&mut b, "effects.setKeyframe", json!({"clip": id, "effect": "opacity", "param": "opacity", "mediaTime": m1, "inInfluence": 0.9, "value": 80.0}));
+    let ks = clip(&b)["kf"]["opacity"].clone();
+    assert_eq!(ks[0]["interp"], "Bezier");
+    assert!((ks[0]["outInf"].as_f64().unwrap() - 0.6).abs() < 1e-9);
+    assert!((ks[1]["inInf"].as_f64().unwrap() - 0.9).abs() < 1e-9);
+    assert!((ks[1]["v"][0].as_f64().unwrap() - 80.0).abs() < 1e-9);
+    // the engine's curve at a quarter, half and three quarters – the same numbers are asserted in the app (KeyframeEaseTest)
+    use filmcraft_engine::project::{Interpolation, Keyframe, Param, ParamValue};
+    let mut p = Param::new(ParamValue::Float(0.0));
+    let mut a = Keyframe::new(Tick(0), ParamValue::Float(0.0));
+    a.interp = Interpolation::Bezier;
+    a.out_influence = 0.6;
+    let mut z = Keyframe::new(Tick(1000), ParamValue::Float(80.0));
+    z.in_influence = 0.9;
+    p.keyframes = vec![a, z];
+    let got: Vec<f64> = [250, 500, 750].iter().map(|&t| p.f64_at(Tick(t))).collect();
+    let want = [EASE_Q1, EASE_HALF, EASE_Q3];
+    for (g, w) in got.iter().zip(want) {
+        assert!((g - w).abs() < 1e-6, "engine curve {got:?}");
+    }
+}
+
+const EASE_Q1: f64 = 8.51905335501151;
+const EASE_HALF: f64 = 62.66094097352554;
+const EASE_Q3: f64 = 77.29654326012408;

@@ -391,7 +391,8 @@ data class Snapshot(
                                     o.keys().asSequence().associateWith { k ->
                                         o.optJSONArray(k).list { j ->
                                             val v = j.optJSONArray("v")
-                                            Kf(j.optLong("mt"), j.optDouble("t"), if (v == null) emptyList() else (0 until v.length()).map { v.optDouble(it) }, j.optString("interp", "Linear"))
+                                            Kf(j.optLong("mt"), j.optDouble("t"), if (v == null) emptyList() else (0 until v.length()).map { v.optDouble(it) }, j.optString("interp", "Linear"),
+                                                j.optDouble("inInf", DEFAULT_INFLUENCE), j.optDouble("outInf", DEFAULT_INFLUENCE))
                                         }.sortedBy { it.t }
                                     }
                                 }.orEmpty(),
