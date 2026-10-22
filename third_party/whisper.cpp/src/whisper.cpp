@@ -8258,6 +8258,16 @@ int64_t whisper_full_get_token_t1(struct whisper_context * ctx, int i_segment, i
     return whisper_full_get_token_t1_from_state(ctx->state, i_segment, i_token);
 }
 
+// [Klipp] DTW token time on the original audio timeline (see whisper.h)
+int64_t whisper_full_get_token_t_dtw(struct whisper_context * ctx, int i_segment, int i_token) {
+    const whisper_state * state = ctx->state;
+    const int64_t t = state->result_all[i_segment].tokens[i_token].t_dtw;
+    if (t < 0 || !state->has_vad_segments || state->vad_segments.empty()) {
+        return t;
+    }
+    return whisper_map_token_time_segment_aware(t, state->vad_segments);
+}
+
 int whisper_full_n_vad_segments_from_state(struct whisper_state * state) {
     return (int) state->vad_segments.size();
 }

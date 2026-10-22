@@ -36,21 +36,31 @@ object Whisper {
     /** Called from whisper.cpp with the percentage (0–100) of what is currently being transcribed. */
     fun interface Listener { fun onProgress(percent: Int) }
 
-    @JvmStatic external fun nativeInit(modelPath: String): Long
+    /** [dtwHeads]: the model's alignment heads for DTW word times ([SpeechModel.dtw]), null = whisper's own times. */
+    @JvmStatic external fun nativeInit(modelPath: String, dtwHeads: String?): Long
     @JvmStatic external fun nativeFree(handle: Long)
     @JvmStatic external fun nativeAbort(handle: Long)
-    @JvmStatic external fun nativeTranscribe(handle: Long, pcm: FloatArray, language: String, threads: Int, maxLen: Int, prompt: String?, vadModel: String?, listener: Listener?): ByteArray?
+    @JvmStatic external fun nativeTranscribe(handle: Long, pcm: FloatArray, language: String, threads: Int, maxLen: Int, prompt: String?, vadModel: String?, dtwStartMs: Int, dtwEndMs: Int, listener: Listener?): ByteArray?
 }
+
+/**
+ * Word times by DTW for a model: its alignment heads ("base", "small", "medium") and how far a word starts before
+ * the DTW time of its first token / ends after that of its last (ms) – see words_by_dtw in whisper_jni.cpp.
+ */
+data class SpeechDtw(val heads: String, val startMs: Int, val endMs: Int)
 
 /**
  * The speech models: KBLab's KB-Whisper (National Library of Sweden, trained on Swedish – clearly best for Swedish) and
  * OpenAI's Whisper (multilingual, and English-only variants). [language] = the model's fixed language, "" = any.
  * [tier]: 0 fast, 1 balanced, 2 best. The file name is the enum name (downloaded models keep their names).
+ * [dtw]: word times for transcripts by DTW. Measured for KB-Whisper on Swedish speech with known word edges (word
+ * edges a median ~40 ms off instead of ~180 ms; checked on a second, separate recording); the other models keep
+ * whisper's own times until measured.
  */
-enum class SpeechModel(val title: String, val url: String, val bytes: Long, val language: String, val tier: Int) {
-    SV_FAST("KB-Whisper base", "https://huggingface.co/KBLab/kb-whisper-base/resolve/main/ggml-model-q5_0.bin", 55_295_450, "sv", 0),
-    SV_BEST("KB-Whisper small", "https://huggingface.co/KBLab/kb-whisper-small/resolve/main/ggml-model-q5_0.bin", 175_209_680, "sv", 1),
-    SV_LARGE("KB-Whisper medium", "https://huggingface.co/KBLab/kb-whisper-medium/resolve/main/ggml-model-q5_0.bin", 539_212_484, "sv", 2),
+enum class SpeechModel(val title: String, val url: String, val bytes: Long, val language: String, val tier: Int, val dtw: SpeechDtw? = null) {
+    SV_FAST("KB-Whisper base", "https://huggingface.co/KBLab/kb-whisper-base/resolve/main/ggml-model-q5_0.bin", 55_295_450, "sv", 0, SpeechDtw("base", 250, 115)),
+    SV_BEST("KB-Whisper small", "https://huggingface.co/KBLab/kb-whisper-small/resolve/main/ggml-model-q5_0.bin", 175_209_680, "sv", 1, SpeechDtw("small", 255, 105)),
+    SV_LARGE("KB-Whisper medium", "https://huggingface.co/KBLab/kb-whisper-medium/resolve/main/ggml-model-q5_0.bin", 539_212_484, "sv", 2, SpeechDtw("medium", 355, -55)),
     MULTI_BASE("Whisper base", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin", 59_707_625, "", 0),
     MULTI("Whisper small", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin", 190_085_487, "", 1),
     MULTI_TURBO("Whisper large-v3-turbo", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin", 574_041_195, "", 2),
@@ -384,7 +394,7 @@ object AutoCaptions {
         val q = controller.snapshot.sequence ?: run { message = Str.t(R.string.transcribe_no_sequence); return }
         val clips = q.audio.getOrNull(track)?.clips.orEmpty().filter { it.duration > 0.2 }.sortedBy { it.start }
         if (clips.isEmpty()) { message = Str.t(R.string.transcribe_no_audio, track + 1); return }
-        launchJob(context, model, language) { recognize ->
+        launchJob(context, model, language, words = false) { recognize ->
             val lines = ArrayList<SpeechLine>()
             val total = clips.sumOf { it.duration * kotlin.math.abs(it.speed) }.coerceAtLeast(1e-3)
             var done = 0.0
@@ -439,7 +449,7 @@ object AutoCaptions {
     fun transcriptOf(context: Context, controller: ProjectController, model: SpeechModel, language: String, items: List<Long>) {
         if (running || items.isEmpty()) return
         item = items.singleOrNull()
-        launchJob(context, model, language) { recognize ->
+        launchJob(context, model, language, words = true) { recognize ->
             val durations = items.associateWith { id -> controller.snapshot.media.firstOrNull { it.id == id }?.duration ?: 0.0 }
             val total = durations.values.sum().coerceAtLeast(1e-3)
             var done = 0.0
@@ -479,9 +489,9 @@ object AutoCaptions {
 
     /**
      * One speech job: the model is loaded (on the CPU) and freed afterwards. [work] gets a recognizer (pcm, max segment
-     * length, progress → JSON) and returns the message to show.
+     * length, progress → JSON) and returns the message to show. [words]: a word transcript (word times by DTW).
      */
-    private fun launchJob(context: Context, model: SpeechModel, language: String, work: suspend Run.(recognize: suspend (FloatArray, Int, (Int) -> Unit) -> String) -> String) {
+    private fun launchJob(context: Context, model: SpeechModel, language: String, words: Boolean, work: suspend Run.(recognize: suspend (FloatArray, Int, (Int) -> Unit) -> String) -> String) {
         if (!Whisper.available) { message = Str.t(R.string.transcribe_unavailable); item = null; return }
         message = null
         progress = 0f
@@ -494,15 +504,17 @@ object AutoCaptions {
                 val path = SpeechModels.file(context, model).absolutePath
                 val lang = SpeechChoice.whisperLanguage(model, language)
                 val vad = withContext(Dispatchers.IO) { SpeechModels.vad(context) }
-                se.gendut.klipp.CrashReport.note("speech: start ${model.name}, language=$lang, vad=${vad != null}")
-                val h = withContext(Dispatchers.IO) { Whisper.nativeInit(path) }
+                // DTW word times only for word transcripts (captions don't need them, and DTW turns flash attention off)
+                val dtw = model.dtw.takeIf { words }
+                se.gendut.klipp.CrashReport.note("speech: start ${model.name}, language=$lang, vad=${vad != null}, dtw=${dtw != null}")
+                val h = withContext(Dispatchers.IO) { Whisper.nativeInit(path, dtw?.heads) }
                 if (h == 0L) error("the model could not be loaded")
                 synchronized(handleLock) { handle = h }
                 val threads = (Runtime.getRuntime().availableProcessors() / 2 + 1).coerceIn(2, 6)
                 try {
                     message = run.work { pcm, maxLen, onPct ->
                         val out = withContext(Dispatchers.Default) {
-                            Whisper.nativeTranscribe(h, pcm, lang, threads, maxLen, null, vad) { pct -> scope.launch { onPct(pct) } }
+                            Whisper.nativeTranscribe(h, pcm, lang, threads, maxLen, null, vad, dtw?.startMs ?: 0, dtw?.endMs ?: 0) { pct -> scope.launch { onPct(pct) } }
                         }
                         out?.toString(Charsets.UTF_8) ?: run { currentCoroutineContext().ensureActive(); error("speech recognition failed") }
                     }
