@@ -3,6 +3,7 @@ package se.gendut.klipp
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -601,7 +602,7 @@ fun KlippApp(
         @Composable
         fun MonitorArea(mod: Modifier) {
             Box(mod.background(Color.Black).then(pictureTouch).testTag("monitorArea"), contentAlignment = Alignment.Center) {
-                if (controller != null && playback != null) ProgramMonitor(controller, playback, state, gs, lookOf(grade), Modifier.fillMaxSize()) { if (controller.snapshot.media.isEmpty()) openImport() else mediaOpen = true }
+                if (controller != null && playback != null) ProgramMonitor(controller, playback, state, gs, lookOf(grade), Modifier.fillMaxSize(), onFullscreen = { state.playing = false; fullscreen = true }) { if (controller.snapshot.media.isEmpty()) openImport() else mediaOpen = true }
                 else Monitor(state, grade, title)
                 ScrubSpeedBadge(monitorTier, Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
                 // the program's audio level (what is heard, after the master)
@@ -1667,14 +1668,6 @@ private fun FullViewer(
     onExit: () -> Unit,
 ) {
     androidx.activity.compose.BackHandler { onExit() }
-    val view = androidx.compose.ui.platform.LocalView.current
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        val window = (view.context as? android.app.Activity)?.window
-        val ctl = window?.let { androidx.core.view.WindowCompat.getInsetsController(it, view) }
-        ctl?.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        ctl?.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-        onDispose { ctl?.show(androidx.core.view.WindowInsetsCompat.Type.systemBars()) }
-    }
     val haptics = rememberHaptics()
     var overlay by remember { mutableIntStateOf(1) }
     var srcPlaying by remember { mutableStateOf(false) }
@@ -1687,6 +1680,28 @@ private fun FullViewer(
         isSource && sourceMedia.width > 0 -> sourceMedia.width.toFloat() / sourceMedia.height
         q != null && q.width > 0 -> q.width.toFloat() / q.height
         else -> 16f / 9f
+    }
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val activity = view.context as? android.app.Activity
+        val window = activity?.window
+        val ctl = window?.let { androidx.core.view.WindowCompat.getInsetsController(it, view) }
+        ctl?.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        ctl?.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        // the screen turns with the picture: landscape for a landscape project, portrait for a portrait one (either way up)
+        val before = activity?.requestedOrientation
+        val wasLandscape = view.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        fullscreenOrientation(aspect)?.let { activity?.requestedOrientation = it }
+        onDispose {
+            ctl?.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            if (activity != null && before != null && activity.requestedOrientation != before) {
+                // back the way the editor was: the sensor alone wouldn't turn a phone lying flat back. A moment later the
+                // earlier setting (usually: follow the sensor) applies again.
+                activity.requestedOrientation = if (wasLandscape) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                    else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                view.postDelayed({ activity.requestedOrientation = before }, 1500)
+            }
+        }
     }
     Box(
         Modifier.fillMaxSize().background(Color.Black).testTag("fullViewer")
@@ -1708,7 +1723,8 @@ private fun FullViewer(
             },
         contentAlignment = Alignment.Center
     ) {
-        Box(Modifier.fillMaxHeight().aspectRatio(aspect, matchHeightConstraintsFirst = true)) {
+        // fitted inside the screen (the whole picture, bars where the shapes differ)
+        Box(Modifier.fillMaxSize().wrapContentSize().aspectRatio(aspect)) {
             when {
                 isSource -> FitPlayerSurface(source.player, Modifier.fillMaxSize())
                 controller != null && playback != null -> {
@@ -1733,6 +1749,13 @@ private fun FullViewer(
             )
         }
     }
+}
+
+/** The screen orientation for full screen: follows the picture's shape; a square picture keeps the current one (null). */
+fun fullscreenOrientation(aspect: Float): Int? = when {
+    aspect > 1.01f -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+    aspect < 0.99f -> android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+    else -> null
 }
 
 /** The projects page's connection to the engine. */
