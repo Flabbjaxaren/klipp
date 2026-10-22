@@ -2,7 +2,9 @@
 // The result is JSON (UTF-8 bytes): [{"t0":ms,"t1":ms,"text":"..."}, ...].
 #include <jni.h>
 #include <android/log.h>
+#include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <string>
 #include <vector>
 #include "whisper.h"
@@ -11,6 +13,7 @@ namespace {
 
 struct Ctx {
     whisper_context *w = nullptr;
+    bool dtw = false;
     std::atomic<bool> abort{false};
 };
 
@@ -52,21 +55,93 @@ void json_escape(std::string &out, const char *s) {
 
 void silent_log(ggml_log_level, const char *, void *) {}
 
+whisper_alignment_heads_preset heads(const char *s) {
+    std::string n = s ? s : "";
+    if (n == "base") return WHISPER_AHEADS_BASE;
+    if (n == "small") return WHISPER_AHEADS_SMALL;
+    if (n == "medium") return WHISPER_AHEADS_MEDIUM;
+    return WHISPER_AHEADS_NONE;
+}
+
+// a word or only punctuation? ASCII letters/digits or any other UTF-8 byte (å, é – also a token holding only part of
+// one) count as a word; the general punctuation block U+2000–U+206F (– … ”) does not.
+bool has_word(const char *s) {
+    for (const unsigned char *c = (const unsigned char *) s; *c; ++c) {
+        if (isalnum(*c)) return true;
+        if (*c == 0xE2 && (c[1] == 0x80 || c[1] == 0x81)) {
+            if (c[2]) c += 2; else break;
+            continue;
+        }
+        if (*c >= 0x80) return true;
+    }
+    return false;
+}
+
+/*
+ * Word times by DTW (one word per segment: max_len 1 with word splitting). whisper's own token times put word edges
+ * a median ~0.2 s off; the DTW alignment of the cross-attention is far tighter. whisper.cpp gives each token the
+ * time the alignment LEAVES it (the first jump goes to the first token), so a word starts [startMs] before the DTW
+ * time of its first token and ends [endMs] after that of its last – offsets measured per model against Swedish speech
+ * with known word edges (median error ~40 ms instead of ~180 ms). Neighbours that overlap meet halfway.
+ * Segments without a DTW time keep whisper's times; punctuation keeps the previous word's end.
+ */
+void words_by_dtw(whisper_context *w, std::vector<std::pair<int64_t, int64_t>> &times, int startMs, int endMs) {
+    const whisper_token eot = whisper_token_eot(w);
+    std::vector<bool> word(times.size());
+    int prev = -1;
+    for (int i = 0; i < (int) times.size(); ++i) {
+        if (!(word[i] = has_word(whisper_full_get_segment_text(w, i)))) continue;
+        int64_t first = -1, last = -1;
+        for (int k = 0; k < whisper_full_n_tokens(w, i); ++k) {
+            if (whisper_full_get_token_id(w, i, k) >= eot) continue;
+            if (!has_word(whisper_full_get_token_text(w, i, k))) continue;
+            const int64_t t = whisper_full_get_token_t_dtw(w, i, k);
+            if (t < 0) continue;
+            if (first < 0) first = t;
+            last = t;
+        }
+        if (first < 0) { prev = i; continue; }
+        int64_t t0 = std::max<int64_t>(0, first * 10 - startMs), t1 = std::max(t0 + 50, last * 10 + endMs);
+        if (prev >= 0 && times[prev].second > t0) {
+            const int64_t mid = std::max((times[prev].second + t0) / 2, times[prev].first + 50);
+            times[prev].second = mid;
+            t0 = std::max(t0, mid);
+            t1 = std::max(t1, t0 + 50);
+        }
+        times[i] = {t0, t1};
+        prev = i;
+    }
+    // punctuation ends where the word before it ends (it is joined onto that word)
+    for (int i = 1; i < (int) times.size(); ++i)
+        if (!word[i]) times[i] = {times[i - 1].second, times[i - 1].second};
+}
+
 } // namespace
 
 extern "C" {
 
-JNIEXPORT jlong JNICALL Java_se_gendut_klipp_engine_Whisper_nativeInit(JNIEnv *env, jclass, jstring path) {
+// [dtwHeads]: the model's alignment heads ("base", "small", "medium") for word times by DTW, or null. DTW needs flash
+// attention off – only used for word transcripts, where the times decide where text-based edits cut.
+JNIEXPORT jlong JNICALL Java_se_gendut_klipp_engine_Whisper_nativeInit(JNIEnv *env, jclass, jstring path, jstring dtwHeads) {
     whisper_log_set(silent_log, nullptr);
     const char *p = path ? env->GetStringUTFChars(path, nullptr) : nullptr;
     if (!p) return 0;
     whisper_context_params cp = whisper_context_default_params();
     cp.use_gpu = false;
+    const char *dh = dtwHeads ? env->GetStringUTFChars(dtwHeads, nullptr) : nullptr;
+    const whisper_alignment_heads_preset preset = heads(dh);
+    if (dh) env->ReleaseStringUTFChars(dtwHeads, dh);
+    if (preset != WHISPER_AHEADS_NONE) {
+        cp.flash_attn = false;
+        cp.dtw_token_timestamps = true;
+        cp.dtw_aheads_preset = preset;
+    }
     whisper_context *w = whisper_init_from_file_with_params(p, cp);
     env->ReleaseStringUTFChars(path, p);
     if (!w) return 0;
     auto *c = new Ctx();
     c->w = w;
+    c->dtw = preset != WHISPER_AHEADS_NONE;
     return reinterpret_cast<jlong>(c);
 }
 
@@ -82,8 +157,10 @@ JNIEXPORT void JNICALL Java_se_gendut_klipp_engine_Whisper_nativeAbort(JNIEnv *,
     if (c) c->abort.store(true);
 }
 
+// [dtwStartMs]/[dtwEndMs] (word transcripts on a DTW context, maxLen 1): see words_by_dtw below.
 JNIEXPORT jbyteArray JNICALL Java_se_gendut_klipp_engine_Whisper_nativeTranscribe(
-        JNIEnv *env, jclass, jlong h, jfloatArray pcm, jstring lang, jint threads, jint maxLen, jstring prompt, jstring vadModel, jobject listener) {
+        JNIEnv *env, jclass, jlong h, jfloatArray pcm, jstring lang, jint threads, jint maxLen, jstring prompt, jstring vadModel,
+        jint dtwStartMs, jint dtwEndMs, jobject listener) {
     auto *c = reinterpret_cast<Ctx *>(h);
     if (!c || !pcm) return nullptr;
     c->abort.store(false);
@@ -151,17 +228,23 @@ JNIEXPORT jbyteArray JNICALL Java_se_gendut_klipp_engine_Whisper_nativeTranscrib
     for (int i = 0; i < whisper_full_n_vad_segments(c->w); ++i)
         speech.emplace_back(whisper_full_get_vad_segment_t0(c->w, i), whisper_full_get_vad_segment_t1(c->w, i));
 
-    std::string out = "[";
     const int segs = whisper_full_n_segments(c->w);
+    // times in ms: whisper's segment times (hundredths of a second), or for word transcripts the DTW word times
+    std::vector<std::pair<int64_t, int64_t>> times(segs);
     for (int i = 0; i < segs; ++i) {
-        if (i) out += ',';
         int64_t t0 = whisper_full_get_segment_t0(c->w, i), t1 = whisper_full_get_segment_t1(c->w, i);
         for (auto &sp : speech) {
             if (t1 > sp.first && t1 <= sp.second + 2) { if (t0 < sp.first) t0 = sp.first; break; }
         }
-        // times in hundredths of a second → ms
-        out += "{\"t0\":" + std::to_string(t0 * 10);
-        out += ",\"t1\":" + std::to_string(t1 * 10);
+        times[i] = {t0 * 10, t1 * 10};
+    }
+    if (c->dtw && maxLen == 1) words_by_dtw(c->w, times, dtwStartMs, dtwEndMs);
+
+    std::string out = "[";
+    for (int i = 0; i < segs; ++i) {
+        if (i) out += ',';
+        out += "{\"t0\":" + std::to_string(times[i].first);
+        out += ",\"t1\":" + std::to_string(times[i].second);
         out += ",\"text\":\"";
         json_escape(out, whisper_full_get_segment_text(c->w, i));
         out += "\"}";
