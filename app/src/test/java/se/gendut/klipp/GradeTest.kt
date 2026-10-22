@@ -48,7 +48,7 @@ class GradeTest {
         val liftHigh = run(GradeNode(1, lift = Wheel(master = -0.2f)), 1f, 1f, 1f)
         assertEquals("lift leaves white", 1f, liftHigh[0], 1e-4f)
         val gamma = run(GradeNode(1, gamma = Wheel(master = 0.3f)), 0.5f, 0.5f, 0.5f)
-        assertTrue("positive gamma = brighter midtones", gamma[0] > 0.6f)
+        assertTrue("positive gamma = brighter midtones", gamma[0] > 0.57f)
         val warm = run(GradeNode(1, gain = Wheel(1f, 0f)), 0.5f, 0.5f, 0.5f)
         assertTrue("gain toward red", warm[0] > warm[1] && warm[0] > warm[2])
     }

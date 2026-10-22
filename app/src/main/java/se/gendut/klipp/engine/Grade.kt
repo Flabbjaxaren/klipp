@@ -27,7 +27,7 @@ import kotlin.math.sin
 
 /*
  * Resolve-style color grading: each clip has a chain of (serial) nodes. A node has the wheels
- * Lift/Gamma/Gain/Offset, contrast with pivot, color temperature/tint, saturation, hue, curves (Y + R/G/B)
+ * Lift/Gamma/Gain/Offset (see [GradeNode.primaries]), contrast with pivot, color temperature/tint, saturation, hue, curves (Y + R/G/B)
  * and a mix (how much of the node is applied). The same math exists twice: on the CPU
  * (preview, scopes and the tests) and as a GLSL shader (playback and export).
  */
@@ -400,9 +400,13 @@ data class GradeNode(
 
     private fun computeParams(): Params {
         val l = lift.rgb(); val g = gamma.rgb(); val gn = gain.rgb(); val o = offset.rgb()
-        val liftC = FloatArray(3) { l[it] * 0.25f + lift.master * 0.5f }
-        val gammaExp = FloatArray(3) { 2f.pow(-(g[it] * 0.4f + gamma.master * 0.8f) * 2f) }
-        val gainC = FloatArray(3) { (1f + gn[it] * 0.5f + gain.master).coerceAtLeast(0f) }
+        // the wheels as lift/gain/gamma values (master: all channels alike, puck: the color), then the primaries
+        // (see [primaries]): lift and gain as one linear step, offset, gamma last
+        val liftC = FloatArray(3); val gainC = FloatArray(3); val gammaExp = FloatArray(3)
+        for (i in 0..2) {
+            val (a, b, e) = primaries(l[i] * 0.25f + lift.master * 0.5f, (1f + gn[i] * 0.5f + gain.master).coerceAtLeast(0f), g[i] * 0.5f + gamma.master)
+            liftC[i] = a; gainC[i] = b; gammaExp[i] = e
+        }
         val offC = FloatArray(3) { o[it] * 0.2f + offset.master * 0.25f }
         val wb = floatArrayOf(1f + 0.18f * temp, 1f - 0.12f * tint, 1f - 0.18f * temp)
         // hue rotation around the gray axis
@@ -454,6 +458,19 @@ data class GradeNode(
             Film.fromJson(o.optJSONObject("film")),
             o.optBoolean("cache", false),
         )
+
+        /**
+         * The primaries, per channel: lift and gain are one linear step, y = gain·(lift + x·(1 − lift)) / (1 + lift·(gain − 1))
+         * – gain scales, lift raises the blacks, and the white end is normalized when both are used; then offset is added;
+         * then gamma, x^(1/(1 + gamma)) above 0 and x^(1 − gamma) below. Returns the linear step's (black, slope) and the
+         * gamma exponent; the shaders do `pow(max(black + slope·x + offset, 0), exponent)`.
+         */
+        fun primaries(lift: Float, gain: Float, gamma: Float): Triple<Float, Float, Float> {
+            // (the denominator can reach 0 with strongly lowered lift and raised gain – kept away from it)
+            val d = max(1f + lift * (gain - 1f), 0.05f)
+            val e = if (gamma >= 0f) 1f / (1f + gamma) else 1f - gamma
+            return Triple(gain * lift / d, gain * (1f - lift) / d, e)
+        }
 
         private fun smooth(e0: Float, e1: Float, x: Float): Float {
             val t = ((x - e0) / (e1 - e0)).coerceIn(0f, 1f)
@@ -548,10 +565,8 @@ data class GradeNode(
             // with blur/pixelation: the color is computed on the blurred image, the key and mix on the original
             if (colorIn != null) { rgb[0] = colorIn[0]; rgb[1] = colorIn[1]; rgb[2] = colorIn[2] }
             for (i in 0..2) {
-                var c = rgb[i] + p.offset[i]
-                c += p.lift[i] * (1f - c)
+                var c = p.lift[i] + p.gain[i] * rgb[i] + p.offset[i]
                 c = max(c, 0f).pow(p.gammaExp[i])
-                c *= p.gain[i]
                 c = (c - p.pivot) * p.contrast + p.pivot
                 rgb[i] = c * p.wb[i]
             }
@@ -1067,10 +1082,8 @@ vec3 colorIn(vec4 src) {
 
 void main() {
   vec4 src = texture2D(uTexSampler, vTexSamplingCoord);
-  vec3 c = colorIn(src) + uOffset;
-  c = c + uLift * (vec3(1.0) - c);
+  vec3 c = uLift + uGain * colorIn(src) + uOffset;
   c = pow(max(c, vec3(0.0)), uGammaExp);
-  c = c * uGain;
   c = (c - vec3(uPivot)) * uContrast + vec3(uPivot);
   c = c * uWb;
   c = uHue * c;

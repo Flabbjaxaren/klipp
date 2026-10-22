@@ -433,10 +433,8 @@ half4 main(float2 pos) {
   if (uShowKey > 0.5) {
     return half4(half3(k), srcH.a);
   }
-  float3 c = colorIn(src, pos) + uOffset;
-  c = c + uLift * (float3(1.0) - c);
+  float3 c = uLift + uGain * colorIn(src, pos) + uOffset;
   c = pow(max(c, float3(0.0)), uGammaExp);
-  c = c * uGain;
   c = (c - float3(uPivot)) * uContrast + float3(uPivot);
   c = c * uWb;
   c = uHue * c;

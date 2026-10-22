@@ -24,6 +24,7 @@
     <string name="playback_could_not_start">Playback could not start (%1$s)</string>
     <string name="playback_nothing_to_play">Nothing to play yet – add a clip to the timeline</string>
     <string name="playback_timeline_empty">The timeline is empty</string>
+    <string name="playback_export_size_mismatch">asked for %1$d×%2$d – the phone’s encoder couldn’t make that size</string>
     <string name="playback_create_file_failed">Could not create the file in Movies</string>
     <string name="playback_write_file_failed">Could not write the file in Movies</string>
 </resources>

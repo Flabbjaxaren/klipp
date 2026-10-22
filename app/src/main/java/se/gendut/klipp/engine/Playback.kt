@@ -954,11 +954,21 @@ object Exporter {
         val comp = CompositionBuilder.build(s, uriOf, look, master, grades = grades, fx = fx, hdrMode = hdrMode, output = settings) ?: return Result.failure(IllegalStateException(Str.t(R.string.playback_timeline_empty)))
         // Auto: a fixed bitrate for the file's format (not Media3's guess from the source frame rate)
         val q = s.sequence
-        val st = if (settings.bitrateMbps > 0f || q == null) settings else settings.copy(bitrateMbps = settings.videoMbps(q.width, q.height, s.fps).toFloat())
+        var st = if (settings.bitrateMbps > 0f || q == null) settings else settings.copy(bitrateMbps = settings.videoMbps(q.width, q.height, s.fps).toFloat())
+        val expect = q?.let { st.outputSize(it.width, it.height) }
+        // a size the chosen codec's encoders can't make: another codec that can (8-bit SDR – HDR and 10-bit need theirs).
+        // Otherwise the encoder falls back to a size it can do, which may be far smaller.
+        if (expect != null && !tenBit && hdrMode != androidx.media3.transformer.Composition.HDR_MODE_KEEP_HDR &&
+            !EncoderCaps.sizeSupported(st.codec, expect.first, expect.second)) {
+            EncoderCaps.codecs.firstOrNull { it.mime != st.codec && EncoderCaps.sizeSupported(it.mime, expect.first, expect.second) }?.let { c ->
+                se.gendut.klipp.CrashReport.note("export: ${st.codec} can't make ${expect.first}×${expect.second} – ${c.mime}")
+                st = st.copy(codec = c.mime)
+            }
+        }
         val out = File(context.cacheDir, "export_${System.currentTimeMillis()}.mp4")
         // the temporary file is deleted whatever happens (error, cancel, failed first HDR attempt, done)
         try {
-            return exportTo(context, comp, out, name, st, tenBit, onProgress)
+            return exportTo(context, comp, out, name, st, tenBit, expect, onProgress)
         } finally {
             out.delete()
         }
@@ -994,17 +1004,18 @@ object Exporter {
         }.getOrDefault(false)
     }
 
-    private suspend fun exportTo(context: Context, comp: Composition, out: File, name: String, st: ExportSettings, tenBit: Boolean, onProgress: (Int) -> Unit): Result<Uri> {
-        val result = transform(context, comp, out, st, tenBit, onProgress = onProgress)
+    private suspend fun exportTo(context: Context, comp: Composition, out: File, name: String, st: ExportSettings, tenBit: Boolean, expect: Pair<Int, Int>?, onProgress: (Int) -> Unit): Result<Uri> {
+        val result = transform(context, comp, out, st, tenBit, expect = expect, onProgress = onProgress)
         result.exceptionOrNull()?.let { return Result.failure(it) }
         return withContext(Dispatchers.IO) { runCatching { saveToMovies(context, out, name) } }
     }
 
     /**
      * The composition [comp] → the file [out] with Transformer (the export and the pre-render). [note] = write the result
-     * to the crash report (the export).
+     * to the crash report (the export). [expect] = the size asked for: a file that came out different is reported in the
+     * message afterwards (the encoder chose a size it could make).
      */
-    internal suspend fun transform(context: Context, comp: Composition, out: File, st: ExportSettings, tenBit: Boolean, note: Boolean = true, onProgress: (Int) -> Unit): Result<Unit> {
+    internal suspend fun transform(context: Context, comp: Composition, out: File, st: ExportSettings, tenBit: Boolean, note: Boolean = true, expect: Pair<Int, Int>? = null, onProgress: (Int) -> Unit): Result<Unit> {
         return withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { cont ->
                 // Snapdragon: the encoding threads on the big cores while the job runs (see Perf.Boost)
@@ -1021,7 +1032,8 @@ object Exporter {
                             boost.close()
                             // what the file actually became (the encoder's choice when it cannot do exactly what was requested)
                             val r = exportResult
-                            if (note) lastResult = "${r.width}×${r.height}" + (if (r.averageVideoBitrate > 0) " · ${"%.0f".format(r.averageVideoBitrate / 1e6)} Mbit/s" else "")
+                            if (note) lastResult = "${r.width}×${r.height}" + (if (r.averageVideoBitrate > 0) " · ${"%.0f".format(r.averageVideoBitrate / 1e6)} Mbit/s" else "") +
+                                (sizeMismatch(expect, r.width, r.height)?.let { " · $it" } ?: "")
                             if (note) se.gendut.klipp.CrashReport.note("export done: ${r.width}×${r.height}, requested ${"%.1f".format(st.bitrateMbps)} Mbit/s, got ${"%.1f".format(r.averageVideoBitrate / 1e6)} Mbit/s, ${r.videoEncoderName} ${st.codec.substringAfter('/')}${if (tenBit) " 10-bit" else ""}")
                             if (cont.isActive) cont.resume(Result.success(Unit))
                         }
@@ -1047,6 +1059,17 @@ object Exporter {
                 handler.post(poll)
             }
         }
+    }
+
+    /** The message when the file's size isn't the one asked for (a few pixels of encoder alignment don't count). */
+    internal fun sizeMismatch(expect: Pair<Int, Int>?, w: Int, h: Int): String? {
+        if (expect == null || w <= 0 || h <= 0) return null
+        val (ew, eh) = expect
+        // the same frame turned (portrait written as rotated landscape) is the same size
+        val same = (kotlin.math.abs(w - ew) <= 16 && kotlin.math.abs(h - eh) <= 16) || (kotlin.math.abs(w - eh) <= 16 && kotlin.math.abs(h - ew) <= 16)
+        if (same) return null
+        se.gendut.klipp.CrashReport.note("export: asked for ${ew}×${eh}, the file became ${w}×${h}")
+        return Str.t(R.string.playback_export_size_mismatch, ew, eh)
     }
 
     private fun saveToMovies(context: Context, file: File, name: String): Uri {
