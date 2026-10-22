@@ -18,7 +18,8 @@ A multi-track video editor for Android phones, built for touch. A Kotlin/Jetpack
   cut the video, remove pauses and filler words. In the source monitor: read a clip as sentences and tap the ones you
   want to insert – one transcript per clip, shared by both. Automatic captions.
 - **Color:** node-based grading (wheels, curves, qualifiers, power windows with object tracking), LUTs, scopes,
-  spektrafilm film simulation, OpenDRT, floating point through the whole video chain.
+  spektrafilm film simulation, OpenDRT, floating point through the whole video chain. Log input from phones and
+  cinema cameras: Apple Log, vivo Log, S-Log3, V-Log, LogC3/LogC4, F-Log2, Log3G10, DaVinci Intermediate, ACEScct, T-Log.
 - **Video layers:** transitions, titles and templates, captions, blend modes, masks with keyframes and tracking,
   keyframed motion, opacity and volume – linear, easy ease, ease in/out or hold, and a value graph with bezier
   handles (evaluated with the engine's own curve math, so preview and export match).
@@ -94,6 +95,8 @@ replace an installed Klipp.
   be grabbed until the clip is extended again.
 - Clips imported through the system photo picker get generic names (e.g. `28.mp4`) – Android hides the file names.
 - Projects live inside the app; there is no project export yet, so uninstalling Klipp removes them.
+- vivo Log has no published specification; its curve and gamut were measured from DaVinci Resolve 21.1's built-in
+  transform (matches to about 1/65 000 of the signal range).
 - Speech recognition runs on the CPU (the GPU path was tried and dropped: unstable drivers, slower on phones).
 
 ## Tests
