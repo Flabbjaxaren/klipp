@@ -15,7 +15,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         with:
           # (the default also asks for the old "tools" package, which no longer exists)
           packages: platform-tools
@@ -35,19 +35,20 @@ jobs:
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
           RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo ndk -t arm64-v8a --platform 29 -o ../app/src/main/jniLibs build --release
-      - uses: gradle/actions/setup-gradle@v4
+      # v5: Node 24 and MIT throughout (v6 moved its caching into a separately licensed, proprietary component)
+      - uses: gradle/actions/setup-gradle@v5
       - name: Unit tests
         run: ./gradlew testDebugUnitTest
       - name: Lint and release build
         run: ./gradlew lintRelease assembleRelease
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: reports
           path: |
             app/build/reports/
             app/build/test-results/
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: klipp-release-apk
           path: app/build/outputs/apk/release/app-release.apk
