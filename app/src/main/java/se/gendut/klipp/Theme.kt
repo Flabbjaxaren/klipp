@@ -18,7 +18,7 @@ enum class Accent(@StringRes private val labelId: Int, val primary: Long, val on
     PURPLE(R.string.theme_accent_purple, 0xFFD0BCFF, 0xFF381E72, 0xFF4F378B, 0xFFEADDFF, 0xFF3E3550),
     PINK(R.string.theme_accent_pink, 0xFFFFB0CC, 0xFF5E1133, 0xFF7B2949, 0xFFFFD9E3, 0xFF4C3039),
     RED(R.string.theme_accent_red, 0xFFFFB4A9, 0xFF690003, 0xFF930006, 0xFFFFDAD4, 0xFF4E3330),
-    YELLOW(R.string.theme_accent_yellow, 0xFFE9C46A, 0xFF3D2E00, 0xFF584400, 0xFFFFE08B, 0xFF45402A),
+    YELLOW(R.string.theme_accent_yellow, 0xFFF0BB5C, 0xFF3F2A00, 0xFF5C3F00, 0xFFFFDC8A, 0xFF483E2A),
     CYAN(R.string.theme_accent_cyan, 0xFF80D4EA, 0xFF00363F, 0xFF004E5B, 0xFFA9EDFF, 0xFF2C3E44);
 
     /** Display name (resolved on use, so it follows the app language). */
