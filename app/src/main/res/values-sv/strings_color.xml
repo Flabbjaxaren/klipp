@@ -37,7 +37,9 @@
     <string name="colortools_enlarger_y">Förstoringens Y-filter (CC)</string>
     <string name="colortools_enlarger_m">Förstoringens M-filter (CC)</string>
     <string name="colortools_film_gamma">Filmens gamma</string>
-    <string name="colortools_couplers">Kopplare</string>
+    <string name="colortools_section_negative">Negativ</string>
+    <string name="colortools_section_film">Film</string>
+    <string name="colortools_section_print">Kopiering</string>
     <string name="colortools_dir_amount">DIR-kopplarnas mängd</string>
     <string name="colortools_chemistry">Kemi</string>
     <string name="colortools_paper_gamma">Papperets gamma</string>
@@ -73,13 +75,12 @@
     <string name="colortools_scanner">Skanner</string>
     <string name="colortools_scan_blur">Skannerns oskärpa (px)</string>
     <string name="colortools_scan_sharpen">Skannerns skärpa</string>
-    <string name="colortools_klipp_extras">Klipps tillägg</string>
     <string name="colortools_display_phone_web">Telefon &amp; webb (sRGB)</string>
     <string name="colortools_display_tv">TV (Rec.1886 2.4)</string>
     <string name="colortools_grain_amount">Kornmängd</string>
     <string name="colortools_color_clouds">Färgmoln</string>
     <string name="colortools_grain_color">Kornets färg</string>
-    <string name="colortools_extras_hint" formatted="false">Finns inte i spektrafilm (förvalen är spektrafilms). Kornmängd: förstärker kornet. Färgmoln: kornet som färgmoln på 10–25 µm. Kornets färg: 100 % = färglagren oberoende, lägre = mer ljushet än färg.</string>
+    <string name="colortools_extras_hint" formatted="false">Kornmängd, Färgmoln och Kornets färg är Klipps tillägg, inte från spektrafilm (förvalen lämnar kornet som spektrafilm gör det). Kornmängd: förstärker kornet. Färgmoln: kornet som färgmoln på 10–25 µm. Kornets färg: 100 % = färglagren oberoende, lägre = mer ljushet än färg.</string>
     <string name="colortools_spektrafilm_defaults">Spektrafilms standard</string>
     <string name="colortools_spektrafilm_defaults_hint">Alla reglag till spektrafilms förval (filmen, papperet, indatan och skärmen står kvar).</string>
     <string name="colortools_spektrafilm_parity">Samma reglage och förval som i spektrafilm, och samma bild (testerna jämför med spektrafilm). Saknas här: kamerans automatiska exponering (videon är redan exponerad), förstoringsapparatens lampa, förexponering, skannerns svart- och vitkorrigering och gamutkompressionens val (spektrafilms förval är inbakade). Filmen gäller hela bilden efter noden.</string>
