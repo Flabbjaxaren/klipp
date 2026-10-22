@@ -75,7 +75,7 @@ fun ScrubSpeedBadge(tier: Int, modifier: Modifier = Modifier) {
     AnimatedVisibility(tier > 0, modifier = modifier, enter = scaleIn(spring(0.5f, 600f), initialScale = 0.7f) + fadeIn(), exit = scaleOut(targetScale = 0.7f) + fadeOut()) {
         Text(
             ScrubTiers.label(tier.coerceAtLeast(1)), color = K.OnPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(K.PrimarySoft).padding(horizontal = 9.dp, vertical = 3.dp).testTag("scrubSpeed"),
+            modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(K.Primary).padding(horizontal = 9.dp, vertical = 3.dp).testTag("scrubSpeed"),
         )
     }
 }

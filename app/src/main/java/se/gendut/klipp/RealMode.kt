@@ -514,7 +514,7 @@ fun SourcePanel(
         ) {
             RoundIcon(Ic.MarkIn, stringResource(R.string.realmode_mark_in)) { markIn = pos; if (markOut != null && markOut!! < pos) markOut = null; haptics.confirm(); pushMarks() }
             RoundIcon(Ic.Prev, stringResource(R.string.realmode_previous_frame)) { playing = false; seek(pos - frame); haptics.tick() }
-            val bg by androidx.compose.animation.animateColorAsState(if (playing) K.Primary else K.PrimarySoft, label = "p")
+            val bg = K.Primary
             Box(
                 Modifier.size(56.dp, 44.dp).clip(RoundedCornerShape(if (playing) 22.dp else 14.dp)).background(bg)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { haptics.confirm(); playing = !playing },
