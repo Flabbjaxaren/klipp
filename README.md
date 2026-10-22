@@ -14,6 +14,12 @@ A multi-track video editor for Android phones, built for touch. A Kotlin/Jetpack
 > **OnePlus 12**. It comes with **no warranty** – keep copies of footage you care about. Issues are welcome; support is
 > best effort.
 
+## 📲 Install
+
+Download `Klipp-<version>.apk` from [Releases](https://github.com/Flabbjaxaren/klipp/releases/latest) and open it on
+the phone (allow installing from your browser or file manager when Android asks). Updates install over the old
+version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
+
 ## ✨ Features
 
 - ✂️ **Editing:** three video and three audio tracks, insert/overwrite from a source monitor, ripple, roll, slip,
