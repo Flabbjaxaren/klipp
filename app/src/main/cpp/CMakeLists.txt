@@ -8,6 +8,9 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
 set(WHISPER_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/whisper.cpp)
+# source paths relative to the repository in the library (asserts print __FILE__), not the build machine's folders
+get_filename_component(KLIPP_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../.. ABSOLUTE)
+add_compile_options(-ffile-prefix-map=${KLIPP_ROOT}/=)
 
 # ggml linked statically into one library. ARMv8.2 with dotprod (int8 matrices, quantised models) and fp16 – every
 # Snapdragon 8 since the 855. No OpenMP (ggml's own thread pool is enough and needs no extra library).
