@@ -8,6 +8,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -40,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -200,6 +202,9 @@ fun FilmEditor(n: GradeNode, onCommit: (GradeNode) -> Unit) {
             fun dec(v: Float, d: Int) = "%.${d}f".format(v)
             val off = stringResource(R.string.colortools_off_value)
             // ---- like spektrafilm's Simulation panel: profiles, input, exposure, enlarger
+            // spektrafilm's defaults for this film (what "changed" in a section is measured against)
+            val d = se.gendut.klipp.engine.Film(film = f.film, print = f.print, input = f.input, display = f.display)
+            // ---- the basics, always shown: what is simulated, what comes in, what goes out
             se.gendut.klipp.DropField(stringResource(R.string.colortools_film), idx.films.map { se.gendut.klipp.Opt(it.id, it.name, kind(it), key = it.id) }, f.film, "film:stock") { id ->
                 val info = idx.films.first { it.id == id }
                 // changing film: the film's own paper (slide film: no printing)
@@ -219,105 +224,110 @@ fun FilmEditor(n: GradeNode, onCommit: (GradeNode) -> Unit) {
             }
             se.gendut.klipp.DropField(stringResource(R.string.colortools_input_colorspace), se.gendut.klipp.engine.OpenDrt.Input.entries.map { se.gendut.klipp.Opt(it.key, it.label, key = it.key) }, f.input, "film:input") { set(f.copy(input = it)) }
             PropSlider(stringResource(R.string.colortools_exposure), f.ev, -3f, 3f, 0f, { "%+.1f EV".format(it) }, "filmEv", lane = false) { set(f.copy(ev = (it * 10).roundToInt() / 10f)) }
-            if (!positive) {
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ToggleChip(stringResource(R.string.colortools_print_auto_comp), f.labComp, { set(f.copy(labComp = !f.labComp)) }, Modifier.testTag("film:lab"))
-                }
-                hint(
-                    if (f.labComp) stringResource(R.string.colortools_print_auto_comp_on_hint)
-                    else stringResource(R.string.colortools_print_auto_comp_off_hint),
-                )
-                val stops = kotlin.math.log2(f.printExposure.coerceAtLeast(0.01f))
-                PropSlider(stringResource(R.string.colortools_print_exposure), stops, -2f, 2f, 0f, { "${dec(2f.pow(it), 2)}× (${"%+.2f".format(it)} EV)" }, "filmPrint", lane = false) {
-                    set(f.copy(printExposure = 2f.pow((it * 20).roundToInt() / 20f)))
-                }
-                PropSlider(stringResource(R.string.colortools_enlarger_y), f.yShift, -100f, 100f, 0f, { "%+.0f".format(it) }, "filmY", lane = false) { set(f.copy(yShift = it.roundToInt().toFloat())) }
-                PropSlider(stringResource(R.string.colortools_enlarger_m), f.mShift, -100f, 100f, 0f, { "%+.0f".format(it) }, "filmM", lane = false) { set(f.copy(mShift = it.roundToInt().toFloat())) }
-            }
-            PropSlider(stringResource(R.string.colortools_film_gamma), f.gamma, 0.5f, 1.5f, 1f, { dec(it, 2) }, "filmGamma", lane = false) { set(f.copy(gamma = (it * 100).roundToInt() / 100f)) }
-
-            SectionTitle(stringResource(R.string.colortools_couplers))
-            PropSlider(stringResource(R.string.colortools_dir_amount), f.couplers, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "filmDir", lane = false) { set(f.copy(couplers = (it * 100).roundToInt() / 100f)) }
-
-            if (!positive) {
-                SectionTitle(stringResource(R.string.colortools_chemistry))
-                PropSlider(stringResource(R.string.colortools_paper_gamma), f.printGamma, 0.5f, 2f, 1f, { dec(it, 2) }, "filmPrintGamma", lane = false) { set(f.copy(printGamma = (it * 100).roundToInt() / 100f)) }
-                hint(stringResource(R.string.colortools_paper_gamma_hint))
-            }
-
-            SectionTitle(stringResource(R.string.colortools_camera))
-            se.gendut.klipp.DropField(stringResource(R.string.colortools_film_format), FILM_FORMATS.map { (mm, name) -> se.gendut.klipp.Opt(mm, name, stringResource(R.string.colortools_film_format_width, if (mm % 1f == 0f) "%.0f".format(mm) else "%.1f".format(mm)), key = "f$mm") },
-                FILM_FORMATS.minByOrNull { kotlin.math.abs(it.first - f.format) }!!.first, "film:format") { set(f.copy(format = it)) }
-            hint(stringResource(R.string.colortools_film_format_hint))
-            PropSlider(stringResource(R.string.colortools_lens_blur), f.lensBlur, 0f, 60f, 0f, { "%.0f µm".format(it) }, "filmLens", lane = false) { set(f.copy(lensBlur = it.roundToInt().toFloat())) }
-            se.gendut.klipp.DropField(stringResource(R.string.colortools_diffusion_camera),
-                listOf(se.gendut.klipp.Opt<String?>(null, stringResource(R.string.colortools_none_filter), key = "none")) + se.gendut.klipp.engine.FilmFx.FAMILIES.map { se.gendut.klipp.Opt<String?>(it.key, it.label, it.hint, key = it.key) },
-                f.diffusion, "film:diffusion") { set(f.copy(diffusion = it)) }
-            if (f.diffusion != null) {
-                se.gendut.klipp.DropField(stringResource(R.string.colortools_filter_strength), se.gendut.klipp.engine.FilmFx.STRENGTHS.map { v -> se.gendut.klipp.Opt(v, strengthLabel(v), key = "s$v") },
-                    se.gendut.klipp.engine.FilmFx.STRENGTHS.minByOrNull { kotlin.math.abs(it - f.diffusionStrength) }!!, "film:diffStrength") { set(f.copy(diffusionStrength = it)) }
-            }
-
-            SectionTitle(stringResource(R.string.colortools_halation))
-            PropSlider(stringResource(R.string.colortools_halation_amount), f.halation, 0f, se.gendut.klipp.engine.Film.HALATION_MAX, 1f, { if (it < 0.05f) off else "${dec(it, 1)}×" }, "filmHal", lane = false) { set(f.copy(halation = (it * 10).roundToInt() / 10f)) }
-            PropSlider(stringResource(R.string.colortools_halation_size), f.halationSize, 0.25f, se.gendut.klipp.engine.Film.HALATION_SIZE_MAX, 1f, { "${dec(it, 2)}×" }, "filmHalSize", lane = false) { set(f.copy(halationSize = (it * 20).roundToInt() / 20f)) }
-            PropSlider(stringResource(R.string.colortools_scatter_amount), f.scatter, 0f, 2f, 1f, { "${dec(it, 2)}×" }, "filmScatter", lane = false) { set(f.copy(scatter = (it * 20).roundToInt() / 20f)) }
-            PropSlider(stringResource(R.string.colortools_scatter_size), f.scatterSize, 0.25f, 4f, 1f, { "${dec(it, 2)}×" }, "filmScatterSize", lane = false) { set(f.copy(scatterSize = (it * 20).roundToInt() / 20f)) }
-            PropSlider(stringResource(R.string.colortools_boost), f.boostEv, 0f, 12f, 0f, { if (it < 0.05f) off else "+${dec(it, 1)} EV" }, "filmBoost", lane = false) { set(f.copy(boostEv = (it * 10).roundToInt() / 10f)) }
-            if (f.boostEv > 0f) {
-                PropSlider(stringResource(R.string.colortools_protect), f.protectEv, 0f, 8f, 4f, { "${dec(it, 1)} EV" }, "filmProtect", lane = false) { set(f.copy(protectEv = (it * 10).roundToInt() / 10f)) }
-                PropSlider(stringResource(R.string.colortools_boost_range), f.boostRange, 0f, 1f, 0.3f, { dec(it, 2) }, "filmBoostRange", lane = false) { set(f.copy(boostRange = (it * 100).roundToInt() / 100f)) }
-            }
-            hint(
-                stringResource(R.string.colortools_boost_hint),
-            )
-
-            SectionTitle(stringResource(R.string.colortools_grain))
-            Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ToggleChip(stringResource(R.string.colortools_grain), f.grain, { set(f.copy(grain = !f.grain)) }, Modifier.testTag("film:grain"))
-                if (f.grain) ToggleChip(stringResource(R.string.colortools_sublayers), f.grainLayers, { set(f.copy(grainLayers = !f.grainLayers)) }, Modifier.testTag("film:grainLayers"))
-            }
-            if (f.grain) {
-                PropSlider(stringResource(R.string.colortools_grain_area), f.grainSize * 0.2f, 0.05f, 0.8f, 0.2f, { dec(it, 2) }, "filmGrain", lane = false) { set(f.copy(grainSize = ((it / 0.2f) * 20).roundToInt() / 20f)) }
-                PropSlider(stringResource(R.string.colortools_grain_blur), f.grainBlur, 0f, 3f, 0.65f, { dec(it, 2) }, "filmGrainBlur", lane = false) { set(f.copy(grainBlur = (it * 100).roundToInt() / 100f)) }
-                hint(stringResource(R.string.colortools_grain_hint))
-            }
-
-            if (!positive) {
-                SectionTitle(stringResource(R.string.colortools_glare))
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
-                    ToggleChip(stringResource(R.string.colortools_glare_in_paper), f.glare, { set(f.copy(glare = !f.glare)) }, Modifier.testTag("film:glare"))
-                }
-                if (f.glare) {
-                    PropSlider(stringResource(R.string.colortools_glare_amount), f.glarePercent, 0f, 1f, 0.03f, { dec(it, 2) }, "filmGlare", lane = false) { set(f.copy(glarePercent = (it * 100).roundToInt() / 100f)) }
-                    PropSlider(stringResource(R.string.colortools_glare_roughness), f.glareRoughness, 0f, 1f, 0.7f, { dec(it, 2) }, "filmGlareRough", lane = false) { set(f.copy(glareRoughness = (it * 100).roundToInt() / 100f)) }
-                }
-
-                SectionTitle(stringResource(R.string.colortools_enlarger))
-                se.gendut.klipp.DropField(stringResource(R.string.colortools_diffusion_enlarger),
-                    listOf(se.gendut.klipp.Opt<String?>(null, stringResource(R.string.colortools_none_filter), key = "none")) + se.gendut.klipp.engine.FilmFx.FAMILIES.map { se.gendut.klipp.Opt<String?>(it.key, it.label, it.hint, key = it.key) },
-                    f.enlargerDiffusion, "film:enlargerDiffusion") { set(f.copy(enlargerDiffusion = it)) }
-                if (f.enlargerDiffusion != null) {
-                    se.gendut.klipp.DropField(stringResource(R.string.colortools_filter_strength), se.gendut.klipp.engine.FilmFx.STRENGTHS.map { v -> se.gendut.klipp.Opt(v, strengthLabel(v), key = "e$v") },
-                        se.gendut.klipp.engine.FilmFx.STRENGTHS.minByOrNull { kotlin.math.abs(it - f.enlargerDiffusionStrength) }!!, "film:enlargerStrength") { set(f.copy(enlargerDiffusionStrength = it)) }
-                }
-            }
-
-            SectionTitle(stringResource(R.string.colortools_scanner))
-            PropSlider(stringResource(R.string.colortools_scan_blur), f.scanBlur, 0f, 3f, 0f, { dec(it, 2) }, "filmScanBlur", lane = false) { set(f.copy(scanBlur = (it * 20).roundToInt() / 20f)) }
-            PropSlider(stringResource(R.string.colortools_scan_sharpen), f.sharpen, 0f, 2f, 0.7f, { dec(it, 2) }, "filmSharp", lane = false) { set(f.copy(sharpen = (it * 20).roundToInt() / 20f)) }
-
-            SectionTitle(stringResource(R.string.colortools_klipp_extras))
             SubLabel(stringResource(R.string.colortools_display))
             ConnectedToggleGroup(listOf(stringResource(R.string.colortools_display_phone_web), stringResource(R.string.colortools_display_tv)), f.display, { set(f.copy(display = it)) }, Modifier.padding(horizontal = 14.dp, vertical = 4.dp))
-            if (f.grain) {
-                PropSlider(stringResource(R.string.colortools_grain_amount), f.grainAmount, 0f, 8f, 1f, { if (it < 0.01f) off else "${dec(it, 1)}×" }, "filmGrainAmount", lane = false) { set(f.copy(grainAmount = (it * 10).roundToInt() / 10f)) }
-                PropSlider(stringResource(R.string.colortools_color_clouds), f.grainClouds, 0f, 3f, 0f, { if (it < 0.01f) off else "${dec(it, 1)}×" }, "filmClouds", lane = false) { set(f.copy(grainClouds = (it * 10).roundToInt() / 10f)) }
-                PropSlider(stringResource(R.string.colortools_grain_color), f.grainColor, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "filmGrainColor", lane = false) { set(f.copy(grainColor = (it * 20).roundToInt() / 20f)) }
-                hint(
-                    stringResource(R.string.colortools_extras_hint),
-                )
+
+            // ---- the rest in the order of the chain, folded: camera → negative → print → scan
+            FilmSection("camera", stringResource(R.string.colortools_camera),
+                changed = f.format != d.format || f.lensBlur != d.lensBlur || f.diffusion != d.diffusion || f.diffusionStrength != d.diffusionStrength) {
+                se.gendut.klipp.DropField(stringResource(R.string.colortools_film_format), FILM_FORMATS.map { (mm, name) -> se.gendut.klipp.Opt(mm, name, stringResource(R.string.colortools_film_format_width, if (mm % 1f == 0f) "%.0f".format(mm) else "%.1f".format(mm)), key = "f$mm") },
+                    FILM_FORMATS.minByOrNull { kotlin.math.abs(it.first - f.format) }!!.first, "film:format") { set(f.copy(format = it)) }
+                hint(stringResource(R.string.colortools_film_format_hint))
+                PropSlider(stringResource(R.string.colortools_lens_blur), f.lensBlur, 0f, 60f, 0f, { "%.0f µm".format(it) }, "filmLens", lane = false) { set(f.copy(lensBlur = it.roundToInt().toFloat())) }
+                se.gendut.klipp.DropField(stringResource(R.string.colortools_diffusion_camera),
+                    listOf(se.gendut.klipp.Opt<String?>(null, stringResource(R.string.colortools_none_filter), key = "none")) + se.gendut.klipp.engine.FilmFx.FAMILIES.map { se.gendut.klipp.Opt<String?>(it.key, it.label, it.hint, key = it.key) },
+                    f.diffusion, "film:diffusion") { set(f.copy(diffusion = it)) }
+                if (f.diffusion != null) {
+                    se.gendut.klipp.DropField(stringResource(R.string.colortools_filter_strength), se.gendut.klipp.engine.FilmFx.STRENGTHS.map { v -> se.gendut.klipp.Opt(v, strengthLabel(v), key = "s$v") },
+                        se.gendut.klipp.engine.FilmFx.STRENGTHS.minByOrNull { kotlin.math.abs(it - f.diffusionStrength) }!!, "film:diffStrength") { set(f.copy(diffusionStrength = it)) }
+                }
             }
+
+            FilmSection("negative", stringResource(if (positive) R.string.colortools_section_film else R.string.colortools_section_negative),
+                changed = f.gamma != d.gamma || f.couplers != d.couplers) {
+                PropSlider(stringResource(R.string.colortools_film_gamma), f.gamma, 0.5f, 1.5f, 1f, { dec(it, 2) }, "filmGamma", lane = false) { set(f.copy(gamma = (it * 100).roundToInt() / 100f)) }
+                PropSlider(stringResource(R.string.colortools_dir_amount), f.couplers, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "filmDir", lane = false) { set(f.copy(couplers = (it * 100).roundToInt() / 100f)) }
+            }
+
+            FilmSection("halation", stringResource(R.string.colortools_halation),
+                changed = f.halation != d.halation || f.halationSize != d.halationSize || f.scatter != d.scatter || f.scatterSize != d.scatterSize ||
+                    f.boostEv != d.boostEv || f.protectEv != d.protectEv || f.boostRange != d.boostRange) {
+                PropSlider(stringResource(R.string.colortools_halation_amount), f.halation, 0f, se.gendut.klipp.engine.Film.HALATION_MAX, 1f, { if (it < 0.05f) off else "${dec(it, 1)}×" }, "filmHal", lane = false) { set(f.copy(halation = (it * 10).roundToInt() / 10f)) }
+                PropSlider(stringResource(R.string.colortools_halation_size), f.halationSize, 0.25f, se.gendut.klipp.engine.Film.HALATION_SIZE_MAX, 1f, { "${dec(it, 2)}×" }, "filmHalSize", lane = false) { set(f.copy(halationSize = (it * 20).roundToInt() / 20f)) }
+                PropSlider(stringResource(R.string.colortools_scatter_amount), f.scatter, 0f, 2f, 1f, { "${dec(it, 2)}×" }, "filmScatter", lane = false) { set(f.copy(scatter = (it * 20).roundToInt() / 20f)) }
+                PropSlider(stringResource(R.string.colortools_scatter_size), f.scatterSize, 0.25f, 4f, 1f, { "${dec(it, 2)}×" }, "filmScatterSize", lane = false) { set(f.copy(scatterSize = (it * 20).roundToInt() / 20f)) }
+                PropSlider(stringResource(R.string.colortools_boost), f.boostEv, 0f, 12f, 0f, { if (it < 0.05f) off else "+${dec(it, 1)} EV" }, "filmBoost", lane = false) { set(f.copy(boostEv = (it * 10).roundToInt() / 10f)) }
+                if (f.boostEv > 0f) {
+                    PropSlider(stringResource(R.string.colortools_protect), f.protectEv, 0f, 8f, 4f, { "${dec(it, 1)} EV" }, "filmProtect", lane = false) { set(f.copy(protectEv = (it * 10).roundToInt() / 10f)) }
+                    PropSlider(stringResource(R.string.colortools_boost_range), f.boostRange, 0f, 1f, 0.3f, { dec(it, 2) }, "filmBoostRange", lane = false) { set(f.copy(boostRange = (it * 100).roundToInt() / 100f)) }
+                }
+                hint(stringResource(R.string.colortools_boost_hint))
+            }
+
+            // all of the grain in one place: spektrafilm's controls first, then Klipp's additions
+            FilmSection("grain", stringResource(R.string.colortools_grain), summary = if (f.grain) null else off,
+                changed = f.grain != d.grain || f.grainLayers != d.grainLayers || f.grainSize != d.grainSize || f.grainBlur != d.grainBlur ||
+                    f.grainAmount != d.grainAmount || f.grainClouds != d.grainClouds || f.grainColor != d.grainColor) {
+                Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ToggleChip(stringResource(R.string.colortools_grain), f.grain, { set(f.copy(grain = !f.grain)) }, Modifier.testTag("film:grain"))
+                    if (f.grain) ToggleChip(stringResource(R.string.colortools_sublayers), f.grainLayers, { set(f.copy(grainLayers = !f.grainLayers)) }, Modifier.testTag("film:grainLayers"))
+                }
+                if (f.grain) {
+                    PropSlider(stringResource(R.string.colortools_grain_area), f.grainSize * 0.2f, 0.05f, 0.8f, 0.2f, { dec(it, 2) }, "filmGrain", lane = false) { set(f.copy(grainSize = ((it / 0.2f) * 20).roundToInt() / 20f)) }
+                    PropSlider(stringResource(R.string.colortools_grain_blur), f.grainBlur, 0f, 3f, 0.65f, { dec(it, 2) }, "filmGrainBlur", lane = false) { set(f.copy(grainBlur = (it * 100).roundToInt() / 100f)) }
+                    hint(stringResource(R.string.colortools_grain_hint))
+                    PropSlider(stringResource(R.string.colortools_grain_amount), f.grainAmount, 0f, 8f, 1f, { if (it < 0.01f) off else "${dec(it, 1)}×" }, "filmGrainAmount", lane = false) { set(f.copy(grainAmount = (it * 10).roundToInt() / 10f)) }
+                    PropSlider(stringResource(R.string.colortools_color_clouds), f.grainClouds, 0f, 3f, 0f, { if (it < 0.01f) off else "${dec(it, 1)}×" }, "filmClouds", lane = false) { set(f.copy(grainClouds = (it * 10).roundToInt() / 10f)) }
+                    PropSlider(stringResource(R.string.colortools_grain_color), f.grainColor, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "filmGrainColor", lane = false) { set(f.copy(grainColor = (it * 20).roundToInt() / 20f)) }
+                    hint(stringResource(R.string.colortools_extras_hint))
+                }
+            }
+
+            if (!positive) {
+                FilmSection("print", stringResource(R.string.colortools_section_print),
+                    changed = f.labComp != d.labComp || f.printExposure != d.printExposure || f.yShift != d.yShift || f.mShift != d.mShift || f.printGamma != d.printGamma ||
+                        f.glare != d.glare || f.glarePercent != d.glarePercent || f.glareRoughness != d.glareRoughness ||
+                        f.enlargerDiffusion != d.enlargerDiffusion || f.enlargerDiffusionStrength != d.enlargerDiffusionStrength) {
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                        ToggleChip(stringResource(R.string.colortools_print_auto_comp), f.labComp, { set(f.copy(labComp = !f.labComp)) }, Modifier.testTag("film:lab"))
+                    }
+                    hint(
+                        if (f.labComp) stringResource(R.string.colortools_print_auto_comp_on_hint)
+                        else stringResource(R.string.colortools_print_auto_comp_off_hint),
+                    )
+                    val stops = kotlin.math.log2(f.printExposure.coerceAtLeast(0.01f))
+                    PropSlider(stringResource(R.string.colortools_print_exposure), stops, -2f, 2f, 0f, { "${dec(2f.pow(it), 2)}× (${"%+.2f".format(it)} EV)" }, "filmPrint", lane = false) {
+                        set(f.copy(printExposure = 2f.pow((it * 20).roundToInt() / 20f)))
+                    }
+                    SubLabel(stringResource(R.string.colortools_enlarger))
+                    PropSlider(stringResource(R.string.colortools_enlarger_y), f.yShift, -100f, 100f, 0f, { "%+.0f".format(it) }, "filmY", lane = false) { set(f.copy(yShift = it.roundToInt().toFloat())) }
+                    PropSlider(stringResource(R.string.colortools_enlarger_m), f.mShift, -100f, 100f, 0f, { "%+.0f".format(it) }, "filmM", lane = false) { set(f.copy(mShift = it.roundToInt().toFloat())) }
+                    se.gendut.klipp.DropField(stringResource(R.string.colortools_diffusion_enlarger),
+                        listOf(se.gendut.klipp.Opt<String?>(null, stringResource(R.string.colortools_none_filter), key = "none")) + se.gendut.klipp.engine.FilmFx.FAMILIES.map { se.gendut.klipp.Opt<String?>(it.key, it.label, it.hint, key = it.key) },
+                        f.enlargerDiffusion, "film:enlargerDiffusion") { set(f.copy(enlargerDiffusion = it)) }
+                    if (f.enlargerDiffusion != null) {
+                        se.gendut.klipp.DropField(stringResource(R.string.colortools_filter_strength), se.gendut.klipp.engine.FilmFx.STRENGTHS.map { v -> se.gendut.klipp.Opt(v, strengthLabel(v), key = "e$v") },
+                            se.gendut.klipp.engine.FilmFx.STRENGTHS.minByOrNull { kotlin.math.abs(it - f.enlargerDiffusionStrength) }!!, "film:enlargerStrength") { set(f.copy(enlargerDiffusionStrength = it)) }
+                    }
+                    SubLabel(stringResource(R.string.colortools_chemistry))
+                    PropSlider(stringResource(R.string.colortools_paper_gamma), f.printGamma, 0.5f, 2f, 1f, { dec(it, 2) }, "filmPrintGamma", lane = false) { set(f.copy(printGamma = (it * 100).roundToInt() / 100f)) }
+                    hint(stringResource(R.string.colortools_paper_gamma_hint))
+                    SubLabel(stringResource(R.string.colortools_glare))
+                    Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                        ToggleChip(stringResource(R.string.colortools_glare_in_paper), f.glare, { set(f.copy(glare = !f.glare)) }, Modifier.testTag("film:glare"))
+                    }
+                    if (f.glare) {
+                        PropSlider(stringResource(R.string.colortools_glare_amount), f.glarePercent, 0f, 1f, 0.03f, { dec(it, 2) }, "filmGlare", lane = false) { set(f.copy(glarePercent = (it * 100).roundToInt() / 100f)) }
+                        PropSlider(stringResource(R.string.colortools_glare_roughness), f.glareRoughness, 0f, 1f, 0.7f, { dec(it, 2) }, "filmGlareRough", lane = false) { set(f.copy(glareRoughness = (it * 100).roundToInt() / 100f)) }
+                    }
+                }
+            }
+
+            FilmSection("scanner", stringResource(R.string.colortools_scanner), changed = f.scanBlur != d.scanBlur || f.sharpen != d.sharpen) {
+                PropSlider(stringResource(R.string.colortools_scan_blur), f.scanBlur, 0f, 3f, 0f, { dec(it, 2) }, "filmScanBlur", lane = false) { set(f.copy(scanBlur = (it * 20).roundToInt() / 20f)) }
+                PropSlider(stringResource(R.string.colortools_scan_sharpen), f.sharpen, 0f, 2f, 0.7f, { dec(it, 2) }, "filmSharp", lane = false) { set(f.copy(sharpen = (it * 20).roundToInt() / 20f)) }
+            }
+
             Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                 ToggleChip(stringResource(R.string.colortools_spektrafilm_defaults), false, {
                     set(se.gendut.klipp.engine.Film(film = f.film, print = f.print, input = f.input, display = f.display))
@@ -333,6 +343,37 @@ fun FilmEditor(n: GradeNode, onCommit: (GradeNode) -> Unit) {
                 color = K.Outline, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
             )
         }
+    }
+}
+
+/** Which of the film editor's sections are open (kept while switching nodes and clips). */
+private val filmSectionsOpen = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
+
+/**
+ * A folded section of the film editor: a header (title, a dot when something in it differs from spektrafilm's
+ * defaults, an optional short state such as "Off") that opens and closes [content].
+ */
+@Composable
+private fun FilmSection(key: String, title: String, changed: Boolean, summary: String? = null, content: @Composable () -> Unit) {
+    val open = filmSectionsOpen[key] ?: false
+    val haptics = rememberHaptics()
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 3.dp).clip(RoundedCornerShape(12.dp))
+            .background(if (open) K.SurfaceHighest.copy(alpha = 0.55f) else K.SurfaceHigh.copy(alpha = 0.6f)),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().clickable { haptics.tick(); filmSectionsOpen[key] = !open }.padding(horizontal = 6.dp, vertical = 12.dp)
+                .testTag("filmsec:$key"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(title, color = K.Primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            if (changed) Box(Modifier.padding(start = 8.dp).size(6.dp).clip(RoundedCornerShape(3.dp)).background(K.Primary).testTag("filmsec:$key:changed"))
+            Box(Modifier.weight(1f))
+            if (summary != null) Text(summary, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(end = 8.dp))
+            androidx.compose.material3.Icon(Ic.ChevronDown, null, tint = K.OnSurfaceVar,
+                modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = if (open) 180f else 0f })
+        }
+        if (open) Column(Modifier.padding(bottom = 6.dp)) { content() }
     }
 }
 

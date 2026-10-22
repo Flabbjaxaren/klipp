@@ -37,7 +37,9 @@
     <string name="colortools_enlarger_y">Enlarger Y Filter (CC)</string>
     <string name="colortools_enlarger_m">Enlarger M Filter (CC)</string>
     <string name="colortools_film_gamma">Film Gamma</string>
-    <string name="colortools_couplers">Couplers</string>
+    <string name="colortools_section_negative">Negative</string>
+    <string name="colortools_section_film">Film</string>
+    <string name="colortools_section_print">Printing</string>
     <string name="colortools_dir_amount">DIR Couplers Amount</string>
     <string name="colortools_chemistry">Chemistry</string>
     <string name="colortools_paper_gamma">Paper Gamma</string>
@@ -73,13 +75,12 @@
     <string name="colortools_scanner">Scanner</string>
     <string name="colortools_scan_blur">Scanner Blur (px)</string>
     <string name="colortools_scan_sharpen">Scanner Sharpening</string>
-    <string name="colortools_klipp_extras">Klipp Extras</string>
     <string name="colortools_display_phone_web">Phone &amp; web (sRGB)</string>
     <string name="colortools_display_tv">TV (Rec.1886 2.4)</string>
     <string name="colortools_grain_amount">Grain Amount</string>
     <string name="colortools_color_clouds">Color Clouds</string>
     <string name="colortools_grain_color">Grain Color</string>
-    <string name="colortools_extras_hint" formatted="false">Not in spektrafilm (the defaults are spektrafilm\'s). Grain Amount: strengthens the grain. Color Clouds: grain as color clouds of 10–25 µm. Grain Color: 100% = color layers independent, lower = more luminance than color.</string>
+    <string name="colortools_extras_hint" formatted="false">Grain Amount, Color Clouds and Grain Color are Klipp additions, not in spektrafilm (their defaults leave the grain as spektrafilm makes it). Grain Amount: strengthens the grain. Color Clouds: grain as color clouds of 10–25 µm. Grain Color: 100% = color layers independent, lower = more luminance than color.</string>
     <string name="colortools_spektrafilm_defaults">spektrafilm defaults</string>
     <string name="colortools_spektrafilm_defaults_hint">Resets all controls to spektrafilm\'s defaults (film, paper, input and display stay).</string>
     <string name="colortools_spektrafilm_parity">Same controls and defaults as spektrafilm, and the same image (the tests compare against spektrafilm). Missing here: the camera\'s auto exposure (the video is already exposed), the enlarger lamp, pre-flash, the scanner\'s black and white correction and the gamut compression choice (spektrafilm\'s defaults are baked in). The film applies to the whole image after the node.</string>
