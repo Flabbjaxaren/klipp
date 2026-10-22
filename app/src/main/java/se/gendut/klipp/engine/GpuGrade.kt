@@ -161,6 +161,20 @@ object GpuGrade {
             filterMode = if (linear) BitmapShader.FILTER_MODE_LINEAR else BitmapShader.FILTER_MODE_NEAREST
         }
 
+        /** The HSL curves' 16-bit tables as a bitmap (exact texels, see [HslCurves.textureBytes]); the last one is reused. */
+        private var hslFor: Array<FloatArray>? = null
+        private var hslBmp: Bitmap? = null
+        private fun hslBitmap(t: Array<FloatArray>?): Bitmap {
+            hslBmp?.let { b -> if (t === hslFor || (t != null && hslFor != null && t.contentDeepEquals(hslFor))) return b }
+            val bytes = HslCurves.textureBytes(t)
+            val n = HslCurve.TABLE
+            val px = IntArray(n * 6)
+            for (i in px.indices) px[i] = (0xFF shl 24) or ((bytes.get(i * 4).toInt() and 255) shl 16) or ((bytes.get(i * 4 + 1).toInt() and 255) shl 8)
+            val bmp = Bitmap.createBitmap(n, 6, Bitmap.Config.ARGB_8888).apply { setPixels(px, 0, n, 0, 0, n, 6) }
+            hslFor = t; hslBmp = bmp
+            return bmp
+        }
+
         private fun curvesBitmap(c: Array<FloatArray>?): Bitmap {
             val k = c?.contentDeepHashCode() ?: 0
             curveCache[k]?.let { (arr, bmp) -> if (arr === c || (arr != null && c != null && arr.contentDeepEquals(c)) || (arr == null && c == null)) return bmp }
@@ -200,6 +214,9 @@ object GpuGrade {
             s.setFloatUniform("uGammaExp", p.gammaExp)
             s.setFloatUniform("uGain", p.gain)
             s.setFloatUniform("uOffset", p.offset)
+            val ys = p.ySide ?: floatArrayOf(0f, 1f, 1f)
+            s.setFloatUniform("uYSide", ys[0], ys[1], ys[2])
+            s.setFloatUniform("uUseY", if (p.ySide != null) 1f else 0f)
             s.setFloatUniform("uWb", p.wb)
             s.setFloatUniform("uContrast", p.contrast)
             s.setFloatUniform("uPivot", p.pivot)
@@ -207,6 +224,8 @@ object GpuGrade {
             s.setFloatUniform("uHue", GradeNodeEffect.transpose3(p.hueMat))
             s.setFloatUniform("uMix", p.mix)
             s.setFloatUniform("uUseCurves", if (p.curves != null) 1f else 0f)
+            s.setFloatUniform("uUseHsl", if (p.hsl != null) 1f else 0f)
+            s.setInputShader("hsl", shaderOf(hslBitmap(p.hsl), false))
             s.setInputShader("curves", shaderOf(curvesBitmap(p.curves), true))
             setLut(s, p.lut, p.lutMix)
             val q = p.qual
@@ -340,11 +359,15 @@ float3 toHsl(float3 c) {
     const val NODE = """
 uniform shader content;
 uniform shader curves;
+uniform shader hsl;
+uniform float uUseHsl;
 uniform float2 uSize;
 uniform float3 uLift;
 uniform float3 uGammaExp;
 uniform float3 uGain;
 uniform float3 uOffset;
+uniform float3 uYSide;
+uniform float uUseY;
 uniform float3 uWb;
 uniform float uContrast;
 uniform float uPivot;
@@ -426,6 +449,39 @@ float3 colorIn(float3 src, float2 pos) {
   return cin;
 }
 
+// an HSL curve (a row of the table: 16 bits as high, low byte) at x 0..1, linearly interpolated (as in GradeShaders)
+float hslTexel(float i, float row) {
+  float2 t = floor(float2(hsl.eval(float2(i + 0.5, row + 0.5)).rg) * 255.0 + 0.5);
+  return (t.r * 256.0 + t.g) / 65535.0;
+}
+float hslAt(float row, float x) {
+  float p = clamp(x, 0.0, 1.0) * 511.0;
+  float i = min(floor(p), 510.0);
+  return mix(hslTexel(i, row), hslTexel(i + 1.0, row), p - i);
+}
+
+float3 hslCurves(float3 c) {
+  float y = dot(c, float3(0.2126, 0.7152, 0.0722));
+  float3 dm = c - float3((c.r + c.g + c.b) / 3.0);
+  float a1 = (dm.r - dm.g) / 1.4142135;
+  float a2 = (dm.r + dm.g - 2.0 * dm.b) / 2.4494898;
+  float sat = length(float2(a1, a2)) * 1.2247449;
+  float hue = 0.0;
+  if (sat > 1e-6) hue = fract((atan(a2, a1) - 0.5235988) / 6.2831853 + 1.0);
+  float turn = (0.5 - hslAt(0.0, hue)) * 6.2831853;
+  float gain = 8.0 * hslAt(1.0, hue) * hslAt(3.0, y) * hslAt(4.0, sat);
+  float lum = (2.0 * hslAt(2.0, hue) - 1.0) + (2.0 * hslAt(5.0, sat) - 1.0);
+  float3 d = c - float3(y);
+  if (turn != 0.0) {
+    float co = cos(turn); float si = sin(turn); float k = 0.57735027;
+    float kd = (d.r + d.g + d.b) * k;
+    float3 kx = k * float3(d.b - d.g, d.r - d.b, d.g - d.r);
+    d = d * co + kx * si + float3(k * kd * (1.0 - co));
+    d -= float3(dot(d, float3(0.2126, 0.7152, 0.0722)));
+  }
+  return clamp(float3(y + lum * y) + d * gain, 0.0, 1.0);
+}
+
 half4 main(float2 pos) {
   half4 srcH = content.eval(pos);
   float3 src = float3(srcH.rgb);
@@ -433,8 +489,15 @@ half4 main(float2 pos) {
   if (uShowKey > 0.5) {
     return half4(half3(k), srcH.a);
   }
-  float3 c = uLift + uGain * colorIn(src, pos) + uOffset;
-  c = pow(max(c, float3(0.0)), uGammaExp);
+  float3 cin = colorIn(src, pos);
+  float3 c = uLift + uGain * cin + uOffset;
+  c = mix(pow(max(c, float3(0.0)), uGammaExp), c, step(abs(uGammaExp - float3(1.0)), float3(1e-6)));
+  if (uUseY > 0.5) {
+    float3 w = float3(0.2126, 0.7152, 0.0722);
+    float yv = uYSide.x + uYSide.y * dot(cin, w) + dot(uOffset, w);
+    if (abs(uYSide.z - 1.0) > 1e-6) yv = pow(max(yv, 0.0), uYSide.z);
+    c += float3(yv - dot(c, w));
+  }
   c = (c - float3(uPivot)) * uContrast + float3(uPivot);
   c = c * uWb;
   c = uHue * c;
@@ -443,6 +506,7 @@ half4 main(float2 pos) {
   if (uUseCurves > 0.5) {
     c = float3(curves.eval(float2(c.r * 255.0 + 0.5, 0.5)).r, curves.eval(float2(c.g * 255.0 + 0.5, 0.5)).g, curves.eval(float2(c.b * 255.0 + 0.5, 0.5)).b);
   }
+  if (uUseHsl > 0.5) c = hslCurves(c);
   if (uUseLut > 0.5) {
     c = mix(c, clamp(lut3(c), 0.0, 1.0), uLutMix);
   }

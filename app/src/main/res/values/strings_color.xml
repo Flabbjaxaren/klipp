@@ -217,4 +217,15 @@
     <string name="colorpage_node_neutral">Neutral</string>
     <string name="colorpage_node_default_label">Node</string>
     <string name="colorpage_live">LIVE</string>
+    <string name="colorpage_curves_custom">Custom</string>
+    <string name="colorpage_curves_hue_hue">Hue vs Hue</string>
+    <string name="colorpage_curves_hue_sat">Hue vs Sat</string>
+    <string name="colorpage_curves_hue_lum">Hue vs Lum</string>
+    <string name="colorpage_curves_lum_sat">Lum vs Sat</string>
+    <string name="colorpage_curves_sat_sat">Sat vs Sat</string>
+    <string name="colorpage_curves_sat_lum">Sat vs Lum</string>
+    <string name="colorpage_hsl_input">Input %1$s</string>
+    <string name="colorpage_hsl_rotate">Hue rotate %1$s°</string>
+    <string name="colorpage_hsl_sat">Saturation %1$s</string>
+    <string name="colorpage_hsl_lum">Luminance %1$s</string>
 </resources>

@@ -86,6 +86,8 @@ import kotlinx.coroutines.withContext
 import se.gendut.klipp.engine.ClipGrade
 import se.gendut.klipp.engine.Curve
 import se.gendut.klipp.engine.GradeNode
+import se.gendut.klipp.engine.HslCurve
+import se.gendut.klipp.engine.HslKind
 import se.gendut.klipp.engine.Wheel
 import se.gendut.klipp.engine.applyTo
 import org.json.JSONObject
@@ -429,7 +431,7 @@ private fun ColorPageBody(
     Spacer(Modifier.height(12.dp))
     val tabs = listOf(
         ToolTab(stringResource(R.string.colorpage_tool_wheels), Ic.Wheels, "editor:Hjul", marked = !(node.lift.isNeutral && node.gamma.isNeutral && node.gain.isNeutral && node.offset.isNeutral)),
-        ToolTab(stringResource(R.string.colorpage_tool_curves), Ic.Curves, "editor:Kurvor", marked = node.hasCurves),
+        ToolTab(stringResource(R.string.colorpage_tool_curves), Ic.Curves, "editor:Kurvor", marked = node.hasCurves || node.hasHsl),
         ToolTab(stringResource(R.string.colorpage_tool_adjust), Ic.Sliders, "editor:Justera", marked = node.contrast != 1f || node.sat != 1f || node.hue != 0f || node.temp != 0f || node.tint != 0f || node.mix < 1f),
         ToolTab(stringResource(R.string.colorpage_tool_lut), Ic.Cube, "editor:LUT", marked = node.lut != null || node.drt != null),
         ToolTab(stringResource(R.string.colorpage_tool_qualifier), Ic.Dropper, "editor:Kvalificerare", marked = node.qual.on),
@@ -901,9 +903,202 @@ private suspend fun AwaitPointerEventScope.claimHorizontal(down: PointerInputCha
     }
 }
 
-/** Curves: Y affects all channels, R/G/B each separately. Tap = new point, drag = move, drag out of the box = delete. */
+/** The curves: the custom Y/R/G/B curves or one of the six HSL curves (a row of choices on top). */
 @Composable
 fun CurvesEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit) {
+    var mode by remember { mutableStateOf(-1) }
+    val labels = listOf(R.string.colorpage_curves_custom) + HslKind.entries.map { hslLabel(it) }
+    Column {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for ((i, l) in labels.withIndex()) {
+                val k = i - 1
+                val on = mode == k
+                val used = if (k < 0) n.hasCurves else !n.hsl[HslKind.entries[k]].isNeutral
+                Box(
+                    Modifier.clip(RoundedCornerShape(16.dp)).background(if (on) K.Primary else K.SurfaceHigh)
+                        .clickable { mode = k }.padding(horizontal = 12.dp, vertical = 7.dp).testTag("curveMode:$k"),
+                ) {
+                    Text(stringResource(l) + if (used && !on) " •" else "", color = if (on) K.OnPrimary else K.OnSurface, fontSize = 13.sp,
+                        fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        if (mode < 0) CustomCurves(n, onLive, onCommit) else HslCurveEditor(n, HslKind.entries[mode], onLive, onCommit)
+    }
+}
+
+private fun hslLabel(k: HslKind) = when (k) {
+    HslKind.HUE_HUE -> R.string.colorpage_curves_hue_hue; HslKind.HUE_SAT -> R.string.colorpage_curves_hue_sat
+    HslKind.HUE_LUM -> R.string.colorpage_curves_hue_lum; HslKind.LUM_SAT -> R.string.colorpage_curves_lum_sat
+    HslKind.SAT_SAT -> R.string.colorpage_curves_sat_sat; HslKind.SAT_LUM -> R.string.colorpage_curves_sat_lum
+}
+
+/** The six primaries and secondaries on the hue axis (0 red, 1/6 yellow, 1/3 green, 1/2 cyan, 2/3 blue, 5/6 magenta). */
+private val HUE_SWATCHES = listOf(Color(0xFFFF4040), Color(0xFFFFE040), Color(0xFF40E060), Color(0xFF40E0E0), Color(0xFF4070FF), Color(0xFFE040E0))
+
+/** The color at a hue (0..1) on the axis, drawn behind the hue curves. */
+private fun hueColor(h: Float): Color {
+    val c = android.graphics.Color.HSVToColor(floatArrayOf(((h % 1f + 1f) % 1f) * 360f, 0.75f, 0.85f))
+    return Color(c)
+}
+
+/**
+ * One HSL curve. The middle line is no change; up = more (hue turned, saturation, luminance). Tap = a point on the
+ * curve, drag = move, drag out of the box = delete. The hue axis wraps (a point near red affects both ends); the
+ * luma and saturation axes have fixed end points that move only up and down. Under the hue curves: the six colors –
+ * a tap adds a point there plus neutral points at the neighbouring colors, to change just that color.
+ */
+@Composable
+fun HslCurveEditor(n: GradeNode, kind: HslKind, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit) {
+    val haptics = rememberHaptics()
+    fun defaults(): List<Pair<Float, Float>> = if (kind.periodic) emptyList() else listOf(0f to 0.5f, 1f to 0.5f)
+    fun pointsOf(node: GradeNode) = node.hsl[kind].points.ifEmpty { defaults() }
+    var pts by remember(kind) { mutableStateOf(pointsOf(n)) }
+    var dragging by remember { mutableStateOf(false) }
+    var active by remember(kind) { mutableStateOf<Int?>(null) }
+    val src = pointsOf(n)
+    LaunchedEffect(src) { if (!dragging) pts = src }
+    val node by rememberUpdatedState(n)
+    val live by rememberUpdatedState(onLive)
+    val commit by rememberUpdatedState(onCommit)
+    fun with(node: GradeNode, p: List<Pair<Float, Float>>) = node.copy(hsl = node.hsl.with(kind, HslCurve(p)))
+    fun heightAt(p: List<Pair<Float, Float>>, x: Float): Float {
+        if (p.isEmpty()) return 0.5f
+        var a = p.sortedBy { it.first }
+        if (kind.periodic) a = a.map { (px, py) -> (px - 1f) to py } + a + a.map { (px, py) -> (px + 1f) to py }
+        return HslCurve.at(a, x)
+    }
+    Column(Modifier.padding(horizontal = 14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            // the value under the finger (or the last point touched), in the panel's terms
+            val sel = active?.let { pts.getOrNull(it) }
+            val readout = sel?.let { (x, y) ->
+                val input = if (kind.periodic) "%.0f°".format(x * 360f) else "%.2f".format(x)
+                val out = when (kind) {
+                    HslKind.HUE_HUE -> stringResource(R.string.colorpage_hsl_rotate, "%+.1f".format((y - 0.5f) * 360f))
+                    HslKind.HUE_SAT, HslKind.LUM_SAT, HslKind.SAT_SAT -> stringResource(R.string.colorpage_hsl_sat, "%.2f".format(2f * y))
+                    else -> stringResource(R.string.colorpage_hsl_lum, "%.2f".format(2f * y))
+                }
+                stringResource(R.string.colorpage_hsl_input, input) + " · " + out
+            } ?: ""
+            Text(readout, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.weight(1f).testTag("hslReadout"))
+            PillButton(stringResource(R.string.colorpage_reset), { haptics.confirm(); pts = defaults(); active = null; commit(node.copy(hsl = node.hsl.with(kind, HslCurve()))) }, icon = Ic.Reset, filled = false)
+        }
+        Canvas(
+            Modifier.fillMaxWidth().aspectRatio(1.6f).padding(vertical = 8.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF15171C)).testTag("hslCurve")
+                .pointerInput(kind) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        fun toCurve(o: Offset) = (o.x / size.width).coerceIn(0f, 1f) to (1f - o.y / size.height).coerceIn(0f, 1f)
+                        var list = pts.sortedBy { it.first }.toMutableList()
+                        fun dist(i: Int) = hypot(list[i].first * size.width - down.position.x, (1 - list[i].second) * size.height - down.position.y)
+                        val hit = list.indices.minByOrNull { dist(it) }?.takeIf { dist(it) < 24.dp.toPx() }
+                        val onLine = abs((1 - heightAt(list, down.position.x / size.width)) * size.height - down.position.y) < 24.dp.toPx()
+                        var tap = false
+                        if (hit != null || onLine) down.consume()
+                        else when (claimHorizontal(down)) {
+                            null -> tap = true
+                            false -> return@awaitEachGesture
+                            true -> {}
+                        }
+                        var idx = hit ?: run {
+                            // a new point on the curve where tapped (the curve doesn't jump)
+                            val x = (down.position.x / size.width).coerceIn(0f, 1f)
+                            val same = list.indexOfFirst { abs(it.first - x) < 1e-3f }
+                            if (same >= 0) same else {
+                                val i = list.indexOfFirst { it.first > x }.let { if (it < 0) list.size else it }
+                                list.add(i, x to heightAt(list, x))
+                                haptics.tick()
+                                i
+                            }
+                        }
+                        // the luma/saturation axes: the end points stay at 0 and 1
+                        val end = !kind.periodic && (idx == 0 || idx == list.lastIndex)
+                        var removed = false
+                        pts = list.toList(); active = idx
+                        if (tap) { commit(with(node, pts)); return@awaitEachGesture }
+                        dragging = true
+                        live(with(node, pts))
+                        while (true) {
+                            val ev = awaitPointerEvent()
+                            val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!c.pressed) break
+                            val (x, y) = toCurve(c.position)
+                            val out = c.position.y < -40.dp.toPx() || c.position.y > size.height + 40.dp.toPx() || c.position.x < -40.dp.toPx() || c.position.x > size.width + 40.dp.toPx()
+                            list = pts.toMutableList()
+                            if (out && !end) {
+                                if (!removed) { haptics.heavy(); removed = true }
+                                if (idx in list.indices) list.removeAt(idx)
+                                pts = list.toList(); active = null; live(with(node, pts))
+                                idx = -1
+                                c.consume(); continue
+                            }
+                            if (idx < 0) continue
+                            val lo = if (idx > 0) list[idx - 1].first + 0.005f else 0f
+                            val hi = if (idx < list.lastIndex) list[idx + 1].first - 0.005f else 1f
+                            list[idx] = (if (end) list[idx].first else x.coerceIn(lo, hi)) to y
+                            pts = list.toList()
+                            live(with(node, pts))
+                            c.consume()
+                        }
+                        dragging = false
+                        commit(with(node, pts))
+                    }
+                },
+        ) {
+            val w = size.width; val h = size.height
+            // the axis: the hue circle, gray from black to white, or gray to full color
+            val stops = (0..24).map { i ->
+                val f = i / 24f
+                when {
+                    kind.periodic -> hueColor(f)
+                    kind == HslKind.LUM_SAT -> Color(f, f, f)
+                    else -> androidx.compose.ui.graphics.lerp(Color(0xFF8A8A8A), Color(0xFFE05A3A), f)
+                }
+            }
+            drawRect(Brush.horizontalGradient(stops.map { it.copy(alpha = 0.22f) }), Offset.Zero, size)
+            drawRect(Brush.horizontalGradient(stops), Offset(0f, h - 6.dp.toPx()), androidx.compose.ui.geometry.Size(w, 6.dp.toPx()))
+            for (i in 1..5) drawLine(Color(0x1FFFFFFF), Offset(w * i / 6f, 0f), Offset(w * i / 6f, h), 1f)
+            drawLine(Color(0x55FFFFFF), Offset(0f, h / 2f), Offset(w, h / 2f), 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f)))
+            val t = HslCurve(pts).table(kind.periodic, 256)
+            val path = Path()
+            for (i in 0 until 256) {
+                val x = i / 255f * w; val y = (1 - t[i]) * h
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            }
+            drawPath(path, Color(0xFFF2F2F2), style = Stroke(2.5f * density))
+            for ((i, p) in pts.withIndex()) {
+                val o = Offset(p.first * w, (1 - p.second) * h)
+                drawCircle(Color(0xFF15171C), 7.5f * density, o)
+                drawCircle(if (i == active) K.Primary else Color(0xFFF2F2F2), 6f * density, o)
+            }
+        }
+        if (kind.periodic) Row(Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            for ((i, col) in HUE_SWATCHES.withIndex()) {
+                Box(
+                    Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)).background(col).testTag("hslSwatch:$i")
+                        .clickable {
+                            // the color plus neutral points at its neighbours (an existing point there is kept)
+                            haptics.tick()
+                            val cx = i / 6f
+                            var list = pts.toMutableList()
+                            fun has(x: Float) = list.any { abs(((it.first - x + 1.5f) % 1f) - 0.5f) < 0.02f }
+                            val center = heightAt(list, cx)
+                            for ((x, y) in listOf((cx - 1f / 6f + 1f) % 1f to 0.5f, cx to center, (cx + 1f / 6f) % 1f to 0.5f)) if (!has(x)) list.add(x to y)
+                            list = list.sortedBy { it.first }.toMutableList()
+                            pts = list.toList(); active = list.indexOfFirst { abs(it.first - cx) < 1e-4f }
+                            commit(with(node, pts))
+                        },
+                )
+            }
+        }
+    }
+}
+
+/** Curves: Y affects all channels, R/G/B each separately. Tap = new point, drag = move, drag out of the box = delete. */
+@Composable
+private fun CustomCurves(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit) {
     val haptics = rememberHaptics()
     var ch by remember { mutableStateOf(0) }
     val curveOf: (GradeNode, Int) -> Curve = { node, i -> when (i) { 1 -> node.curveR; 2 -> node.curveG; 3 -> node.curveB; else -> node.curveY } }
