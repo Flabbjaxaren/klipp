@@ -913,7 +913,7 @@ private fun Transport(state: EditorState) {
     val press = remember { Animatable(1f) }
     val playW by animateDpAsState(if (state.playing) 80.dp else 64.dp, spring(0.45f, 500f), label = "pw")
     val playR by animateDpAsState(if (state.playing) 24.dp else 16.dp, spring(0.45f, 500f), label = "pr")
-    val playBg by animateColorAsState(if (state.playing) K.Primary else K.PrimarySoft, label = "pb")
+    val playBg = K.Primary
     Row(
         Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1595,7 +1595,7 @@ private fun ToastHost(toaster: Toaster, modifier: Modifier) {
             color = K.OnPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(K.PrimarySoft).padding(horizontal = 18.dp, vertical = 10.dp)
+            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(K.Primary).padding(horizontal = 18.dp, vertical = 10.dp)
         )
     }
 }
