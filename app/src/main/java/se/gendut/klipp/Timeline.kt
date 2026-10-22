@@ -675,8 +675,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 var ne = cap.end
                                 var snapped: Float? = null
                                 when (edge) {
-                                    -1 -> { ns = cap.start + dt; snapOf(ns)?.let { ns = it; snapped = it }; ns = ns.coerceIn(lo, ne - minLen) }
-                                    1 -> { ne = cap.end + dt; snapOf(ne)?.let { ne = it; snapped = it }; ne = ne.coerceIn(ns + minLen, hi) }
+                                    -1 -> { ns = cap.start + dt; snapOf(ns)?.let { ns = it; snapped = it }; ns = ns.coerceInSafe(lo, ne - minLen) }
+                                    1 -> { ne = cap.end + dt; snapOf(ne)?.let { ne = it; snapped = it }; ne = ne.coerceInSafe(ns + minLen, hi) }
                                     else -> {
                                         val len = cap.end - cap.start
                                         ns = cap.start + dt
@@ -1098,9 +1098,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                         val prevEnd = state.clips.filter { it.track == orig.track && it.id != orig.id && it.end <= orig.start + 0.001f }.maxOfOrNull { it.end }
                                         if (prevEnd != null) lo = max(lo, prevEnd)
                                     }
-                                    var s = (orig.start + dt).coerceIn(lo, orig.end - 0.5f)
+                                    var s = (orig.start + dt).coerceInSafe(lo, orig.end - minOf(MIN_TRIM, orig.length))
                                     val snap = if (state.magnet) state.nearestSnap(listOf(s), candidates, thr) else null
-                                    if (snap != null) s = (s + snap.first).coerceIn(lo, orig.end - 0.5f)
+                                    if (snap != null) s = (s + snap.first).coerceInSafe(lo, orig.end - minOf(MIN_TRIM, orig.length))
                                     applySnap(snap)
                                     lastTarget = s
                                     lastLen = orig.end - s
@@ -1129,9 +1129,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                         val nextStart = state.clips.filter { it.track == orig.track && it.id != orig.id && it.start >= orig.end - 0.001f }.minOfOrNull { it.start }
                                         if (nextStart != null) hi = min(hi, nextStart)
                                     }
-                                    var e = (orig.end + dt).coerceIn(orig.start + 0.5f, hi)
+                                    var e = (orig.end + dt).coerceInSafe(orig.start + minOf(MIN_TRIM, orig.length), hi)
                                     val snap = if (state.magnet) state.nearestSnap(listOf(e), candidates, thr) else null
-                                    if (snap != null) e = (e + snap.first).coerceIn(orig.start + 0.5f, hi)
+                                    if (snap != null) e = (e + snap.first).coerceInSafe(orig.start + minOf(MIN_TRIM, orig.length), hi)
                                     applySnap(snap)
                                     lastLen = e - orig.start
                                     loupe = ch.position
@@ -1989,3 +1989,12 @@ private fun TrackMenu(open: Boolean, onDismiss: () -> Unit, t: TrackDef, ts: Tra
 , "syncLock") { set("syncLock", !ts.syncLock) }
     }
 }
+
+/** The shortest a trim makes a clip (a clip that is already shorter keeps its length as the limit). */
+private const val MIN_TRIM = 0.5f
+
+/**
+ * [coerceIn] that never throws: when the range is empty (a clip or caption shorter than the minimum, next to its
+ * neighbour) the lower bound wins – the edge stays where it may be.
+ */
+internal fun Float.coerceInSafe(lo: Float, hi: Float): Float = coerceIn(lo, maxOf(lo, hi))
