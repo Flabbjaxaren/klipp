@@ -103,6 +103,7 @@
     <string name="panels_target_podcast">Podd / Apple</string>
     <string name="panels_target_tv">TV (EBU R128)</string>
     <string name="panels_audio">Ljud</string>
+    <string name="meter_program">Ljudnivå</string>
     <string name="panels_integrated_loudness">Integrerad loudness (mixen)</string>
     <string name="panels_measuring_value">mäter …</string>
     <string name="panels_peak_lra">Topp %1$.1f dBTP · LRA %2$.1f LU</string>

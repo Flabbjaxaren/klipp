@@ -604,6 +604,8 @@ fun KlippApp(
                 if (controller != null && playback != null) ProgramMonitor(controller, playback, state, gs, lookOf(grade), Modifier.fillMaxSize()) { if (controller.snapshot.media.isEmpty()) openImport() else mediaOpen = true }
                 else Monitor(state, grade, title)
                 ScrubSpeedBadge(monitorTier, Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+                // the program's audio level (what is heard, after the master)
+                if (controller != null) ProgramMeter(state.playing, Modifier.align(Alignment.CenterEnd).padding(end = 6.dp, top = 10.dp, bottom = 10.dp).width(16.dp).fillMaxHeight())
             }
         }
 
