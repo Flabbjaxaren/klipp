@@ -186,19 +186,44 @@ fun ProgramMonitor(
     look: se.gendut.klipp.engine.Look = playback.look,
     /** The monitor's box (the picture is fitted inside it); 16:9 of the width by default. */
     modifier: Modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+    /** Double tap on the picture at 100 % (color page; elsewhere the monitor's own touch handles it). */
+    onFullscreen: (() -> Unit)? = null,
     onImport: () -> Unit,
 ) {
     // disabled clips aren't shown (gap)
     val q = controller.snapshot.playable().sequence
     val hasClips = q?.video?.any { it.clips.isNotEmpty() } == true || q?.captions?.isNotEmpty() == true
     val aspect = if (q != null && q.width > 0 && q.height > 0) q.width.toFloat() / q.height else 16f / 9f
-    Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
+    // color page: pinch to look closer (see MonitorZoom); back to 100 % when leaving the page or changing the format
+    val zoomable = gs?.active == true && hasClips
+    val zoom = remember { MonitorZoom() }
+    LaunchedEffect(zoomable, aspect) { if (!zoomable) zoom.reset() }
+    val scope = rememberCoroutineScope()
+    Box(
+        modifier.background(Color.Black)
+            .then(if (zoomable) Modifier.clipToBounds().onSizeChanged { zoom.monitor = Size(it.width.toFloat(), it.height.toFloat()) }
+                .zoomGestures(zoom, onDoubleTapOut = { scope.launch { zoom.animateOut() } }, onFullscreen = onFullscreen) else Modifier),
+        contentAlignment = Alignment.Center
+    ) {
         if (hasClips) {
             // the image in the sequence's format, centered (vertical video gets black bars)
             // clipped to the frame: nothing (scaled/moved layer, still) is drawn outside the program image
-            Box(Modifier.fillMaxSize().wrapContentSize().aspectRatio(aspect, matchHeightConstraintsFirst = aspect < 16f / 9f).clipToBounds()) {
-                // the composition always outputs the sequence format (each clip is fitted in Playback), the box has the same shape
-                ProgramSurface(playback.player, usesBlendModes(), Modifier.fillMaxSize().redrawOnResize(playback, state))
+            Box(
+                Modifier.fillMaxSize().wrapContentSize().aspectRatio(aspect, matchHeightConstraintsFirst = aspect < 16f / 9f)
+                    .onSizeChanged { zoom.image = Size(it.width.toFloat(), it.height.toFloat()) }.zoomed(zoom).clipToBounds()
+            ) {
+                // the composition always outputs the sequence format (each clip is fitted in Playback), the box has the same shape.
+                // Zoomed: a TextureView – a SurfaceView's image can't be scaled or clipped with the layout.
+                val texture = usesBlendModes() || zoom.zoomed
+                ProgramSurface(playback.player, texture, Modifier.fillMaxSize().redrawOnResize(playback, state))
+                // a new surface (SurfaceView ⇄ TextureView) stays black while standing still (a redraw isn't enough): reload
+                var lastTexture by remember { mutableStateOf(texture) }
+                LaunchedEffect(texture) {
+                    if (texture == lastTexture) return@LaunchedEffect
+                    lastTexture = texture
+                    kotlinx.coroutines.delay(150)
+                    if (!state.playing) playback.reload(state.playhead.toDouble())
+                }
                 // no image under the playhead (empty track, gap, everything deleted): black – the player surface could
                 // otherwise keep showing its last frame
                 val noVideo by remember(q) {
