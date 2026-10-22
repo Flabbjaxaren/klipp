@@ -90,9 +90,34 @@ class AudioRoundTest {
         p.queueInput(pcm(*ShortArray(100) { 16384 }))
         val out = shorts(p.output)
         assertEquals(16384 * CompositionBuilder.dbToGain(-6.0), out[0].toFloat(), 40f)
-        val (pk, rms) = Meters.read(0)
-        assertTrue("the meter got a level", pk > 0.2f && rms > 0.2f)
-        assertEquals(0f, Meters.read(1).first, 0f)
+        // the blocks carry their timeline time: the piece starts at 2 s, 100 samples at 1 kHz = 2.0 … 2.1 s
+        val pk = Meters.read(0, 2_050_000L)
+        assertEquals(0.25f, pk, 0.01f)
+        assertEquals("before the piece", 0f, Meters.read(0, 1_900_000L), 0f)
+        assertEquals("long after the piece", 0f, Meters.read(0, 2_500_000L), 0f)
+        assertEquals(0f, Meters.read(1, 2_050_000L), 0f)
+        // the fade to the end of the automation: later blocks are louder
+        assertTrue(Meters.read(0, 2_095_000L) > Meters.read(0, 2_005_000L))
+    }
+
+    @Test fun metersFollowTheHeardTime() {
+        Meters.clear()
+        Meters.playing(false)
+        Meters.reportMaster(1_000_000L, 0.5f, 0.1f)
+        Meters.reportMaster(1_010_000L, 1.2f, 0.2f)
+        assertEquals("paused: nothing", 0f to 0f, Meters.master())
+        assertEquals(0.5f to 0.1f, Meters.master(1_005_000L))
+        assertEquals("the louder block when it is heard", 1.2f to 0.2f, Meters.master(1_015_000L))
+        assertEquals("not yet heard", 0f to 0f, Meters.master(990_000L))
+        // playing: the sink's position runs on between its reports
+        Meters.position(1_000_000L)
+        Meters.playing(true)
+        val heard = Meters.heardUs()!!
+        assertTrue(heard in 1_000_000L..1_100_000L)
+        assertEquals("a long silence from the sink = stopped", null, Meters.heardUs(System.nanoTime() + 400_000_000L))
+        Meters.clear()
+        assertEquals(0f to 0f, Meters.master(1_005_000L))
+        Meters.playing(false)
     }
 
     @Test fun fxProcessorCompensatesLatencyAndKeepsLength() {

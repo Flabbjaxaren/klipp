@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -131,8 +132,10 @@ class GainRampProcessor(
         val out = replaceOutputBuffer(inputBuffer.remaining()).order(ByteOrder.nativeOrder())
         val inBuf = inputBuffer.order(ByteOrder.nativeOrder())
         val rate = fmt.sampleRate.toDouble()
+        // meter: the peak per 10 ms block, stamped with its timeline time (see Meters)
         var peak = 0f
-        var sq = 0.0
+        val block = (fmt.sampleRate / 100).coerceAtLeast(1)
+        val startUs = Math.round((piece.start + offsetUs / 1e6 + framesOut / rate) * 1e6)
         // the volume is computed every 64 samples and interpolated linearly in between (exact for ramps, no stair-stepping)
         var g0 = 0f
         var g1 = 0f
@@ -147,15 +150,18 @@ class GainRampProcessor(
                 if (bytesPerSample == 2) {
                     val v = (inBuf.short * g).toInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt())
                     out.putShort(v.toShort())
-                    if (meter >= 0) { val a = kotlin.math.abs(v) / 32768f; if (a > peak) peak = a; sq += (a * a).toDouble() }
+                    if (meter >= 0) { val a = abs(v) / 32768f; if (a > peak) peak = a }
                 } else {
                     val v = inBuf.float * g
                     out.putFloat(v)
-                    if (meter >= 0) { val a = kotlin.math.abs(v); if (a > peak) peak = a; sq += (a * a).toDouble() }
+                    if (meter >= 0) { val a = abs(v); if (a > peak) peak = a }
                 }
             }
+            if (meter >= 0 && ((f + 1) % block == 0 || f == frames - 1)) {
+                Meters.report(meter, startUs + (f - f % block) * 1_000_000L / fmt.sampleRate, peak)
+                peak = 0f
+            }
         }
-        if (meter >= 0 && frames > 0) Meters.report(meter, peak, kotlin.math.sqrt(sq / (frames * ch)).toFloat())
         framesOut += frames
         out.flip()
     }
@@ -172,36 +178,186 @@ class GainRampProcessor(
     }
 }
 
-/** The mixer's level meters: peak and RMS per track (A1–A3), updated by the audio thread. */
+/**
+ * The level meters: peak per track (A1–A3) and the program's left/right, kept as short blocks stamped with their
+ * timeline time and read at the time that is being HEARD right now ([MeterSink]'s output position). The audio is
+ * processed well ahead of the loudspeaker (the sink's buffer), so a meter fed straight from the processing runs
+ * ahead of the sound.
+ */
 object Meters {
     const val TRACKS = 3
-    private val peak = FloatArray(TRACKS)
-    private val rms = FloatArray(TRACKS)
-    private val at = LongArray(TRACKS)
+    /** Rings: the tracks, then the program's left and right. */
+    private const val LEFT = TRACKS
+    private const val RIGHT = TRACKS + 1
+    private const val SIZE = 512
+    private val times = Array(TRACKS + 2) { LongArray(SIZE) }
+    private val peaks = Array(TRACKS + 2) { FloatArray(SIZE) }
+    private val heads = IntArray(TRACKS + 2)
+    /** How far back from the heard time a block still counts (a little over the 10 ms blocks; a 60 Hz frame). */
+    private const val WINDOW_US = 40_000L
 
-    fun report(track: Int, p: Float, r: Float) {
-        if (track !in 0 until TRACKS) return
-        synchronized(this) {
-            val now = System.nanoTime()
-            // several pieces on the same track (crossfades): keep the highest within the same instant
-            if (now - at[track] > 30_000_000L || p > peak[track]) { peak[track] = p; rms[track] = r } else rms[track] = kotlin.math.sqrt(rms[track] * rms[track] + r * r)
-            at[track] = now
+    // the output position: last value the sink reported, when, and whether it is playing
+    @Volatile private var posUs = Long.MIN_VALUE
+    @Volatile private var posAt = 0L
+    @Volatile private var playing = false
+
+    private fun put(ring: Int, timeUs: Long, peak: Float) = synchronized(this) {
+        val h = heads[ring]
+        times[ring][h] = timeUs
+        peaks[ring][h] = peak
+        heads[ring] = (h + 1) % SIZE
+    }
+
+    /** A block of a track's audio after its volume, starting at [timeUs] on the timeline. */
+    fun report(track: Int, timeUs: Long, peak: Float) {
+        if (track in 0 until TRACKS) put(track, timeUs, peak)
+    }
+
+    /** A block of the program mix (stereo; mono gives both). */
+    fun reportMaster(timeUs: Long, left: Float, right: Float) {
+        put(LEFT, timeUs, left)
+        put(RIGHT, timeUs, right)
+    }
+
+    /** The sink's output position (called on the playback thread). */
+    fun position(us: Long) {
+        posUs = us
+        posAt = System.nanoTime()
+    }
+
+    fun playing(on: Boolean) {
+        if (on) posAt = System.nanoTime()
+        playing = on
+    }
+
+    /** The time heard right now (µs), or null when nothing plays. */
+    fun heardUs(now: Long = System.nanoTime()): Long? {
+        val p = posUs
+        if (!playing || p == Long.MIN_VALUE) return null
+        // the sink is asked for its position every few ms while it plays; between the calls the time runs on
+        val since = now - posAt
+        if (since > 300_000_000L) return null
+        return p + since / 1000
+    }
+
+    private fun level(ring: Int, at: Long): Float = synchronized(this) {
+        var m = 0f
+        val t = times[ring]
+        val pk = peaks[ring]
+        for (k in 0 until SIZE) {
+            val d = at - t[k]
+            if (d in 0..WINDOW_US && pk[k] > m) m = pk[k]
+        }
+        m
+    }
+
+    /** A track's peak (linear) at the heard time ([atUs]); 0 when paused. */
+    fun read(track: Int, atUs: Long? = heardUs()): Float = if (atUs == null || track !in 0 until TRACKS) 0f else level(track, atUs)
+
+    /** The program's (left, right) peak (linear, above 1 = clipping) at the heard time ([atUs]); zeros when paused. */
+    fun master(atUs: Long? = heardUs()): Pair<Float, Float> = if (atUs == null) 0f to 0f else level(LEFT, atUs) to level(RIGHT, atUs)
+
+    /** After a seek or a new composition: the blocks of the old position do not apply. */
+    fun clear() = synchronized(this) {
+        for (t in times) t.fill(Long.MIN_VALUE / 2)
+        peaks.forEach { it.fill(0f) }
+    }
+
+    init { clear() }
+}
+
+/**
+ * The program's final audio sink: measures the mix that is actually played (after the mixer and the composition's
+ * effects, with the player's volume) for [Meters], with the time each block will be heard.
+ */
+@OptIn(UnstableApi::class)
+class MeterSink(sink: androidx.media3.exoplayer.audio.AudioSink) : androidx.media3.exoplayer.audio.ForwardingAudioSink(sink) {
+    private var encoding = C.ENCODING_INVALID
+    private var channels = 0
+    private var rate = 0
+    @Volatile private var volume = 1f
+
+    override fun configure(audioSinkConfig: androidx.media3.exoplayer.audio.AudioSink.AudioSinkConfig) {
+        val f = audioSinkConfig.format
+        encoding = f.pcmEncoding
+        channels = f.channelCount
+        rate = f.sampleRate
+        super.configure(audioSinkConfig)
+    }
+
+    override fun handleBuffer(buffer: ByteBuffer, presentationTimeUs: Long, encodedAccessUnitCount: Int): Boolean {
+        val from = buffer.position()
+        val handled = super.handleBuffer(buffer, presentationTimeUs, encodedAccessUnitCount)
+        // only what the sink took (a buffer it could not take all of comes again, with the rest)
+        val to = buffer.position()
+        if (to > from) runCatching { measure(buffer, from, to, presentationTimeUs) }
+        return handled
+    }
+
+    private fun measure(buf: ByteBuffer, from: Int, to: Int, timeUs: Long) {
+        val bytes = when (encoding) {
+            C.ENCODING_PCM_16BIT -> 2
+            C.ENCODING_PCM_FLOAT -> 4
+            else -> return
+        }
+        val ch = channels
+        if (ch <= 0 || rate <= 0) return
+        val frameBytes = bytes * ch
+        val frames = (to - from) / frameBytes
+        val block = (rate / 100).coerceAtLeast(1) // 10 ms
+        val b = buf.duplicate().order(ByteOrder.nativeOrder())
+        val g = volume
+        var f = 0
+        while (f < frames) {
+            val n = minOf(block, frames - f)
+            var l = 0f
+            var r = 0f
+            for (k in f until f + n) {
+                val at = from + k * frameBytes
+                for (c in 0 until ch) {
+                    val v = if (bytes == 2) abs(b.getShort(at + c * 2) / 32768f) else abs(b.getFloat(at + c * 4))
+                    // stereo and more: even channels left, odd right (5.1: L C … – close enough for a meter); mono both
+                    if (ch == 1 || c % 2 == 0) { if (v > l) l = v }
+                    if (ch == 1 || c % 2 == 1) { if (v > r) r = v }
+                }
+            }
+            Meters.reportMaster(timeUs + f * 1_000_000L / rate, l * g, r * g)
+            f += n
         }
     }
 
-    /** (peak, rms) for a track; zeros if nothing arrived for 250 ms (paused). */
-    fun read(track: Int): Pair<Float, Float> = synchronized(this) {
-        if (System.nanoTime() - at[track] > 250_000_000L) 0f to 0f else peak[track] to rms[track]
+    override fun getCurrentPositionUs(sourceEnded: Boolean): Long {
+        val p = super.getCurrentPositionUs(sourceEnded)
+        if (p != androidx.media3.exoplayer.audio.AudioSink.CURRENT_POSITION_NOT_SET) Meters.position(p)
+        return p
     }
 
-    /** The mix level: the tracks' RMS added as power, the peak as a sum (capped). */
-    fun master(): Pair<Float, Float> {
-        var p = 0f; var e = 0f
-        for (i in 0 until TRACKS) { val (a, b) = read(i); p += a; e += b * b }
-        return p.coerceAtMost(2f) to kotlin.math.sqrt(e)
+    override fun setVolume(volume: Float) {
+        this.volume = volume
+        super.setVolume(volume)
     }
 
-    fun clear() = synchronized(this) { peak.fill(0f); rms.fill(0f); at.fill(0L) }
+    override fun play() {
+        super.play()
+        Meters.playing(true)
+    }
+
+    override fun pause() {
+        Meters.playing(false)
+        super.pause()
+    }
+
+    override fun flush() {
+        Meters.playing(false)
+        Meters.clear()
+        super.flush()
+    }
+
+    override fun reset() {
+        Meters.playing(false)
+        Meters.clear()
+        super.reset()
+    }
 }
 
 /** The bridge to the audio effect chains (replaceable in tests). */

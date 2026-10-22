@@ -451,7 +451,7 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null) {
         }
         while (isActive && state.playing) {
             for (i in 0..3) {
-                val (pk, _) = if (i == 3) se.gendut.klipp.engine.Meters.master() else se.gendut.klipp.engine.Meters.read(i)
+                val pk = if (i == 3) se.gendut.klipp.engine.Meters.master().let { maxOf(it.first, it.second) } else se.gendut.klipp.engine.Meters.read(i)
                 val db = if (pk <= 1e-6f) -60f else (20f * log10(pk)).coerceIn(-60f, 6f)
                 val target = ((db + 60f) / 60f).coerceIn(0f, 1.1f)
                 val a = mix.levels[i]

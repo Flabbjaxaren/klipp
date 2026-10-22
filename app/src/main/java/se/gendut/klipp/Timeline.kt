@@ -453,6 +453,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             if (ts.locked) androidx.compose.material3.Icon(Ic.Lock, stringResource(R.string.timeline_locked), tint = K.Primary, modifier = Modifier.size(11.dp))
                             if (ts.solo) Text("S", color = K.Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
+                        // the audio track's level while it plays
+                        if (t.kind == TrackKind.AUDIO) TrackMeter(t.name.drop(1).toInt() - 1, state.playing, Modifier.padding(top = 2.dp).size(22.dp, 3.dp))
                     }
                     Spacer(Modifier.weight(1f))
                     // hide the video track / mute the audio track directly (hold the header for lock, solo and sync lock)
