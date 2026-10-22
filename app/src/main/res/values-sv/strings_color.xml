@@ -217,4 +217,15 @@
     <string name="colorpage_node_neutral">Neutral</string>
     <string name="colorpage_node_default_label">Nod</string>
     <string name="colorpage_live">LIVE</string>
+    <string name="colorpage_curves_custom">Anpassad</string>
+    <string name="colorpage_curves_hue_hue">Nyans mot nyans</string>
+    <string name="colorpage_curves_hue_sat">Nyans mot mättnad</string>
+    <string name="colorpage_curves_hue_lum">Nyans mot luminans</string>
+    <string name="colorpage_curves_lum_sat">Luminans mot mättnad</string>
+    <string name="colorpage_curves_sat_sat">Mättnad mot mättnad</string>
+    <string name="colorpage_curves_sat_lum">Mättnad mot luminans</string>
+    <string name="colorpage_hsl_input">Ingång %1$s</string>
+    <string name="colorpage_hsl_rotate">Nyansvridning %1$s°</string>
+    <string name="colorpage_hsl_sat">Mättnad %1$s</string>
+    <string name="colorpage_hsl_lum">Luminans %1$s</string>
 </resources>

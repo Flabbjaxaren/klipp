@@ -349,6 +349,8 @@ data class GradeNode(
     val curveR: Curve = Curve(),
     val curveG: Curve = Curve(),
     val curveB: Curve = Curve(),
+    /** Hue vs Hue/Sat/Lum, Lum vs Sat, Sat vs Sat, Sat vs Lum. */
+    val hsl: HslCurves = HslCurves(),
     val mix: Float = 1f,
     /** LUT in the node (name in [LutStore]) – applied after the node's other adjustments, as in Resolve. */
     val lut: String? = null,
@@ -370,12 +372,13 @@ data class GradeNode(
     val cache: Boolean = false,
 ) {
     val hasCurves get() = !(curveY.isIdentity && curveR.isIdentity && curveG.isIdentity && curveB.isIdentity)
+    val hasHsl get() = !hsl.isNeutral
     val hasLut get() = lut != null && lutMix > 0.0001f
     /** The node affects only part of the image (qualifier and/or window). */
     val hasKey get() = qual.on || win.on
     val hasBlur get() = blur > 0.0001f || pixelate > 0.0001f
     val isNeutral get() = !enabled || mix <= 0.0001f || (lift.isNeutral && gamma.isNeutral && gain.isNeutral && offset.isNeutral &&
-        contrast == 1f && sat == 1f && hue == 0f && temp == 0f && tint == 0f && !hasCurves && !hasLut && !hasBlur && drt == null && film == null)
+        contrast == 1f && sat == 1f && hue == 0f && temp == 0f && tint == 0f && !hasCurves && !hasHsl && !hasLut && !hasBlur && drt == null && film == null)
 
     /** Uniform values (shared by the CPU path and the shader). */
     class Params(
@@ -388,6 +391,13 @@ data class GradeNode(
         val blur: Float = 0f, val pixel: Float = 0f,
         /** The film (spektrafilm) after the node, on the whole image ([FilmEffect] / [FilmFx]). */
         val film: Film? = null,
+        /** The HSL curves' tables ([HslCurves.tables]), null = none. */
+        val hsl: Array<FloatArray>? = null,
+        /**
+         * The luminance side of the wheels (black, slope, gamma exponent – the master values only): the RGB result keeps
+         * its color but takes this luminance (see [primaries]). null = RGB only.
+         */
+        val ySide: FloatArray? = null,
     )
 
     /**
@@ -408,6 +418,7 @@ data class GradeNode(
             liftC[i] = a; gainC[i] = b; gammaExp[i] = e
         }
         val offC = FloatArray(3) { o[it] * 0.2f + offset.master * 0.25f }
+        val ySide = primaries(lift.master * 0.5f, (1f + gain.master).coerceAtLeast(0f), gamma.master).let { (a, b, e) -> floatArrayOf(a, b, e) }
         val wb = floatArrayOf(1f + 0.18f * temp, 1f - 0.12f * tint, 1f - 0.18f * temp)
         // hue rotation around the gray axis
         val a = hue * PI.toFloat() / 180f
@@ -432,7 +443,7 @@ data class GradeNode(
         val f = film?.takeIf { fl -> runCatching { FilmFx.warm(fl) }.onFailure { se.gendut.klipp.CrashReport.note("spektrafilm: ${it.message}") }.isSuccess }
         return Params(liftC, gammaExp, gainC, offC, contrast, pivot, wb, sat, hm, mix.coerceIn(0f, 1f), curves,
             l2, l2Mix, qual.takeIf { it.on }, win.takeIf { it.on },
-            blur.coerceIn(0f, 1f) * 0.04f, pixelate.coerceIn(0f, 1f) * 0.06f, f)
+            blur.coerceIn(0f, 1f) * 0.04f, pixelate.coerceIn(0f, 1f) * 0.06f, f, hsl.tables(), ySide)
     }
 
     fun toJson(): JSONObject = JSONObject().put("id", id).put("label", label).put("on", enabled)
@@ -440,6 +451,7 @@ data class GradeNode(
         .put("contrast", contrast.toDouble()).put("pivot", pivot.toDouble()).put("sat", sat.toDouble()).put("hue", hue.toDouble())
         .put("temp", temp.toDouble()).put("tint", tint.toDouble()).put("mix", mix.toDouble())
         .put("cY", curveY.toJson()).put("cR", curveR.toJson()).put("cG", curveG.toJson()).put("cB", curveB.toJson())
+        .apply { if (hasHsl) put("hsl", hsl.toJson()) }
         .put("lut", lut ?: JSONObject.NULL).put("lutMix", lutMix.toDouble()).put("qual", qual.toJson()).put("win", win.toJson())
         .apply { if (blur > 0f) put("blur", blur.toDouble()); if (pixelate > 0f) put("pix", pixelate.toDouble()); drt?.let { put("drt", it.toJson()) }; film?.let { put("film", it.toJson()) }; if (cache) put("cache", true) }
 
@@ -450,6 +462,7 @@ data class GradeNode(
             o.optDouble("contrast", 1.0).toFloat(), o.optDouble("pivot", 0.435).toFloat(), o.optDouble("sat", 1.0).toFloat(), o.optDouble("hue", 0.0).toFloat(),
             o.optDouble("temp", 0.0).toFloat(), o.optDouble("tint", 0.0).toFloat(),
             Curve.fromJson(o.optJSONArray("cY")), Curve.fromJson(o.optJSONArray("cR")), Curve.fromJson(o.optJSONArray("cG")), Curve.fromJson(o.optJSONArray("cB")),
+            HslCurves.fromJson(o.optJSONObject("hsl")),
             o.optDouble("mix", 1.0).toFloat(),
             if (o.isNull("lut")) null else o.optString("lut").ifBlank { null }, o.optDouble("lutMix", 1.0).toFloat(),
             Qualifier.fromJson(o.optJSONObject("qual")), Window.fromJson(o.optJSONObject("win")),
@@ -463,7 +476,12 @@ data class GradeNode(
          * The primaries, per channel: lift and gain are one linear step, y = gain·(lift + x·(1 − lift)) / (1 + lift·(gain − 1))
          * – gain scales, lift raises the blacks, and the white end is normalized when both are used; then offset is added;
          * then gamma, x^(1/(1 + gamma)) above 0 and x^(1 − gamma) below. Returns the linear step's (black, slope) and the
-         * gamma exponent; the shaders do `pow(max(black + slope·x + offset, 0), exponent)`.
+         * gamma exponent; the shaders do `pow(max(black + slope·x + offset, 0), exponent)` (without the clamp when the
+         * exponent is 1).
+         *
+         * Per channel with the wheels' colors, and once more on the pixel's Rec. 709 luma with the master values alone
+         * (the offset's luma added): the channels keep their color differences and take that luminance. So the master
+         * wheels move brightness the same on every color, and the color pucks shift color without changing brightness.
          */
         fun primaries(lift: Float, gain: Float, gamma: Float): Triple<Float, Float, Float> {
             // (the denominator can reach 0 with strongly lowered lift and raised gain – kept away from it)
@@ -564,12 +582,18 @@ data class GradeNode(
             val inR = rgb[0]; val inG = rgb[1]; val inB = rgb[2]
             // with blur/pixelation: the color is computed on the blurred image, the key and mix on the original
             if (colorIn != null) { rgb[0] = colorIn[0]; rgb[1] = colorIn[1]; rgb[2] = colorIn[2] }
+            val yIn = 0.2126f * rgb[0] + 0.7152f * rgb[1] + 0.0722f * rgb[2]
             for (i in 0..2) {
-                var c = p.lift[i] + p.gain[i] * rgb[i] + p.offset[i]
-                c = max(c, 0f).pow(p.gammaExp[i])
-                c = (c - p.pivot) * p.contrast + p.pivot
-                rgb[i] = c * p.wb[i]
+                val c = p.lift[i] + p.gain[i] * rgb[i] + p.offset[i]
+                rgb[i] = if (p.gammaExp[i] == 1f) c else max(c, 0f).pow(p.gammaExp[i])
             }
+            p.ySide?.let { ys ->
+                var yv = ys[0] + ys[1] * yIn + 0.2126f * p.offset[0] + 0.7152f * p.offset[1] + 0.0722f * p.offset[2]
+                if (ys[2] != 1f) yv = max(yv, 0f).pow(ys[2])
+                val d = yv - (0.2126f * rgb[0] + 0.7152f * rgb[1] + 0.0722f * rgb[2])
+                for (i in 0..2) rgb[i] += d
+            }
+            for (i in 0..2) rgb[i] = ((rgb[i] - p.pivot) * p.contrast + p.pivot) * p.wb[i]
             val r = rgb[0]; val g = rgb[1]; val b = rgb[2]
             val hr = p.hueMat[0] * r + p.hueMat[1] * g + p.hueMat[2] * b
             val hg = p.hueMat[3] * r + p.hueMat[4] * g + p.hueMat[5] * b
@@ -579,6 +603,7 @@ data class GradeNode(
             rgb[1] = (luma + (hg - luma) * p.sat).coerceIn(0f, 1f)
             rgb[2] = (luma + (hb - luma) * p.sat).coerceIn(0f, 1f)
             p.curves?.let { cv -> for (i in 0..2) rgb[i] = sample(cv[i], rgb[i]) }
+            p.hsl?.let { t -> HslCurves.apply(t, rgb); for (i in 0..2) rgb[i] = rgb[i].coerceIn(0f, 1f) }
             p.lut?.let { l ->
                 val o = l.applyTetrahedral(rgb[0], rgb[1], rgb[2])
                 for (i in 0..2) rgb[i] = (rgb[i] + (o[i].coerceIn(0f, 1f) - rgb[i]) * p.lutMix)
@@ -928,11 +953,15 @@ object GradeShaders {
 precision highp float;
 uniform sampler2D uTexSampler;
 uniform sampler2D uCurves;
+uniform sampler2D uHsl;
+uniform float uUseHsl;
 uniform sampler2D uLut;
 uniform vec3 uLift;
 uniform vec3 uGammaExp;
 uniform vec3 uGain;
 uniform vec3 uOffset;
+uniform vec3 uYSide;
+uniform float uUseY;
 uniform float uContrast;
 uniform float uPivot;
 uniform vec3 uWb;
@@ -1080,10 +1109,52 @@ vec3 colorIn(vec4 src) {
   return cin;
 }
 
+// an HSL curve (a row of the table: 16 bits as high, low byte) at x 0..1, linearly interpolated
+float hslTexel(float i, float row) {
+  vec2 t = floor(texture2D(uHsl, vec2((i + 0.5) / 512.0, (row + 0.5) / 6.0)).rg * 255.0 + 0.5);
+  return (t.r * 256.0 + t.g) / 65535.0;
+}
+float hslAt(float row, float x) {
+  float p = clamp(x, 0.0, 1.0) * 511.0;
+  float i = min(floor(p), 510.0);
+  return mix(hslTexel(i, row), hslTexel(i + 1.0, row), p - i);
+}
+
+// the HSL curves (see HslCurves.apply): hue and saturation in the plane across the gray axis, luma Rec. 709
+vec3 hslCurves(vec3 c) {
+  float y = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  vec3 dm = c - vec3((c.r + c.g + c.b) / 3.0);
+  float a1 = (dm.r - dm.g) / 1.4142135;
+  float a2 = (dm.r + dm.g - 2.0 * dm.b) / 2.4494898;
+  float sat = length(vec2(a1, a2)) * 1.2247449;
+  float hue = 0.0;
+  if (sat > 1e-6) hue = fract((atan(a2, a1) - 0.5235988) / 6.2831853 + 1.0);
+  float turn = (0.5 - hslAt(0.0, hue)) * 6.2831853;
+  float gain = 8.0 * hslAt(1.0, hue) * hslAt(3.0, y) * hslAt(4.0, sat);
+  float lum = (2.0 * hslAt(2.0, hue) - 1.0) + (2.0 * hslAt(5.0, sat) - 1.0);
+  vec3 d = c - vec3(y);
+  if (turn != 0.0) {
+    float co = cos(turn); float si = sin(turn); float k = 0.57735027;
+    float kd = (d.r + d.g + d.b) * k;
+    vec3 kx = k * vec3(d.b - d.g, d.r - d.b, d.g - d.r);
+    d = d * co + kx * si + vec3(k * kd * (1.0 - co));
+    d -= vec3(dot(d, vec3(0.2126, 0.7152, 0.0722)));
+  }
+  return clamp(vec3(y + lum * y) + d * gain, 0.0, 1.0);
+}
+
 void main() {
   vec4 src = texture2D(uTexSampler, vTexSamplingCoord);
-  vec3 c = uLift + uGain * colorIn(src) + uOffset;
-  c = pow(max(c, vec3(0.0)), uGammaExp);
+  vec3 cin = colorIn(src);
+  vec3 c = uLift + uGain * cin + uOffset;
+  // gamma (not where the exponent is 1: there the values below 0 stay until the luminance is set)
+  c = mix(pow(max(c, vec3(0.0)), uGammaExp), c, step(abs(uGammaExp - vec3(1.0)), vec3(1e-6)));
+  if (uUseY > 0.5) {
+    vec3 w = vec3(0.2126, 0.7152, 0.0722);
+    float yv = uYSide.x + uYSide.y * dot(cin, w) + dot(uOffset, w);
+    if (abs(uYSide.z - 1.0) > 1e-6) yv = pow(max(yv, 0.0), uYSide.z);
+    c += vec3(yv - dot(c, w));
+  }
   c = (c - vec3(uPivot)) * uContrast + vec3(uPivot);
   c = c * uWb;
   c = uHue * c;
@@ -1093,6 +1164,7 @@ void main() {
     vec3 u = c * (255.0 / 256.0) + vec3(0.5 / 256.0);
     c = vec3(texture2D(uCurves, vec2(u.r, 0.5)).r, texture2D(uCurves, vec2(u.g, 0.5)).g, texture2D(uCurves, vec2(u.b, 0.5)).b);
   }
+  if (uUseHsl > 0.5) c = hslCurves(c);
   if (uUseLut > 0.5) {
     c = mix(c, clamp(lut3(c), 0.0, 1.0), uLutMix);
   }
@@ -1156,17 +1228,20 @@ class GradeNodeEffect(
         private val program: GlProgram
         private val curveTex: Int
         private val lutTex: Int
+        private val hslTex: Int
         private var p = initial
         /** Without a LUT: a small identity LUT so the sampler always has a valid texture. */
         private var lut: CubeLut = p.lut ?: CubeLut.identity(2)
         // what is in the textures (reloaded only when the curves/LUT have changed)
         private var curvesUp: Array<FloatArray>? = p.curves
         private var lutUp: CubeLut? = p.lut
+        private var hslUp: Array<FloatArray>? = p.hsl
 
         init {
             var pg: GlProgram? = null
             val ids = IntArray(1)
             val ids2 = IntArray(1)
+            val ids3 = IntArray(1)
             try {
                 pg = GlProgram(GradeShaders.VERTEX, GradeShaders.FRAGMENT)
                 program = pg
@@ -1188,11 +1263,20 @@ class GradeNodeEffect(
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
                 GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, lut.texWidth, lut.texHeight, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, lut.textureBytes())
+                // the HSL curves: exact texels (the shader interpolates the 16-bit values itself)
+                GLES20.glGenTextures(1, ids3, 0)
+                hslTex = ids3[0]
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, hslTex)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
+                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, HslCurve.TABLE, 6, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, HslCurves.textureBytes(p.hsl))
                 GlUtil.checkGlError()
             } catch (e: Exception) {
                 // release whatever was created (otherwise GPU memory leaks every time an effect fails to start)
                 runCatching { pg?.delete() }
-                runCatching { GLES20.glDeleteTextures(1, ids, 0); GLES20.glDeleteTextures(1, ids2, 0) }
+                runCatching { GLES20.glDeleteTextures(1, ids, 0); GLES20.glDeleteTextures(1, ids2, 0); GLES20.glDeleteTextures(1, ids3, 0) }
                 throw VideoFrameProcessingException(e)
             }
         }
@@ -1217,6 +1301,8 @@ class GradeNodeEffect(
                 program.setFloatsUniform("uGammaExp", p.gammaExp)
                 program.setFloatsUniform("uGain", p.gain)
                 program.setFloatsUniform("uOffset", p.offset)
+                program.setFloatsUniform("uYSide", p.ySide ?: floatArrayOf(0f, 1f, 1f))
+                program.setFloatUniform("uUseY", if (p.ySide != null) 1f else 0f)
                 program.setFloatUniform("uContrast", p.contrast)
                 program.setFloatUniform("uPivot", p.pivot)
                 program.setFloatsUniform("uWb", p.wb)
@@ -1225,6 +1311,8 @@ class GradeNodeEffect(
                 program.setFloatsUniform("uHue", transpose3(p.hueMat))
                 program.setFloatUniform("uMix", p.mix)
                 program.setFloatUniform("uUseCurves", if (p.curves != null) 1f else 0f)
+                program.setSamplerTexIdUniform("uHsl", hslTex, 3)
+                program.setFloatUniform("uUseHsl", if (p.hsl != null) 1f else 0f)
                 program.setSamplerTexIdUniform("uLut", lutTex, 2)
                 program.setFloatUniform("uUseLut", if (p.lut != null) 1f else 0f)
                 program.setFloatUniform("uLutSize", lut.size.toFloat())
@@ -1266,6 +1354,12 @@ class GradeNodeEffect(
                 GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 256, 1, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, curveBytes(cur.curves))
             }
             curvesUp = cur.curves
+            if (cur.hsl !== hslUp && !(cur.hsl contentDeepEquals hslUp)) {
+                GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, hslTex)
+                GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
+                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, HslCurve.TABLE, 6, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, HslCurves.textureBytes(cur.hsl))
+            }
+            hslUp = cur.hsl
             if (cur.lut !== lutUp) {
                 lut = cur.lut ?: CubeLut.identity(2)
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, lutTex)
@@ -1278,7 +1372,7 @@ class GradeNodeEffect(
             super.release()
             try {
                 program.delete()
-                GLES20.glDeleteTextures(2, intArrayOf(curveTex, lutTex), 0)
+                GLES20.glDeleteTextures(3, intArrayOf(curveTex, lutTex, hslTex), 0)
             } catch (e: Exception) {
                 throw VideoFrameProcessingException(e)
             }
