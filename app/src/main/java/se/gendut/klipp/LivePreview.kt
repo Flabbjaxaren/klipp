@@ -230,7 +230,10 @@ fun LivePreview(
         if (g == null && look.isNeutral) { ungraded += c.id; continue }
         val lk = if (keyNode != null) se.gendut.klipp.engine.Look.NONE else look
         val tag = Triple(src, g, if (keyNode != null) keyNode else look)
-        LaunchedEffect(tag) {
+        // while scrubbing, film is shown with its colors only (the full film on the CPU takes longer than a frame, and
+        // every new frame cancelled it – the ungraded log image was shown until the finger was lifted)
+        val scrubbing = state.scrubbing
+        LaunchedEffect(tag, scrubbing) {
             // a new request cancels the wait, but the time limit counts from the previous frame: during a drag the
             // latest position is graded every 66 ms instead of on every pointer event (less garbage, no queue)
             val wait = GradeWorker.lastRun + GradeWorker.MIN_GAP_MS - android.os.SystemClock.uptimeMillis()
@@ -238,7 +241,7 @@ fun LivePreview(
             GradeWorker.lastRun = android.os.SystemClock.uptimeMillis()
             val out = kotlinx.coroutines.withContext(GradeWorker.dispatcher) { GradeWorker.hinted {
                 val b = src.asAndroidBitmap()
-                se.gendut.klipp.engine.GpuGrade.apply(b, g, lk, keyNode)?.asImageBitmap() ?: run {
+                se.gendut.klipp.engine.GpuGrade.apply(b, g, lk, keyNode, filmColorOnly = scrubbing)?.asImageBitmap() ?: run {
                     var small = android.graphics.Bitmap.createScaledBitmap(b, 480, (480f * b.height / b.width).roundToInt().coerceAtLeast(1), true)
                     if (g != null) small = g.applyTo(small, keyNode)
                     lk.applyTo(small).asImageBitmap()

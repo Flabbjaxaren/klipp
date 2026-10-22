@@ -34,10 +34,14 @@ object GpuGrade {
      * The image with the clip's grade and the timeline's look, or (with [keyOf]) a node's key in grayscale.
      * null if the GPU path isn't possible – the caller then uses the CPU.
      */
-    fun apply(src: Bitmap, grade: ClipGrade?, look: Look, keyOf: Int? = null): Bitmap? {
+    /**
+     * [filmColorOnly]: a node's film as its colors only (spektrafilm's chain baked into a LUT, as playback's fallback)
+     * – for scrubbing, where the CPU's full film (grain, halation, diffusion) can't keep up with the frames.
+     */
+    fun apply(src: Bitmap, grade: ClipGrade?, look: Look, keyOf: Int? = null, filmColorOnly: Boolean = false): Bitmap? {
         if (android.os.Build.VERSION.SDK_INT < 33 || !supported || broken) return null
-        // film (grain, halation, diffusion) only exists on the CPU and in playback's GL path
-        if (grade?.chain?.any { !it.isNeutral && it.film != null } == true) return null
+        // the full film (grain, halation, diffusion) only exists on the CPU and in playback's GL path
+        if (!filmColorOnly && grade?.chain?.any { !it.isNeutral && it.film != null } == true) return null
         return try {
             val out = Impl.apply(src, grade, look, keyOf)
             // safety check: an all-black image from the GPU when the source isn't black = the path doesn't work
@@ -90,6 +94,8 @@ object GpuGrade {
         // while dragging produced tens of MB of garbage per second (and CPU time for the SkSL interpreter)
         private val nodeShaders = ArrayList<RuntimeShader>()
         private var lookShader: RuntimeShader? = null
+        private val filmShaders = ArrayList<RuntimeShader>()
+        private var filmIdx = 0
         private var shaderIdx = 0
         /** Curve tables → bitmap. The key is the hash, but the contents are compared too (two curves can share a hash). */
         private val curveCache = HashMap<Int, Pair<Array<FloatArray>?, Bitmap>>()
@@ -103,6 +109,7 @@ object GpuGrade {
                 else if (softSrcOf === src0 && softSrc != null) softSrc!!
                 else src0.copy(Bitmap.Config.ARGB_8888, false).also { softSrcOf = src0; softSrc = it }
             shaderIdx = 0
+            filmIdx = 0
             val w = src.width; val h = src.height
             val effect = effectFor(grade, look, keyOf, w, h) ?: return src0
             if (reader == null || rw != w || rh != h) {
@@ -230,6 +237,17 @@ object GpuGrade {
             return RenderEffect.createRuntimeShaderEffect(s, "content")
         }
 
+        /** A node's film, colors only: its LUT on the whole image (the look shader with neutral values). */
+        private fun filmEffect(f: Film): RenderEffect {
+            val s = filmShaders.getOrNull(filmIdx) ?: RuntimeShader(AgslShaders.LOOK).also { filmShaders += it }
+            filmIdx++
+            s.setFloatUniform("uScale", 1f, 1f, 1f)
+            s.setFloatUniform("uContrastFactor", 1f)
+            s.setFloatUniform("uSatShift", 0f)
+            setLut(s, Spektra.composite(null, 0f, f), 1f)
+            return RenderEffect.createRuntimeShaderEffect(s, "content")
+        }
+
         /** The chain: the nodes in order, then the look. With [keyOf]: the nodes up to it, and its key. */
         private fun effectFor(grade: ClipGrade?, look: Look, keyOf: Int?, w: Int, h: Int): RenderEffect? {
             var e: RenderEffect? = null
@@ -240,7 +258,10 @@ object GpuGrade {
                     if (n.enabled) add(nodeEffect(n.params(), true, w, h))
                     return e
                 }
-                if (!n.isNeutral) add(nodeEffect(n.params(), false, w, h))
+                if (!n.isNeutral) {
+                    add(nodeEffect(n.params(), false, w, h))
+                    n.film?.let { add(filmEffect(it)) }
+                }
             }
             if (keyOf == null && !look.isNeutral) add(lookEffect(look))
             return e
