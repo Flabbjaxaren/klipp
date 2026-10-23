@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.ColorSpace
 import android.graphics.HardwareRenderer
+import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.RenderEffect
 import android.graphics.RenderNode
@@ -93,6 +94,9 @@ object GpuGrade {
         // reused between calls: compiling the AGSL shader and creating new bitmaps for every image
         // while dragging produced tens of MB of garbage per second (and CPU time for the SkSL interpreter)
         private val nodeShaders = ArrayList<RuntimeShader>()
+        // the node shader without blur and pixelation, for the nested chain (see [AgslShaders.NODE_NESTED])
+        private val nestedShaders = ArrayList<RuntimeShader>()
+        private var nestedIdx = 0
         private var lookShader: RuntimeShader? = null
         private val filmShaders = ArrayList<RuntimeShader>()
         private var filmIdx = 0
@@ -109,9 +113,13 @@ object GpuGrade {
                 else if (softSrcOf === src0 && softSrc != null) softSrc!!
                 else src0.copy(Bitmap.Config.ARGB_8888, false).also { softSrcOf = src0; softSrc = it }
             shaderIdx = 0
+            nestedIdx = 0
             filmIdx = 0
             val w = src.width; val h = src.height
-            val effect = effectFor(grade, look, keyOf, w, h) ?: return src0
+            val chain = shadersFor(grade, look, keyOf, w, h)
+            if (chain.isEmpty()) return src0
+            // blur and pixelation read the neighbours: then each shader gets a finished layer to read from
+            val layered = chain.any { it.second }
             if (reader == null || rw != w || rh != h) {
                 renderer?.destroy(); reader?.close()
                 reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2, HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or HardwareBuffer.USAGE_GPU_COLOR_OUTPUT)
@@ -121,13 +129,22 @@ object GpuGrade {
             // one render node for all images (previously a new one per image that was never released)
             val node = renderNode
             node.setPosition(0, 0, w, h)
-            node.setRenderEffect(effect)
             val c = node.beginRecording()
-            c.drawBitmap(src, 0f, 0f, null)
+            if (layered) {
+                node.setRenderEffect(effectOf(chain.map { it.first }))
+                c.drawBitmap(src, 0f, 0f, null)
+            } else {
+                node.setRenderEffect(null)
+                c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply { shader = nest(chain.map { it.first }, src) })
+            }
             node.endRecording()
             val r = renderer!!
             r.setContentRoot(node)
+            val t0 = android.os.SystemClock.uptimeMillis()
             r.createRenderRequest().setWaitForPresent(true).syncAndDraw()
+            // the app's render thread is shared with the screen: a slow grade freezes the whole app
+            val ms = android.os.SystemClock.uptimeMillis() - t0
+            if (ms > 1000) se.gendut.klipp.CrashReport.note("gpu grade slow: $ms ms, ${chain.size} shaders${if (layered) ", layered" else ""}")
             // the image is drawn (we waited for it): the display list and the source image are released
             node.discardDisplayList()
             val img = reader!!.acquireLatestImage() ?: return null
@@ -206,9 +223,9 @@ object GpuGrade {
             s.setFloatUniform("uLutMix", mix)
         }
 
-        private fun nodeEffect(p: GradeNode.Params, showKey: Boolean, w: Int, h: Int): RenderEffect {
-            val s = nodeShaders.getOrNull(shaderIdx) ?: RuntimeShader(AgslShaders.NODE).also { nodeShaders += it }
-            shaderIdx++
+        private fun nodeShader(p: GradeNode.Params, showKey: Boolean, w: Int, h: Int, nested: Boolean): RuntimeShader {
+            val s = if (nested) (nestedShaders.getOrNull(nestedIdx) ?: RuntimeShader(AgslShaders.NODE_NESTED).also { nestedShaders += it }).also { nestedIdx++ }
+                else (nodeShaders.getOrNull(shaderIdx) ?: RuntimeShader(AgslShaders.NODE).also { nodeShaders += it }).also { shaderIdx++ }
             s.setFloatUniform("uSize", w.toFloat(), h.toFloat())
             s.setFloatUniform("uLift", p.lift)
             s.setFloatUniform("uGammaExp", p.gammaExp)
@@ -243,47 +260,75 @@ object GpuGrade {
             s.setFloatUniform("uBlur", if (showKey) 0f else p.blur)
             s.setFloatUniform("uPixel", if (showKey) 0f else p.pixel)
             s.setFloatUniform("uShowKey", if (showKey) 1f else 0f)
-            return RenderEffect.createRuntimeShaderEffect(s, "content")
+            return s
         }
 
-        private fun lookEffect(l: Look): RenderEffect {
+        private fun lookShader(l: Look): RuntimeShader {
             val s = lookShader ?: RuntimeShader(AgslShaders.LOOK).also { lookShader = it }
             val p = LookParams.of(l)
             s.setFloatUniform("uScale", p.scale)
             s.setFloatUniform("uContrastFactor", p.contrastFactor)
             s.setFloatUniform("uSatShift", p.satShift)
             setLut(s, l.lut?.takeIf { l.lutMix > 0.005f }, l.lutMix.coerceIn(0f, 1f))
-            return RenderEffect.createRuntimeShaderEffect(s, "content")
+            return s
         }
 
         /** A node's film, colors only: its LUT on the whole image (the look shader with neutral values). */
-        private fun filmEffect(f: Film): RenderEffect {
+        private fun filmShader(f: Film): RuntimeShader {
             val s = filmShaders.getOrNull(filmIdx) ?: RuntimeShader(AgslShaders.LOOK).also { filmShaders += it }
             filmIdx++
             s.setFloatUniform("uScale", 1f, 1f, 1f)
             s.setFloatUniform("uContrastFactor", 1f)
             s.setFloatUniform("uSatShift", 0f)
             setLut(s, Spektra.composite(null, 0f, f), 1f)
-            return RenderEffect.createRuntimeShaderEffect(s, "content")
+            return s
         }
 
-        /** The chain: the nodes in order, then the look. With [keyOf]: the nodes up to it, and its key. */
-        private fun effectFor(grade: ClipGrade?, look: Look, keyOf: Int?, w: Int, h: Int): RenderEffect? {
-            var e: RenderEffect? = null
-            fun add(x: RenderEffect) { e = e?.let { RenderEffect.createChainEffect(x, it) } ?: x }
-            val nodes = grade?.chain.orEmpty()
-            for (n in nodes) {
-                if (keyOf != null && n.id == keyOf) {
-                    if (n.enabled) add(nodeEffect(n.params(), true, w, h))
-                    return e
-                }
-                if (!n.isNeutral) {
-                    add(nodeEffect(n.params(), false, w, h))
-                    n.film?.let { add(filmEffect(it)) }
-                }
+        /**
+         * The chain's shaders in order: the nodes, then the look. With [keyOf]: the nodes up to it, and its key.
+         * Each shader reads the one before it as "content".
+         */
+        private fun shadersFor(grade: ClipGrade?, look: Look, keyOf: Int?, w: Int, h: Int): List<Pair<RuntimeShader, Boolean>> {
+            // the nodes that are computed (up to the key's node), with their values
+            val nodes = ArrayList<Pair<GradeNode, GradeNode.Params>>()
+            for (n in grade?.chain.orEmpty()) {
+                if (keyOf != null && n.id == keyOf) { if (n.enabled) nodes += n to n.params(); break }
+                if (!n.isNeutral) nodes += n to n.params()
             }
-            if (keyOf == null && !look.isNeutral) add(lookEffect(look))
+            // blur and pixelation read the neighbours: then the image before the node must be a finished layer
+            // (not the node whose key is shown: its key ignores the blur, and the big shader would be compiled for nothing)
+            val layered = nodes.any { (n, p) -> !(keyOf != null && n.id == keyOf) && (p.blur > 0f || p.pixel > 0f) }
+            val out = ArrayList<Pair<RuntimeShader, Boolean>>()
+            for ((n, p) in nodes) {
+                val key = keyOf != null && n.id == keyOf
+                out += nodeShader(p, key, w, h, nested = !layered) to (!key && (p.blur > 0f || p.pixel > 0f))
+                if (key) return out
+                // (effects only: the colors stay – while dragging the effects aren't shown)
+                n.film?.takeIf { !it.effectsOnly }?.let { out += filmShader(it) to false }
+            }
+            if (keyOf == null && !look.isNeutral) out += lookShader(look) to false
+            return out
+        }
+
+        /** The chain as render effects, one 8-bit layer per shader (for chains with blur or pixelation). */
+        private fun effectOf(shaders: List<RuntimeShader>): RenderEffect? {
+            var e: RenderEffect? = null
+            for (s in shaders) {
+                val x = RenderEffect.createRuntimeShaderEffect(s, "content")
+                e = e?.let { RenderEffect.createChainEffect(x, it) } ?: x
+            }
             return e
+        }
+
+        /**
+         * The chain as one shader: each shader's "content" is the one before it, the innermost reads [src]. The image
+         * stays in the shaders' own precision from node to node – the render effect chain stored every node in an 8-bit
+         * layer, and a strong change in a later node (film, HSL curves) turned that rounding into steps.
+         */
+        private fun nest(shaders: List<RuntimeShader>, src: Bitmap): Shader {
+            var inner: Shader = shaderOf(src, false)
+            for (s in shaders) { s.setInputShader("content", inner); inner = s }
+            return inner
         }
     }
 }
@@ -468,9 +513,11 @@ float3 hslCurves(float3 c) {
   float sat = length(float2(a1, a2)) * 1.2247449;
   float hue = 0.0;
   if (sat > 1e-6) hue = fract((atan(a2, a1) - 0.5235988) / 6.2831853 + 1.0);
-  float turn = (0.5 - hslAt(0.0, hue)) * 6.2831853;
-  float gain = 8.0 * hslAt(1.0, hue) * hslAt(3.0, y) * hslAt(4.0, sat);
-  float lum = (2.0 * hslAt(2.0, hue) - 1.0) + (2.0 * hslAt(5.0, sat) - 1.0);
+  // the hue curves fade out towards gray, where the hue is mostly noise (see HslCurves.apply)
+  float w = sat * sat / (sat * sat + 0.0009);
+  float turn = (0.5 - hslAt(0.0, hue)) * 6.2831853 * w;
+  float gain = 2.0 * mix(0.5, hslAt(1.0, hue), w) * 4.0 * hslAt(3.0, y) * hslAt(4.0, sat);
+  float lum = (2.0 * hslAt(2.0, hue) - 1.0) * w + (2.0 * hslAt(5.0, sat) - 1.0);
   float3 d = c - float3(y);
   if (turn != 0.0) {
     float co = cos(turn); float si = sin(turn); float k = 0.57735027;
@@ -513,6 +560,15 @@ half4 main(float2 pos) {
   return half4(half3(mix(src, c, uMix * k)), srcH.a);
 }
 """
+
+    /**
+     * [NODE] without blur and pixelation: it reads its input once. In the nested chain every "content.eval" is the
+     * whole chain before the node pasted in again – NODE's three (normal, pixelation, the blur loop) made a chain of a
+     * few nodes and a film one program so large that compiling it held the render thread (and the app) for seconds.
+     */
+    val NODE_NESTED: String = NODE.substring(0, NODE.indexOf("float3 colorIn(")) +
+        "float3 colorIn(float3 src, float2 pos) {\n  return src;\n}\n\n" +
+        NODE.substring(NODE.indexOf("// an HSL curve"))
 
     /** The timeline's look (like CompositionBuilder.videoEffects: RGB scale, LUT, contrast, saturation). */
     const val LOOK = """

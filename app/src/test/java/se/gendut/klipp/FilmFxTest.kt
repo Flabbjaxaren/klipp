@@ -199,6 +199,56 @@ class FilmFxTest {
         assertTrue("next frame = new grain", !a.contentEquals(b))
     }
 
+    @Test fun effectsOnlyKeepsTheImagesColors() {
+        // without any effect the image comes back as it was: the film's colors are divided out again
+        val w = 24; val h = 16
+        val img = FloatArray(w * h * 3) { i -> val p = i / 3; val c = i % 3; ((p % w) / (w - 1f) * 0.8f + 0.1f) * (if (c == p / w % 3) 1f else 0.6f) }
+        for (input in listOf("rec709", "vivo")) {
+            val calm = Film(input = input, grain = false, halation = 0f, scatter = 0f, glare = false, sharpen = 0f, effectsOnly = true)
+            val out = FilmFx.applyEncoded(FilmFx.setup(calm), img, w, h, 0)
+            var worst = 0f
+            for (i in img.indices) worst = max(worst, abs(out[i] - img[i]))
+            println("$input: largest change without effects $worst")
+            assertTrue("$input: $worst", worst < 0.01f)
+        }
+        // grain: noise around the image's own value
+        val flat = FloatArray(64 * 64 * 3) { 0.45f }
+        val grainy = FilmFx.applyEncoded(FilmFx.setup(Film(halation = 0f, scatter = 0f, glare = false, sharpen = 0f, format = 4f, effectsOnly = true)), flat, 64, 64, 3)
+        val mean = grainy.average(); val sd = sqrt(grainy.map { (it - mean) * (it - mean) }.average())
+        assertEquals(0.45, mean, 0.01)
+        assertTrue("grain $sd", sd > 0.003)
+    }
+
+    @Test fun effectsOnlyIgnoresTheHiddenColorControls() {
+        // values left from the whole film (exposure, filters, gamma, paper) don't change the effects
+        val w = 24; val h = 16
+        val img = FloatArray(w * h * 3) { i -> 0.2f + 0.6f * ((i / 3) % w) / w + 0.05f * (i % 3) }
+        val plain = Film(effectsOnly = true, format = 4f)
+        val tweaked = plain.copy(ev = 2f, printExposure = 1.6f, mShift = 40f, yShift = -30f, gamma = 1.3f, couplers = 0.4f, printGamma = 1.5f, print = "fujifilm_crystal_archive_typeii", display = 1)
+        val a = FilmFx.applyEncoded(FilmFx.setup(plain), img, w, h, 7)
+        val b = FilmFx.applyEncoded(FilmFx.setup(tweaked), img, w, h, 7)
+        for (i in a.indices) assertEquals("px $i", a[i], b[i], 1e-5f)
+    }
+
+    @Test fun effectsDoNotRebakeTheColors() {
+        // halation, grain, diffusion … leave the colors' LUT as it is (the same object); a color control rebakes it
+        val a = Spektra.composite(null, 0f, Film())
+        assertTrue(a === Spektra.composite(null, 0f, Film(halation = 6f, halationSize = 2f, grainSize = 3f, diffusion = FilmFx.DIFFUSION.first(), effectsOnly = true)))
+        assertTrue(a !== Spektra.composite(null, 0f, Film(ev = 1f)))
+    }
+
+    @Test fun encodeInvertsTheInputCurve() {
+        for (input in listOf("rec709", "vivo", "slog3", "logc4")) {
+            val s = FilmFx.setup(Film(input = input))
+            for (k in 1..19) {
+                val code = k / 20f
+                val lin = FloatArray(1) { code }.let { FilmFx.applyDecode(s, it[0]) }
+                if (lin <= 0f) continue
+                assertEquals("$input $code", code, FilmFx.encodeLinear(s, lin), 2e-3f)
+            }
+        }
+    }
+
     @Test fun exposureSliderBrightensUnlessTheLabCompensates() {
         fun mid(f: Film) = Spektra.Model(f).linearToSrgb(doubleArrayOf(0.18, 0.18, 0.18))[1]
         // without the print's auto compensation (spektrafilm's default has it on)
@@ -305,6 +355,24 @@ class FilmFxTest {
             println("channel $c: " + row.joinToString(" ") { "%.5f".format(it) })
             for (i in row.indices) assertEquals("channel $c x ${14 + i}", ref[c][i], row[i], 0.002 + 0.01 * ref[c][i])
         }
+    }
+
+    @Test fun boostReferenceIgnoresNoisyPixels() {
+        // a bright sky with sensor noise, two frames: the brightest single pixel jumps, the boost's reference stays
+        val w = 1920; val h = 1080
+        fun frame(seed: Long): FloatArray {
+            val r = java.util.Random(seed)
+            return FloatArray(w * h * 3) { i -> (if ((i / 3) / w < h / 3) 2f else 0.3f) * (1f + 0.15f * r.nextGaussian().toFloat()) }
+        }
+        val a = frame(1); val b = frame(2)
+        b[1000] = 9f // one hot pixel
+        val ra = FilmFx.boostRef(a, w, h); val rb = FilmFx.boostRef(b, w, h)
+        assertEquals(2.0, ra, 0.1)
+        assertEquals(ra, rb, 0.02)
+        assertTrue(abs(a.max() - b.max()) > 1f)
+        // small images (the reference renders) keep spektrafilm's brightest pixel
+        val small = FloatArray(96 * 64 * 3) { 0.2f }.also { it[77] = 3f }
+        assertEquals(3.0, FilmFx.boostRef(small, 96, 64), 1e-6)
     }
 
     @Test fun aFlatImageStaysFlat() {

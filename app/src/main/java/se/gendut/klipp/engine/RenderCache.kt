@@ -68,7 +68,7 @@ object RenderCache {
     /** A chunk of the timeline [a]–[b]; [heavy] = anything other than a plain clip without effects (worth rendering). */
     data class Chunk(val a: Double, val b: Double, val hash: String, val heavy: Boolean)
 
-    private const val VERSION = 1
+    private const val VERSION = 3
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
     /** The disk space for the files. */
@@ -148,7 +148,8 @@ object RenderCache {
                         sb.append(",C").append(videoKey(c))
                         if (c.hasMotion(plan.width, plan.height) || c.hasOpacity || kotlin.math.abs(c.speed - 1.0) > 1e-3 || c.reverse) heavy = true
                         gradeOf(c.id)?.let { g ->
-                            sb.append(",G").append(g.toJson())
+                            // (without the nodes' names: renaming a node doesn't change the image)
+                            sb.append(",G").append(g.copy(nodes = g.nodes.map { it.copy(label = "") }).toJson())
                             if (!g.isNeutral || g.layer != null) heavy = true
                         }
                     }

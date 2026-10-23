@@ -72,7 +72,7 @@ object Perf {
     val gradeHint by lazy { app?.let { Hint(it, 12) } }
 
     /** Preview image width (lower when the phone is hot). */
-    fun previewWidth(): Int = app?.let { previewWidth(it) } ?: 960
+    fun previewWidth(): Int = app?.let { previewWidth(it) } ?: 1920
 
     // ------------------------------------------------------------------ HDR
 
@@ -226,10 +226,13 @@ object Perf {
         return headroom
     }
 
-    /** Preview image width: lower when the phone is hot, so it doesn't throttle even more. */
+    /**
+     * Preview image width: about the screen's width in full screen (grading judged on a 960 px still showed blocks and
+     * steps that playback didn't have); lower when the phone is hot, so it doesn't throttle even more.
+     */
     fun previewWidth(context: Context): Int = when ((thermalHeadroom(context) ?: 0f)) {
-        in 0.9f..Float.MAX_VALUE -> 640
-        else -> 960
+        in 0.9f..Float.MAX_VALUE -> 1280
+        else -> 1920
     }
 
     fun describe(context: Context): String = buildString {

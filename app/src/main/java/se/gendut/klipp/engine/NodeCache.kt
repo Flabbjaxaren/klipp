@@ -50,7 +50,7 @@ object NodeCache {
     /** What a cache file should contain. */
     class Req(val clip: Long, val uri: Uri, val start: Double, val end: Double, val point: Int, val nodes: List<GradeNode>, val key: String)
 
-    private const val VERSION = 1
+    private const val VERSION = 3
     private const val HANDLE = 2.0
 
     private val ready = java.util.concurrent.ConcurrentHashMap<String, Entry>()
@@ -126,7 +126,7 @@ object NodeCache {
         sb.append(VERSION).append('|').append(uri).append('|').append(a).append('|').append(b).append('|')
         sb.append(VideoPipeline.tenBitProfile(MimeTypes.VIDEO_H265) != null).append('|')
         for (n in nodes) {
-            sb.append(n.copy(cache = false).toJson().toString()).append('|')
+            sb.append(n.copy(cache = false, label = "").toJson().toString()).append('|')
             // the LUT's contents (a new LUT with the same name must produce a new cache)
             n.lut?.let { name -> runCatching { LutStore.get(name) }.getOrNull()?.data?.contentHashCode()?.let { sb.append("lut").append(it).append('|') } }
         }

@@ -33,9 +33,10 @@ import kotlin.math.sqrt
  * grains in a pixel is Poisson-distributed with mean n·p/s (n grains per pixel, p = density/max density,
  * s = saturation) – the same distribution as spektrafilm's Binom(Poisson(n/s), p). It is re-randomized every frame.
  *
- * Deviations from spektrafilm: "boost highlights" and auto exposure (depend on the whole image's max/mean –
- * would pump in video) are not present; glare is added after the scan's gamut compression and without its small
- * blur (0.5 pixels); the enlarger's diffusion filter and pre-flash are not present.
+ * Deviations from spektrafilm: auto exposure (depends on the whole image's mean – would pump in video) is not
+ * present, and "boost highlights" is normalized by the averaged image's max, not the brightest pixel ([boostRef]);
+ * glare is added after the scan's gamut compression and without its small blur (0.5 pixels); the enlarger's diffusion
+ * filter and pre-flash are not present.
  */
 object FilmFx {
     // ------------------------------------------------------------------------------------------- diffusion filters
@@ -589,6 +590,22 @@ object FilmFx {
         /** Input code value (0..1) → linear. */
         val decode = FloatArray(DECODE_N) { OpenDrt.oetf(it / (DECODE_N - 1f), model.input.oetf).let { v -> if (v.isNaN()) 0f else max(v, 0f) } }
 
+        /** The largest linear value an input code value gives ([decode] at 1). */
+        val linMax = decode.max().coerceAtLeast(1e-6f)
+
+        /**
+         * Linear → input code value, [decode] inverted: index u = (linear / [linMax])^¼ (fine steps near black, where
+         * log curves are steep). Only for [Film.effectsOnly].
+         */
+        val encode: FloatArray by lazy {
+            FloatArray(ENCODE_N) { i ->
+                val target = linMax * (i / (ENCODE_N - 1f)).let { it * it * it * it }
+                var lo = 0f; var hi = 1f
+                repeat(30) { val m = (lo + hi) / 2f; if (curve1(decode, m) < target) lo = m else hi = m }
+                (lo + hi) / 2f
+            }
+        }
+
         /**
          * The exposure per color: the film's raw exposure for linear RGB normalized to largest channel = 1 (everything else
          * follows from the exposure being linear in light: E(k·rgb) = k·E(rgb)). Index [(b·N + g)·N + r]·3.
@@ -783,7 +800,7 @@ object FilmFx {
     }
 
     /** The preparation for the settings (the same object for the same settings). */
-    fun setup(f: Film): Setup = synchronized(setups) { setups[f] } ?: Setup(f).also { s -> synchronized(setups) { setups[f] = s } }
+    fun setup(f: Film): Setup = synchronized(setups) { setups[f] } ?: Setup(with(Spektra) { f.forEffects() }).also { s -> synchronized(setups) { setups[f] = s } }
 
     /** The image sizes playback used most recently (to prepare the kernels in advance, not on the GL thread). */
     private val recentSizes = java.util.concurrent.CopyOnWriteArrayList<Pair<Int, Int>>()
@@ -799,6 +816,8 @@ object FilmFx {
     fun warm(f: Film) {
         val s = setup(f)
         for ((w, h) in recentSizes) s.forImage(w, h)
+        // effects only: the film's colors alone, which the GPU divides out (otherwise baked on the GL thread)
+        if (f.effectsOnly) Spektra.composite(null, 0f, f)
     }
 
     fun clearCache() { synchronized(setups) { setups.clear() }; synchronized(tables) { tables.clear() } }
@@ -870,7 +889,63 @@ object FilmFx {
     fun applyEncoded(s: Setup, img: FloatArray, w: Int, h: Int, seed: Long): FloatArray {
         val lin = FloatArray(img.size)
         for (i in img.indices) lin[i] = curve1(s.decode, img[i])
-        return processLinear(s, lin, w, h, seed)
+        val out = processLinear(s, lin, w, h, seed)
+        return if (s.f.effectsOnly) keepColors(s, img, out) else out
+    }
+
+    const val ENCODE_N = 4096
+    /** Keeps [keepColors]' ratio finite where the film is black. */
+    const val KEEP_EPS = 0.002f
+    const val KEEP_MAX = 16f
+
+    /**
+     * Only the film's effects ([Film.effectsOnly]): the film's output [out] divided by the film's colors alone (the
+     * same chain without spatial and random effects, the baked LUT – [Spektra.composite]), in linear light, times the
+     * input [img] in its own encoding. Halation, diffusion, grain and glare keep their strength and color as on
+     * the film; the colors, the contrast and the encoding stay the input's. As [FilmGl]'s FINAL step.
+     */
+    fun keepColors(s: Setup, img: FloatArray, out: FloatArray): FloatArray {
+        val lut = Spektra.composite(null, 0f, s.f)
+        val n = lut.size; val n1 = n - 1f
+        val res = FloatArray(img.size)
+        val f0 = FloatArray(3)
+        for (i in 0 until img.size / 3) {
+            val o = i * 3
+            trilinear(lut.data, n, img[o].coerceIn(0f, 1f) * n1, img[o + 1].coerceIn(0f, 1f) * n1, img[o + 2].coerceIn(0f, 1f) * n1, f0)
+            for (c in 0..2) {
+                val l0 = displayDecode(s, f0[c].coerceIn(0f, 1f)); val l1 = displayDecode(s, out[o + c].coerceIn(0f, 1f))
+                val r = ((l1 + KEEP_EPS) / (l0 + KEEP_EPS)).coerceIn(0f, KEEP_MAX)
+                // as a change in code values: below a log curve's black (linear 0) the code stays, and the table's
+                // own rounding cancels out
+                val lin = curve1(s.decode, img[o + c])
+                res[o + c] = img[o + c] + encodeLinear(s, lin * r) - encodeLinear(s, lin)
+            }
+        }
+        return res
+    }
+
+    private fun displayDecode(s: Setup, v: Float) = if (s.f.display == 1) v.toDouble().pow(2.4).toFloat() else srgbDecode(v)
+
+    /** Input code value → linear ([Setup.decode]). */
+    fun applyDecode(s: Setup, code: Float): Float = curve1(s.decode, code)
+
+    /** Linear → input code value ([Setup.encode]); above [Setup.linMax] the top code value. */
+    fun encodeLinear(s: Setup, lin: Float): Float =
+        curve1(s.encode, sqrt(sqrt((max(lin, 0f) / s.linMax).coerceAtMost(1f).toDouble())).toFloat())
+
+    /** A 3D table (index [(b·n + g)·n + r]·3) at fractional indices, trilinear – as the GPU's texture filtering. */
+    private fun trilinear(t: FloatArray, n: Int, r: Float, g: Float, b: Float, out: FloatArray) {
+        val r0 = min(r.toInt(), n - 2); val g0 = min(g.toInt(), n - 2); val b0 = min(b.toInt(), n - 2)
+        val fr = r - r0; val fg = g - g0; val fb = b - b0
+        for (c in 0..2) {
+            fun at(dr: Int, dg: Int, db: Int) = t[(((b0 + db) * n + (g0 + dg)) * n + (r0 + dr)) * 3 + c]
+            val c00 = at(0, 0, 0) + (at(1, 0, 0) - at(0, 0, 0)) * fr
+            val c10 = at(0, 1, 0) + (at(1, 1, 0) - at(0, 1, 0)) * fr
+            val c01 = at(0, 0, 1) + (at(1, 0, 1) - at(0, 0, 1)) * fr
+            val c11 = at(0, 1, 1) + (at(1, 1, 1) - at(0, 1, 1)) * fr
+            val c0 = c00 + (c10 - c00) * fg; val c1 = c01 + (c11 - c01) * fg
+            out[c] = c0 + (c1 - c0) * fb
+        }
     }
 
     private fun curve1(tab: FloatArray, v: Float): Float {
@@ -891,7 +966,7 @@ object FilmFx {
         val raw0 = FloatArray(np * 3)
         for (i in 0 until np) expose(s, lin[i * 3], lin[i * 3 + 1], lin[i * 3 + 2], raw0, i * 3)
         // highlight boost (before the blurs, normalized by the image's largest raw exposure)
-        if (s.f.boostEv > 0f) boost(raw0, s.f, raw0.maxOrNull()?.toDouble() ?: 0.0)
+        if (s.f.boostEv > 0f) boost(raw0, s.f, boostRef(raw0, w, h))
         val raw = Pyramid.apply(raw0, w, h, fr.camera)
         val logE = FloatArray(np * 3) { log10(max(raw[it], 0f) + 1e-10f) }
         // 2. development: density without couplers, the couplers' inhibition (diffused), density with the couplers
@@ -995,6 +1070,29 @@ object FilmFx {
             val x = raw[i].toDouble()
             if (x > b.x0) { val dx = (x - b.x0) * b.inv; raw[i] = (x + b.scale * (exp(b.a * dx) - b.a * dx - 1.0)).toFloat() }
         }
+    }
+
+    /** Above this width the image is averaged (2×2 halvings) before its largest value is taken ([boostRef]). */
+    const val BOOST_REF_W = 128
+
+    /**
+     * The largest raw exposure the boost is normalized by: the image averaged (2×2 halvings) until it is at most
+     * [BOOST_REF_W] wide, then its largest value – as [FilmGl]. spektrafilm takes the single brightest pixel; in video
+     * that is noise, different in every frame, and the whole boost (all the highlights) pumped with it.
+     */
+    fun boostRef(raw: FloatArray, w: Int, h: Int): Double {
+        var a = raw; var cw = w; var ch = h
+        while (cw > BOOST_REF_W) {
+            val d = Pyramid.dims(cw, ch, 1)
+            val o = FloatArray(d[0] * d[1] * 3)
+            for (y in 0 until d[1]) for (x in 0 until d[0]) for (c in 0..2) {
+                var sum = 0f
+                for (dy in 0..1) for (dx in 0..1) sum += a[(Pyramid.reflect(2 * y + dy, ch) * cw + Pyramid.reflect(2 * x + dx, cw)) * 3 + c]
+                o[(y * d[0] + x) * 3 + c] = sum / 4f
+            }
+            a = o; cw = d[0]; ch = d[1]
+        }
+        return (a.maxOrNull() ?: 0f).toDouble()
     }
 
     class Boost(val x0: Double, val a: Double, val inv: Double, val scale: Double)

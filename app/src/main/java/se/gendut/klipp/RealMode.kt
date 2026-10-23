@@ -254,7 +254,8 @@ fun ProgramMonitor(
             val rootView = androidx.compose.ui.platform.LocalView.current
             if (gs != null) androidx.compose.runtime.DisposableEffect(gs, rootView) {
                 gs.capture = { captureProgram(rootView) }
-                onDispose { gs.capture = null }
+                gs.redraw = { if (!state.playing) playback.redraw() }
+                onDispose { gs.capture = null; gs.redraw = null }
             }
             // long-press "Program" = diagnostics (which path playback takes, the layers, timings)
             var diag by remember { mutableStateOf(false) }

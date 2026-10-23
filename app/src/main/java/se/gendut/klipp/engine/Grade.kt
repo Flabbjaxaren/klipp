@@ -1129,9 +1129,11 @@ vec3 hslCurves(vec3 c) {
   float sat = length(vec2(a1, a2)) * 1.2247449;
   float hue = 0.0;
   if (sat > 1e-6) hue = fract((atan(a2, a1) - 0.5235988) / 6.2831853 + 1.0);
-  float turn = (0.5 - hslAt(0.0, hue)) * 6.2831853;
-  float gain = 8.0 * hslAt(1.0, hue) * hslAt(3.0, y) * hslAt(4.0, sat);
-  float lum = (2.0 * hslAt(2.0, hue) - 1.0) + (2.0 * hslAt(5.0, sat) - 1.0);
+  // the hue curves fade out towards gray, where the hue is mostly noise (see HslCurves.apply)
+  float w = sat * sat / (sat * sat + 0.0009);
+  float turn = (0.5 - hslAt(0.0, hue)) * 6.2831853 * w;
+  float gain = 2.0 * mix(0.5, hslAt(1.0, hue), w) * 4.0 * hslAt(3.0, y) * hslAt(4.0, sat);
+  float lum = (2.0 * hslAt(2.0, hue) - 1.0) * w + (2.0 * hslAt(5.0, sat) - 1.0);
   vec3 d = c - vec3(y);
   if (turn != 0.0) {
     float co = cos(turn); float si = sin(turn); float k = 0.57735027;
@@ -1188,6 +1190,9 @@ object LiveGrades {
     /** The clip's key and mask right now (the controls take effect immediately). */
     fun layer(clip: Long): LayerFx? = layers[clip]
 
+    /** One node's values right now, before they are committed (the film panel while a slider is dragged). */
+    fun put(clip: Long, n: GradeNode) { if (!n.isNeutral) map[clip to n.id] = n.params() }
+
     fun publish(grades: Map<Long, ClipGrade>) {
         for ((clip, g) in grades) {
             for (n in g.chain) if (!n.isNeutral) map[clip to n.id] = n.params()
@@ -1203,7 +1208,8 @@ object LiveGrades {
      * it – playback always gives the passes the frame's source time, so a newly tracked window follows without a rebuild.
      */
     fun structureOf(g: ClipGrade): List<Int> =
-        g.chain.filter { !it.isNeutral }.flatMap { n -> if (n.film != null) listOf(n.id, FILM_KEY) else listOf(n.id) } +
+        // (the film's mode too: the fallback when the GPU can't run the film is fixed when built – colors or nothing)
+        g.chain.filter { !it.isNeutral }.flatMap { n -> n.film?.let { f -> listOf(n.id, FILM_KEY, if (f.effectsOnly) 1 else 0) } ?: listOf(n.id) } +
             (g.stab?.let { listOf(STAB_KEY, it.hashCode()) } ?: emptyList()) +
             // key/mask (values live) and the blend mode (a compositor setting)
             (g.layer?.let { l -> listOf(LAYER_KEY, if (l.hasAlpha) 1 else 0, l.blend.ordinal, if (l.mask?.animated == true) 1 else 0) } ?: emptyList())

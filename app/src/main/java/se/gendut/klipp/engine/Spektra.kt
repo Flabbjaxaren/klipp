@@ -112,6 +112,11 @@ data class Film(
     val enlargerDiffusionStrength: Float = 0.5f,
     /** The scanner's blur, σ in pixels [scanner.lens_blur]. */
     val scanBlur: Float = 0f,
+    /**
+     * Klipp: only the film's effects (halation, diffusion, grain, glare, sharpness) – the image keeps its own colors
+     * and encoding ([FilmFx.keepColors]).
+     */
+    val effectsOnly: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject().put("film", film).put("print", print ?: JSONObject.NULL)
         .put("ev", ev.toDouble()).put("pe", printExposure.toDouble()).put("m", mShift.toDouble()).put("y", yShift.toDouble())
@@ -124,7 +129,7 @@ data class Film(
         .put("ssz", scatterSize.toDouble()).put("bev", boostEv.toDouble()).put("pev", protectEv.toDouble()).put("brg", boostRange.toDouble())
         .put("gbl", grainBlur.toDouble()).put("glay", grainLayers).put("glp", glarePercent.toDouble()).put("glr", glareRoughness.toDouble())
         .put("pgam", printGamma.toDouble()).put("edif", enlargerDiffusion ?: JSONObject.NULL).put("edifS", enlargerDiffusionStrength.toDouble())
-        .put("sbl", scanBlur.toDouble()).put("v", 3)
+        .put("sbl", scanBlur.toDouble()).put("fxo", effectsOnly).put("v", 3)
 
     companion object {
         const val HALATION_MAX = 30f
@@ -177,6 +182,7 @@ data class Film(
                 if (o.isNull("edif")) null else o.optString("edif").takeIf { it in FilmFx.DIFFUSION },
                 num("edifS", 0.5f, 0.125f, 2f),
                 num("sbl", 0f, 0f, 5f),
+                o.optBoolean("fxo", false),
             )
         }
     }
@@ -752,14 +758,32 @@ object Spektra {
     fun clearCache() = synchronized(cache) { cache.clear() }
 
     /**
+     * Effects only: the color controls (exposure, the print's exposure and filters, gamma, couplers, the paper's
+     * chemistry, the paper itself) at their neutral values – they are hidden in that mode, so a value left from the
+     * whole film must not change the effects. The stock stays (its grain and halation); the paper is the stock's own.
+     */
+    fun Film.forEffects(): Film = if (!effectsOnly) this else copy(
+        ev = 0f, printExposure = 1f, mShift = 0f, yShift = 0f, gamma = 1f, couplers = 1f, printGamma = 1f, labComp = true, display = 0,
+        print = index.films.firstOrNull { it.id == film }?.let { st -> if (st.type == "positive") null else st.targetPrint ?: "kodak_portra_endura" } ?: print,
+    )
+
+    /** The settings [Model] reads (the per-pixel colors); the spatial and random effects at their defaults. */
+    fun Film.colorsOnly(): Film = Film(
+        film = film, print = print, ev = ev, printExposure = printExposure, mShift = mShift, yShift = yShift, gamma = gamma,
+        couplers = couplers, input = input, display = display, labComp = labComp, printGamma = printGamma,
+    )
+
+    /**
      * The node's LUT ([base], mixed by [baseMix]) and then the film, baked into a 33³ LUT. The same object for the same
      * settings. The baking is split across the CPU cores (≈ 36,000 points through the whole chain).
      */
     fun composite(base: CubeLut?, baseMix: Float, film: Film): CubeLut {
         val mixQ = (baseMix.coerceIn(0f, 1f) * 50f).toInt() / 50f
-        val key = "${base?.name}|${if (base != null) mixQ else 0f}|$film"
+        // only what the colors depend on ([Model]'s settings): halation, grain, diffusion … don't rebake
+        val colors = film.forEffects().colorsOnly()
+        val key = "${base?.name}|${if (base != null) mixQ else 0f}|$colors"
         synchronized(cache) { cache[key]?.let { return it } }
-        val m = Model(film)
+        val m = Model(colors)
         val d = FloatArray(SIZE * SIZE * SIZE * 3)
         val n1 = (SIZE - 1).toFloat()
         val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 8)

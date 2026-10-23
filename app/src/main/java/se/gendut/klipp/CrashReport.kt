@@ -50,6 +50,9 @@ object CrashReport {
             writePending.set(false)
             val text = synchronized(trail) { trail.joinToString("\n") }
             runCatching { trailFile(c).writeText(text) }
+            // a copy in the app's external folder, readable over USB (adb) without root – the system log is rate
+            // limited for apps on some phones
+            runCatching { c.getExternalFilesDir(null)?.let { File(it, "spar.txt").writeText(text) } }
         }
     }
     private val writePending = java.util.concurrent.atomic.AtomicBoolean(false)

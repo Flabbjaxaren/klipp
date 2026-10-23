@@ -123,10 +123,12 @@ class AnimUi(
     fun frac(t: Float): Float = ((t - clipStart) / (clipEnd - clipStart).coerceAtLeast(0.01f)).coerceIn(0f, 1f)
     val playhead: Float get() = playheadOf()
     private val frame get() = FRAME
+    /** Where the playhead stands for keyframe [k]: its time, at most the clip's last frame ([lastFrame]). */
+    private fun at(k: UiKf) = k.t.coerceIn(clipStart, lastFrame(clipStart, clipEnd))
     /** The keyframe at the playhead (within half a frame). */
-    val atPlayhead: UiKf? get() = keys.firstOrNull { abs(it.t - playhead.coerceIn(clipStart, clipEnd)) < frame / 2 }
-    val prev: UiKf? get() = keys.lastOrNull { it.t < playhead - frame / 2 }
-    val next: UiKf? get() = keys.firstOrNull { it.t > playhead + frame / 2 }
+    val atPlayhead: UiKf? get() = keys.firstOrNull { abs(at(it) - playhead.coerceIn(clipStart, clipEnd)) < frame / 2 }
+    val prev: UiKf? get() = keys.lastOrNull { at(it) < playhead - frame / 2 }
+    val next: UiKf? get() = keys.firstOrNull { at(it) > playhead + frame / 2 }
 }
 
 /** The keyframe menu (long-press a keyframe): the interpolation after it, and the graph. */
@@ -187,6 +189,12 @@ private fun EaseIcon(ease: String, selected: Boolean) {
         drawPath(path, col, style = Stroke((if (selected) 2.5f else 1.8f) * density))
     }
 }
+
+/**
+ * The clip's last frame: where a jump within the clip stops. The clip's end is the next clip's first frame, so a
+ * keyframe at the end (e.g. after the clip was shortened) showed the next clip.
+ */
+fun lastFrame(start: Float, end: Float): Float = (end - FRAME).coerceAtLeast(start)
 
 /** Next interpolation when long-pressing a keyframe: linear → smooth → hold → linear. */
 fun nextInterp(i: String): String = when (i) {
