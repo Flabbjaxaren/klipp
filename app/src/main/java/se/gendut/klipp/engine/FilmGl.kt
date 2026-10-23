@@ -32,10 +32,10 @@ class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null) : GlEffect {
                 se.gendut.klipp.CrashReport.note("film: GPU path could not start (${e.message}) – color only")
             }
         }
-        // color only: spektrafilm's chain baked into a LUT (as the node did before the spatial effects)
-        val lut = Spektra.composite(null, 0f, film)
-        val p = GradeNode(0).params().let { n ->
-            GradeNode.Params(n.lift, n.gammaExp, n.gain, n.offset, n.contrast, n.pivot, n.wb, n.sat, n.hueMat, 1f, null, lut, 1f)
+        // color only: spektrafilm's chain baked into a LUT (as the node did before the spatial effects); effects only:
+        // nothing
+        val p = if (film.effectsOnly) GradeNode(0).params() else GradeNode(0).params().let { n ->
+            GradeNode.Params(n.lift, n.gammaExp, n.gain, n.offset, n.contrast, n.pivot, n.wb, n.sat, n.hueMat, 1f, null, Spektra.composite(null, 0f, film), 1f)
         }
         return GradeNodeEffect(p).toGlShaderProgram(context, useHdr)
     }
@@ -381,7 +381,30 @@ uniform float uAmount;
 uniform int uDisplay;
 // the image's own alpha (green screen before the grade) – the film steps only process color
 uniform sampler2D uA;
+// effects only (FilmFx.keepColors): the input × the film's output / the film's colors alone (uLut), in linear light
+uniform int uKeep;
+uniform sampler3D uLut;
+uniform float uLutN;
+uniform sampler2D uDecode;
+uniform float uDecodeN;
+uniform sampler2D uEncode;
+uniform float uEncodeN;
+uniform float uLinMax;
 float enc(float v) { return v <= 0.0031308 ? v * 12.92 : 1.055 * pow(v, 1.0 / 2.4) - 0.055; }
+float dsp(float v) { return v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4); }
+float tab(sampler2D t, float n, float x) { return texture(t, vec2((clamp(x, 0.0, 1.0) * (n - 1.0) + 0.5) / n, 0.5)).r; }
+vec3 encodeLin(vec3 lin) {
+  vec3 u = sqrt(sqrt(clamp(lin / uLinMax, 0.0, 1.0)));
+  return vec3(tab(uEncode, uEncodeN, u.r), tab(uEncode, uEncodeN, u.g), tab(uEncode, uEncodeN, u.b));
+}
+vec3 keepColors(vec3 l, vec3 c) {
+  vec3 f0 = clamp(texture(uLut, (clamp(c, 0.0, 1.0) * (uLutN - 1.0) + 0.5) / uLutN).rgb, 0.0, 1.0);
+  vec3 l0 = uDisplay == 1 ? pow(f0, vec3(2.4)) : vec3(dsp(f0.r), dsp(f0.g), dsp(f0.b));
+  vec3 r = clamp((l + vec3(0.002)) / (l0 + vec3(0.002)), 0.0, 16.0);
+  vec3 lin = vec3(tab(uDecode, uDecodeN, c.r), tab(uDecode, uDecodeN, c.g), tab(uDecode, uDecodeN, c.b));
+  // as a change in code values (below a log curve's black the code stays)
+  return c + encodeLin(lin * r) - encodeLin(lin);
+}
 void main() {
   ivec2 p = ivec2(gl_FragCoord.xy);
   vec3 l = texelFetch(uL, p, 0).rgb;
@@ -391,8 +414,9 @@ void main() {
     l = l + uAmount * (l - b);
   }
   l = clamp(l, 0.0, 1.0);
-  vec3 o = uDisplay == 1 ? pow(l, vec3(1.0 / 2.4)) : vec3(enc(l.r), enc(l.g), enc(l.b));
-  outColor = vec4(o, texelFetch(uA, p, 0).a);
+  vec4 src = texelFetch(uA, p, 0);
+  vec3 o = uKeep == 1 ? keepColors(l, src.rgb) : (uDisplay == 1 ? pow(l, vec3(1.0 / 2.4)) : vec3(enc(l.r), enc(l.g), enc(l.b)));
+  outColor = vec4(o, src.a);
 }
 """
 
@@ -401,9 +425,11 @@ void main() {
 uniform sampler2D uIn;
 uniform sampler3D uLut;
 uniform float uLutN;
+// effects only: the image unchanged
+uniform int uPass;
 void main() {
   vec4 c = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0);
-  outColor = vec4(texture(uLut, (clamp(c.rgb, 0.0, 1.0) * (uLutN - 1.0) + 0.5) / uLutN).rgb, c.a);
+  outColor = uPass == 1 ? c : vec4(texture(uLut, (clamp(c.rgb, 0.0, 1.0) * (uLutN - 1.0) + 0.5) / uLutN).rgb, c.a);
 }
 """
 
@@ -538,6 +564,8 @@ void main() {
         // the tables on the GPU (reloaded when the settings change)
         private var tLutE = 0; private var tDecode = 0; private var tCurve = 0; private var tLayer = 0
         private var tLutP = 0; private var tPrintCurve = 0; private var tScan = 0
+        /** Linear → input code value (effects only), made when first needed. */
+        private var tEncode = 0
 
         private var w = 0; private var h = 0
         private var pw = 0; private var ph = 0
@@ -561,9 +589,9 @@ void main() {
         }
 
         private fun deleteTables() {
-            val ids = intArrayOf(tLutE, tDecode, tCurve, tLayer, tLutP, tPrintCurve, tScan).filter { it != 0 }.toIntArray()
+            val ids = intArrayOf(tLutE, tDecode, tCurve, tLayer, tLutP, tPrintCurve, tScan, tEncode).filter { it != 0 }.toIntArray()
             if (ids.isNotEmpty()) GLES20.glDeleteTextures(ids.size, ids, 0)
-            tLutE = 0; tDecode = 0; tCurve = 0; tLayer = 0; tLutP = 0; tPrintCurve = 0; tScan = 0
+            tLutE = 0; tDecode = 0; tCurve = 0; tLayer = 0; tLutP = 0; tPrintCurve = 0; tScan = 0; tEncode = 0
         }
 
         override fun configure(inputWidth: Int, inputHeight: Int): Size {
@@ -733,18 +761,25 @@ void main() {
             }
         }
 
+        /** The film's colors alone (spektrafilm's chain baked into a LUT) on the GPU, for the current settings. */
+        private fun colorLut(): Int {
+            if (colorFor != film || tColor == 0) {
+                if (tColor != 0) GLES20.glDeleteTextures(1, intArrayOf(tColor), 0)
+                val lut = Spektra.composite(null, 0f, film)
+                tColor = tex3(lut.data, lut.size)
+                colorFor = film
+            }
+            return tColor
+        }
+
         private fun drawColorOnly(inputTexId: Int, presentationTimeUs: Long) {
             try {
                 val p = colorOnly ?: Prog(COLOR_ONLY).also { colorOnly = it }
-                if (colorFor != film || tColor == 0) {
-                    if (tColor != 0) GLES20.glDeleteTextures(1, intArrayOf(tColor), 0)
-                    val lut = Spektra.composite(null, 0f, film)
-                    tColor = tex3(lut.data, lut.size)
-                    colorFor = film
-                }
+                val lut = colorLut()
                 p.use()
                 p.tex("uIn", GLES20.GL_TEXTURE_2D, inputTexId)
-                p.tex("uLut", GLES30.GL_TEXTURE_3D, tColor)
+                p.tex("uLut", GLES30.GL_TEXTURE_3D, lut)
+                p.i1("uPass", if (film.effectsOnly) 1 else 0)
                 p.f1("uLutN", Spektra.composite(null, 0f, film).size.toFloat())
                 draw()
                 GlUtil.checkGlError()
@@ -771,7 +806,8 @@ void main() {
                 expose.f1("uLutN", FilmFx.LUT_N.toFloat())
                 expose.f1("uEv", s.evScale)
                 draw()
-                // highlight boost: the image's largest raw exposure (max-halving down to 1×1), then the curve
+                // highlight boost: the image's largest raw exposure (as FilmFx.boostRef: averaged down to at most
+                // BOOST_REF_W wide, then max-halving down to 1×1), then the curve
                 var exposed = f0
                 if (s.f.boostEv > 0f) {
                     var src = f0; var k = 0
@@ -779,9 +815,10 @@ void main() {
                         k++
                         val dst = lv("mx", k)
                         target(dst)
-                        maxHalf.use()
-                        maxHalf.tex("uSrc", GLES20.GL_TEXTURE_2D, src.id)
-                        maxHalf.i2("uSrcSize", src.w, src.h)
+                        val p = if (src.w > FilmFx.BOOST_REF_W) half else maxHalf
+                        p.use()
+                        p.tex("uSrc", GLES20.GL_TEXTURE_2D, src.id)
+                        p.i2("uSrcSize", src.w, src.h)
                         draw()
                         src = dst
                     }
@@ -874,6 +911,10 @@ void main() {
                 val us = fr.unsharp
                 var hb: Tex? = null
                 if (us != null) { hb = free.removeAt(0); blurPass(l, hb, 0, us) }
+                // effects only: the film's colors alone and the inverse input curve – made before anything is bound
+                // (making a texture binds it to the active unit and would replace an input bound just before)
+                if (s.f.effectsOnly && tEncode == 0) tEncode = tex2(FloatArray(FilmFx.ENCODE_N * 3) { s.encode[it / 3] }, FilmFx.ENCODE_N, 1, 3)
+                val keepLut = if (s.f.effectsOnly) colorLut() else tScan
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, outFbo)
                 GLES20.glViewport(vp[0], vp[1], vp[2], vp[3])
                 final.use()
@@ -885,6 +926,18 @@ void main() {
                 final.f1("uAmount", s.f.sharpen)
                 final.i1("uDisplay", s.f.display)
                 final.tex("uA", GLES20.GL_TEXTURE_2D, inputTexId)
+                final.i1("uKeep", if (s.f.effectsOnly) 1 else 0)
+                // every sampler gets its own unit even when unused: an unbound sampler3D would share unit 0 with a
+                // sampler2D, and then the draw fails (the film fell back to color only)
+                final.tex("uLut", GLES30.GL_TEXTURE_3D, keepLut)
+                final.tex("uDecode", GLES20.GL_TEXTURE_2D, tDecode)
+                final.tex("uEncode", GLES20.GL_TEXTURE_2D, if (tEncode != 0) tEncode else tDecode)
+                if (s.f.effectsOnly) {
+                    final.f1("uLutN", Spektra.composite(null, 0f, film).size.toFloat())
+                    final.f1("uDecodeN", FilmFx.DECODE_N.toFloat())
+                    final.f1("uEncodeN", FilmFx.ENCODE_N.toFloat())
+                    final.f1("uLinMax", s.linMax)
+                }
                 draw()
                 GlUtil.checkGlError()
             }

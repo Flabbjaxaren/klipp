@@ -17,12 +17,17 @@
     <string name="colortools_mid_grey_nits">Mid Grey (nits)</string>
     <string name="colortools_display">Display</string>
     <string name="colortools_film_intro">Spectral simulation of analog film: the image exposes a negative that is developed and printed on paper (slide film is scanned directly), with grain, halation and diffusion. Put it last in the node chain – it turns the image into a finished display image.</string>
+    <string name="colortools_film_mode_full">Whole film</string>
+    <string name="colortools_film_mode_effects">Effects only</string>
+    <string name="colortools_film_mode_effects_hint">Only halation, diffusion, grain, glare and sharpness – the image keeps its own colors, contrast and encoding, so the node can go anywhere in the chain.</string>
     <string name="colortools_computing">Computing…</string>
     <string name="colortools_kind_slide">slide film</string>
     <string name="colortools_kind_cine_negative">motion picture, negative</string>
     <string name="colortools_kind_negative">negative</string>
     <string name="colortools_off_value">off</string>
     <string name="colortools_film">Film</string>
+    <string name="colortools_film_effects_from">Grain and halation of</string>
+    <string name="colortools_film_effects_from_hint">The stock decides only the grain (size, layers) and how the light spreads in the film – not the colors. Its paper, exposure and color controls are not used.</string>
     <string name="colortools_slide_scanned">Slide film: scanned directly, without paper.</string>
     <string name="colortools_print_cine">cine print</string>
     <string name="colortools_print_photo_paper">photo paper</string>
@@ -167,6 +172,10 @@
     <string name="colorpage_node_title">Node %1$d</string>
     <string name="colorpage_node_title_label">Node %1$d · %2$s</string>
     <string name="colorpage_node_disable">Disable (bypass)</string>
+    <string name="colorpage_node_rename">Rename</string>
+    <string name="colorpage_node_name">Name</string>
+    <string name="colorpage_save">Save</string>
+    <string name="colorpage_cancel">Cancel</string>
     <string name="colorpage_node_enable">Enable</string>
     <string name="colorpage_node_uncache">Stop caching node</string>
     <string name="colorpage_node_cache">Cache node (up to and including this one)</string>
@@ -228,4 +237,6 @@
     <string name="colorpage_hsl_rotate">Hue rotate %1$s°</string>
     <string name="colorpage_hsl_sat">Saturation %1$s</string>
     <string name="colorpage_hsl_lum">Luminance %1$s</string>
+    <string name="colorpage_hsl_pick">Pick</string>
+    <string name="colorpage_pick_hint_curve">Tap the color to change on the curve</string>
 </resources>

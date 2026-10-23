@@ -227,7 +227,7 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
             key, p.kf[key].orEmpty(), p.clipStart, p.clipEnd, { state.playhead },
             onToggle = { backend.toggleAnimation(p.id, key, state.playhead) },
             onKey = { backend.toggleKeyframe(p.id, key, state.playhead) },
-            onJump = { t -> state.playing = false; state.playhead = t.coerceIn(p.clipStart, p.clipEnd) },
+            onJump = { t -> state.playing = false; state.playhead = t.coerceIn(p.clipStart, lastFrame(p.clipStart, p.clipEnd)) },
             onMove = { k, t -> backend.moveKeyframe(p.id, key, k.mt, t) },
             onInterp = { k -> backend.setInterpolation(p.id, key, k.mt, nextInterp(k.interp)) },
             view = kfView, zoomBar = key == lowest,
@@ -366,8 +366,19 @@ private fun MaskControls(
     val tol = (FRAME / 2.0) * abs(info?.speed ?: 1.0).coerceAtLeast(1e-3)
     // the values at the playhead (only when they actually change – not every frame while the mask stands still)
     val cur by remember(mask, info) { androidx.compose.runtime.derivedStateOf { if (mask.animated) mask.at(srcOf(state.playhead)) else mask } }
+    /**
+     * The source time of the keyframe "at the playhead": at the clip's last frame a keyframe at its end (after it was
+     * shortened) counts as there – the jump to it stops on the last frame ([lastFrame]).
+     */
+    fun keySrc(): Double? {
+        val s = srcOf(state.playhead) ?: return null
+        val i = info ?: return s
+        if (state.playhead < lastFrame(i.start, i.end) - FRAME / 2) return s
+        val endSrc = i.srcAt(i.end)
+        return mask.keys.firstOrNull { k -> abs(k.t - s) > tol && (k.t - s) * (endSrc - s) > 0 && abs(k.t - s) <= abs(endSrc - s) + tol }?.t ?: s
+    }
     fun edit(f: (se.gendut.klipp.engine.LayerMask) -> se.gendut.klipp.engine.LayerMask): se.gendut.klipp.engine.LayerFx =
-        fx.copy(mask = mask.withValues(f(cur), srcOf(state.playhead), tol))
+        fx.copy(mask = mask.withValues(f(cur), keySrc(), tol))
     val maskView = remember(clip) { KfView() }
     val anim = if (info == null) null else {
         val lo = info.srcIn
@@ -381,8 +392,8 @@ private fun MaskControls(
             },
             info.start, info.end, { state.playhead },
             onToggle = { srcOf(state.playhead)?.let { set(fx.copy(mask = mask.toggleAnimation(it))) } },
-            onKey = { srcOf(state.playhead)?.let { set(fx.copy(mask = mask.toggleKey(it, tol))) } },
-            onJump = { t -> state.playing = false; state.playhead = t.coerceIn(info.start, info.end) },
+            onKey = { keySrc()?.let { set(fx.copy(mask = mask.toggleKey(it, tol))) } },
+            onJump = { t -> state.playing = false; state.playhead = t.coerceIn(info.start, lastFrame(info.start, info.end)) },
             onMove = { k, t ->
                 val mk = mask.keys.firstOrNull { Math.round(it.t * 1e6) == k.mt }
                 val to = srcOf(t)

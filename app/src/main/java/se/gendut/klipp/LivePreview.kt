@@ -1,5 +1,9 @@
 package se.gendut.klipp
 
+import androidx.compose.runtime.key
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
 import se.gendut.klipp.engine.playable
 import android.content.Context
 import android.media.MediaMetadataRetriever
@@ -49,9 +53,26 @@ import kotlin.math.roundToInt
  * per file and everything runs in order on a dedicated thread – a request that has gone stale (the playhead
  * has moved on) is cancelled before it starts, so scrubbing keeps up.
  */
+/** What [LivePreview] grades for one clip: the still, its grade and look, and whether a control is being dragged. */
+private data class GradeReq(
+    val tag: Any, val src: ImageBitmap, val g: se.gendut.klipp.engine.ClipGrade?, val look: se.gendut.klipp.engine.Look,
+    val keyNode: Int?, val interacting: Boolean,
+)
+
 object Frames {
-    private val cache = object : LinkedHashMap<String, ImageBitmap>(32, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 24
+    // kept by size, not count: a 1920 px frame is 8 MB, a scrub frame a fraction of that
+    private val cache = LinkedHashMap<String, ImageBitmap>(32, 0.75f, true)
+    private const val CACHE_BYTES = 96L shl 20
+    private fun put(k: String, img: ImageBitmap) = synchronized(cache) {
+        cache[k] = img
+        var bytes = cache.values.sumOf { it.width.toLong() * it.height * 4 }
+        val it = cache.entries.iterator()
+        while (bytes > CACHE_BYTES && cache.size > 1 && it.hasNext()) {
+            val e = it.next()
+            if (e.key == k) continue
+            bytes -= e.value.width.toLong() * e.value.height * 4
+            it.remove()
+        }
     }
     private val retrievers = object : LinkedHashMap<Uri, MediaMetadataRetriever>(4, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Uri, MediaMetadataRetriever>?): Boolean {
@@ -128,7 +149,7 @@ object Frames {
                 // (decoding happens in mediaserver, not on this thread – a performance hint here does nothing)
                 val f = if (android.os.Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(us, opt, px, px) else r.getFrameAtTime(us, opt)
                 val img = f?.asImageBitmap() ?: return@runCatching null
-                synchronized(cache) { cache[k] = img }
+                put(k, img)
                 at to img
             }.getOrNull()
         }
@@ -232,22 +253,32 @@ fun LivePreview(
         val tag = Triple(src, g, if (keyNode != null) keyNode else look)
         // while scrubbing, film is shown with its colors only (the full film on the CPU takes longer than a frame, and
         // every new frame cancelled it – the ungraded log image was shown until the finger was lifted)
-        val scrubbing = state.scrubbing
-        LaunchedEffect(tag, scrubbing) {
-            // a new request cancels the wait, but the time limit counts from the previous frame: during a drag the
-            // latest position is graded every 66 ms instead of on every pointer event (less garbage, no queue)
-            val wait = GradeWorker.lastRun + GradeWorker.MIN_GAP_MS - android.os.SystemClock.uptimeMillis()
-            if (wait > 0) kotlinx.coroutines.delay(wait)
-            GradeWorker.lastRun = android.os.SystemClock.uptimeMillis()
-            val out = kotlinx.coroutines.withContext(GradeWorker.dispatcher) { GradeWorker.hinted {
-                val b = src.asAndroidBitmap()
-                se.gendut.klipp.engine.GpuGrade.apply(b, g, lk, keyNode, filmColorOnly = scrubbing)?.asImageBitmap() ?: run {
-                    var small = android.graphics.Bitmap.createScaledBitmap(b, 480, (480f * b.height / b.width).roundToInt().coerceAtLeast(1), true)
-                    if (g != null) small = g.applyTo(small, keyNode)
-                    lk.applyTo(small).asImageBitmap()
+        // the same while a slider, wheel or curve is dragged: the CPU's full film runs at 480 px, far below the
+        // screen, and every change waited for it
+        val interacting = state.scrubbing || live != null || gs?.live != null
+        key(c.id) {
+            // one grading at a time per clip, always of the latest request; a grading in progress is never cancelled –
+            // with a slow chain (a heavy node chain at full size) and a finger that keeps moving, cancelling meant that
+            // nothing was ever shown until the finger stopped
+            val req by androidx.compose.runtime.rememberUpdatedState(GradeReq(tag, src, g, lk, keyNode, interacting))
+            LaunchedEffect(Unit) {
+                snapshotFlow { req }.distinctUntilChanged().conflate().collect { r ->
+                    // the time limit counts from the previous frame: during a drag the latest position is graded every
+                    // 66 ms at most instead of on every pointer event (less garbage, no queue)
+                    val wait = GradeWorker.lastRun + GradeWorker.MIN_GAP_MS - android.os.SystemClock.uptimeMillis()
+                    if (wait > 0) kotlinx.coroutines.delay(wait)
+                    GradeWorker.lastRun = android.os.SystemClock.uptimeMillis()
+                    val out = kotlinx.coroutines.withContext(GradeWorker.dispatcher) { GradeWorker.hinted {
+                        val b = r.src.asAndroidBitmap()
+                        se.gendut.klipp.engine.GpuGrade.apply(b, r.g, r.look, r.keyNode, filmColorOnly = r.interacting)?.asImageBitmap() ?: run {
+                            var small = android.graphics.Bitmap.createScaledBitmap(b, 480, (480f * b.height / b.width).roundToInt().coerceAtLeast(1), true)
+                            if (r.g != null) small = r.g.applyTo(small, r.keyNode)
+                            r.look.applyTo(small).asImageBitmap()
+                        }
+                    } }
+                    graded[c.id] = r.tag to out
                 }
-            } }
-            graded[c.id] = tag to out
+            }
         }
     }
     // titles are rendered at half resolution on a background thread; the previous image is shown until the new one is ready
@@ -277,6 +308,11 @@ fun LivePreview(
         ungraded.forEach { graded.remove(it) }
         for (m in listOf(frames, graded, titles)) (m.keys - ids).forEach { m.remove(it) }
     }
+    // until every clip's first graded still is ready, nothing is drawn: the player's frame underneath (already graded)
+    // shows through. Otherwise every drag began with a flash of the ungraded (log) still, or black. Not when forced –
+    // then the player has no frame to show.
+    val ready = force || layers.all { c -> c.text != null || (if (c.id in ungraded) (hits[c.id] ?: frames[c.id]) != null else graded[c.id] != null) }
+    if (!ready) return
     Canvas(modifier.fillMaxSize().clipToBounds().testTag("livepreview")) {
         drawRect(Color.Black)
         val s = size.width / w

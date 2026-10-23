@@ -318,10 +318,13 @@ class HslCurvesTest {
             for ((k, pts) in c.curves) hsl = hsl.with(k, HslCurve(pts))
             val t = hsl.tables()!!
             val tol = if (HslKind.HUE_HUE in c.curves) 0.01f else 0.002f
+            val byHue = c.curves.keys.any { it.periodic }
             for (p in c.px) {
                 val rgb = floatArrayOf(p[0], p[1], p[2])
+                // the references apply hue curves in full down to gray; Klipp fades them there (hueWeight)
+                val w = if (byHue) HslCurves.hueWeight(HslCurves.measure(rgb)[1]) else 1f
                 HslCurves.apply(t, rgb)
-                for (i in 0..2) assertEquals("${c.name} (${p[0]}, ${p[1]}, ${p[2]}) channel $i", p[3 + i], rgb[i], tol)
+                for (i in 0..2) assertEquals("${c.name} (${p[0]}, ${p[1]}, ${p[2]}) channel $i", p[i] + (p[3 + i] - p[i]) * w, rgb[i], tol)
             }
         }
     }
@@ -336,5 +339,33 @@ class HslCurvesTest {
         val u = HslCurve(listOf(0.2f to 0.5f, 0.5f to 0.7f, 0.8f to 0.5f)).table(periodic = false, n = 101)
         assertEquals(0.7f, u[50], 1e-4f)
         assertEquals(0.5f, u[10], 1e-6f)
+    }
+
+    @Test fun hueCurvesFadeAtGray() {
+        // a deep Hue vs Lum dip at cyan: a pale, slightly cyan pixel barely changes, a clearly cyan one fully
+        val t = HslCurves(hueLum = HslCurve(listOf(0.33f to 0.5f, 0.5f to 0.3f, 0.67f to 0.5f))).tables()!!
+        val pale = floatArrayOf(0.795f, 0.805f, 0.805f)
+        HslCurves.apply(t, pale)
+        // (saturation 0.01: about a tenth of the full −0.32)
+        assertEquals(0.8f - 0.032f, pale[1], 0.01f)
+        val cyan = floatArrayOf(0.5f, 0.8f, 0.8f)
+        val y = 0.2126f * 0.5f + 0.7152f * 0.8f + 0.0722f * 0.8f
+        HslCurves.apply(t, cyan)
+        assertEquals(0.8f - 0.4f * y * HslCurves.hueWeight(HslCurves.measure(floatArrayOf(0.5f, 0.8f, 0.8f))[1]), cyan[1], 1e-3f)
+        assertEquals(0f, HslCurves.hueWeight(0f), 0f)
+        assertEquals(0.5f, HslCurves.hueWeight(0.03f), 1e-4f)
+    }
+
+    @Test
+    fun dropperAxes() {
+        // the primaries and secondaries land on the swatches' places on the hue axis
+        assertEquals(0f, HslCurves.axis(HslKind.HUE_SAT, floatArrayOf(1f, 0f, 0f)), 1e-4f)
+        assertEquals(1f / 6f, HslCurves.axis(HslKind.HUE_HUE, floatArrayOf(1f, 1f, 0f)), 1e-4f)
+        assertEquals(1f / 3f, HslCurves.axis(HslKind.HUE_LUM, floatArrayOf(0f, 1f, 0f)), 1e-4f)
+        assertEquals(2f / 3f, HslCurves.axis(HslKind.HUE_SAT, floatArrayOf(0f, 0f, 1f)), 1e-4f)
+        // a pure primary has saturation 1, gray 0; luma is Rec. 709
+        assertEquals(1f, HslCurves.axis(HslKind.SAT_SAT, floatArrayOf(1f, 0f, 0f)), 1e-4f)
+        assertEquals(0f, HslCurves.axis(HslKind.SAT_LUM, floatArrayOf(0.4f, 0.4f, 0.4f)), 1e-6f)
+        assertEquals(0.7152f, HslCurves.axis(HslKind.LUM_SAT, floatArrayOf(0f, 1f, 0f)), 1e-4f)
     }
 }

@@ -87,6 +87,7 @@ import se.gendut.klipp.engine.ClipGrade
 import se.gendut.klipp.engine.Curve
 import se.gendut.klipp.engine.GradeNode
 import se.gendut.klipp.engine.HslCurve
+import se.gendut.klipp.engine.HslCurves
 import se.gendut.klipp.engine.HslKind
 import se.gendut.klipp.engine.Wheel
 import se.gendut.klipp.engine.applyTo
@@ -192,6 +193,35 @@ class GradeState {
         val g = shown(clip) ?: ClipGrade()
         setLive(clip, g.copy(nodes = g.nodes.map { if (it.id == n.id) n else it }))
     }
+    /** Draws the paused player's frame again (set by the program monitor). */
+    var redraw: (() -> Unit)? = null
+    private val previewNext = java.util.concurrent.atomic.AtomicReference<Pair<Long, GradeNode>?>(null)
+    private val previewRunning = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val main by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
+
+    /**
+     * A node's new values straight into the paused player, before they are committed – for what only the player shows
+     * (the film's halation, grain, diffusion). The values are prepared off the main thread, only the latest is used
+     * (a drag never queues up); no undo step – the commit follows.
+     */
+    fun previewNode(clip: Long, n: GradeNode) {
+        previewNext.set(clip to n)
+        if (!previewRunning.compareAndSet(false, true)) return
+        Thread({
+            try {
+                while (true) {
+                    val (c, nn) = previewNext.getAndSet(null) ?: break
+                    runCatching { se.gendut.klipp.engine.LiveGrades.put(c, nn) }
+                    main.post { redraw?.invoke() }
+                }
+            } finally {
+                previewRunning.set(false)
+                // a value that arrived just as the loop ended
+                previewNext.get()?.let { (c, nn) -> previewNode(c, nn) }
+            }
+        }, "grade-preview").apply { isDaemon = true }.start()
+    }
+
     fun commitNode(clip: Long, n: GradeNode) {
         set(clip, of(clip).let { cg -> cg.copy(nodes = cg.nodes.map { if (it.id == n.id) n else it }) })
     }
@@ -273,6 +303,7 @@ fun ColorPage(
     var scopeKind by remember { mutableStateOf(0) } // 0 off, 1 waveform, 2 parade, 3 vector
     var nodeMenu by remember { mutableStateOf<GradeNode?>(null) }
     var stillMenu by remember { mutableStateOf<Still?>(null) }
+    var renaming by remember { mutableStateOf<GradeNode?>(null) }
     val ctx = LocalContext.current
     LaunchedEffect(Unit) { runCatching { StillStore.init(ctx) } }
     // when leaving the color page: no color tools left on top of the program image
@@ -339,6 +370,7 @@ fun ColorPage(
             title = { Text(if (n.label.isNotBlank()) stringResource(R.string.colorpage_node_title_label, n.id, Str.name(n.label)) else stringResource(R.string.colorpage_node_title, n.id)) },
             text = {
                 Column {
+                    NodeMenuRow(stringResource(R.string.colorpage_node_rename)) { nodeMenu = null; renaming = n }
                     NodeMenuRow(if (n.enabled) stringResource(R.string.colorpage_node_disable) else stringResource(R.string.colorpage_node_enable)) {
                         nodeMenu = null; cid?.let { id -> gs.set(id, gs.of(id).let { cg -> cg.copy(nodes = cg.nodes.map { if (it.id == n.id) it.copy(enabled = !it.enabled) else it }) }) }
                     }
@@ -355,6 +387,24 @@ fun ColorPage(
                 }
             },
             confirmButton = { TextButton(onClick = { nodeMenu = null }) { Text(stringResource(R.string.colorpage_close)) } },
+            containerColor = K.SurfaceHigh,
+        )
+    }
+
+    renaming?.let { n ->
+        val cid = current?.id
+        // the name as shown (a saved "Primär" reads in the app's language); empty = the default "Node"
+        var name by remember(n.id) { mutableStateOf(Str.name(n.label)) }
+        fun save() {
+            renaming = null
+            cid?.let { id -> gs.set(id, gs.of(id).let { cg -> cg.copy(nodes = cg.nodes.map { if (it.id == n.id) it.copy(label = name.trim()) else it }) }) }
+        }
+        AlertDialog(
+            onDismissRequest = { renaming = null },
+            title = { Text(stringResource(R.string.colorpage_node_rename)) },
+            text = { TextInput(stringResource(R.string.colorpage_node_name), name) { name = it.take(40) } },
+            confirmButton = { TextButton(onClick = { save() }, Modifier.testTag("nodeRenameSave")) { Text(stringResource(R.string.colorpage_save)) } },
+            dismissButton = { TextButton(onClick = { renaming = null }) { Text(stringResource(R.string.colorpage_cancel)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -406,7 +456,7 @@ private fun ColorPageBody(
     androidx.compose.runtime.DisposableEffect(current.id, node.id, editor) {
         gs.windowEdit = if (editor == 5) current.id to node.id else null
         if (gs.showKey != null && gs.showKey != current.id to node.id) gs.showKey = null
-        if (editor != 4 && editor != 2) gs.pick = null
+        if (editor != 4 && editor != 2 && editor != 1) gs.pick = null
         if (editor != 2) wbPicking = false
         onDispose { gs.windowEdit = null; gs.pick = null }
     }
@@ -444,9 +494,21 @@ private fun ColorPageBody(
         AnimatedContent(editor, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "editor") { e ->
             when (e) {
                 0 -> WheelsGrid(node, onLive = ::live, onCommit = ::commit)
-                1 -> CurvesEditor(node, onLive = ::live, onCommit = ::commit)
+                1 -> CurvesEditor(node, onLive = ::live, onCommit = ::commit, picking = gs.pick != null, onPick = { got ->
+                    if (got == null) { gs.pick = null; return@CurvesEditor }
+                    val clip = current
+                    val nid = node.id
+                    gs.pickHint = Str.t(R.string.colorpage_pick_hint_curve)
+                    gs.pick = { x, y ->
+                        scope.launch {
+                            val rgb = pickHsl(ctx, clip, state.playhead, gs.of(clip.id), nid, x, y) ?: return@launch
+                            haptics.confirm()
+                            got(rgb)
+                        }
+                    }
+                })
                 3 -> NodeLutEditor(node, onLive = ::live, onCommit = ::commit, onImport = onImportLut)
-                6 -> FilmEditor(node, onCommit = ::commit)
+                6 -> FilmEditor(node, onCommit = ::commit, onLive = { gs.previewNode(current.id, it) })
                 4 -> QualifierEditor(current.id, node, gs, onLive = ::live, onCommit = ::commit, onPick = {
                     if (gs.pick != null) { gs.pick = null; return@QualifierEditor }
                     val clip = current
@@ -905,7 +967,7 @@ private suspend fun AwaitPointerEventScope.claimHorizontal(down: PointerInputCha
 
 /** The curves: the custom Y/R/G/B curves or one of the six HSL curves (a row of choices on top). */
 @Composable
-fun CurvesEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit) {
+fun CurvesEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit, picking: Boolean = false, onPick: ((PickedRgb?) -> Unit)? = null) {
     var mode by remember { mutableStateOf(-1) }
     val labels = listOf(R.string.colorpage_curves_custom) + HslKind.entries.map { hslLabel(it) }
     Column {
@@ -924,7 +986,7 @@ fun CurvesEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode
             }
         }
         Spacer(Modifier.height(8.dp))
-        if (mode < 0) CustomCurves(n, onLive, onCommit) else HslCurveEditor(n, HslKind.entries[mode], onLive, onCommit)
+        if (mode < 0) CustomCurves(n, onLive, onCommit) else HslCurveEditor(n, HslKind.entries[mode], onLive, onCommit, picking, onPick)
     }
 }
 
@@ -943,14 +1005,22 @@ private fun hueColor(h: Float): Color {
     return Color(c)
 }
 
+/** Receives the color the dropper picked (as the node's HSL curves see it). */
+typealias PickedRgb = (FloatArray) -> Unit
+
 /**
  * One HSL curve. The middle line is no change; up = more (hue turned, saturation, luminance). Tap = a point on the
- * curve, drag = move, drag out of the box = delete. The hue axis wraps (a point near red affects both ends); the
- * luma and saturation axes have fixed end points that move only up and down. Under the hue curves: the six colors –
- * a tap adds a point there plus neutral points at the neighbouring colors, to change just that color.
+ * curve, drag = move, drag out of the box or double tap = delete. The hue axis wraps (a point near red affects both
+ * ends); the luma and saturation axes have fixed end points that move only up and down. Under the hue curves: the six
+ * colors – a tap adds a point there plus neutral points at the neighbouring colors, to change just that color. The
+ * dropper ([onPick]: starts a pick with the receiver, or cancels with null) adds a point at the color tapped in the
+ * image with a point on each side, all on the curve as it is.
  */
 @Composable
-fun HslCurveEditor(n: GradeNode, kind: HslKind, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit) {
+fun HslCurveEditor(
+    n: GradeNode, kind: HslKind, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit,
+    picking: Boolean = false, onPick: ((PickedRgb?) -> Unit)? = null,
+) {
     val haptics = rememberHaptics()
     fun defaults(): List<Pair<Float, Float>> = if (kind.periodic) emptyList() else listOf(0f to 0.5f, 1f to 0.5f)
     fun pointsOf(node: GradeNode) = node.hsl[kind].points.ifEmpty { defaults() }
@@ -969,6 +1039,29 @@ fun HslCurveEditor(n: GradeNode, kind: HslKind, onLive: (GradeNode) -> Unit, onC
         if (kind.periodic) a = a.map { (px, py) -> (px - 1f) to py } + a + a.map { (px, py) -> (px + 1f) to py }
         return HslCurve.at(a, x)
     }
+    // a distance along the axis (the hue axis wraps)
+    fun gap(a: Float, b: Float) = if (kind.periodic) abs(((a - b + 1.5f) % 1f) - 0.5f) else abs(a - b)
+    /** The dropper's color at [x] on the axis: a point there and one on each side, on the curve as it is (nothing moves yet). */
+    fun addPicked(x: Float) {
+        val side = if (kind.periodic) 1f / 12f else 0.1f
+        val xs = listOf(x - side, x, x + side).map { if (kind.periodic) (it % 1f + 1f) % 1f else it }
+            .filter { kind.periodic || it in 0.01f..0.99f }
+        val old = pts
+        val add = xs.filter { c -> old.none { gap(it.first, c) < 0.02f } }.map { it to heightAt(old, it) }
+        val list = (old + add).sortedBy { it.first }
+        pts = list
+        active = list.indices.minByOrNull { gap(list[it].first, x) }
+        haptics.tick()
+        commit(with(node, list))
+    }
+    // the dropper is for this curve only: leaving it (another curve, another tool) ends the pick
+    val pickFn by rememberUpdatedState(onPick)
+    val pickingNow by rememberUpdatedState(picking)
+    // a color read after leaving the curve (the reading takes a moment) must not land on another curve
+    val alive = remember(kind) { booleanArrayOf(true) }
+    androidx.compose.runtime.DisposableEffect(kind) { onDispose { alive[0] = false; if (pickingNow) pickFn?.invoke(null) } }
+    // the last tap on a point (time, index): a second tap on the same point soon after deletes it
+    val lastTap = remember(kind) { LongArray(2) { -1L } }
     Column(Modifier.padding(horizontal = 14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // the value under the finger (or the last point touched), in the panel's terms
@@ -983,6 +1076,12 @@ fun HslCurveEditor(n: GradeNode, kind: HslKind, onLive: (GradeNode) -> Unit, onC
                 stringResource(R.string.colorpage_hsl_input, input) + " · " + out
             } ?: ""
             Text(readout, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.weight(1f).testTag("hslReadout"))
+            if (onPick != null) {
+                PillButton(stringResource(if (picking) R.string.colortools_tap_image else R.string.colorpage_hsl_pick), {
+                    haptics.tick()
+                    onPick(if (picking) null else { rgb -> if (alive[0]) addPicked(HslCurves.axis(kind, rgb)) })
+                }, Modifier.padding(end = 6.dp).testTag("hslPick"), icon = Ic.Dropper, filled = picking)
+            }
             PillButton(stringResource(R.string.colorpage_reset), { haptics.confirm(); pts = defaults(); active = null; commit(node.copy(hsl = node.hsl.with(kind, HslCurve()))) }, icon = Ic.Reset, filled = false)
         }
         Canvas(
@@ -1020,10 +1119,14 @@ fun HslCurveEditor(n: GradeNode, kind: HslKind, onLive: (GradeNode) -> Unit, onC
                         if (tap) { commit(with(node, pts)); return@awaitEachGesture }
                         dragging = true
                         live(with(node, pts))
+                        var moved = false
                         while (true) {
                             val ev = awaitPointerEvent()
                             val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                             if (!c.pressed) break
+                            // a tap on a point doesn't nudge it: it moves once the finger has really moved
+                            if (!moved && (c.position - down.position).getDistance() < viewConfiguration.touchSlop) { c.consume(); continue }
+                            moved = true
                             val (x, y) = toCurve(c.position)
                             val out = c.position.y < -40.dp.toPx() || c.position.y > size.height + 40.dp.toPx() || c.position.x < -40.dp.toPx() || c.position.x > size.width + 40.dp.toPx()
                             list = pts.toMutableList()
@@ -1043,6 +1146,18 @@ fun HslCurveEditor(n: GradeNode, kind: HslKind, onLive: (GradeNode) -> Unit, onC
                             c.consume()
                         }
                         dragging = false
+                        // double tap on a point: delete it (not the luma/saturation axes' end points)
+                        if (!moved && hit != null) {
+                            val now = down.uptimeMillis
+                            if (lastTap[1] == hit.toLong() && now - lastTap[0] < viewConfiguration.doubleTapTimeoutMillis && !end) {
+                                lastTap[0] = -1L; lastTap[1] = -1L
+                                haptics.heavy()
+                                pts = pts.filterIndexed { i, _ -> i != hit }; active = null
+                                commit(with(node, pts))
+                                return@awaitEachGesture
+                            }
+                            lastTap[0] = now; lastTap[1] = hit.toLong()
+                        } else { lastTap[0] = -1L; lastTap[1] = -1L }
                         commit(with(node, pts))
                     }
                 },
@@ -1113,6 +1228,9 @@ private fun CustomCurves(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (G
     val live by rememberUpdatedState(onLive)
     val commit by rememberUpdatedState(onCommit)
     val colors = listOf(Color(0xFFE2E2E9), Color(0xFFFF6B6B), Color(0xFF6BDB8B), Color(0xFF6BA7FF))
+    // the last tap on a point (time, index): a second tap on the same point soon after deletes it
+    // (per channel: a tap on Y and then on the same point in R must not count as a double tap)
+    val lastTap = remember(ch) { LongArray(2) { -1L } }
     Column(Modifier.padding(horizontal = 14.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             ConnectedToggleGroup(listOf("Y", "R", "G", "B"), ch, { i -> ch = i; pts = curveOf(node, i).points }, Modifier.width(200.dp), tag = { "curveCh:$it" })
@@ -1157,10 +1275,14 @@ private fun CustomCurves(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (G
                         if (tap) { commit(with(node, channel, Curve(pts))); return@awaitEachGesture }
                         dragging = true
                         live(with(node, channel, Curve(pts)))
+                        var moved = false
                         while (true) {
                             val ev = awaitPointerEvent()
                             val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                             if (!c.pressed) break
+                            // a tap on a point doesn't nudge it: it moves once the finger has really moved
+                            if (!moved && (c.position - down.position).getDistance() < viewConfiguration.touchSlop) { c.consume(); continue }
+                            moved = true
                             val (x, y) = toCurve(c.position)
                             val out = c.position.y < -40.dp.toPx() || c.position.y > size.height + 40.dp.toPx() || c.position.x < -40.dp.toPx() || c.position.x > size.width + 40.dp.toPx()
                             list = pts.toMutableList()
@@ -1180,6 +1302,18 @@ private fun CustomCurves(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (G
                             c.consume()
                         }
                         dragging = false
+                        // double tap on a point: delete it (not the end points)
+                        if (!moved && hit != null) {
+                            val now = down.uptimeMillis
+                            if (lastTap[1] == hit.toLong() && now - lastTap[0] < viewConfiguration.doubleTapTimeoutMillis && !end) {
+                                lastTap[0] = -1L; lastTap[1] = -1L
+                                haptics.heavy()
+                                pts = pts.filterIndexed { i, _ -> i != hit }
+                                commit(with(node, channel, Curve(pts)))
+                                return@awaitEachGesture
+                            }
+                            lastTap[0] = now; lastTap[1] = hit.toLong()
+                        } else { lastTap[0] = -1L; lastTap[1] = -1L }
                         commit(with(node, channel, Curve(pts)))
                     }
                 },
@@ -1281,6 +1415,19 @@ internal fun ColorClip.srcAt(playhead: Float): Double {
  */
 suspend fun pickColor(ctx: android.content.Context, c: ColorClip, playhead: Float, g: ClipGrade, nodeId: Int, x: Float, y: Float): se.gendut.klipp.engine.Qualifier? =
     pickInput(ctx, c, playhead, g, nodeId, x, y)?.let { se.gendut.klipp.engine.Qualifier.around(it[0], it[1], it[2]) }
+
+/**
+ * The dropper for the HSL curves: the color where tapped as the node's curves measure it – its input, then the node's
+ * own wheels, adjustments and custom curves (the HSL curves come after those, before the LUT).
+ */
+suspend fun pickHsl(ctx: android.content.Context, c: ColorClip, playhead: Float, g: ClipGrade, nodeId: Int, x: Float, y: Float): FloatArray? {
+    val n = g.nodes.firstOrNull { it.id == nodeId } ?: return null
+    val rgb = pickInput(ctx, c, playhead, g, nodeId, x, y) ?: return null
+    val before = n.copy(enabled = true, hsl = HslCurves(), lut = null, drt = null, film = null, mix = 1f, blur = 0f, pixelate = 0f,
+        qual = n.qual.copy(on = false), win = n.win.copy(shape = 0))
+    if (!before.isNeutral) withContext(Dispatchers.Default) { GradeNode.apply(before.params(), rgb, x, y) }
+    return rgb
+}
 
 /** Dropper white balance: the node's temperature and tint so the color where tapped becomes gray. */
 suspend fun pickWhite(ctx: android.content.Context, c: ColorClip, playhead: Float, g: ClipGrade, nodeId: Int, x: Float, y: Float): GradeNode? {

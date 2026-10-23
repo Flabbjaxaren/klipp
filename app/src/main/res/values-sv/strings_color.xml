@@ -17,12 +17,17 @@
     <string name="colortools_mid_grey_nits">Mellangrått (nits)</string>
     <string name="colortools_display">Skärm</string>
     <string name="colortools_film_intro">Spektral simulering av analog film: bilden exponerar ett negativ som framkallas och kopieras på papper (diafilm skannas direkt), med korn, halation och diffusion. Lägg den sist i nodkedjan – den gör om bilden till färdig skärmbild.</string>
+    <string name="colortools_film_mode_full">Hela filmen</string>
+    <string name="colortools_film_mode_effects">Bara effekter</string>
+    <string name="colortools_film_mode_effects_hint">Bara halation, diffusion, korn, glare och skärpa – bilden behåller sina egna färger, sin kontrast och sin kodning, så noden kan ligga var som helst i kedjan.</string>
     <string name="colortools_computing">Räknar …</string>
     <string name="colortools_kind_slide">diafilm</string>
     <string name="colortools_kind_cine_negative">biofilm, negativ</string>
     <string name="colortools_kind_negative">negativ</string>
     <string name="colortools_off_value">av</string>
     <string name="colortools_film">Film</string>
+    <string name="colortools_film_effects_from">Korn och halation från</string>
+    <string name="colortools_film_effects_from_hint">Filmen avgör bara kornet (storlek, lager) och hur ljuset sprids i filmen – inte färgerna. Dess papper, exponering och färgkontroller används inte.</string>
     <string name="colortools_slide_scanned">Diafilm: skannas direkt, utan papper.</string>
     <string name="colortools_print_cine">biokopia</string>
     <string name="colortools_print_photo_paper">fotopapper</string>
@@ -167,6 +172,10 @@
     <string name="colorpage_node_title">Nod %1$d</string>
     <string name="colorpage_node_title_label">Nod %1$d · %2$s</string>
     <string name="colorpage_node_disable">Stäng av (förbikoppla)</string>
+    <string name="colorpage_node_rename">Byt namn</string>
+    <string name="colorpage_node_name">Namn</string>
+    <string name="colorpage_save">Spara</string>
+    <string name="colorpage_cancel">Avbryt</string>
     <string name="colorpage_node_enable">Slå på</string>
     <string name="colorpage_node_uncache">Sluta cacha noden</string>
     <string name="colorpage_node_cache">Cacha noden (till och med den här)</string>
@@ -228,4 +237,6 @@
     <string name="colorpage_hsl_rotate">Nyansvridning %1$s°</string>
     <string name="colorpage_hsl_sat">Mättnad %1$s</string>
     <string name="colorpage_hsl_lum">Luminans %1$s</string>
+    <string name="colorpage_hsl_pick">Pipett</string>
+    <string name="colorpage_pick_hint_curve">Tryck på färgen som kurvan ska ändra</string>
 </resources>

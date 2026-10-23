@@ -120,8 +120,39 @@ data class HslCurves(
          * plane across the gray axis (red at 0, then yellow, green …; gray has hue 0), luma is Rec. 709 Y – all of the
          * pixel as it comes in. Hue vs Hue turns the color around the gray axis by up to ±180°, the saturation curves
          * scale it (0…2×), the luminance curves add to all channels alike (up to ±Y); luma is kept while turning
-         * and scaling.
+         * and scaling. The hue curves fade out towards gray ([hueWeight]).
          */
+        /** The pixel's place on the curves' x axes: hue (0..1, red at 0), saturation and Rec. 709 luma – as [apply] measures them. */
+        fun measure(rgb: FloatArray): FloatArray {
+            val r = rgb[0]; val g = rgb[1]; val b = rgb[2]
+            val mean = (r + g + b) / 3f
+            val a1 = ((r - mean) - (g - mean)) / SQ2
+            val a2 = ((r - mean) + (g - mean) - 2f * (b - mean)) / SQ6
+            val sat = hypot(a1, a2) * SAT_K
+            return floatArrayOf(hueOf(a1, a2, sat), sat, 0.2126f * r + 0.7152f * g + 0.0722f * b)
+        }
+
+        /**
+         * How much of the hue curves a pixel of saturation [sat] gets: half at 0.03, 90 % at 0.09, nearly none at gray.
+         * Near gray the hue is mostly noise, so a hue curve would hit neighbouring pixels differently and a pale sky
+         * would break into specks (most visibly with Hue vs Lum, which moves the pixel's brightness).
+         */
+        fun hueWeight(sat: Float): Float = sat * sat / (sat * sat + HUE_FADE * HUE_FADE)
+        private const val HUE_FADE = 0.03f
+
+        /** The angle in the plane across the gray axis as 0..1 with red at 0 (gray: 0). */
+        private fun hueOf(a1: Float, a2: Float, sat: Float): Float =
+            if (sat > 1e-6f) (((Math.toDegrees(atan2(a2, a1).toDouble()) - 30.0) % 360.0 + 360.0) % 360.0 / 360.0).toFloat() else 0f
+
+        /** Where a color lies on curve [k]'s x axis (the dropper). */
+        fun axis(k: HslKind, rgb: FloatArray): Float = measure(rgb).let { m ->
+            when (k) {
+                HslKind.HUE_HUE, HslKind.HUE_SAT, HslKind.HUE_LUM -> m[0]
+                HslKind.LUM_SAT -> m[2].coerceIn(0f, 1f)
+                HslKind.SAT_SAT, HslKind.SAT_LUM -> m[1].coerceIn(0f, 1f)
+            }
+        }
+
         fun apply(t: Array<FloatArray>, rgb: FloatArray) {
             val r = rgb[0]; val g = rgb[1]; val b = rgb[2]
             val yl = 0.2126f * r + 0.7152f * g + 0.0722f * b
@@ -129,11 +160,12 @@ data class HslCurves(
             val a1 = ((r - mean) - (g - mean)) / SQ2
             val a2 = ((r - mean) + (g - mean) - 2f * (b - mean)) / SQ6
             val sat = hypot(a1, a2) * SAT_K
-            val hue = if (sat > 1e-6f) (((Math.toDegrees(atan2(a2, a1).toDouble()) - 30.0) % 360.0 + 360.0) % 360.0 / 360.0).toFloat() else 0f
+            val hue = hueOf(a1, a2, sat)
             // the curves store "up = more": turn by (0.5 − height)·360°, scale by 2·height, add (2·height − 1)·Y
-            val turn = (0.5f - sample(t[0], hue)) * 2f * Math.PI.toFloat()
-            val gain = 2f * sample(t[1], hue) * 2f * sample(t[3], yl) * 2f * sample(t[4], sat)
-            val lum = (2f * sample(t[2], hue) - 1f) + (2f * sample(t[5], sat) - 1f)
+            val w = hueWeight(sat)
+            val turn = (0.5f - sample(t[0], hue)) * 2f * Math.PI.toFloat() * w
+            val gain = 2f * (0.5f + (sample(t[1], hue) - 0.5f) * w) * 2f * sample(t[3], yl) * 2f * sample(t[4], sat)
+            val lum = (2f * sample(t[2], hue) - 1f) * w + (2f * sample(t[5], sat) - 1f)
             // the chroma (pixel − luma) turned about the gray axis, luma restored, then scaled
             var dr = r - yl; var dg = g - yl; var db = b - yl
             if (turn != 0f) {

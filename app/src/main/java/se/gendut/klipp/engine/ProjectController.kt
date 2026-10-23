@@ -1233,7 +1233,8 @@ class ProjectController(
             val (eff, param) = KfKeys.engine(key)
             val tt = clampIn(c, at.toDouble())
             val frame = 1.0 / snapshot.fps.coerceAtLeast(1.0)
-            val existing = c.kf[key]?.firstOrNull { kotlin.math.abs(it.t - tt) < frame / 2 }
+            // a keyframe at the clip's end (after it was shortened) counts as at its last frame
+            val existing = c.kf[key]?.firstOrNull { kotlin.math.abs(clampIn(c, it.t) - tt) < frame / 2 }
             if (existing != null) {
                 engine.tryExec("effects.deleteKeyframe", JSONObject().put("clip", id).put("effect", eff).put("param", param).put("mediaTime", existing.mt))
                     .onFailure { onMessage(friendly(it.message)) }
@@ -1332,6 +1333,15 @@ class ProjectController(
         var ok = false
         suspend fun write() { val r = engine.tryExec("effects.setParam", p); r.onFailure { onMessage(friendly(it.message)) }; ok = r.isSuccess }
         val key = KEYS.firstOrNull { KfKeys.engine(it) == effect to param }
+        // a keyframe past the clip's last frame (at its end, after it was shortened) is the one shown at the playhead
+        // there: its value changes – otherwise a second keyframe would appear one frame before it
+        val frame = 1.0 / snapshot.fps.coerceAtLeast(1.0)
+        val edge = if (c != null && tt != null && key != null) c.kf[key]?.firstOrNull { kotlin.math.abs(clampIn(c, it.t) - tt) < frame / 2 && kotlin.math.abs(it.t - tt) >= frame / 2 } else null
+        if (edge != null) {
+            val r = engine.tryExec("effects.setKeyframe", JSONObject().put("clip", clip).put("effect", effect).put("param", param).put("mediaTime", edge.mt).put("value", value))
+            r.onFailure { onMessage(friendly(it.message)) }
+            return r.isSuccess
+        }
         if (c != null && tt != null && key != null && c.kf.containsKey(key)) onHold(c, key, tt) { write() } else write()
         return ok
     }
