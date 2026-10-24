@@ -1267,3 +1267,40 @@ fn transcript_of_a_media_item() {
     ok(&mut b, "transcript.delete", json!({"items": [1]}));
     assert!(ok(&mut b, "klipp.transcriptOf", json!({"item": 1}))["words"].as_array().unwrap().is_empty());
 }
+
+/// Color labels: set on clips (one undo step), shown in the snapshot, kept by a split; null = the media item's label.
+#[test]
+fn clip_labels() {
+    let mut b = Bridge::new();
+    ok(&mut b, "file.import", json!({"paths": [media("klipp_a.mp4")]}));
+    let snap: Value = serde_json::from_str(&b.snapshot()).unwrap();
+    let m0 = snap["media"][0].clone();
+    let item = m0["id"].as_u64().unwrap();
+    ok(&mut b, "file.newSequence", json!({"width": m0["width"], "height": m0["height"], "fps": m0["fps"]}));
+    ok(&mut b, "source.open", json!({"item": item}));
+    ok(&mut b, "playhead.set", json!({"seconds": 0.0}));
+    ok(&mut b, "source.insert", json!({}));
+    let clips = |b: &Bridge| -> Vec<Value> {
+        let s: Value = serde_json::from_str(&b.snapshot()).unwrap();
+        s["sequence"]["video"][0]["clips"].as_array().unwrap().clone()
+    };
+    let c = clips(&b)[0].clone();
+    let own = c["label"].as_str().unwrap().to_string();
+    let id = c["id"].as_u64().unwrap();
+    ok(&mut b, "klipp.setLabel", json!({"clips": [id], "label": "Yellow"}));
+    assert_eq!(clips(&b)[0]["label"], "Yellow");
+    // a split keeps the label on both halves
+    let tps = filmcraft_engine::time::TICKS_PER_SECOND;
+    ok(&mut b, "timeline.razor", json!({"time": 2 * tps, "clip": id}));
+    let after = clips(&b);
+    assert_eq!(after.len(), 2, "{after:?}");
+    assert!(after.iter().all(|c| c["label"] == "Yellow"), "{after:?}");
+    ok(&mut b, "edit.undo", json!({}));
+    // no label: back to the media item's own
+    ok(&mut b, "klipp.setLabel", json!({"clips": [id], "label": null}));
+    assert_eq!(clips(&b)[0]["label"], own.as_str());
+    ok(&mut b, "edit.undo", json!({}));
+    assert_eq!(clips(&b)[0]["label"], "Yellow");
+    let r: Value = serde_json::from_str(&b.execute("klipp.setLabel", &json!({"clips": [id], "label": "Nope"}).to_string())).unwrap();
+    assert_eq!(r["ok"], false);
+}

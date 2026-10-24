@@ -1992,6 +1992,13 @@ private fun ClipView(
                 drawRect(Color.Black.copy(alpha = 0.45f))
             })
             .background(clip.kind.bg)
+            // color label: a frame inside the clip's edge (inside the selection border when selected)
+            .then(clip.label?.let { l -> Modifier.testTag("clipLabel:${clip.id}:${l.name}").drawWithContent {
+                drawContent()
+                val w = 2.5.dp.toPx(); val inset = (if (selected) 2.dp.toPx() else 0f) + w / 2
+                drawRoundRect(l.color, Offset(inset, inset), Size(size.width - inset * 2, size.height - inset * 2),
+                    CornerRadius((10.dp.toPx() - inset).coerceAtLeast(0f)), style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+            } } ?: Modifier)
             // dragged out of the timeline: red (released now, it is deleted)
             .drawWithContent { drawContent(); val d = anim.doom.value; if (d > 0.01f) drawRect(Color(0xFFE5484D).copy(alpha = 0.6f * d)) }
     ) {

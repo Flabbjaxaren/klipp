@@ -101,6 +101,16 @@
     <string name="app_back">Back</string>
     <string name="app_ramp">Ramp</string>
     <string name="app_freeze">Freeze</string>
+    <string name="app_label">Label</string>
+    <string name="app_label_none">None</string>
+    <string name="label_red">Red</string>
+    <string name="label_orange">Orange</string>
+    <string name="label_yellow">Yellow</string>
+    <string name="label_green">Green</string>
+    <string name="label_teal">Teal</string>
+    <string name="label_sky">Sky blue</string>
+    <string name="label_blue">Blue</string>
+    <string name="label_purple">Purple</string>
     <string name="app_seconds">%1$d s</string>
     <string name="app_half_second">0.5 s</string>
     <string name="app_copy">Copy</string>

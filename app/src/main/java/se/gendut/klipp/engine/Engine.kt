@@ -175,6 +175,8 @@ data class ClipSnap(
     val hold: Double? = null,
     /** Compound clip: clips with the same group are selected, moved and graded together. */
     val group: Long? = null,
+    /** The engine's color label name (see ClipLabel). */
+    val label: String? = null,
 ) {
     /**
      * The source time (s in the file) shown at timeline time [t] – freeze frame, reverse and speed included
@@ -390,6 +392,7 @@ data class Snapshot(
                                 reverse = c.optBoolean("reverse", false),
                                 hold = c.dbl("hold"),
                                 group = if (c.isNull("group") || !c.has("group")) null else c.optLong("group"),
+                                label = c.optString("label").ifBlank { null },
                                 kf = c.optJSONObject("kf")?.let { o ->
                                     o.keys().asSequence().associateWith { k ->
                                         o.optJSONArray(k).list { j ->

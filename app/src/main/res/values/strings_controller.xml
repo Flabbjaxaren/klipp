@@ -114,6 +114,7 @@
     <string name="projectcontroller_undo_trim">Trim</string>
     <string name="projectcontroller_undo_reverse">Reverse</string>
     <string name="projectcontroller_undo_group">Group</string>
+    <string name="projectcontroller_undo_label">Label</string>
     <string name="projectcontroller_undo_ungroup">Ungroup</string>
     <string name="projectcontroller_undo_razor">Razor</string>
     <string name="projectcontroller_undo_roll">Roll</string>

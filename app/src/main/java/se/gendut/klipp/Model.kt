@@ -41,6 +41,25 @@ enum class ClipKind(val bg: Color, val fg: Color, val track: TrackKind) {
     MUSIC(Color(0xFF2E4A5E), Color(0xFFC6E7FF), TrackKind.AUDIO),
 }
 
+/**
+ * A clip's color label: a frame around it in the timeline. Stored as the engine's label ([engine] = its name); the app
+ * offers only labels the engine never gives new clips, so any other label means "no label".
+ */
+enum class ClipLabel(val engine: String, val color: Color, val title: Int) {
+    RED("Magenta", Color(0xFFFF5A5F), R.string.label_red),
+    ORANGE("Tan", Color(0xFFFF9F43), R.string.label_orange),
+    YELLOW("Yellow", Color(0xFFFFD43B), R.string.label_yellow),
+    GREEN("Green", Color(0xFF51CF66), R.string.label_green),
+    TEAL("Teal", Color(0xFF20C9B4), R.string.label_teal),
+    SKY("Cerulean", Color(0xFF4DABF7), R.string.label_sky),
+    BLUE("Blue", Color(0xFF5C7CFA), R.string.label_blue),
+    PURPLE("Purple", Color(0xFFB37CFF), R.string.label_purple);
+
+    companion object {
+        fun of(engine: String?): ClipLabel? = entries.firstOrNull { it.engine.equals(engine, ignoreCase = true) }
+    }
+}
+
 /** Times in seconds. srcIn/srcLen describe the source media so trims have handles. */
 data class Clip(
     val id: Long,
@@ -66,6 +85,8 @@ data class Clip(
     val reverse: Boolean = false,
     /** Compound clip: clips with the same group are selected, moved and graded together. */
     val group: Long? = null,
+    /** Color label (a frame in the timeline); null = none. */
+    val label: ClipLabel? = null,
 ) {
     val end: Float get() = start + length
 }
@@ -145,6 +166,8 @@ interface EditBackend {
     fun setTrackFlag(track: Int, flag: String, on: Boolean) {}
     /** Disable/enable the clips (each one toggled separately, linked audio follows), one undo. */
     fun toggleEnabled(ids: List<Long>) {}
+    /** Color label on the clips (null = none), one undo. */
+    fun setLabel(ids: List<Long>, label: ClipLabel?) {}
     /** Move clips and captions together (the selection marquee), one undo step. */
     fun moveGroup(moves: List<Triple<Clip, Float, Int>>, insert: Boolean, captions: List<Long>, dt: Float) { moveMany(moves, insert) }
     /** Delete captions (one undo step). */
@@ -923,6 +946,16 @@ class EditorState(initial: List<Clip> = initialClips()) {
      * Disable/enable clips (Premiere's "Enable", Shift+E): a disabled clip stays but is not seen/heard and is not
      * exported. Each clip is toggled separately.
      */
+    /** Color label on the clips and their linked partners (null = none). Locked tracks too: a label isn't an edit of the cut. */
+    fun setLabel(ids: Collection<Long>, label: ClipLabel?) {
+        val links = clips.filter { it.id in ids }.mapNotNull { it.link }.toSet()
+        val all = clips.filter { it.id in ids || (it.link != null && it.link in links) }.map { it.id }
+        if (all.isEmpty()) return
+        backend?.let { it.setLabel(all, label); return }
+        val set = all.toHashSet()
+        commit(clips.map { if (it.id in set) it.copy(label = label) else it })
+    }
+
     fun toggleEnabled(ids: Collection<Long>) {
         val cs = clips.filter { it.id in ids }
         val ok = cs.filter { !locked(it.track) }

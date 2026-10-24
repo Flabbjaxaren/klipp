@@ -187,6 +187,45 @@ impl Bridge {
                 let language = self.session.project.transcripts.get(&filmcraft_engine::project::ItemId(id)).map(|t| t.language.clone());
                 return json!({"ok": true, "result": {"words": words, "language": language}}).to_string();
             }
+            "klipp.setLabel" => {
+                // the clips' color label (an undo step); null = back to the label of the clip's media item (no label in
+                // the app, which only offers labels the engine never gives new items)
+                let Some(ids) = params["clips"].as_array().map(|a| a.iter().filter_map(Value::as_u64).collect::<Vec<_>>()) else {
+                    return json!({"ok": false, "error": "needs clips"}).to_string();
+                };
+                let label = match params["label"].as_str() {
+                    Some(n) => match filmcraft_engine::project::Label::from_name(n) {
+                        Some(l) => Some(l),
+                        None => return json!({"ok": false, "error": format!("unknown label {n}")}).to_string(),
+                    },
+                    None => None,
+                };
+                let Some(seq) = self.session.state.active_sequence else {
+                    return json!({"ok": false, "error": "no sequence"}).to_string();
+                };
+                let r = self.session.edit("Label", |pr, _| {
+                    use filmcraft_engine::project::ClipId;
+                    let items: Vec<(u64, Option<filmcraft_engine::project::Label>)> = {
+                        let q = pr.sequence(seq);
+                        ids.iter().map(|&c| {
+                            let item = q.and_then(|q| q.all_tracks().flat_map(|t| t.items.iter()).find(|it| it.id == ClipId(c))).map(|it| it.item);
+                            (c, item.and_then(|i| pr.item(i)).map(|i| i.label))
+                        }).collect()
+                    };
+                    let q = pr.sequence_mut(seq)
+                        .ok_or_else(|| filmcraft_engine::EngineError::BadParams { cmd: "klipp.setLabel".into(), msg: "no sequence".into() })?;
+                    for (c, own) in items {
+                        if let Some((_, it)) = q.find_item_mut(ClipId(c)) {
+                            it.label = label.or(own).unwrap_or(it.label);
+                        }
+                    }
+                    Ok(())
+                });
+                return match r {
+                    Ok(()) => json!({"ok": true, "result": null}).to_string(),
+                    Err(e) => json!({"ok": false, "error": e.to_string()}).to_string(),
+                };
+            }
             "klipp.clearRedo" => {
                 // a change outside the engine (color) after an undo: the engine's redo steps no longer apply
                 self.session.history.redo.clear();
@@ -345,6 +384,8 @@ fn clip_json(c: &TrackItem) -> Value {
         "enabled": c.enabled,
         // freeze frame: the source time shown for the whole clip
         "hold": c.frame_hold.map(secs),
+        // color label (Premiere's Label menu)
+        "label": c.label.name(),
     });
     if let Some(m) = c.effect("motion") {
         let pos = m.param("position").map(|p| p.vec2_at(t0));

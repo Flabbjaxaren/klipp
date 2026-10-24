@@ -535,6 +535,12 @@ class ProjectController(
         run("clip.enable", JSONObject().put("clips", JSONArray().apply { ids.forEach { put(it) } }))
     }
 
+    override fun setLabel(ids: List<Long>, label: se.gendut.klipp.ClipLabel?) {
+        if (ids.isEmpty()) return
+        runEdit("klipp.setLabel", JSONObject().put("clips", JSONArray().apply { ids.forEach { put(it) } }).put("label", label?.engine ?: JSONObject.NULL),
+            Str.t(R.string.projectcontroller_undo_label))
+    }
+
     override fun undo() = run("edit.undo", JSONObject()).let { }
     override fun redo() = run("edit.redo", JSONObject()).let { }
     override fun clearRedo() = run("klipp.clearRedo", JSONObject()).let { }
@@ -1973,6 +1979,7 @@ class ProjectController(
             hold = hold != null,
             reverse = reverse,
             group = group,
+            label = se.gendut.klipp.ClipLabel.of(label),
         )
     }
 

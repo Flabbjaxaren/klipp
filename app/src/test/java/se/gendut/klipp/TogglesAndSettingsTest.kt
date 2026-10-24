@@ -85,6 +85,39 @@ class TogglesAndSettingsTest {
         assertTrue(st.clips.first { it.id == id }.enabled)
     }
 
+    @Test fun contextBarLabelsAClipAndTheTimelineFramesIt() {
+        val st = EditorState().apply { playhead = 30f }
+        val id = st.clips.first { it.kind == ClipKind.VIDEO }.id
+        st.selected = id
+        rule.setContent { KlippTheme { KlippApp(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("ctx:label").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("label:YELLOW").performClick()
+        rule.waitForIdle()
+        assertEquals(ClipLabel.YELLOW, st.clips.first { it.id == id }.label)
+        rule.onNodeWithTag("clipLabel:$id:YELLOW", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("ctx:label").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("label:none").performClick()
+        rule.waitForIdle()
+        assertEquals(null, st.clips.first { it.id == id }.label)
+    }
+
+    @Test fun labelFollowsLinkedPartnerAndEngineNames() {
+        // a video clip and its sound, linked
+        val demo = EditorState().clips
+        val v0 = demo.first { it.kind == ClipKind.VIDEO }
+        val a0 = demo.first { it.kind == ClipKind.AUDIO }
+        val st = EditorState(demo.map { if (it.id == v0.id || it.id == a0.id) it.copy(link = 99L) else it })
+        st.setLabel(listOf(v0.id), ClipLabel.GREEN)
+        assertEquals(ClipLabel.GREEN, st.clips.first { it.id == a0.id }.label)
+        assertTrue("other clips unlabeled", st.clips.filter { it.id != v0.id && it.id != a0.id }.all { it.label == null })
+        // the engine's names: only the app's own map to a label (new clips get Iris, Violet …: no label)
+        assertEquals(ClipLabel.RED, ClipLabel.of("Magenta"))
+        for (n in listOf("Iris", "Violet", "Caribbean", "Lavender", "Forest", "Rose", "Mango", null)) assertEquals(n, null, ClipLabel.of(n))
+    }
+
     @Test fun lockedClipsStayOn() {
         val st = EditorState()
         val c = st.clips.first()
