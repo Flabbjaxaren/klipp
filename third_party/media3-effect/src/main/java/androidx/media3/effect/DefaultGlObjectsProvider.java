@@ -63,8 +63,9 @@ public final class DefaultGlObjectsProvider implements GlObjectsProvider {
   @Override
   public EGLContext createEglContext(
       EGLDisplay eglDisplay, int openGlVersion, int[] configAttributes) throws GlUtil.GlException {
+    // Klipp: video processing at low GPU priority, see KlippPriority
     EGLContext eglContext =
-        GlUtil.createEglContext(sharedEglContext, eglDisplay, openGlVersion, configAttributes);
+        KlippPriority.createEglContext(sharedEglContext, eglDisplay, openGlVersion, configAttributes);
     createdEglContexts.add(eglContext);
     return eglContext;
   }

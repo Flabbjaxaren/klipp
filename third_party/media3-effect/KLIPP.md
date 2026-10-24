@@ -21,6 +21,9 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
 - `DefaultCompositorGlProgram.java`: a layer with a blend mode is drawn by copying the image so far into a
   texture of its own and blending the layer with it in `KlippBlend`'s shader (`klippBlendWithMode`); other layers as before.
 
+- `KlippPriority.java` (new) and `DefaultGlObjectsProvider.java`: the video processing contexts are created with low
+  GPU priority (EGL_IMG_context_priority) when the driver offers it, so the app's UI isn't queued behind heavy effects.
+
 The resources (`res/raw`, shaders) and the manifest come from the AAR file of the same version.
 
 To update: unpack `media3-effect-<version>-sources.jar` and the AAR's `res/` here and redo the changes above.

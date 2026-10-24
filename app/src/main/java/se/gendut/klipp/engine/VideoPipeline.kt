@@ -165,7 +165,7 @@ object VideoPipeline {
     fun describe(): String =
         "video chain: ${if (highPrecision) "float (RGBA16F)" else "8-bit"} – pools ${KlippPrecision.floatPools} float / ${KlippPrecision.bytePools} 8-bit, " +
             "display ${if (displayTenBit) "10-bit requested" else "8-bit"}${TenBitGlObjectsProvider.lastDisplay?.let { " – got $it" } ?: ""}\n" +
-            "playback: ${if (previewShort > 0) "preview ${previewShort}p" else "full resolution"}\n" + PassTimes.describe()
+            "playback: ${if (previewShort > 0) "preview ${previewShort}p" else "full resolution"}, GPU priority ${androidx.media3.effect.KlippPriority.granted ?: "–"}\n" + PassTimes.describe()
 }
 
 /**

@@ -48,6 +48,18 @@ class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null) : GlEffect {
 object FilmGl {
     @Volatile private var probed: Boolean? = null
 
+    /** EXT_disjoint_timer_query's GPU time query. */
+    private const val GL_TIME_ELAPSED = 0x88BF
+
+    /** Benchmarks only: each stage's GPU time (timer queries; waits for the results after each frame). Null in the app. */
+    @Volatile var profile: ((String, Double) -> Unit)? = null
+
+    /**
+     * The full-resolution blurs of a pyramid in two passes (see [BLUR_H4], [BLUR_V_SUM]) instead of two per element
+     * plus the sum. Off: the original pass per element (tests compare the two).
+     */
+    @Volatile var fusedBlur = true
+
     /** Can this context render to RGBA16F (OpenGL ES 3 + EXT_color_buffer_(half_)float)? Probed once. */
     fun floatTargets(): Boolean {
         probed?.let { return it }
@@ -75,12 +87,12 @@ in vec4 aPos;
 void main() { gl_Position = aPos; }
 """
 
-    private const val HEAD = """#version 300 es
+    /** The shaders' start without the single output (for the passes that write several images at once). */
+    private const val HEAD_BASE = """#version 300 es
 precision highp float;
 precision highp int;
 precision highp sampler2D;
 precision highp sampler3D;
-out vec4 outColor;
 int reflectI(int i, int n) {
   if (i >= 0 && i < n) return i;
   int p = 2 * n;
@@ -89,6 +101,9 @@ int reflectI(int i, int n) {
   return i >= n ? p - 1 - i : i;
 }
 ivec2 reflect2(ivec2 p, ivec2 n) { return ivec2(reflectI(p.x, n.x), reflectI(p.y, n.y)); }
+"""
+
+    private const val HEAD = HEAD_BASE + """out vec4 outColor;
 """
 
     /** The input (code values) → the film's raw exposure; the image is mirrored out to the padded size. */
@@ -219,6 +234,76 @@ void main() {
   if (uUseUp == 1) s = texture(uUp, (vec2(p) + 0.5) * 0.5 / uUpSize).rgb;
   if (uN > 0) s += uW0 * texelFetch(uE0, p, 0).rgb;
   if (uN > 1) s += uW1 * texelFetch(uE1, p, 0).rgb;
+  outColor = vec4(s, 1.0);
+}
+"""
+
+    /**
+     * The horizontal Gaussians of up to four elements in one pass (one image per element): the source is read once
+     * per tap. Each element's taps sit centered in its array (zeros outside its radius), so every element's sum is
+     * exactly the one [BLUR] makes.
+     */
+    private const val BLUR_H4 = HEAD_BASE + """
+layout(location = 0) out vec4 o0;
+layout(location = 1) out vec4 o1;
+layout(location = 2) out vec4 o2;
+layout(location = 3) out vec4 o3;
+uniform sampler2D uSrc;
+uniform ivec2 uSrcSize;
+uniform int uR;
+uniform float uK0[24];
+uniform float uK1[24];
+uniform float uK2[24];
+uniform float uK3[24];
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  vec3 s0 = vec3(0.0); vec3 s1 = vec3(0.0); vec3 s2 = vec3(0.0); vec3 s3 = vec3(0.0);
+  for (int t = 0; t <= 2 * uR; t++) {
+    vec3 v = texelFetch(uSrc, reflect2(p + ivec2(t - uR, 0), uSrcSize), 0).rgb;
+    s0 += uK0[t] * v; s1 += uK1[t] * v; s2 += uK2[t] * v; s3 += uK3[t] * v;
+  }
+  o0 = vec4(s0, 1.0); o1 = vec4(s1, 1.0); o2 = vec4(s2, 1.0); o3 = vec4(s3, 1.0);
+}
+"""
+
+    /**
+     * Full resolution in one pass: the coarser sum upscaled + weight × the image + each element's vertical Gaussian
+     * (of its horizontal image from [BLUR_H4]) × its weight – what [LEVEL] and one [BLUR] per element did, summed in
+     * 32 bits instead of being stored at 16 bits after every element.
+     */
+    private const val BLUR_V_SUM = HEAD + """
+uniform sampler2D uSrc;
+uniform ivec2 uSrcSize;
+uniform vec3 uW0;
+uniform int uUseUp;
+uniform sampler2D uUp;
+uniform vec2 uUpSize;
+uniform int uN;
+uniform sampler2D uH0;
+uniform sampler2D uH1;
+uniform sampler2D uH2;
+uniform sampler2D uH3;
+uniform int uR0;
+uniform int uR1;
+uniform int uR2;
+uniform int uR3;
+uniform float uK0[24];
+uniform float uK1[24];
+uniform float uK2[24];
+uniform float uK3[24];
+uniform vec3 uWe0;
+uniform vec3 uWe1;
+uniform vec3 uWe2;
+uniform vec3 uWe3;
+void main() {
+  ivec2 p = ivec2(gl_FragCoord.xy);
+  vec3 s = vec3(0.0);
+  if (uUseUp == 1) s = texture(uUp, (vec2(p) + 0.5) * 0.5 / uUpSize).rgb;
+  s += uW0 * texelFetch(uSrc, p, 0).rgb;
+  if (uN > 0) { vec3 v = vec3(0.0); for (int t = 0; t <= 2 * uR0; t++) v += uK0[t] * texelFetch(uH0, reflect2(p + ivec2(0, t - uR0), uSrcSize), 0).rgb; s += uWe0 * v; }
+  if (uN > 1) { vec3 v = vec3(0.0); for (int t = 0; t <= 2 * uR1; t++) v += uK1[t] * texelFetch(uH1, reflect2(p + ivec2(0, t - uR1), uSrcSize), 0).rgb; s += uWe1 * v; }
+  if (uN > 2) { vec3 v = vec3(0.0); for (int t = 0; t <= 2 * uR2; t++) v += uK2[t] * texelFetch(uH2, reflect2(p + ivec2(0, t - uR2), uSrcSize), 0).rgb; s += uWe2 * v; }
+  if (uN > 3) { vec3 v = vec3(0.0); for (int t = 0; t <= 2 * uR3; t++) v += uK3[t] * texelFetch(uH3, reflect2(p + ivec2(0, t - uR3), uSrcSize), 0).rgb; s += uWe3 * v; }
   outColor = vec4(s, 1.0);
 }
 """
@@ -559,6 +644,12 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
         private val final = Prog(FINAL)
         private val maxHalf = Prog(MAXHALF)
         private val boostP = Prog(BOOST)
+        private val blurH4 = Prog(BLUR_H4)
+        private val blurVSum = Prog(BLUR_V_SUM)
+        /** A framebuffer with up to four images attached (for [BLUR_H4]). */
+        private val mrtFbo: Int = IntArray(1).also { GLES20.glGenFramebuffers(1, it, 0) }[0]
+        /** How many images one pass can write (OpenGL ES 3 guarantees four). */
+        private val maxDraw: Int = IntArray(1).also { GLES20.glGetIntegerv(GLES30.GL_MAX_DRAW_BUFFERS, it, 0) }[0]
 
         private var setup: FilmFx.Setup = FilmFx.setup(film)
         /** The float path failed at runtime (e.g. out of GPU memory): color only from here on. */
@@ -627,7 +718,9 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
             if (nw != pw || nh != ph) {
                 freeImages()
                 pw = nw; ph = nh
-                repeat(5) { full += Tex(pw, ph) }
+                // five for the chain; a sixth for the fused pyramid (it keeps each full-resolution element's horizontal
+                // image until the sum)
+                repeat(6) { full += Tex(pw, ph) }
             }
         }
 
@@ -670,7 +763,130 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
          * The kernel [fit] on [src] (full resolution, padded). [tmp], [a], [b] = free images at full resolution.
          * The result ends up in [a] or [b] (returned). The same order and math as [FilmFx.Pyramid].
          */
-        private fun pyramid(src: Tex, fit: FilmFx.Fit, tmp: Tex, a: Tex, b: Tex, tag: String): Tex {
+        /** The kernel [fit] on [src] (full resolution, padded) using images from [pool] (not [src]); returns one of them. */
+        private fun pyramid(src: Tex, fit: FilmFx.Fit, pool: List<Tex>, tag: String): Tex =
+            (if (fusedBlur) pyramidFused(src, fit, pool, tag) else null) ?: pyramidSplit(src, fit, pool[0], pool[1], pool[2], tag)
+
+        /**
+         * [pyramidSplit] with the full-resolution work in two passes: [BLUR_H4] writes the horizontal Gaussian of every
+         * full-resolution element (and of the coarse chain's start, which [pyramidSplit] computed a second time) into
+         * images of their own, [BLUR_V_SUM] adds their vertical Gaussians, the image and the coarser sum. The coarse
+         * levels are as before. Null when it doesn't apply (more than four such elements, too few free images).
+         */
+        /** Benchmarks: marks a stage inside a pyramid (set by drawFilm while profiling). */
+        private var subMark: ((String) -> Unit)? = null
+
+        private fun pyramidFused(src: Tex, fit: FilmFx.Fit, pool: List<Tex>, tag: String): Tex? {
+            val els = FilmFx.Pyramid.ELS
+            val need = FilmFx.Pyramid.needed(fit)
+            val k0 = (0 until fit.count).filter { els[it].k == 0 && used(fit, it) }
+            // the coarse chain starts from a full-resolution element's Gaussian (blurred, then halved)
+            val chainParents = els.indices.filter { need[it] && els[it].k > 0 && els[it].decimate && els[els[it].parent].k == 0 }.map { els[it].parent }
+            val hEls = (k0 + chainParents).distinct()
+            if (k0.size > 4 || hEls.size > 4 || hEls.size > maxDraw || pool.size < hEls.size + 1) return null
+            val hTex = HashMap<Int, Tex>()
+            hEls.forEachIndexed { i, e -> hTex[e] = pool[i] }
+            val out = pool[hEls.size]
+            // 1. the horizontal Gaussians, all at once
+            if (hEls.isNotEmpty()) {
+                val r = hEls.maxOf { FilmFx.Pyramid.TAPS[it].size / 2 }
+                GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, mrtFbo)
+                for (i in 0 until 4) GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0 + i, GLES20.GL_TEXTURE_2D, if (i < hEls.size) hTex.getValue(hEls[i]).id else 0, 0)
+                GLES30.glDrawBuffers(hEls.size, IntArray(hEls.size) { GLES20.GL_COLOR_ATTACHMENT0 + it }, 0)
+                GLES20.glViewport(0, 0, src.w, src.h)
+                blurH4.use()
+                blurH4.tex("uSrc", GLES20.GL_TEXTURE_2D, src.id)
+                blurH4.i2("uSrcSize", src.w, src.h)
+                blurH4.i1("uR", r)
+                for (i in 0 until 4) {
+                    val a = FloatArray(24)
+                    if (i < hEls.size) { val k = FilmFx.Pyramid.TAPS[hEls[i]]; k.copyInto(a, r - k.size / 2) }
+                    blurH4.fv("uK$i", a)
+                }
+                draw()
+                // (back to a single output for the other passes on this framebuffer)
+                GLES30.glDrawBuffers(1, intArrayOf(GLES20.GL_COLOR_ATTACHMENT0), 0)
+                subMark?.invoke("$tag:h4")
+            }
+            // 2. the coarser levels: the elements (the chain) level by level, as in pyramidSplit
+            val maxK = (0 until fit.count).filter { used(fit, it) }.maxOfOrNull { els[it].k } ?: 0
+            for (e in els.indices) {
+                if (!need[e]) continue
+                val el = els[e]
+                if (el.k == 0) continue
+                val parent = el.parent
+                val pk = els[parent].k
+                val base: Tex
+                if (el.decimate) {
+                    base = lv("${tag}half", el.k)
+                    if (pk == 0) {
+                        val h = hTex.getValue(parent)
+                        target(base)
+                        blurVHalf.use()
+                        blurVHalf.tex("uSrc", GLES20.GL_TEXTURE_2D, h.id)
+                        blurVHalf.i2("uSrcSize", h.w, h.h)
+                        taps(blurVHalf, FilmFx.Pyramid.TAPS[parent])
+                        draw()
+                    } else {
+                        val pt = lv("${tag}e$parent", pk)
+                        target(base)
+                        half.use()
+                        half.tex("uSrc", GLES20.GL_TEXTURE_2D, pt.id)
+                        half.i2("uSrcSize", pt.w, pt.h)
+                        draw()
+                    }
+                } else base = lv("${tag}e$parent", pk)
+                val t = lv("${tag}tmp", el.k)
+                val o = lv("${tag}e$e", el.k)
+                blurPass(base, t, 0, FilmFx.Pyramid.TAPS[e])
+                blurPass(t, o, 1, FilmFx.Pyramid.TAPS[e])
+            }
+            // 3. the coarser sum, bottom-up, as in pyramidSplit
+            var acc: Tex? = null
+            for (k in maxK downTo 1) {
+                val es = (0 until fit.count).filter { els[it].k == k && used(fit, it) }
+                val lo = lv("${tag}acc", k)
+                target(lo)
+                level.use()
+                level.i1("uUseUp", if (acc != null) 1 else 0)
+                level.tex("uUp", GLES20.GL_TEXTURE_2D, (acc ?: lo).id)
+                level.f2("uUpSize", (acc ?: lo).w.toFloat(), (acc ?: lo).h.toFloat())
+                level.i1("uN", es.size)
+                level.tex("uE0", GLES20.GL_TEXTURE_2D, es.getOrNull(0)?.let { lv("${tag}e$it", k).id } ?: lo.id)
+                level.tex("uE1", GLES20.GL_TEXTURE_2D, es.getOrNull(1)?.let { lv("${tag}e$it", k).id } ?: lo.id)
+                es.getOrNull(0)?.let { val wv = wOf(fit, it + 1); level.f3("uW0", wv[0], wv[1], wv[2]) }
+                es.getOrNull(1)?.let { val wv = wOf(fit, it + 1); level.f3("uW1", wv[0], wv[1], wv[2]) }
+                draw()
+                acc = lo
+            }
+            subMark?.invoke("$tag:coarse")
+            // 4. full resolution in one pass
+            target(out)
+            blurVSum.use()
+            blurVSum.tex("uSrc", GLES20.GL_TEXTURE_2D, src.id)
+            blurVSum.i2("uSrcSize", src.w, src.h)
+            val w0 = wOf(fit, 0); blurVSum.f3("uW0", w0[0], w0[1], w0[2])
+            blurVSum.i1("uUseUp", if (acc != null) 1 else 0)
+            blurVSum.tex("uUp", GLES20.GL_TEXTURE_2D, (acc ?: src).id)
+            blurVSum.f2("uUpSize", (acc ?: src).w.toFloat(), (acc ?: src).h.toFloat())
+            blurVSum.i1("uN", k0.size)
+            for (i in 0 until 4) {
+                val e = k0.getOrNull(i)
+                blurVSum.tex("uH$i", GLES20.GL_TEXTURE_2D, (e?.let { hTex.getValue(it) } ?: src).id)
+                val k = e?.let { FilmFx.Pyramid.TAPS[it] } ?: floatArrayOf(1f)
+                val a = FloatArray(24); k.copyInto(a)
+                blurVSum.i1("uR$i", k.size / 2)
+                blurVSum.fv("uK$i", a)
+                val wv = e?.let { wOf(fit, it + 1) } ?: floatArrayOf(0f, 0f, 0f)
+                blurVSum.f3("uWe$i", wv[0], wv[1], wv[2])
+            }
+            draw()
+            subMark?.invoke("$tag:vsum")
+            return out
+        }
+
+        /** The kernel [fit] on [src] one pass per element (the original order, see [pyramidFused]). */
+        private fun pyramidSplit(src: Tex, fit: FilmFx.Fit, tmp: Tex, a: Tex, b: Tex, tag: String): Tex {
             val els = FilmFx.Pyramid.ELS
             val need = FilmFx.Pyramid.needed(fit)
             val maxK = (0 until fit.count).filter { used(fit, it) }.maxOfOrNull { els[it].k } ?: 0
@@ -815,6 +1031,13 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 prepare()
                 val fr = frame!!
                 val s = setup
+                // benchmarks: each stage's GPU time from timer queries (no glFinish – it would let the clock drop)
+                val prof = profile
+                val marks = ArrayList<Pair<String, Int>>()
+                fun newQuery(): Int { val q = IntArray(1); GLES30.glGenQueries(1, q, 0); GLES30.glBeginQuery(GL_TIME_ELAPSED, q[0]); return q[0] }
+                var q0 = if (prof != null) newQuery() else 0
+                fun mark(stage: String) { if (prof != null) { GLES30.glEndQuery(GL_TIME_ELAPSED); marks += stage to q0; q0 = newQuery() } }
+                subMark = if (prof != null) { st -> mark(st) } else null
                 GLES20.glDisable(GLES20.GL_BLEND)
                 val (f0, f1, f2, f3, f4) = full
                 // 1. exposure
@@ -828,6 +1051,7 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 expose.f1("uLutN", FilmFx.LUT_N.toFloat())
                 expose.f1("uEv", s.evScale)
                 draw()
+                mark("expose")
                 // highlight boost: the image's largest raw exposure (as FilmFx.boostRef: averaged down to at most
                 // BOOST_REF_W wide, then max-halving down to 1×1), then the curve. Only the image itself (w × h, not the
                 // mirrored padding), so the averages match the CPU's
@@ -855,10 +1079,12 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                     boostP.f1("uRange", s.f.boostRange.coerceIn(0f, 1f))
                     draw()
                     exposed = f4
+                    mark("boost")
                 }
                 // 2. the camera's blurs (diffusion filter, lens, scatter, halation)
                 val spare = full.filter { it !== exposed }
-                val raw = if (fr.camera.isIdentity) exposed else pyramid(exposed, fr.camera, spare[0], spare[1], spare[2], "c")
+                val raw = if (fr.camera.isIdentity) exposed else pyramid(exposed, fr.camera, spare, "c")
+                mark("camera")
                 val free = full.filter { it !== raw }.toMutableList()
                 // 3. the couplers' inhibition and its diffusion
                 var corr: Tex? = null
@@ -872,9 +1098,11 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                     develop1.i1("uPositive", if (s.positive) 1 else 0)
                     develop1.f3("uDmax", s.dmax[0], s.dmax[1], s.dmax[2])
                     draw()
+                    mark("develop1")
                     val cf = fr.couplers
-                    corr = if (cf == null || cf.isIdentity) c0 else pyramid(c0, cf, free[0], free[1], free[2], "k")
+                    corr = if (cf == null || cf.isIdentity) c0 else pyramid(c0, cf, free, "k")
                     free.remove(corr); if (corr !== c0) free.add(c0)
+                    mark("couplers")
                 }
                 // 4. development and grain
                 val seed = (presentationTimeUs / 1000L).toInt() * 1103515245 + 12345
@@ -899,12 +1127,14 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 develop2.f1("uGrainAmount", s.f.grainAmount)
                 develop2.u1("uSeed", seed)
                 draw()
+                mark("develop")
                 free.add(raw); corr?.let { free.add(it) }
                 var d = dens
                 fr.grainBlur?.let { k ->
                     val t = free.removeAt(0); val o = free.removeAt(0)
                     blurPass(d, t, 0, k); blurPass(t, o, 1, k)
                     free.add(d); free.add(t); d = o
+                    mark("grainBlur")
                 }
                 // 5. printing and scanning; with the enlarger's diffusion filter, first the paper's exposure, blurred
                 var src = d
@@ -915,26 +1145,29 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                     target(pr)
                     printUniforms(s, d, 2, seed)
                     draw()
-                    val blurred = pyramid(pr, ek, free[0], free[1], free[2], "p")
+                    val blurred = pyramid(pr, ek, free, "p")
                     free.remove(blurred); free.add(pr); free.add(d)
                     src = blurred; mode = 1
+                    mark("enlarger")
                 }
                 val lin = free.removeAt(0)
                 target(lin)
                 printUniforms(s, src, mode, seed)
                 draw()
                 free.add(src)
+                mark("print")
                 // the scanner's blur
                 var l = lin
                 fr.scanBlur?.let { k ->
                     val t = free.removeAt(0); val o = free.removeAt(0)
                     blurPass(l, t, 0, k); blurPass(t, o, 1, k)
                     free.add(l); free.add(t); l = o
+                    mark("scanBlur")
                 }
                 // 6. sharpening (horizontal here, vertical in the last step) and the display encoding
                 val us = fr.unsharp
                 var hb: Tex? = null
-                if (us != null) { hb = free.removeAt(0); blurPass(l, hb, 0, us) }
+                if (us != null) { hb = free.removeAt(0); blurPass(l, hb, 0, us); mark("sharpenH") }
                 // effects only: the film's colors alone and the inverse input curve – made before anything is bound
                 // (making a texture binds it to the active unit and would replace an input bound just before)
                 if (s.f.effectsOnly && tEncode == 0) tEncode = tex2(FloatArray(FilmFx.ENCODE_N * 3) { s.encode[it / 3] }, FilmFx.ENCODE_N, 1, 3)
@@ -963,6 +1196,12 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                     final.f1("uLinMax", s.linMax)
                 }
                 draw()
+                mark("final")
+                if (prof != null) {
+                    GLES30.glEndQuery(GL_TIME_ELAPSED); GLES30.glDeleteQueries(1, intArrayOf(q0), 0)
+                    val v = IntArray(1)
+                    for ((stage, q) in marks) { GLES30.glGetQueryObjectuiv(q, GLES30.GL_QUERY_RESULT, v, 0); prof(stage, (v[0].toLong() and 0xffffffffL) / 1e6); GLES30.glDeleteQueries(1, intArrayOf(q), 0) }
+                }
                 GlUtil.checkGlError()
             }
         }
@@ -1013,7 +1252,8 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 if (tColor != 0) GLES20.glDeleteTextures(1, intArrayOf(tColor), 0)
                 colorOnly?.delete()
                 copy?.delete()
-                listOf(expose, blur, blurVHalf, half, level, develop1, develop2, print, final, maxHalf, boostP).forEach { it.delete() }
+                listOf(expose, blur, blurVHalf, half, level, develop1, develop2, print, final, maxHalf, boostP, blurH4, blurVSum).forEach { it.delete() }
+                GLES20.glDeleteFramebuffers(1, intArrayOf(mrtFbo), 0)
             } catch (e: Exception) {
                 throw VideoFrameProcessingException(e)
             }

@@ -446,7 +446,7 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
     // a short summary of each playback run in the trail (frames out, late, per layer shown/dropped) – measured on phones
     LaunchedEffect(playback) {
         snapshotFlow { state.playing }.collect { on ->
-            if (on) SyncStats.start() else SyncStats.summary()?.let { CrashReport.note(it) }
+            if (on) SyncStats.start() else SyncStats.summary()?.let { CrashReport.note(it + " (GPU priority ${androidx.media3.effect.KlippPriority.granted ?: "–"})") }
         }
     }
     // the volume slider is audible while dragging (lowering right away; raising up to the player's max volume)
