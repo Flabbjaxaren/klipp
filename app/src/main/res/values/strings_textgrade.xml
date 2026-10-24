@@ -53,6 +53,8 @@
     <string name="titleui_follow_node">%1$s · node %2$02d</string>
     <string name="titleui_follow_object">Follow an Object</string>
     <string name="titleui_follow_hint">Draw a box around an object and the title follows it, or pick a window you tracked in Color.</string>
+    <string name="titleui_follow_scale">Scale with the object</string>
+    <string name="titleui_follow_rotate">Rotate with the object</string>
     <string name="titleui_follow_draw">Follow an object in the picture</string>
     <string name="titleui_follow_drawing">Draw a box in the picture…</string>
     <string name="titleui_follow_no_clip">No video under the title at the playhead to track.</string>

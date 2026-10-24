@@ -12,6 +12,7 @@ import se.gendut.klipp.engine.ClipSnap
 import se.gendut.klipp.engine.Follow
 import se.gendut.klipp.engine.GradeNode
 import se.gendut.klipp.engine.TitleFollow
+import se.gendut.klipp.engine.around
 import se.gendut.klipp.engine.Window
 import se.gendut.klipp.engine.WindowTrack
 
@@ -35,6 +36,51 @@ class TitleFollowTest {
         assertEquals(0f, TitleFollow.offsetOf(f, clip, grade, 10.4, 10.4)!![0], 1e-6f)
         // the node is missing or has no tracking: none
         assertNull(TitleFollow.offsetOf(Follow(7, 9), clip, grade, 10.4, 11.0))
+    }
+
+    @Test fun scaleAndTurnSinceTitleStart() {
+        // the object grows 1 % and turns 0.002 rad (clockwise) per frame
+        val tr = WindowTrack(2.0, 0.04, FloatArray(100), FloatArray(100), FloatArray(100) { 1f + it * 0.01f }, FloatArray(100) { 1f }, smooth = 0f, r = FloatArray(100) { it * 0.002f })
+        val g = ClipGrade(listOf(GradeNode(1, win = Window(shape = 1, track = tr))))
+        // from frame 10 to frame 30: 1.3 / 1.1 and 20 · 0.002
+        val o = TitleFollow.offsetOf(Follow(7, 1, scale = true, rotate = true), clip, g, 10.4, 11.2)!!
+        assertEquals(1.3f / 1.1f, o[2], 1e-4f); assertEquals(0.04f, o[3], 1e-5f)
+        // not asked for: unchanged
+        val n = TitleFollow.offsetOf(Follow(7, 1), clip, g, 10.4, 11.2)!!
+        assertEquals(1f, n[2], 0f); assertEquals(0f, n[3], 0f)
+    }
+
+    @Test fun followChoicesAreSavedAndOldLinksRead() {
+        assertEquals(Follow(7, 1), Follow.parse("7:1"))
+        for (f in listOf(Follow(7, 1, true, false), Follow(7, 1, false, true), Follow(7, 1, true, true))) assertEquals(f, Follow.parse(f.encode()))
+        assertEquals("7:1", Follow(7, 1).encode())
+    }
+
+    /** Growing and turning happen around the text's own point: that point stays where it was, the rest moves around it. */
+    @Test fun scaleAndTurnAroundTheText() {
+        val w = 1920; val h = 1080
+        val base = se.gendut.klipp.engine.Placement(0f, 0f, 0.1f, -0.2f, 1.3f, 15f, 1f)
+        val p = -0.5f to 0.25f
+        // where an overlay point lands (as drawPlaced does: pixels, scale and counterclockwise turn around the anchor)
+        fun land(pl: se.gendut.klipp.engine.Placement, x: Float, y: Float): Pair<Float, Float> {
+            fun px(v: Float) = (v + 1f) / 2f * w
+            fun py(v: Float) = (1f - v) / 2f * h
+            val a = Math.toRadians(-pl.rotation.toDouble())
+            val vx = (px(x) - px(pl.ovX)) * pl.scale; val vy = (py(y) - py(pl.ovY)) * pl.scale
+            return (px(pl.bgX) + (vx * kotlin.math.cos(a) - vy * kotlin.math.sin(a)).toFloat()) to (py(pl.bgY) + (vx * kotlin.math.sin(a) + vy * kotlin.math.cos(a)).toFloat())
+        }
+        val moved = base.around(p, 1.8f, 0.3f, w, h)
+        val before = land(base, p.first, p.second); val after = land(moved, p.first, p.second)
+        assertEquals(before.first, after.first, 0.01f); assertEquals(before.second, after.second, 0.01f)
+        assertEquals(1.3f * 1.8f, moved.scale, 1e-5f)
+        assertEquals(15f - Math.toDegrees(0.3).toFloat(), moved.rotation, 1e-3f)
+        // another point: 1.8 times as far from the text point, turned 0.3 rad clockwise
+        val q0 = land(base, 0.2f, -0.1f); val q1 = land(moved, 0.2f, -0.1f)
+        val d0 = kotlin.math.hypot(q0.first - before.first, q0.second - before.second)
+        val d1 = kotlin.math.hypot(q1.first - before.first, q1.second - before.second)
+        assertEquals(1.8f, d1 / d0, 1e-3f)
+        val turn = kotlin.math.atan2(q1.second - before.second, q1.first - before.first) - kotlin.math.atan2(q0.second - before.second, q0.first - before.first)
+        assertEquals(0.3f, turn, 1e-3f)
     }
 
     @Test fun followIsSavedWithGrades() {

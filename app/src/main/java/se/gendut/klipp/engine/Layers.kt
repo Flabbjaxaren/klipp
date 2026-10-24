@@ -414,14 +414,55 @@ fun placementOf(item: OverlayItem, t: Double, w: Int, h: Int): Placement {
     val f = item.clip?.let { TitleFollow.offset(it.id, item.start, t) }
     val fx = (f?.get(0) ?: 0f) * 2f
     val fy = -(f?.get(1) ?: 0f) * 2f
-    return Placement(pose.anchorX, pose.anchorY, pose.anchorX + pose.dx + mx + fx, pose.anchorY + pose.dy + my + fy, pose.scale * k, -rot, a * pose.alpha)
+    val base = Placement(pose.anchorX, pose.anchorY, pose.anchorX + pose.dx + mx + fx, pose.anchorY + pose.dy + my + fy, pose.scale * k, -rot, a * pose.alpha)
+    val ks = f?.getOrNull(2) ?: 1f
+    val th = f?.getOrNull(3) ?: 0f
+    if (f == null || (kotlin.math.abs(ks - 1f) < 1e-5f && kotlin.math.abs(th) < 1e-6f)) return base
+    // grows and turns with the object around the text's own point (where it lands now), not the template's anchor
+    return base.around(textPoint(title.t, w, h), ks, th, w, h)
 }
 
-/** A title following a tracked window: the clip below and the node with the window. */
-data class Follow(val clip: Long, val node: Int) {
-    fun encode() = "$clip:$node"
+/** Where a title's text sits in its own image (NDC): a free title at its position, the templates at their anchor. */
+fun textPoint(t: TextSnap, w: Int, h: Int): Pair<Float, Float> = when (t.look.template) {
+    TitleTemplate.FREE -> (((t.x ?: (w / 2.0)) / w * 2 - 1).toFloat()) to ((1 - (t.y ?: (h / 2.0)) / h * 2).toFloat())
+    else -> TitleMotion.anchorOf(t.look.template, w, h)
+}
+
+/**
+ * This placement, then scaled [k] times and turned [th] radians (clockwise on screen) around the point where the
+ * overlay's point [p] (NDC in its own image) lands. Worked in pixels so the turn is round on a wide frame.
+ */
+fun Placement.around(p: Pair<Float, Float>, k: Float, th: Float, w: Int, h: Int): Placement {
+    fun px(x: Float) = (x + 1f) / 2f * w
+    fun py(y: Float) = (1f - y) / 2f * h
+    // the overlay point p in the frame: anchor + scale·turn(p − anchor); Placement.rotation is counterclockwise
+    val a = Math.toRadians(-rotation.toDouble())
+    val vx = (px(p.first) - px(ovX)) * scale; val vy = (py(p.second) - py(ovY)) * scale
+    val qx = px(bgX) + (vx * kotlin.math.cos(a) - vy * kotlin.math.sin(a)).toFloat()
+    val qy = py(bgY) + (vx * kotlin.math.sin(a) + vy * kotlin.math.cos(a)).toFloat()
+    // the anchor's landing point turned and scaled around q
+    val dx = px(bgX) - qx; val dy = py(bgY) - qy
+    val c = kotlin.math.cos(th.toDouble()); val sn = kotlin.math.sin(th.toDouble())
+    val nx = qx + k * (dx * c - dy * sn).toFloat()
+    val ny = qy + k * (dx * sn + dy * c).toFloat()
+    return copy(bgX = nx / w * 2f - 1f, bgY = 1f - ny / h * 2f, scale = scale * k, rotation = rotation - Math.toDegrees(th.toDouble()).toFloat())
+}
+
+/**
+ * A title following a tracked window: the clip below and the node with the window; [scale] / [rotate] = the title
+ * also grows and turns with the object.
+ */
+data class Follow(val clip: Long, val node: Int, val scale: Boolean = false, val rotate: Boolean = false) {
+    fun encode() = "$clip:$node" + if (scale || rotate) ":" + (if (scale) "s" else "") + (if (rotate) "r" else "") else ""
     companion object {
-        fun parse(s: String): Follow? = s.split(':').takeIf { it.size == 2 }?.let { (a, b) -> a.toLongOrNull()?.let { c -> b.toIntOrNull()?.let { Follow(c, it) } } }
+        fun parse(s: String): Follow? {
+            val p = s.split(':')
+            if (p.size !in 2..3) return null
+            val c = p[0].toLongOrNull() ?: return null
+            val n = p[1].toIntOrNull() ?: return null
+            val o = p.getOrNull(2).orEmpty()
+            return Follow(c, n, 's' in o, 'r' in o)
+        }
     }
 }
 
@@ -444,7 +485,10 @@ object TitleFollow {
         revision++
     }
 
-    /** The displacement (dx, dy, fraction of the image) for title [title] at timeline [t], since the title's start [start]. */
+    /**
+     * The displacement (dx, dy, fraction of the image) for title [title] at timeline [t] since the title's start
+     * [start], then the scale factor and the turn (radians, clockwise) since then (1 and 0 unless the title follows those).
+     */
     fun offset(title: Long, start: Double, t: Double): FloatArray? {
         val f = follows[title] ?: return null
         return offsetOf(f, clips[f.clip] ?: return null, grades[f.clip] ?: return null, start, t)
@@ -455,7 +499,7 @@ object TitleFollow {
         val track = g.nodes.firstOrNull { it.id == f.node }?.win?.track ?: return null
         fun src(x: Double) = c.sourceAt(x)
         val a = track.at(src(start)); val b = track.at(src(t))
-        return floatArrayOf(b[0] - a[0], b[1] - a[1])
+        return floatArrayOf(b[0] - a[0], b[1] - a[1], if (f.scale && a[2] > 1e-4f) b[2] / a[2] else 1f, if (f.rotate) b[3] - a[3] else 0f)
     }
 }
 
