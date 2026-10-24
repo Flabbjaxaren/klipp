@@ -120,7 +120,9 @@ private fun LayerVideo(
     // the edit point layer starts each segment a little early, unseen (see HANDOFF_PREROLL_S): source ms before the
     // segment's start, per segment (0 = none)
     val preMs = remember(segs, plan) { segs.indices.map { k -> if (handoff) handoffPreroll(segs, k, plan) else 0L } }
-    fun preS(k: Int): Double = (segs[k].src as? SegSrc.Media)?.takeIf { it.speed > 0 }?.let { preMs[k] / 1000.0 / it.speed } ?: 0.0
+    fun preS(k: Int): Double = if (Preroll.off) 0.0 else (segs[k].src as? SegSrc.Media)?.takeIf { it.speed > 0 }?.let { preMs[k] / 1000.0 / it.speed } ?: 0.0
+    // where the player waits for segment k: the pre-roll's start, or the segment's own start without pre-roll
+    fun waitMs(k: Int): Long = if (Preroll.off) preMs[k] else 0L
     var videoSize by remember { mutableStateOf(VideoSize.UNKNOWN) }
     // the segment (index in the player) whose frame has actually been drawn on the layer's surface – until then the layer
     // isn't shown at all, so a dissolve never blends in an empty (black) surface while the decoder starts
@@ -195,6 +197,10 @@ private fun LayerVideo(
         // the layers above it (see starting)
         val uppers = if (handoff) plan.layers.dropLast(1) else emptyList()
         var seenSeg = -1
+        // when the current pre-roll began (uptime ms; 0 = none)
+        var prerollAt = 0L
+        // since when playback runs (frame time ms; 0 = paused)
+        var playingSince = 0L
         // the layers below this one (their clips are hidden while this one covers the frame, see Occlusion)
         val below = plan.layers.indexOfFirst { it.name == planName }.let { k -> if (k < 0 || handoff) emptyList() else plan.layers.drop(k + 1) }
         // paused and done seeking: sleep until playback starts or the playhead moves (no needless frame loop)
@@ -269,6 +275,18 @@ private fun LayerVideo(
             }
             // (in a segment's pre-roll the layer plays unseen)
             preRolling = i >= 0 && t < segs[i].start
+            // the main player fell behind while a pre-roll ran (a heavier picture, a slower phone): it stops right away
+            // and isn't used again this session – the layer then starts on the frame itself, as before
+            // (not when playback itself just started – the main player's own start can be late)
+            if (state.playing) { if (playingSince == 0L) playingSince = now } else playingSince = 0L
+            if (preRolling && handoff && now - playingSince >= PREROLL_ARMED_MS) {
+                if (prerollAt == 0L) prerollAt = android.os.SystemClock.uptimeMillis()
+                else if (androidx.media3.effect.KlippPrecision.lastLateAt >= prerollAt && !Preroll.off) {
+                    Preroll.off = true
+                    se.gendut.klipp.CrashReport.note("edit point pre-roll off: the video chain was late while it ran")
+                }
+                if (Preroll.off) { preRolling = false; i = -1 }
+            } else prerollAt = 0L
             if (handoff) SyncStats.handoff(i >= 0 && !preRolling)
             // frames reaching the screen while the layer is seen (playback summary)
             if (i >= 0 && state.playing && !preRolling) {
@@ -312,8 +330,8 @@ private fun LayerVideo(
                 val next = segs.indexOfFirst { it.start > t }
                 // (also when it is in that segment but not at its start: a layer with a single segment, or one played
                 // before, still stood where it stopped – and had to seek from a keyframe as the segment began)
-                val sought = next >= 0 && (player.currentMediaItemIndex != next || player.currentPosition > PREPARED_MS)
-                if (sought) { player.seekTo(next, 0); lastSeek = now }
+                val sought = next >= 0 && (player.currentMediaItemIndex != next || abs(player.currentPosition - waitMs(next)) > PREPARED_MS)
+                if (sought) { player.seekTo(next, waitMs(next)); lastSeek = now }
                 if (next >= 0) cue = next
                 if (!state.playing && !sought) idle()
                 continue
@@ -430,6 +448,11 @@ private const val HANDOFF_STARTING_S = 0.3
  * no other layer plays then (a dissolve already has two pictures going at that point) and where the file has material.
  */
 private const val HANDOFF_PREROLL_S = 0.25
+
+/** Turned off for the session when the main player was late during a pre-roll (see HANDOFF_PREROLL_S). */
+internal object Preroll { @Volatile var off = false }
+/** Playback has run this long (ms) before late frames during a pre-roll count against it. */
+private const val PREROLL_ARMED_MS = 1000L
 
 /** Source milliseconds of pre-roll for the edit point layer's segment [k] (see [HANDOFF_PREROLL_S]). */
 private fun handoffPreroll(segs: List<Seg>, k: Int, plan: LayerPlan): Long {
