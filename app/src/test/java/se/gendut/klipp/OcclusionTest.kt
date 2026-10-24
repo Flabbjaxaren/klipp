@@ -52,4 +52,18 @@ class OcclusionTest {
         repeat(3) { Occlusion.sawMain(42L) }
         assertEquals(before + 3, Occlusion.mainFrames(42L))
     }
+
+    /** The edit point layer's mark: only the main player's chain, lifted at once, and the graded frames counted after. */
+    @Test fun mainOnlyMark() {
+        Occlusion.hideMain(7L, nowMs = 1000L)
+        assertTrue(Occlusion.hiddenMain(7L, nowMs = 1100L))
+        assertFalse("other chains of the clip keep their film", Occlusion.hidden(7L, nowMs = 1100L))
+        assertFalse("lapses", Occlusion.hiddenMain(7L, nowMs = 1000L + Occlusion.HOLD_MS))
+        Occlusion.hideMain(7L, nowMs = 2000L)
+        Occlusion.showMain(7L)
+        assertFalse(Occlusion.hiddenMain(7L, nowMs = 2001L))
+        val before = Occlusion.filmedFrames(7L)
+        repeat(2) { Occlusion.filmed(7L) }
+        assertEquals(before + 2, Occlusion.filmedFrames(7L))
+    }
 }

@@ -87,7 +87,9 @@ fun UpperLayers(
             }
         }
         if (handoff != null) key("klippbyten") { LayerVideo(handoff, plan, controller, state, main, gradeOf, look, handoff = true) }
-        for (layer in uppers) key(layer.name) { LayerVideo(layer, plan, controller, state, main, gradeOf, look) }
+        // back-to-back segments (a dissolve's two halves, clips next to each other in an upper track): two players
+        // taking turns, see Alternate
+        for (layer in uppers) for (part in Alternate.split(layer)) key(part.name) { LayerVideo(part, plan, controller, state, main, gradeOf, look, planName = layer.name) }
         if (plan.overlays.isNotEmpty()) OverlayText(plan, state)
     }
 }
@@ -99,6 +101,8 @@ private fun LayerVideo(
     gradeOf: (Long) -> se.gendut.klipp.engine.ClipGrade?, look: se.gendut.klipp.engine.Look,
     /** The handoff layer: shown only during playback; when paused the player waits ready at the next edit point. */
     handoff: Boolean = false,
+    /** The plan's layer this one plays (or part of it, see Alternate). */
+    planName: String = layer.name,
 ) {
     val ctx = LocalContext.current
     val player = remember {
@@ -111,14 +115,12 @@ private fun LayerVideo(
             repeatMode = Player.REPEAT_MODE_OFF
         }
     }
-    DisposableEffect(player) {
-        // frames shown and dropped by this layer's decoder (diagnostics and the playback summary in the trail)
-        val stats = SyncStats.forLayer(layer.name)
-        // (dropped = too late to show; frames skipped on purpose while seeking to an exact spot are not counted)
-        stats.counters = { player.videoDecoderCounters?.let { it.ensureUpdated(); it.renderedOutputBufferCount.toLong() to it.droppedBufferCount.toLong() } }
-        onDispose { stats.counters = null; player.release() }
-    }
+    DisposableEffect(player) { onDispose { player.release() } }
     val segs = remember(layer) { layer.segs.filter { controller.uriOf(it.src.item) != null } }
+    // the edit point layer starts each segment a little early, unseen (see HANDOFF_PREROLL_S): source ms before the
+    // segment's start, per segment (0 = none)
+    val preMs = remember(segs, plan) { segs.indices.map { k -> if (handoff) handoffPreroll(segs, k, plan) else 0L } }
+    fun preS(k: Int): Double = (segs[k].src as? SegSrc.Media)?.takeIf { it.speed > 0 }?.let { preMs[k] / 1000.0 / it.speed } ?: 0.0
     var videoSize by remember { mutableStateOf(VideoSize.UNKNOWN) }
     // the segment (index in the player) whose frame has actually been drawn on the layer's surface – until then the layer
     // isn't shown at all, so a dissolve never blends in an empty (black) surface while the decoder starts
@@ -139,15 +141,15 @@ private fun LayerVideo(
     }
     // the image from the proxy when there is one (swapped when a proxy is ready)
     val proxyRev = se.gendut.klipp.engine.Proxies.revision
-    LaunchedEffect(segs, proxyRev) {
-        player.setMediaItems(segs.map { seg ->
+    LaunchedEffect(segs, proxyRev, preMs) {
+        player.setMediaItems(segs.mapIndexed { k, seg ->
             // freeze frame: just the frame (the player stays paused on it for the whole segment, see below)
             val s = seg.src as? SegSrc.Media ?: (seg.src as SegSrc.Still).let { st -> SegSrc.Media(st.item, st.sec, 0.0) }
             MediaItem.Builder().setUri(controller.uriOf(s.item)?.let { se.gendut.klipp.engine.Proxies.videoUri(it) })
                 .setClippingConfiguration(
                     MediaItem.ClippingConfiguration.Builder()
                         // start ≥ 0 and end after start (camera files can have a negative start time, see Playback.clipped)
-                        .setStartPositionMs((s.srcIn * 1000).roundToLong().coerceAtLeast(0L))
+                        .setStartPositionMs(((s.srcIn * 1000).roundToLong() - preMs[k]).coerceAtLeast(0L))
                         .setEndPositionMs(((s.srcIn + (if (s.speed == 0.0) 0.1 else seg.dur * kotlin.math.abs(s.speed))) * 1000).roundToLong().coerceAtLeast((s.srcIn * 1000).roundToLong().coerceAtLeast(0L) + 1))
                         .build()
                 ).build()
@@ -155,7 +157,13 @@ private fun LayerVideo(
         drawnIndex = -1
         player.prepare()
     }
+    // the layer's view (its latest frame time, for the playback summary)
+    var view by remember { mutableStateOf<android.view.TextureView?>(null) }
     var active by remember { mutableIntStateOf(-1) }
+    // the edit point layer stays after a pause until the main player's frame is graded again (see holdSeg)
+    var holding by remember { mutableStateOf(false) }
+    // playing a segment's pre-roll (unseen, see preMs)
+    var preRolling by remember { mutableStateOf(false) }
     // the segment whose effects (grade, LUT) are loaded in the player: the active one, or in a gap the one the player
     // is already waiting on – so the LUT is there from the first frame instead of a few frames in
     var cue by remember { mutableIntStateOf(-1) }
@@ -166,43 +174,119 @@ private fun LayerVideo(
     // and only a real hiccup (> 200 ms, e.g. a decoder that got stuck) is corrected with a seek.
     // proxyRev: when a proxy is swapped in the segments are reloaded (the player then starts from the beginning) – sync
     // restarts and seeks to the playhead right away, even when it is standing still
-    LaunchedEffect(segs, main, proxyRev) {
+    LaunchedEffect(segs, main, proxyRev, preMs) {
         var lastSeek = 0L
         var lastMainMs = -1L
         val stats = SyncStats.forLayer(layer.name)
         // the edit point layer: the segment it is covering, the main chain's frames of that clip when it began, and
         // when the main player had enough of them (see Occlusion.mainFrames)
-        var handSeg = -1; var handFrames = 0L; var handReadyAt = 0L
+        var handSeg = -1; var handFrames = 0L; var handReadyAt = 0L; var handDown = false
+        // … the main player's clips whose film it skipped meanwhile (it covered them, see Occlusion.hideMain), their
+        // graded frames when it stopped doing that, and when enough of them had come
+        val handHid = HashSet<Long>(); var handFilmBase = 0L; var handGradedAt = 0L; var handForced = false
+        // paused while the main player's picture could still be one without its film: the layer keeps showing its own
+        // frame (segment holdSeg) until the main player has drawn its frame again, graded
+        var holdSeg = -1; var holdUntil = 0L; var holdBase = 0L; var holdGradedAt = 0L
+        val holdIds = HashSet<Long>()
+        fun filmedOf(ids: Set<Long>) = ids.sumOf { se.gendut.klipp.engine.Occlusion.filmedFrames(it) }
+        fun unhide() { for (c in handHid) se.gendut.klipp.engine.Occlusion.showMain(c) }
+        // the main player's layer (the one the edit point layer covers)
+        val mainLayer = plan.layers.lastOrNull()
+        // the layers above it (see starting)
+        val uppers = if (handoff) plan.layers.dropLast(1) else emptyList()
+        var seenSeg = -1
         // the layers below this one (their clips are hidden while this one covers the frame, see Occlusion)
-        val below = plan.layers.indexOfFirst { it.name == layer.name }.let { k -> if (k < 0 || handoff) emptyList() else plan.layers.drop(k + 1) }
+        val below = plan.layers.indexOfFirst { it.name == planName }.let { k -> if (k < 0 || handoff) emptyList() else plan.layers.drop(k + 1) }
         // paused and done seeking: sleep until playback starts or the playhead moves (no needless frame loop)
         suspend fun idle() {
             val ph = state.playhead
             snapshotFlow { state.playing || state.playhead != ph }.first { it }
             lastMainMs = -1L
         }
-        while (true) {
+        // (marks left by the edit point layer are lifted right away when it stops, not after they lapse)
+        try { while (true) {
             val now = withFrameNanos { it } / 1_000_000
             val mainMs = main?.currentPosition
             val advancing = mainMs != null && lastMainMs >= 0 && mainMs != lastMainMs && main.isPlaying
             lastMainMs = mainMs ?: -1L
             val t = if (mainMs != null && state.playing) mainMs / 1000.0 else state.playhead.toDouble()
-            var i = if (handoff && !state.playing) -1 else segs.indexOfFirst { t >= it.start && t < it.end }
+            var i = if (handoff && !state.playing) -1 else segs.indices.indexOfFirst { k -> t >= segs[k].start - preS(k) && t < segs[k].end }
+            if (handoff && !state.playing && handSeg >= 0 && handHid.isNotEmpty() && !handDown) {
+                // paused during the handover: the main player draws its frame again (a seek one millisecond away, as
+                // Playback.redraw), now with its film; the layer stays meanwhile
+                unhide()
+                holdIds.clear(); holdIds += handHid; holdBase = filmedOf(holdIds); holdGradedAt = 0L
+                holdSeg = handSeg; holdUntil = now + HANDOFF_HOLD_MS
+                main?.let { m -> val pos = m.currentPosition; m.seekTo(if (pos < 1) pos + 1 else pos - 1) }
+                handHid.clear(); handSeg = -1
+            }
+            if (holdSeg >= 0) {
+                val graded = filmedOf(holdIds) > holdBase
+                if (graded && holdGradedAt == 0L) holdGradedAt = now
+                // (only once the main player's frame has its film again – played on, or the playhead moved, or not)
+                if (now >= holdUntil || graded && (state.playing || now - holdGradedAt >= HANDOFF_GRADED_MS)) {
+                    holdSeg = -1; holding = false
+                } else {
+                    holding = true; preRolling = false; active = holdSeg
+                    if (player.playWhenReady) player.pause()
+                    continue
+                }
+            }
             // the edit point layer stands down once the main player has the new clip going (it computed the same
             // picture in the main chain for a whole second before – twice the GPU work at every cut)
+            // (outside its segments – and when paused – it starts over: a segment played again gets the layer again)
+            if (handoff && i < 0) { if (handSeg >= 0) unhide(); handSeg = -1 }
             if (handoff && i >= 0) {
                 val id = segs[i].clip?.id
-                if (i != handSeg) { handSeg = i; handFrames = id?.let { se.gendut.klipp.engine.Occlusion.mainFrames(it) } ?: 0L; handReadyAt = 0L }
+                if (i != handSeg) {
+                    if (handSeg >= 0) unhide()
+                    handSeg = i; handFrames = id?.let { se.gendut.klipp.engine.Occlusion.mainFrames(it) } ?: 0L; handReadyAt = 0L; handDown = false
+                    handHid.clear(); handGradedAt = 0L; handForced = false
+                    // entered after the edit point (playback started, or a seek, inside the segment): the main player
+                    // doesn't switch clips here – nothing to cover, and the layer would only start up on top of it
+                    if (t - segs[i].start > HANDOFF_LATE_S) handDown = true
+                }
                 // … and plays on time: a decoder that has just started can still drop frames as late for a while (they
                 // showed as a stutter right after the layer stood down)
                 val calm = android.os.SystemClock.uptimeMillis() - androidx.media3.effect.KlippPrecision.lastLateAt >= HANDOFF_CALM_MS
-                if (id != null && se.gendut.klipp.engine.Occlusion.mainFrames(id) - handFrames >= HANDOFF_FRAMES && calm) {
-                    if (handReadyAt == 0L) handReadyAt = now
-                    if (now - handReadyAt >= HANDOFF_SETTLE_MS) i = -1
+                // the main player's film runs again from here; with frames skipped before, the layer waits until graded
+                // frames have come through and the ones without film have been shown under it
+                // … and no other layer is just starting (a dissolve's second half begins at the edit point – the main
+                // player's film coming back then made three pictures to compute at once while that one got going)
+                val starting = uppers.any { l -> l.segs.any { it.start > t - HANDOFF_STARTING_S && it.start <= t + 0.05 } }
+                if (handReadyAt == 0L && id != null && se.gendut.klipp.engine.Occlusion.mainFrames(id) - handFrames >= HANDOFF_FRAMES && calm && !starting) {
+                    handReadyAt = now; unhide(); handFilmBase = filmedOf(handHid)
+                }
+                if (handReadyAt != 0L) {
+                    if (handHid.isNotEmpty() && handGradedAt == 0L && filmedOf(handHid) - handFilmBase >= HANDOFF_FILMED) handGradedAt = now
+                    val ok = if (handHid.isEmpty()) now - handReadyAt >= HANDOFF_SETTLE_MS else handGradedAt != 0L && now - handGradedAt >= HANDOFF_GRADED_MS
+                    // (forced: the layer needed a seek – it goes as soon as the main player's frames are graded)
+                    if (ok && (calm || handForced)) handDown = true
+                }
+                // once stood down it stays down for the rest of the segment: coming back (a late frame after the
+                // handover) meant a seek in the paused player – itself a hitch
+                if (handDown) i = -1
+            }
+            // (in a segment's pre-roll the layer plays unseen)
+            preRolling = i >= 0 && t < segs[i].start
+            if (handoff) SyncStats.handoff(i >= 0 && !preRolling)
+            // frames reaching the screen while the layer is seen (playback summary)
+            if (i >= 0 && state.playing && !preRolling) {
+                val ts = view?.surfaceTexture?.timestamp ?: 0L
+                if (i != seenSeg) { seenSeg = i; stats.visible(ts, now) } else stats.frame(ts, now)
+            } else seenSeg = -1
+            active = i
+            // the edit point layer covering the whole frame, opaque, while playing: the main player's picture of the same
+            // clip isn't seen – its film is skipped until the layer begins to stand down (and not in the last LEAD of the
+            // layer's segment), see Occlusion.hideMain
+            if (handoff && i >= 0 && !preRolling && handReadyAt == 0L && state.playing && drawnIndex == i && player.isPlaying) {
+                val sg = segs[i]
+                val ahead = t + se.gendut.klipp.engine.Occlusion.LEAD_S
+                val full = se.gendut.klipp.engine.Occlusion.Box(0.0, 0.0, plan.width.toDouble(), plan.height.toDouble())
+                if (ahead < sg.end && coverBox(sg, t, plan, videoSize, gradeOf)?.contains(full) == true && coverBox(sg, ahead, plan, videoSize, gradeOf)?.contains(full) == true) {
+                    mainLayer?.at(t)?.clip?.id?.let { c -> se.gendut.klipp.engine.Occlusion.hideMain(c); handHid += c }
                 }
             }
-            if (handoff) SyncStats.handoff(i >= 0)
-            active = i
             // covering the whole frame, opaque, while playing: the clips below aren't seen – their film is skipped
             // (marked until LEAD before this one ends, so they are graded again before they show)
             if (i >= 0 && below.isNotEmpty() && state.playing && drawnIndex == i && player.isPlaying) {
@@ -226,7 +310,9 @@ private fun LayerVideo(
                 // prepare the next segment right away (paused on its first frame) – the file is opened and the decoder started
                 // in good time, even the first time and with heavy originals (4K, HEVC) that take a while to get going
                 val next = segs.indexOfFirst { it.start > t }
-                val sought = next >= 0 && player.currentMediaItemIndex != next
+                // (also when it is in that segment but not at its start: a layer with a single segment, or one played
+                // before, still stood where it stopped – and had to seek from a keyframe as the segment began)
+                val sought = next >= 0 && (player.currentMediaItemIndex != next || player.currentPosition > PREPARED_MS)
                 if (sought) { player.seekTo(next, 0); lastSeek = now }
                 if (next >= 0) cue = next
                 if (!state.playing && !sought) idle()
@@ -238,18 +324,25 @@ private fun LayerVideo(
             // freeze frame: stays on the frame (the segment's start) the whole time
             val speed = media?.speed?.toFloat() ?: 1f
             if (abs(player.playbackParameters.speed - speed) > 0.0001f) player.setPlaybackSpeed(speed)
-            val target = if (media == null) 0L else ((t - seg.start) * speed * 1000).roundToLong()
-            clock.srcIn = media?.srcIn ?: (seg.src as SegSrc.Still).sec; clock.posSec = target / 1000.0; clock.item = seg.src.item
-            val run = media != null && state.playing && (main == null || advancing)
+            val target = if (media == null) 0L else ((t - seg.start) * speed * 1000).roundToLong() + preMs[i]
+            clock.srcIn = media?.let { it.srcIn - preMs[i] / 1000.0 } ?: (seg.src as SegSrc.Still).sec; clock.posSec = target / 1000.0; clock.item = seg.src.item
+            // (once going it keeps going while the main player plays: its reported position often stands still for a few
+            // display frames although it plays on – the layer was paused, and often sought, at each of those)
+            val run = media != null && state.playing && (main == null || advancing || player.playWhenReady && main.isPlaying)
             val d = LayerSync.decide(
                 curIndex = player.currentMediaItemIndex, curMs = player.currentPosition, wantIndex = i, wantMs = target,
                 running = run, ready = player.playbackState == Player.STATE_READY, msSinceSeek = now - lastSeek,
             )
-            d.seekMs?.let { player.seekTo(i, it); lastSeek = now; stats.seeks++ }
+            if (d.seekMs != null && handoff && handHid.isNotEmpty() && !handDown) {
+                // the edit point layer has the main player's film off: a seek would hide it (until its frame comes) and
+                // show the main player's picture without film – it stands down instead, still showing, see above
+                if (handReadyAt == 0L) { handReadyAt = now; unhide(); handFilmBase = filmedOf(handHid) }
+                handForced = true
+            } else d.seekMs?.let { player.seekTo(i, it); lastSeek = now; stats.seeks++ }
             if (player.playWhenReady != run) player.playWhenReady = run
             if (run && player.isPlaying && d.seekMs == null) stats.record(player.currentPosition - target)
             if (!state.playing && d.seekMs == null && player.playbackState != Player.STATE_BUFFERING) idle()
-        }
+        } } finally { unhide() }
     }
     val seg = segs.getOrNull(active)
     val c = seg?.clip
@@ -292,7 +385,7 @@ private fun LayerVideo(
                 .graphicsLayer {
                     // read in the layer's draw phase: follows the keyframes frame by frame without recomposition
                     val c = c?.at(state.playhead.toDouble())
-                    this.alpha = if (seg == null || drawnIndex != active || (handoff && !state.playing)) 0f else seg.alpha(state.playhead.toDouble())
+                    this.alpha = if (seg == null || drawnIndex != active || preRolling || (handoff && !state.playing && !holding)) 0f else seg.alpha(state.playhead.toDouble())
                     // the blend mode (the program image is then drawn in a TextureView, see ProgramSurface): like the compositor's in the export
                     val bm = seg?.clip?.let { cl -> gradeOf(cl.id)?.layer?.blend }?.let(::composeBlend)
                     blendMode = bm ?: androidx.compose.ui.graphics.BlendMode.SrcOver
@@ -316,7 +409,7 @@ private fun LayerVideo(
         ) {
             // a dedicated non-opaque TextureView: without a frame (yet) the layer below shows, never black
             androidx.compose.ui.viewinterop.AndroidView(
-                factory = { c -> android.view.TextureView(c).apply { isOpaque = false; player.setVideoTextureView(this) } },
+                factory = { c -> android.view.TextureView(c).apply { isOpaque = false; player.setVideoTextureView(this); view = this } },
                 modifier = Modifier.fillMaxSize(),
                 onRelease = { v -> player.clearVideoTextureView(v) },
             )
@@ -324,9 +417,44 @@ private fun LayerVideo(
     }
 }
 
+/** A layer player waiting for its next segment stands at most this far (ms) into it. */
+private const val PREPARED_MS = 20L
 /** Main chain frames of the new clip before the edit point layer stands down, and the wait after that (ms). */
 private const val HANDOFF_FRAMES = 4L
 private const val HANDOFF_SETTLE_MS = 100L
+/** A layer whose segment began less than this long ago (s) is still getting going. */
+private const val HANDOFF_STARTING_S = 0.3
+/**
+ * The edit point layer starts playing this long (s) before the edit point, unseen, from the material before the new
+ * clip's start – a player started from paused on the frame itself showed its next frames one or two late. Only where
+ * no other layer plays then (a dissolve already has two pictures going at that point) and where the file has material.
+ */
+private const val HANDOFF_PREROLL_S = 0.25
+
+/** Source milliseconds of pre-roll for the edit point layer's segment [k] (see [HANDOFF_PREROLL_S]). */
+private fun handoffPreroll(segs: List<Seg>, k: Int, plan: LayerPlan): Long {
+    val sg = segs[k]
+    val m = sg.src as? SegSrc.Media ?: return 0L
+    if (m.speed <= 0.0) return 0L
+    val busy = plan.layers.dropLast(1).any { l -> l.segs.any { it.end > sg.start - HANDOFF_PREROLL_S && it.start < sg.start + 0.05 } }
+    if (busy) return 0L
+    // not into the previous segment of this player (it has to stop and seek between them), not before the timeline's start
+    val prevGap = segs.getOrNull(k - 1)?.let { sg.start - it.end - 0.05 } ?: Double.MAX_VALUE
+    val sec = minOf(HANDOFF_PREROLL_S, prevGap, sg.start).coerceAtLeast(0.0)
+    return minOf((sec * m.speed * 1000).toLong(), (m.srcIn * 1000).toLong()).coerceAtLeast(0L)
+}
+
+/** The edit point layer only takes over when the playhead reaches its segment's start, not this much (s) later. */
+private const val HANDOFF_LATE_S = 0.15
+/**
+ * After the main player's film runs again (see Occlusion.hideMain): graded frames through its film before the edit point
+ * layer stands down, and the wait after that (ms) – the frames without film still queued for display are shown under
+ * the layer meanwhile (from the film pass to the screen took at most 65 ms on the OnePlus 12, 39 ms on average).
+ */
+private const val HANDOFF_FILMED = 2L
+private const val HANDOFF_GRADED_MS = 150L
+/** Paused during the handover: the longest the layer waits for the main player's graded frame (ms). */
+private const val HANDOFF_HOLD_MS = 1000L
 /** No late frame in the video chain for this long (ms) before the edit point layer stands down. */
 private const val HANDOFF_CALM_MS = 250L
 
@@ -430,6 +558,23 @@ internal object Handoff {
     }
 }
 
+/**
+ * A layer whose segments follow each other closely is played by two players taking turns (every other segment): the
+ * idle one waits paused on its next segment's first frame. With one player the switch happened while playing – the
+ * player was still in the previous segment when the timeline reached the next, so it sought there and decoded from
+ * the nearest keyframe; a dissolve lost about half its frames at the edit point. Preview only.
+ */
+internal object Alternate {
+    /** Segments closer than this (s) get the other player. */
+    const val GAP = 1.0
+
+    fun split(layer: Layer): List<Layer> {
+        val s = layer.segs
+        if ((1 until s.size).none { s[it].start - s[it - 1].end < GAP }) return listOf(layer)
+        return listOf(layer.copy(segs = s.filterIndexed { i, _ -> i % 2 == 0 }), Layer(layer.name + " B", s.filterIndexed { i, _ -> i % 2 == 1 }))
+    }
+}
+
 /** How a layer's player is kept in step with the timeline (pure logic, testable). No time stretch. */
 object LayerSync {
     data class Decision(val seekMs: Long?)
@@ -461,11 +606,22 @@ object SyncStats {
         @Volatile var samples = 0L
         @Volatile var sumAbs = 0L
         @Volatile var seeks = 0
-        /** The layer player's decoder: (frames rendered, frames dropped as late) so far. */
-        @Volatile var counters: (() -> Pair<Long, Long>?)? = null
-            set(v) { field = v; base = v?.invoke() ?: (0L to 0L) }
-        /** The counters when this player registered (a player made during a run counts from there). */
-        @Volatile var base: Pair<Long, Long> = 0L to 0L
+        /**
+         * New frames on the layer's view while it was seen during this run, and the longest wait for one (ms). (Not the
+         * decoder's counts: with effects, frames the chain didn't take in time never show up as dropped there.)
+         */
+        @Volatile var frames = 0L
+        @Volatile var maxGap = 0L
+        private var lastTs = 0L
+        private var lastAt = 0L
+        /** The layer becomes visible (a segment starts): waits are counted from here. */
+        fun visible(ts: Long, now: Long) { lastTs = ts; lastAt = now }
+        /** Each display frame while visible: [ts] = the view's latest frame time. */
+        fun frame(ts: Long, now: Long) {
+            if (ts == lastTs) return
+            frames++; if (lastAt > 0) maxGap = maxOf(maxGap, now - lastAt)
+            lastTs = ts; lastAt = now
+        }
         fun record(d: Long) {
             drift = d; samples++; sumAbs += abs(d)
             if (abs(d) > abs(maxDrift)) maxDrift = d
@@ -485,7 +641,6 @@ object SyncStats {
         while (covered.size > 64) covered.pollFirst()
     }
 
-    private var mark: Map<String, Pair<Long, Long>> = emptyMap()
     private var markShown = 0L
     private var markLate = 0L
     private var markAt = 0L
@@ -494,7 +649,7 @@ object SyncStats {
 
     /** Playback starts: the counters now (see [summary]). Main thread. */
     fun start() {
-        mark = layers.mapNotNull { (k, l) -> l.counters?.invoke()?.let { k to it } }.toMap()
+        for (l in layers.values) { l.frames = 0; l.maxGap = 0 }
         markShown = androidx.media3.effect.KlippPrecision.framesShown; markLate = androidx.media3.effect.KlippPrecision.framesLate
         markAt = System.nanoTime()
         markSkipped = se.gendut.klipp.engine.Occlusion.skipped
@@ -504,7 +659,8 @@ object SyncStats {
 
     /**
      * Playback stopped: what happened since [start] – the video chains' frames out and too late (the main player and
-     * the layers' effect chains), and per layer player the frames rendered and dropped. Null for very short runs.
+     * the layers' effect chains), and per layer the frames it showed and its longest wait for one (at 25 fps on a
+     * 60–120 Hz screen up to about 55 ms is the normal rhythm). Null for very short runs.
      */
     fun summary(): String? {
         val sec = (System.nanoTime() - markAt) / 1e9
@@ -512,11 +668,7 @@ object SyncStats {
         val shown = androidx.media3.effect.KlippPrecision.framesShown - markShown
         val late = androidx.media3.effect.KlippPrecision.framesLate - markLate
         val per = layers.entries.sortedBy { it.key }.mapNotNull { (k, l) ->
-            val now = l.counters?.invoke() ?: return@mapNotNull null
-            val was = mark[k] ?: l.base
-            // (the counters start over when the player restarts its decoder)
-            val r = (now.first - was.first).let { if (it < 0) now.first else it }; val d = (now.second - was.second).let { if (it < 0) now.second else it }
-            if (r == 0L && d == 0L) null else "$k %d shown, %d dropped".format(r, d)
+            if (l.frames == 0L) null else "$k ${l.frames} frames, longest wait ${l.maxGap} ms"
         }
         val skipped = se.gendut.klipp.engine.Occlusion.skipped - markSkipped
         // late frames the edit point layer didn't cover: these were seen as a stutter

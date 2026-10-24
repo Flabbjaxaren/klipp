@@ -696,6 +696,7 @@ class ProgramPlayback(private val context: Context) {
         lastSnapshot = s
         cuts = CutSeek.cutsOf(s)
         cutFps = s.fps
+        endSec = s.playable().sequence?.duration ?: 0.0
         lastUriOf = uriOf
         // proxy files are already SDR – HDR only if some video clip plays from an HDR original file (already probed)
         // the freeze frames (images from the originals) are extracted in the background; playback is rebuilt when they are ready
@@ -760,7 +761,7 @@ class ProgramPlayback(private val context: Context) {
             renderedFirstFrame = false
             frameShown = false
             hint(positionSec)
-            player.setComposition(built.composition, CutSeek.ms(positionSec, cuts, cutFps, wasPlaying))
+            player.setComposition(built.composition, CutSeek.ms(inside(positionSec), cuts, cutFps, wasPlaying))
             // scrubbing mode only applies to the players that existed when it was turned on – the new ones (new build) get it too
             if (player.isScrubbingModeEnabled) { player.isScrubbingModeEnabled = false; player.isScrubbingModeEnabled = true }
             handed = true
@@ -839,7 +840,16 @@ class ProgramPlayback(private val context: Context) {
 
     private var cuts = DoubleArray(0)
     private var cutFps = 25.0
-    private fun seekMs(sec: Double) = CutSeek.ms(sec, cuts, cutFps, player.playWhenReady)
+    private fun seekMs(sec: Double) = CutSeek.ms(inside(sec), cuts, cutFps, player.playWhenReady)
+
+    /** The timeline's length (s), see [inside]. */
+    private var endSec = 0.0
+
+    /**
+     * At most the timeline's last frame: a position at its very end (the playhead saved there, "go to end") made Media3's
+     * image items (freeze frames, gaps) fail with an empty time range – the player then had to be replaced.
+     */
+    private fun inside(sec: Double): Double = if (endSec <= 0.0) sec else minOf(sec, endSec - 1.0 / cutFps.coerceAtLeast(1.0)).coerceAtLeast(0.0)
 
     fun seek(sec: Double) {
         if (hasContent) { hint(sec); player.seekTo(seekMs(sec)) }

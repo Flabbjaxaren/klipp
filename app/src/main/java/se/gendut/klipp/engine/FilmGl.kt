@@ -23,11 +23,11 @@ import java.nio.ShortBuffer
  * [live] = (clip, node): the settings are read from [LiveGrades] every frame (playback), otherwise fixed (export).
  */
 @UnstableApi
-class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null) : GlEffect {
+class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Boolean = false) : GlEffect {
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram {
         if (FilmGl.floatTargets()) {
             try {
-                return FilmGl.Program(film, live, useHdr)
+                return FilmGl.Program(film, live, useHdr, main)
             } catch (e: Exception) {
                 se.gendut.klipp.CrashReport.note("film: GPU path could not start (${e.message}) – color only")
             }
@@ -40,8 +40,8 @@ class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null) : GlEffect {
         return GradeNodeEffect(p).toGlShaderProgram(context, useHdr)
     }
 
-    override fun equals(other: Any?) = other is FilmEffect && other.film == film && other.live == live
-    override fun hashCode() = film.hashCode() * 31 + (live?.hashCode() ?: 0)
+    override fun equals(other: Any?) = other is FilmEffect && other.film == film && other.live == live && other.main == main
+    override fun hashCode() = (film.hashCode() * 31 + (live?.hashCode() ?: 0)) * 31 + main.hashCode()
 }
 
 @UnstableApi
@@ -632,7 +632,8 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
 
     // ------------------------------------------------------------------------------------------- the program
 
-    class Program(private var film: Film, private val live: Pair<Long, Int>?, useHdr: Boolean) : BaseGlShaderProgram(useHdr, 1) {
+    /** [main]: in the main player's chain (see Occlusion.hideMain). */
+    class Program(private var film: Film, private val live: Pair<Long, Int>?, useHdr: Boolean, private val main: Boolean = false) : BaseGlShaderProgram(useHdr, 1) {
         private val expose = Prog(EXPOSE)
         private val blur = Prog(BLUR)
         private val blurVHalf = Prog(BLUR_V_HALF)
@@ -966,7 +967,9 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
 
         private fun drawTimed(inputTexId: Int, presentationTimeUs: Long) {
             // covered by an opaque layer above (preview playback): the picture isn't seen – passed through, see Occlusion
-            if (live != null && Occlusion.hidden(live.first)) { Occlusion.skipped++; drawCopy(inputTexId, presentationTimeUs); return }
+            // (the main player's picture also while the edit point layer covers it, see Occlusion.hideMain)
+            if (live != null && (Occlusion.hidden(live.first) || main && Occlusion.hiddenMain(live.first))) { Occlusion.skipped++; drawCopy(inputTexId, presentationTimeUs); return }
+            if (main && live != null) Occlusion.filmed(live.first)
             live?.let { LiveGrades.get(it) }?.film?.let { f -> if (f != film) adopt(f) }
             if (broken) { drawColorOnly(inputTexId, presentationTimeUs); return }
             val prevFbo = IntArray(1); GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, prevFbo, 0)
@@ -1260,3 +1263,4 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
         }
     }
 }
+
