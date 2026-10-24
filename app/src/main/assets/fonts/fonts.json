@@ -1,0 +1,288 @@
+[
+ {
+  "name": "Inter",
+  "dir": "Inter",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Montserrat",
+  "dir": "Montserrat",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Poppins",
+  "dir": "Poppins",
+  "variable": false,
+  "styles": [
+   "bold",
+   "boldItalic",
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Raleway",
+  "dir": "Raleway",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Work Sans",
+  "dir": "WorkSans",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "DM Sans",
+  "dir": "DMSans",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Nunito",
+  "dir": "Nunito",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Outfit",
+  "dir": "Outfit",
+  "variable": true,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Space Grotesk",
+  "dir": "SpaceGrotesk",
+  "variable": true,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Manrope",
+  "dir": "Manrope",
+  "variable": true,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Figtree",
+  "dir": "Figtree",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Archivo",
+  "dir": "Archivo",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Bebas Neue",
+  "dir": "BebasNeue",
+  "variable": false,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Oswald",
+  "dir": "Oswald",
+  "variable": true,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Anton",
+  "dir": "Anton",
+  "variable": false,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Archivo Black",
+  "dir": "ArchivoBlack",
+  "variable": false,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Abril Fatface",
+  "dir": "AbrilFatface",
+  "variable": false,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Righteous",
+  "dir": "Righteous",
+  "variable": false,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Bungee",
+  "dir": "Bungee",
+  "variable": false,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Playfair Display",
+  "dir": "PlayfairDisplay",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Lora",
+  "dir": "Lora",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Merriweather",
+  "dir": "Merriweather",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Cormorant Garamond",
+  "dir": "CormorantGaramond",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Libre Baskerville",
+  "dir": "LibreBaskerville",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "DM Serif Display",
+  "dir": "DMSerifDisplay",
+  "variable": false,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "EB Garamond",
+  "dir": "EBGaramond",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Roboto Slab",
+  "dir": "RobotoSlab",
+  "variable": true,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Pacifico",
+  "dir": "Pacifico",
+  "variable": false,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Caveat",
+  "dir": "Caveat",
+  "variable": true,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Dancing Script",
+  "dir": "DancingScript",
+  "variable": true,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "Permanent Marker",
+  "dir": "PermanentMarker",
+  "variable": false,
+  "styles": [
+   "regular"
+  ]
+ },
+ {
+  "name": "JetBrains Mono",
+  "dir": "JetBrainsMono",
+  "variable": true,
+  "styles": [
+   "italic",
+   "regular"
+  ]
+ },
+ {
+  "name": "Space Mono",
+  "dir": "SpaceMono",
+  "variable": false,
+  "styles": [
+   "bold",
+   "boldItalic",
+   "italic",
+   "regular"
+  ]
+ }
+]

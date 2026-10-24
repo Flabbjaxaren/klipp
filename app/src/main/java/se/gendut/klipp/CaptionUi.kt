@@ -173,16 +173,7 @@ fun CaptionStyleEditor(backend: PropsBackend, track: Long) {
                 .onFailure { android.widget.Toast.makeText(ctx, Str.t(R.string.captionui_font_error, it.message.toString()), android.widget.Toast.LENGTH_LONG).show() }
         }
     }
-    SectionLabel(stringResource(R.string.captionui_font))
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (name in Fonts.builtIn.keys + Fonts.custom) FontTile(name, st.font == name) { set("font" to name) }
-        Box(
-            Modifier.height(56.dp).clip(RoundedCornerShape(16.dp)).background(K.SurfaceHigh)
-                .clickable { haptics.tick(); fontPicker.launch(arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream", "*/*")) }
-                .padding(horizontal = 14.dp).testTag("font:import"),
-            contentAlignment = Alignment.Center,
-        ) { Text(stringResource(R.string.captionui_import), color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-    }
+    FontGrid(st.font, { set("font" to it) }) { haptics.tick(); fontPicker.launch(arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream", "*/*")) }
     PropSlider(stringResource(R.string.captionui_size), st.size, 16f, 160f, 54f, { "%.0f px".format(it) }, "capSize", lane = false) { set("size" to it.toDouble()) }
     SectionLabel(stringResource(R.string.captionui_color))
     Swatches(st.color) { set("color" to CaptionStyle.hex(it)) }
@@ -204,20 +195,6 @@ fun CaptionStyleEditor(backend: PropsBackend, track: Long) {
     PropSlider(stringResource(R.string.captionui_margin), st.margin * 100f, 0f, 45f, 8f, { "%.0f %%".format(it) }, "capMargin", lane = false) { set("margin" to (it / 100.0)) }
     Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         SpringChip(stringResource(R.string.captionui_reset_style), false, { set("reset" to true) })
-    }
-}
-
-@Composable
-private fun FontTile(name: String, selected: Boolean, onClick: () -> Unit) {
-    val tf = remember(name) { androidx.compose.ui.text.font.FontFamily(Fonts.typeface(name)) }
-    Column(
-        Modifier.height(56.dp).clip(RoundedCornerShape(if (selected) 20.dp else 14.dp))
-            .background(if (selected) K.Primary else K.SurfaceHigh).clickable(onClick = onClick)
-            .padding(horizontal = 14.dp).testTag("font:$name"),
-        verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Text("Aa", fontFamily = tf, fontSize = 20.sp, color = if (selected) K.OnPrimary else K.OnSurface)
-        Text(Str.name(name), fontSize = 10.sp, color = if (selected) K.OnPrimary else K.OnSurfaceVar, maxLines = 1)
     }
 }
 
@@ -248,13 +225,48 @@ fun TitleFontRow(current: String, onPick: (String) -> Unit) {
                 .onFailure { android.widget.Toast.makeText(ctx, Str.t(R.string.captionui_font_error, it.message.toString()), android.widget.Toast.LENGTH_LONG).show() }
         }
     }
-    SectionLabel(stringResource(R.string.captionui_font))
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (name in Fonts.builtIn.keys + Fonts.custom) FontTile(name, current == name) { haptics.tick(); onPick(name) }
-        Box(
-            Modifier.height(56.dp).clip(RoundedCornerShape(16.dp)).background(K.SurfaceHigh)
-                .clickable { haptics.tick(); fontPicker.launch(arrayOf("*/*")) }.padding(horizontal = 14.dp),
-            contentAlignment = Alignment.Center,
-        ) { Text(stringResource(R.string.captionui_import), color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+    FontGrid(current, { haptics.tick(); onPick(it) }) { haptics.tick(); fontPicker.launch(arrayOf("*/*")) }
+}
+
+/**
+ * Every font as a grid of names, each written in its own font; folded it shows the chosen one and its neighbors in a
+ * row. Import last.
+ */
+@Composable
+fun FontGrid(current: String, onPick: (String) -> Unit, onImport: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val all = Fonts.all
+    Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.captionui_font)) }
+        SpringChip(stringResource(if (open) R.string.captionui_fonts_fewer else R.string.captionui_fonts_all, all.size), open, { open = !open },
+            Modifier.testTag("font:all"), selectedColor = K.Primary, selectedText = K.OnPrimary)
     }
+    if (!open) {
+        val scroll = rememberScrollState()
+        Row(Modifier.horizontalScroll(scroll).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // the chosen font first, then the rest in order
+            for (name in listOf(current) + all.filter { it != current }) FontName(name, current == name) { onPick(name) }
+        }
+    } else {
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (name in all) FontName(name, current == name) { onPick(name) }
+            Box(
+                Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh)
+                    .clickable { onImport() }.padding(horizontal = 14.dp).testTag("font:import"),
+                contentAlignment = Alignment.Center,
+            ) { Text(stringResource(R.string.captionui_import), color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+        }
+    }
+}
+
+@Composable
+private fun FontName(name: String, selected: Boolean, onClick: () -> Unit) {
+    val tf = remember(name) { androidx.compose.ui.text.font.FontFamily(Fonts.typeface(name)) }
+    Box(
+        Modifier.height(44.dp).clip(RoundedCornerShape(if (selected) 18.dp else 12.dp))
+            .background(if (selected) K.Primary else K.SurfaceHigh).clickable(onClick = onClick)
+            .padding(horizontal = 14.dp).testTag("font:$name"),
+        contentAlignment = Alignment.Center,
+    ) { Text(Str.name(name), fontFamily = tf, fontSize = 17.sp, color = if (selected) K.OnPrimary else K.OnSurface, maxLines = 1) }
 }

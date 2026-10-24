@@ -74,6 +74,7 @@ import se.gendut.klipp.engine.TextSnap
 import se.gendut.klipp.engine.TitleAnim
 import se.gendut.klipp.engine.TitleArt
 import se.gendut.klipp.engine.TitleLook
+import se.gendut.klipp.engine.TitleShadow
 import se.gendut.klipp.engine.TitleTemplate
 import se.gendut.klipp.engine.placementOf
 import kotlin.math.roundToInt
@@ -335,8 +336,6 @@ private fun AddAtPlayhead(state: EditorState, onClick: () -> Unit) {
     BigButton(stringResource(R.string.titleui_add_at, formatTc(state.playhead)), onClick)
 }
 
-val TITLE_COLORS = listOf(0xFFFFFF, 0x111318, 0xFFB77C, 0xFFD7F0, 0x9FE7D2, 0xFFE07A)
-
 /** The title's part of Properties: template, animation, text, size and color – changes show in the picture immediately. */
 @Composable
 fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
@@ -351,6 +350,12 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
     }
     AnimChips(look.template, look.anim) { backend.setTitle(p.id, look = look.copy(anim = it).encode()) }
     TitleFontRow(look.font) { backend.setTitle(p.id, look = look.copy(font = it).encode()) }
+    // bold, italic, all capitals
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        SpringChip(stringResource(R.string.titleui_bold), look.bold, { backend.setTitle(p.id, look = look.copy(bold = !look.bold).encode()) }, Modifier.testTag("title:bold"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+        SpringChip(stringResource(R.string.titleui_italic), look.italic, { backend.setTitle(p.id, look = look.copy(italic = !look.italic).encode()) }, Modifier.testTag("title:italic"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+        SpringChip(stringResource(R.string.titleui_caps), look.caps, { backend.setTitle(p.id, look = look.copy(caps = !look.caps).encode()) }, Modifier.testTag("title:caps"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+    }
     var lines by remember(p.id) { mutableStateOf((p.title ?: "").split('\n')) }
     // text that has been typed but not yet sent to the engine
     val pending = remember(p.id) { mutableStateOf<String?>(null) }
@@ -386,17 +391,40 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
         stringResource(R.string.titleui_size), p.textSize, 8f, 400f, sizeFor(look.template, p.seqH).roundToInt().toFloat(), { "%.0f px".format(it) }, "size",
         onLive = { v -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textSize = v)) },
     ) { backend.setTitle(p.id, size = it); scope.launch { state.endLive() } }
-    Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        for (c in TITLE_COLORS) {
-            val on = (p.textColor and 0xFFFFFF) == c
-            val r by animateFloatAsState(if (on) 12f else 20f, spring(0.45f, 500f), label = "sw")
-            Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(r.dp)).background(Color(0xFF000000 or c.toLong()))
-                    .border(if (on) 3.dp else 1.dp, if (on) K.Primary else K.OutlineVar, RoundedCornerShape(r.dp))
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { backend.setTitle(p.id, color = c) }
-            )
-        }
+    SectionLabel(stringResource(R.string.titleui_text_color))
+    ColorPicker(p.textColor and 0xFFFFFF, "titleColor",
+        onLive = { c -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textColor = c)) },
+    ) { c -> backend.setTitle(p.id, color = c); scope.launch { state.endLive() } }
+    TitleShadowSection(state, p, look, backend)
+}
+
+/** The drop shadow: on/off, color, opacity, angle, distance, softness and size – live in the picture while dragging. */
+@Composable
+private fun TitleShadowSection(state: EditorState, p: ClipProps, look: TitleLook, backend: PropsBackend) {
+    val scope = rememberCoroutineScope()
+    val sh = look.shadowOrDefault
+    fun live(n: TitleShadow) = state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(titleLook = look.copy(shadow = n).encode()))
+    fun commit(n: TitleShadow) { backend.setTitle(p.id, look = look.copy(shadow = n).encode()); scope.launch { state.endLive() } }
+    Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.titleui_shadow)) }
+        SpringChip(stringResource(if (sh.on) R.string.titleui_on else R.string.titleui_off), sh.on,
+            { commit(if (sh.on) TitleShadow.OFF else TitleShadow()) },
+            Modifier.testTag("title:shadow"), selectedColor = K.Primary, selectedText = K.OnPrimary)
     }
+    if (!sh.on) return
+    val d = TitleShadow()
+    PropSlider(stringResource(R.string.titleui_opacity), sh.opacity * 100f, 0f, 100f, d.opacity * 100f, { "%.0f %%".format(it) }, "shOpacity", lane = false,
+        onLive = { live(sh.copy(opacity = it / 100f)) }) { commit(sh.copy(opacity = it / 100f)) }
+    PropSlider(stringResource(R.string.titleui_angle), sh.angle, -180f, 180f, d.angle, { "%.0f°".format(it) }, "shAngle", lane = false,
+        onLive = { live(sh.copy(angle = it)) }) { commit(sh.copy(angle = it)) }
+    PropSlider(stringResource(R.string.titleui_distance), sh.distance * 100f, 0f, 50f, d.distance * 100f, { "%.1f".format(it) }, "shDistance", lane = false,
+        onLive = { live(sh.copy(distance = it / 100f)) }) { commit(sh.copy(distance = it / 100f)) }
+    PropSlider(stringResource(R.string.titleui_softness), sh.blur * 100f, 0f, 50f, d.blur * 100f, { "%.1f".format(it) }, "shBlur", lane = false,
+        onLive = { live(sh.copy(blur = it / 100f)) }) { commit(sh.copy(blur = it / 100f)) }
+    PropSlider(stringResource(R.string.titleui_spread), sh.spread * 100f, 0f, 20f, 0f, { "%.1f".format(it) }, "shSpread", lane = false,
+        onLive = { live(sh.copy(spread = it / 100f)) }) { commit(sh.copy(spread = it / 100f)) }
+    SectionLabel(stringResource(R.string.titleui_shadow_color))
+    ColorPicker(sh.color, "shadowColor", onLive = { live(sh.copy(color = it)) }) { commit(sh.copy(color = it)) }
 }
 
 @Composable

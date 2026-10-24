@@ -37,9 +37,56 @@ enum class TitleAnim(val key: String, @StringRes private val labelRes: Int) {
     val label: String get() = Str.t(labelRes)
 }
 
-/** Template + animation; stored as `klipp:mall=…;in=…` in the text layer's name in the engine. */
-data class TitleLook(val template: TitleTemplate = TitleTemplate.FREE, val anim: TitleAnim = TitleAnim.NONE, val font: String = "Inter") {
-    fun encode() = "klipp:mall=${template.key};in=${anim.key}" + if (font != "Inter") ";font=${font.replace(Regex("[;=]"), "_")}" else ""
+/**
+ * A drop shadow behind the title's text: [color] (RGB), [opacity] 0..1, [angle] in degrees (the direction the light
+ * throws it: 90 = straight down, clockwise), [distance], [blur] and [spread] as fractions of the text size.
+ */
+data class TitleShadow(
+    val on: Boolean = true,
+    val color: Int = 0x000000,
+    val opacity: Float = 0.55f,
+    val angle: Float = 90f,
+    val distance: Float = 0.03f,
+    val blur: Float = 0.06f,
+    val spread: Float = 0f,
+) {
+    fun encode() = if (!on) "0" else "1,%06x,%.3f,%.1f,%.4f,%.4f,%.4f".format(java.util.Locale.ROOT, color and 0xFFFFFF, opacity, angle, distance, blur, spread)
+
+    companion object {
+        /** The soft shadow the templates had before it could be set (lower third: none, it has its plate). */
+        fun default(t: TitleTemplate) = if (t == TitleTemplate.LOWER_THIRD) TitleShadow(on = false) else TitleShadow()
+        val OFF = TitleShadow(on = false)
+
+        fun parse(s: String): TitleShadow? {
+            if (s == "0") return OFF
+            val p = s.split(',')
+            if (p.size < 7 || p[0] != "1") return null
+            return runCatching {
+                TitleShadow(true, p[1].toInt(16), p[2].toFloat().coerceIn(0f, 1f), p[3].toFloat(), p[4].toFloat().coerceAtLeast(0f),
+                    p[5].toFloat().coerceAtLeast(0f), p[6].toFloat().coerceAtLeast(0f))
+            }.getOrNull()
+        }
+    }
+}
+
+/**
+ * Template + animation + type; stored as `klipp:mall=…;in=…` in the text layer's name in the engine. [bold] = the
+ * main line in bold (the templates' look), [caps] = all capitals, [shadow] null = the template's own.
+ */
+data class TitleLook(
+    val template: TitleTemplate = TitleTemplate.FREE,
+    val anim: TitleAnim = TitleAnim.NONE,
+    val font: String = "Inter",
+    val bold: Boolean = true,
+    val italic: Boolean = false,
+    val caps: Boolean = false,
+    val shadow: TitleShadow? = null,
+) {
+    /** The shadow drawn: the one set, else the template's. */
+    val shadowOrDefault: TitleShadow get() = shadow ?: TitleShadow.default(template)
+
+    fun encode() = "klipp:mall=${template.key};in=${anim.key}" + (if (font != "Inter") ";font=${font.replace(Regex("[;=]"), "_")}" else "") +
+        (if (!bold) ";b=0" else "") + (if (italic) ";i=1" else "") + (if (caps) ";caps=1" else "") + (shadow?.let { ";sh=${it.encode()}" } ?: "")
 
     companion object {
         fun parse(name: String): TitleLook {
@@ -49,6 +96,10 @@ data class TitleLook(val template: TitleTemplate = TitleTemplate.FREE, val anim:
                 TitleTemplate.entries.firstOrNull { it.key == kv["mall"] } ?: TitleTemplate.FREE,
                 TitleAnim.entries.firstOrNull { it.key == kv["in"] } ?: TitleAnim.NONE,
                 kv["font"]?.takeIf { it.isNotBlank() } ?: "Inter",
+                bold = kv["b"] != "0",
+                italic = kv["i"] == "1",
+                caps = kv["caps"] == "1",
+                shadow = kv["sh"]?.let { TitleShadow.parse(it) },
             )
         }
     }
@@ -130,9 +181,29 @@ object TitleArt {
         val rest = lines.drop(1)
         fun paint(sz: Float, bold: Boolean, color: Int, align: Paint.Align) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = sz
-            typeface = Typeface.create(Fonts.typeface(look.font), if (bold) Typeface.BOLD else Typeface.NORMAL)
+            // the main line follows the bold setting; the other lines are regular as before
+            typeface = Fonts.typeface(look.font, bold && look.bold, look.italic)
             textAlign = align
             this.color = color
+        }
+        val sh = look.shadowOrDefault
+        // text with the title's shadow under it (the template's plates and lines get none)
+        fun text(s: String, x: Float, y: Float, p: Paint) {
+            val str = if (look.caps) s.uppercase() else s
+            if (sh.on && sh.opacity > 0.003f) {
+                val a = Math.toRadians(sh.angle.toDouble())
+                val d = sh.distance * p.textSize
+                val sp = Paint(p).apply {
+                    clearShadowLayer()
+                    shader = null
+                    color = Color.argb((sh.opacity * Color.alpha(p.color)).toInt().coerceIn(0, 255), Color.red(sh.color), Color.green(sh.color), Color.blue(sh.color))
+                    if (sh.spread > 0f) { style = Paint.Style.FILL_AND_STROKE; strokeWidth = sh.spread * p.textSize * 2f; strokeJoin = Paint.Join.ROUND }
+                    val r = sh.blur * p.textSize
+                    if (r > 0.3f) maskFilter = android.graphics.BlurMaskFilter(r, android.graphics.BlurMaskFilter.Blur.NORMAL)
+                }
+                cv.drawText(str, x + (cos(a) * d).toFloat(), y + (kotlin.math.sin(a) * d).toFloat(), sp)
+            }
+            cv.drawText(str, x, y, Paint(p).apply { clearShadowLayer() })
         }
         when (look.template) {
             TitleTemplate.LOWER_THIRD -> {
@@ -140,7 +211,8 @@ object TitleArt {
                 val pMain = paint(size, true, fill, Paint.Align.LEFT)
                 val pSub = paint(size * 0.58f, false, Color.argb(235, 226, 226, 233), Paint.Align.LEFT)
                 val pad = size * 0.38f
-                val tw = max(pMain.measureText(main), rest.maxOfOrNull { pSub.measureText(it) } ?: 0f)
+                fun cs(s: String) = if (look.caps) s.uppercase() else s
+                val tw = max(pMain.measureText(cs(main)), rest.maxOfOrNull { pSub.measureText(cs(it)) } ?: 0f)
                 val th = size * 1.05f + rest.size * pSub.textSize * 1.3f
                 val left = w * 0.06f
                 val bottom = h * 0.86f
@@ -149,8 +221,8 @@ object TitleArt {
                 cv.drawRoundRect(RectF(box.left, box.top, box.left + size * 0.12f, box.bottom), size * 0.06f, size * 0.06f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ACCENT })
                 val x = box.left + size * 0.18f + pad
                 var y = box.top + pad + size * 0.85f
-                cv.drawText(main, x, y, pMain)
-                for (r in rest) { y += pSub.textSize * 1.3f; cv.drawText(r, x, y, pSub) }
+                text(main, x, y, pMain)
+                for (r in rest) { y += pSub.textSize * 1.3f; text(r, x, y, pSub) }
             }
             TitleTemplate.CHAPTER -> {
                 // chapter card: centered, soft dark shade behind, thin accent line between heading and subheading
@@ -158,14 +230,14 @@ object TitleArt {
                     shader = LinearGradient(0f, h * 0.25f, 0f, h * 0.75f, intArrayOf(0, Color.argb(130, 0, 0, 0), 0), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
                 }
                 cv.drawRect(0f, h * 0.25f, w.toFloat(), h * 0.75f, shade)
-                val pMain = paint(size * 1.15f, true, fill, Paint.Align.CENTER).apply { letterSpacing = 0.04f; setShadowLayer(size * 0.08f, 0f, size * 0.03f, Color.argb(140, 0, 0, 0)) }
+                val pMain = paint(size * 1.15f, true, fill, Paint.Align.CENTER).apply { letterSpacing = 0.04f }
                 val pSub = paint(size * 0.55f, false, Color.argb(235, 226, 226, 233), Paint.Align.CENTER).apply { letterSpacing = 0.2f }
                 val cy = h / 2f
-                cv.drawText(main, w / 2f, cy - size * 0.1f, pMain)
-                val lw = min(pMain.measureText(main) * 0.5f, w * 0.3f)
+                text(main, w / 2f, cy - size * 0.1f, pMain)
+                val lw = min(pMain.measureText(if (look.caps) main.uppercase() else main) * 0.5f, w * 0.3f)
                 cv.drawRect(w / 2f - lw / 2, cy + size * 0.22f, w / 2f + lw / 2, cy + size * 0.27f, Paint().apply { color = ACCENT })
                 var y = cy + size * 0.95f
-                for (r in rest) { cv.drawText(r.uppercase(), w / 2f, y, pSub); y += pSub.textSize * 1.4f }
+                for (r in rest) { text(r.uppercase(), w / 2f, y, pSub); y += pSub.textSize * 1.4f }
             }
             TitleTemplate.ROLL -> {
                 // credits roll: centered lines; lines ending in ":" become small headings
@@ -173,17 +245,16 @@ object TitleArt {
                 for (r in lines) {
                     val head = r.trimEnd().endsWith(":")
                     val p = if (head) paint(size * 0.6f, false, Color.argb(220, 255, 183, 124), Paint.Align.CENTER) else paint(size, true, fill, Paint.Align.CENTER)
-                    p.setShadowLayer(size * 0.06f, 0f, size * 0.03f, Color.argb(140, 0, 0, 0))
-                    cv.drawText(r, w / 2f, y, p)
+                    text(r, w / 2f, y, p)
                     y += size * 1.5f
                 }
             }
             TitleTemplate.FREE -> {
-                val p = paint(size, true, fill, Paint.Align.CENTER).apply { setShadowLayer(textSize * 0.06f, 0f, textSize * 0.03f, Color.argb(140, 0, 0, 0)) }
+                val p = paint(size, true, fill, Paint.Align.CENTER)
                 val x = (t.x ?: (w / 2.0)).toFloat()
                 var y = (t.y ?: (h / 2.0)).toFloat()
                 for (line in lines) {
-                    cv.drawText(line, x, y, p)
+                    text(line, x, y, p)
                     y += p.textSize * 1.2f
                 }
             }
