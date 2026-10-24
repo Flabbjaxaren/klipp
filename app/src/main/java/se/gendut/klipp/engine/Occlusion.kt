@@ -27,7 +27,22 @@ object Occlusion {
 
     /** Film frames passed through because their clip was hidden (diagnostics). */
     @Volatile var skipped = 0L
-    fun clear() = hiddenUntil.clear()
+    fun clear() { hiddenUntil.clear(); mainHiddenUntil.clear() }
+
+    private val mainHiddenUntil = ConcurrentHashMap<Long, Long>()
+    private val filmedFrames = ConcurrentHashMap<Long, Long>()
+
+    /**
+     * The edit point layer covers the main player's picture of [clip] completely (same clip, opaque): only the main
+     * player's chain passes it through – the layer's own chain has the same clip. Lapses like [hide].
+     */
+    fun hideMain(clip: Long, nowMs: Long = android.os.SystemClock.uptimeMillis()) { mainHiddenUntil[clip] = nowMs + HOLD_MS }
+    fun showMain(clip: Long) { mainHiddenUntil.remove(clip) }
+    fun hiddenMain(clip: Long, nowMs: Long = android.os.SystemClock.uptimeMillis()): Boolean = (mainHiddenUntil[clip] ?: 0L) > nowMs
+
+    /** The main player's chain ran the film on a frame of [clip] (it is graded again, see [hideMain]). */
+    fun filmed(clip: Long) { filmedFrames.merge(clip, 1L, Long::plus) }
+    fun filmedFrames(clip: Long): Long = filmedFrames[clip] ?: 0L
 
     /** The main player's chain processed a frame of [clip]. */
     fun sawMain(clip: Long) { frames.merge(clip, 1L, Long::plus) }

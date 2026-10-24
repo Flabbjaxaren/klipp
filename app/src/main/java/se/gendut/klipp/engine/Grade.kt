@@ -715,7 +715,7 @@ data class ClipGrade(
         chain.filter { !it.isNeutral }.flatMapIndexed<GradeNode, androidx.media3.common.Effect> { i, n ->
             val p = n.params()
             val key = clip?.let { c -> c to n.id }
-            listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key) })
+            listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key, main) })
         } +
             // stabilization last (the windows are in the source image's coordinates)
             listOfNotNull(stab?.takeIf { clock != null }?.let { StabMatrix(it, clock!!) })
