@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -175,9 +177,16 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
     }
     // the corner being dragged (local pixels): a magnifier shows what is under it
     var dragAt by remember { mutableStateOf(Offset.Unspecified) }
+    var dragIdx by remember { mutableStateOf(-1) }
+    // how many screen pixels one of the overlay's pixels takes (the monitor's pinch zoom scales the overlay)
+    var screenPerLocal by remember { mutableStateOf(1f) }
     Box(
         modifier.fillMaxSize().testTag("pinOverlay")
-            .magnifier(sourceCenter = { dragAt }, zoom = 3f, size = androidx.compose.ui.unit.DpSize(120.dp, 120.dp), cornerRadius = 60.dp)
+            .onGloballyPositioned { c -> if (c.size.width > 0) screenPerLocal = c.boundsInRoot().width / c.size.width }
+            // the magnifier shows exactly what is inside a corner's ring (radius HANDLE_R on screen): its 120 dp circle
+            // is the ring, enlarged – with the fine cross in the middle on the corner itself
+            .magnifier(sourceCenter = { dragAt }, zoom = (LOUPE / 2f / HANDLE_R).toFloat().coerceAtLeast(1f),
+                size = androidx.compose.ui.unit.DpSize(LOUPE.dp, LOUPE.dp), cornerRadius = (LOUPE / 2).dp)
             .pointerInput(id) {
             awaitEachGesture {
                 val down = awaitFirstDown()
@@ -198,9 +207,11 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
                     q = q.copyOf().also { it[2 * i] = ((c.position.x + grab.x) / w).coerceIn(-0.5f, 1.5f); it[2 * i + 1] = ((c.position.y + grab.y) / h).coerceIn(-0.5f, 1.5f) }
                     gs.livePin(id, CornerPin(q))
                     dragAt = Offset(q[2 * i] * w, q[2 * i + 1] * h)
+                    dragIdx = i
                     c.consume()
                 }
                 dragAt = Offset.Unspecified
+                dragIdx = -1
                 haptics.confirm()
                 gs.commitPin(id, CornerPin(q), start)
             }
@@ -212,19 +223,35 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
                 for (k in 1 until 4) lineTo(quad[2 * k] * size.width, quad[2 * k + 1] * size.height)
                 close()
             }
-            drawPath(path, Color.Black.copy(alpha = 0.5f), style = Stroke(3.5.dp.toPx()))
-            drawPath(path, K.Primary, style = Stroke(2.dp.toPx()))
+            // sizes in screen dp whatever the monitor's zoom
+            val u = 1f / screenPerLocal
+            val drag = dragIdx >= 0
+            // while a corner is dragged the edges are hairlines (they are magnified too)
+            drawPath(path, Color.Black.copy(alpha = 0.5f), style = Stroke((if (drag) 1f else 3.5f).dp.toPx() * u))
+            drawPath(path, K.Primary, style = Stroke((if (drag) 0.5f else 2f).dp.toPx() * u))
             for (k in 0 until 4) {
                 val o = Offset(quad[2 * k] * size.width, quad[2 * k + 1] * size.height)
-                // a ring with an open middle and a fine cross: the exact point stays visible (in the magnifier too)
-                drawCircle(Color.Black.copy(alpha = 0.5f), 12.dp.toPx(), o, style = Stroke(3.5.dp.toPx()))
-                drawCircle(Color.White, 12.dp.toPx(), o, style = Stroke(2.dp.toPx()))
-                val l = 4.dp.toPx(); val sw = 1.dp.toPx()
+                if (k == dragIdx) {
+                    // the corner being dragged: only a fine cross on the exact point – the magnifier shows it large
+                    val l = (HANDLE_R * 0.5f).dp.toPx() * u
+                    for (pass in 0..1) {
+                        val c = if (pass == 0) Color.Black.copy(alpha = 0.7f) else Color.White
+                        val sw = (if (pass == 0) 0.9f else 0.4f).dp.toPx() * u
+                        drawLine(c, Offset(o.x - l, o.y), Offset(o.x + l, o.y), sw)
+                        drawLine(c, Offset(o.x, o.y - l), Offset(o.x, o.y + l), sw)
+                    }
+                    continue
+                }
+                // a ring with an open middle and a fine cross: the exact point stays visible
+                drawCircle(Color.Black.copy(alpha = 0.5f), HANDLE_R.dp.toPx() * u, o, style = Stroke(3.5.dp.toPx() * u))
+                drawCircle(Color.White, HANDLE_R.dp.toPx() * u, o, style = Stroke(2.dp.toPx() * u))
+                val l = 4.dp.toPx() * u; val sw = 1.dp.toPx() * u
                 drawLine(K.Primary, Offset(o.x - l, o.y), Offset(o.x + l, o.y), sw)
                 drawLine(K.Primary, Offset(o.x, o.y - l), Offset(o.x, o.y + l), sw)
             }
         }
-        Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        // at the top, beside the monitor's "Program" badge (titles' corners are often low in the frame)
+        Row(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(start = 110.dp, top = 8.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             // the hint gives way (wraps) – the done button keeps its size
             Text(stringResource(R.string.titlepin_overlay_hint), color = Color.White, fontSize = 12.sp,
                 modifier = Modifier.weight(1f, fill = false).clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000)).padding(horizontal = 8.dp, vertical = 4.dp))
@@ -234,3 +261,7 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
         }
     }
 }
+
+/** A corner handle's ring radius and the magnifier's size (dp on screen): the magnifier is the ring, enlarged. */
+private const val HANDLE_R = 12f
+private const val LOUPE = 120f

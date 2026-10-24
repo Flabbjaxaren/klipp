@@ -293,6 +293,7 @@ fun KlippApp(
     // color mode: grades to playback (after a short pause, so drags don't rebuild every time)
     if (playback != null) LaunchedEffect(playback) {
         var lastFollows: Map<Long, se.gendut.klipp.engine.Follow>? = null
+        var lastPins: Map<Long, se.gendut.klipp.engine.CornerPin>? = null
         androidx.compose.runtime.snapshotFlow { gs.revision }.debounce(200).collect {
             val g = HashMap(gs.grades)
             if (g != playback.grades) {
@@ -302,6 +303,9 @@ fun KlippApp(
             }
             val f = HashMap(gs.follows)
             if (f != lastFollows) { if (lastFollows != null) controller?.requestSave(); lastFollows = f }
+            // corner pins are saved with the grades too
+            val p = HashMap(gs.pins)
+            if (p != lastPins) { if (lastPins != null) controller?.requestSave(); lastPins = p }
         }
     }
     // node cache: clips with a cached node render in the background a while after changes; a finished file → the player is rebuilt
@@ -383,7 +387,7 @@ fun KlippApp(
     // titles that follow tracked windows: tracking data and timeline to the title layer (playback, export)
     LaunchedEffect(controller) {
         if (controller == null) return@LaunchedEffect
-        androidx.compose.runtime.snapshotFlow { Triple(gs.revision, controller.revision, gs.follows.size) }.collect {
+        androidx.compose.runtime.snapshotFlow { listOf(gs.revision, controller.revision, gs.follows.size, gs.pins.size) }.collect {
             se.gendut.klipp.engine.TitleFollow.publish(HashMap(gs.follows), HashMap(gs.grades), controller.snapshot, HashMap(gs.pins))
         }
     }
