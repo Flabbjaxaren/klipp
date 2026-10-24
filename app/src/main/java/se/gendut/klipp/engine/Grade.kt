@@ -710,11 +710,12 @@ data class ClipGrade(
      * Media3 effects: one shader pass per active node. With [clip], the passes read the node's current values from
      * [LiveGrades] every frame (playback) – otherwise the values are fixed (export).
      */
-    fun effects(clip: Long? = null, clock: ((Long) -> Double?)? = null): List<androidx.media3.common.Effect> =
-        chain.filter { !it.isNeutral }.flatMap<GradeNode, androidx.media3.common.Effect> { n ->
+    /** [main]: the main player's chain – its first effect counts the clip's frames (see [Occlusion.sawMain]). */
+    fun effects(clip: Long? = null, main: Boolean = false, clock: ((Long) -> Double?)? = null): List<androidx.media3.common.Effect> =
+        chain.filter { !it.isNeutral }.flatMapIndexed<GradeNode, androidx.media3.common.Effect> { i, n ->
             val p = n.params()
             val key = clip?.let { c -> c to n.id }
-            listOf(GradeNodeEffect(p, key, clock)) + listOfNotNull(p.film?.let { FilmEffect(it, key) })
+            listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key) })
         } +
             // stabilization last (the windows are in the source image's coordinates)
             listOfNotNull(stab?.takeIf { clock != null }?.let { StabMatrix(it, clock!!) })
@@ -723,8 +724,8 @@ data class ClipGrade(
     val cachePoint: Int get() = nodes.indexOfLast { it.cache && it.enabled }
 
     /** Playback effects when the image up to and including node [point] comes from the node cache: the remaining nodes and the stabilization. */
-    fun effectsAfter(point: Int, clip: Long?, clock: ((Long) -> Double?)?): List<androidx.media3.common.Effect> =
-        copy(nodes = nodes.drop(point + 1).ifEmpty { listOf(GradeNode(Int.MIN_VALUE)) }).effects(clip, clock)
+    fun effectsAfter(point: Int, clip: Long?, clock: ((Long) -> Double?)?, main: Boolean = false): List<androidx.media3.common.Effect> =
+        copy(nodes = nodes.drop(point + 1).ifEmpty { listOf(GradeNode(Int.MIN_VALUE)) }).effects(clip, main, clock)
 
     companion object {
         /** Older projects may have "input" (removed log conversion) – it is ignored. */
@@ -1292,10 +1293,12 @@ class GradeNodeEffect(
     val live: Pair<Long, Int>? = null,
     /** Frame time → source time (seconds in the clip's file), for tracked windows. */
     val clock: ((Long) -> Double?)? = null,
+    /** In the main player's chain (counts the clip's frames for [Occlusion]). */
+    val main: Boolean = false,
 ) : GlEffect {
-    override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(p, live, clock, useHdr)
+    override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(p, live, clock, useHdr, main)
 
-    private class Program(private val initial: GradeNode.Params, private val live: Pair<Long, Int>?, private val clock: ((Long) -> Double?)?, useHdr: Boolean) : BaseGlShaderProgram(useHdr, 1) {
+    private class Program(private val initial: GradeNode.Params, private val live: Pair<Long, Int>?, private val clock: ((Long) -> Double?)?, useHdr: Boolean, private val main: Boolean = false) : BaseGlShaderProgram(useHdr, 1) {
         private val program: GlProgram
         private val curveTex: Int
         private val lutTex: Int
@@ -1364,6 +1367,7 @@ class GradeNodeEffect(
         override fun drawFrame(inputTexId: Int, presentationTimeUs: Long) = PassTimes.measure("node") { drawTimed(inputTexId, presentationTimeUs) }
 
         private fun drawTimed(inputTexId: Int, presentationTimeUs: Long) {
+            if (main) live?.let { Occlusion.sawMain(it.first) }
             try {
                 live?.let { LiveGrades.get(it) }?.let { cur -> if (cur !== p) adopt(cur) }
                 program.use()

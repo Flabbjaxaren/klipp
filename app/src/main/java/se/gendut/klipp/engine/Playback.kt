@@ -267,8 +267,8 @@ object CompositionBuilder {
             }
             val grade = c?.let { cl ->
                 val g = grades[cl.id] ?: return@let null
-                if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock)
-                else g.effects(if (liveGrades) cl.id else null, clock)
+                if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades)
+                else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock)
             }.orEmpty()
             // playback: 4K material is downscaled to the preview size before the nodes and the film (same
             // image on screen, a fraction of the work). The size of the file being played: the original (the node cache
