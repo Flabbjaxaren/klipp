@@ -26,12 +26,16 @@ android {
         applicationId = "se.gendut.klipp"
         minSdk = 29
         targetSdk = 36
-        versionCode = 59
-        versionName = "0.18.17"
+        versionCode = 60
+        versionName = "0.18.18"
         ndk { abiFilters += "arm64-v8a" }
         // speech recognition is always built optimized (the debug build's -O0 would be tens of times slower)
         externalNativeBuild { cmake { arguments += listOf("-DCMAKE_BUILD_TYPE=Release", "-DANDROID_STL=c++_shared") } }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    // the GPU tests on a phone (src/androidTest): their own app id beside the installed Klipp, so running them never
+    // replaces it or touches its projects (`./gradlew connectedGpuTestAndroidTest`)
+    testBuildType = "gpuTest"
     ndkVersion = "29.0.14206865"
     // per-app language in the system settings (Android 13+): English (default) and Swedish
     androidResources { generateLocaleConfig = true }
@@ -65,6 +69,11 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
+        }
+        create("gpuTest") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".gputest"
+            matchingFallbacks += "debug"
         }
     }
     compileOptions {
@@ -112,6 +121,10 @@ dependencies {
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.76.0")
     testImplementation("io.github.takahirom.roborazzi:roborazzi-junit-rule:1.76.0")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
+
+    androidTestImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
 }
 
 // Transformer, ExoPlayer etc. depend on media3-effect: all of them get the local module
