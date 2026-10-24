@@ -123,6 +123,14 @@
     <string name="projectsscreen_duplicate">Duplicera</string>
     <string name="projectsscreen_delete">Ta bort</string>
     <string name="projectsscreen_close">Stäng</string>
+    <string name="projectsscreen_export_project">Exportera…</string>
+    <string name="projectsscreen_import">Importera</string>
+    <string name="projectsscreen_export_title">Exportera ”%1$s”</string>
+    <string name="projectsscreen_export_with_media">Med mediefilerna</string>
+    <string name="projectsscreen_export_with_media_hint">Allt i en fil: öppnas på en annan telefon eller efter en ominstallation av Klipp. Lika stor som videorna.</string>
+    <string name="projectsscreen_export_only">Bara projektet</string>
+    <string name="projectsscreen_export_only_hint">Liten: klippningen, graderingen och namnen. Medierna ligger kvar där de är på den här telefonen.</string>
+    <string name="projectsscreen_copying">Kopierar… %1$d %%</string>
     <string name="projectsscreen_name">Namn</string>
     <string name="projectsscreen_save">Spara</string>
     <string name="projectsscreen_cancel">Avbryt</string>

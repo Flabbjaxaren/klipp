@@ -1778,4 +1778,7 @@ private fun controllerProjects(c: se.gendut.klipp.engine.ProjectController) = ob
     override fun rename(id: String, name: String) { c.renameProject(id, name) }
     override fun duplicate(id: String) { c.duplicateProject(id) }
     override fun delete(id: String) { c.deleteProject(id) }
+    override fun export(id: String, withMedia: Boolean, to: android.net.Uri) { c.exportProject(id, withMedia, to) }
+    override fun import(from: android.net.Uri) { c.importProject(from) }
+    override val progress: Float? get() = c.packProgress
 }

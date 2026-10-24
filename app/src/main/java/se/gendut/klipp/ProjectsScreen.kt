@@ -80,6 +80,12 @@ interface ProjectsBackend {
     fun rename(id: String, name: String)
     fun duplicate(id: String)
     fun delete(id: String)
+    /** Write project [id] as a package (.klipp) to [to]; [withMedia] = with the media files. */
+    fun export(id: String, withMedia: Boolean, to: android.net.Uri) {}
+    /** Read a package as a new project. */
+    fun import(from: android.net.Uri) {}
+    /** Progress (0..1) of an export/import in progress; null = none. */
+    val progress: Float? get() = null
 }
 
 /**
@@ -158,10 +164,28 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
     var menuFor by remember { mutableStateOf<ProjectCard?>(null) }
     var renaming by remember { mutableStateOf<ProjectCard?>(null) }
     var deleting by remember { mutableStateOf<ProjectCard?>(null) }
+    var exporting by remember { mutableStateOf<ProjectCard?>(null) }
+    // the project and choice waiting for the file picker (kept if the activity is recreated meanwhile)
+    var pendingExport by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    val createDoc = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        val p = pendingExport; pendingExport = null
+        if (uri != null && p != null) backend.export(p.substringAfter(':'), p.startsWith("m:"), uri)
+    }
+    val openDoc = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { backend.import(it) }
+    }
     Column(Modifier.fillMaxSize().background(K.Bg).windowInsetsPadding(WindowInsets.safeDrawing).testTag("projects")) {
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             RoundIcon(Ic.Back, stringResource(R.string.projectsscreen_back)) { onClose() }
             Text(stringResource(R.string.projectsscreen_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+            PillButton(stringResource(R.string.projectsscreen_import), { haptics.tick(); openDoc.launch(arrayOf("*/*")) },
+                Modifier.padding(end = 12.dp).testTag("importProject"), icon = Ic.Download, filled = false)
+        }
+        backend.progress?.let { f ->
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp).testTag("packProgress")) {
+                Text(stringResource(R.string.projectsscreen_copying, (f * 100).toInt()), color = K.OnSurfaceVar, fontSize = 13.sp)
+                androidx.compose.material3.LinearProgressIndicator(progress = { f }, Modifier.fillMaxWidth().padding(top = 6.dp), color = K.Primary, trackColor = K.SurfaceHigh)
+            }
         }
         LazyVerticalGrid(GridCells.Adaptive(160.dp), Modifier.weight(1f).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -187,10 +211,30 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
                     MenuRow(stringResource(R.string.projectsscreen_open)) { menuFor = null; backend.open(p.id); onClose() }
                     MenuRow(stringResource(R.string.projectsscreen_rename)) { menuFor = null; renaming = p }
                     MenuRow(stringResource(R.string.projectsscreen_duplicate)) { menuFor = null; backend.duplicate(p.id) }
+                    MenuRow(stringResource(R.string.projectsscreen_export_project)) { menuFor = null; exporting = p }
                     if (!p.current) MenuRow(stringResource(R.string.projectsscreen_delete), danger = true) { menuFor = null; deleting = p }
                 }
             },
             confirmButton = { TextButton(onClick = { menuFor = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
+            containerColor = K.SurfaceHigh,
+        )
+    }
+    exporting?.let { p ->
+        fun go(withMedia: Boolean) {
+            exporting = null
+            pendingExport = (if (withMedia) "m:" else "p:") + p.id
+            createDoc.launch(ProjectPackageName.of(p.name))
+        }
+        AlertDialog(
+            onDismissRequest = { exporting = null },
+            title = { Text(stringResource(R.string.projectsscreen_export_title, p.name)) },
+            text = {
+                Column {
+                    ExportChoice(stringResource(R.string.projectsscreen_export_with_media), stringResource(R.string.projectsscreen_export_with_media_hint), "exportWithMedia") { go(true) }
+                    ExportChoice(stringResource(R.string.projectsscreen_export_only), stringResource(R.string.projectsscreen_export_only_hint), "exportProjectOnly") { go(false) }
+                }
+            },
+            confirmButton = { TextButton(onClick = { exporting = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -214,6 +258,22 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
             dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
             containerColor = K.SurfaceHigh,
         )
+    }
+}
+
+/** The package's file name: the project's name (without characters file systems refuse) + .klipp. */
+object ProjectPackageName {
+    fun of(name: String): String = name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "Klipp" } + "." + se.gendut.klipp.engine.ProjectPackage.EXT
+}
+
+@Composable
+private fun ExportChoice(title: String, hint: String, tag: String, onClick: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(K.SurfaceHighest)
+            .combinedClickable(onClick = onClick).padding(14.dp).testTag(tag)
+    ) {
+        Text(title, color = K.OnSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        Text(hint, color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
     }
 }
 

@@ -48,6 +48,22 @@
     <string name="projectcontroller_open_failed_blocked">Couldn\'t open the project: %1$s. Nothing is saved until you open or create a project.</string>
     <string name="projectcontroller_copy_name">%1$s (copy)</string>
     <string name="projectcontroller_project_fallback_name">Project</string>
+    <string name="projectcontroller_package_write_failed">Couldn\'t write the file</string>
+    <string name="projectcontroller_package_read_failed">Couldn\'t read the file</string>
+    <string name="projectcontroller_exported">Project exported</string>
+    <plurals name="projectcontroller_exported_media">
+        <item quantity="one">Project exported with %1$d media file</item>
+        <item quantity="other">Project exported with %1$d media files</item>
+    </plurals>
+    <plurals name="projectcontroller_exported_missing">
+        <item quantity="one">Project exported – %1$d media file couldn\'t be read and is missing</item>
+        <item quantity="other">Project exported – %1$d media files couldn\'t be read and are missing</item>
+    </plurals>
+    <string name="projectcontroller_export_project_failed">Couldn\'t export the project: %1$s</string>
+    <string name="projectcontroller_imported">Imported: %1$s</string>
+    <string name="projectcontroller_imported_name">%1$s (imported)</string>
+    <string name="projectcontroller_import_project_failed">Couldn\'t import the project: %1$s</string>
+    <string name="projectcontroller_not_a_package">the file isn\'t a Klipp project</string>
     <string name="projectcontroller_duplicate_failed">Couldn\'t duplicate the project: %1$s</string>
     <string name="projectcontroller_open_another_first">Open another project first</string>
     <string name="projectcontroller_change_failed">Couldn\'t change: %1$s</string>
