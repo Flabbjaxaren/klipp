@@ -124,7 +124,8 @@ object TitleMotion {
 
     fun pose(look: TitleLook, t: Double, dur: Double, w: Int, h: Int, rollHeight: Int = h): TitlePose {
         val anchor = anchorOf(look.template, w, h)
-        val outA = if (dur > IN + OUT && t > dur - OUT) ((dur - t) / OUT).coerceIn(0.0, 1.0).toFloat() else 1f
+        // the exit fades only with an entrance animation ("none" = the title is simply there, start to end)
+        val outA = if (look.anim != TitleAnim.NONE && dur > IN + OUT && t > dur - OUT) ((dur - t) / OUT).coerceIn(0.0, 1.0).toFloat() else 1f
         if (look.template == TitleTemplate.ROLL) {
             // the credits roll glides from below the frame to above it over the whole clip
             val p = (t / max(dur, 0.01)).coerceIn(0.0, 1.0).toFloat()

@@ -540,7 +540,8 @@ private fun OverlayText(plan: LayerPlan, state: EditorState) {
         // titles that follow a tracked object are redrawn when the tracking or the link changes
         se.gendut.klipp.engine.TitleFollow.revision
         for (captions in OVERLAY_KINDS) {
-            val item = plan.overlays.lastOrNull { (it.overlay is Overlay.Caption) == captions && t >= it.start && t < it.end } ?: continue
+            // the playhead is a Float: a frame's time can come out a hair before the title's start – the same margin as the clips
+            val item = plan.overlays.lastOrNull { (it.overlay is Overlay.Caption) == captions && t >= it.start - 5e-4 && t < it.end - 5e-4 } ?: continue
             val half = when (val o = item.overlay) {
                 is Overlay.Title -> Overlay.Title(o.t.copy(size = o.t.size / 2, x = o.t.x?.div(2), y = o.t.y?.div(2)))
                 is Overlay.Caption -> o

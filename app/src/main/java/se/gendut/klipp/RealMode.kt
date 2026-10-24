@@ -195,7 +195,8 @@ fun ProgramMonitor(
     val hasClips = q?.video?.any { it.clips.isNotEmpty() } == true || q?.captions?.isNotEmpty() == true
     val aspect = if (q != null && q.width > 0 && q.height > 0) q.width.toFloat() / q.height else 16f / 9f
     // color page: pinch to look closer (see MonitorZoom); back to 100 % when leaving the page or changing the format
-    val zoomable = gs?.active == true && hasClips
+    // ... and while a title's corners are placed (look closer before putting a corner on something)
+    val zoomable = (gs?.active == true || state.pinEdit != null) && hasClips
     val zoom = remember { MonitorZoom() }
     LaunchedEffect(zoomable, aspect) { if (!zoomable) zoom.reset() }
     val scope = rememberCoroutineScope()
@@ -214,7 +215,8 @@ fun ProgramMonitor(
             ) {
                 // the composition always outputs the sequence format (each clip is fitted in Playback), the box has the same shape.
                 // Zoomed: a TextureView – a SurfaceView's image can't be scaled or clipped with the layout.
-                val texture = usesBlendModes() || zoom.zoomed
+                // (placing corners: a TextureView too, so the magnifier sees the picture – it can't read a SurfaceView)
+                val texture = usesBlendModes() || zoom.zoomed || state.pinEdit != null
                 ProgramSurface(playback.player, texture, Modifier.fillMaxSize().redrawOnResize(playback, state))
                 // a new surface (SurfaceView ⇄ TextureView) stays black while standing still (a redraw isn't enough): reload
                 var lastTexture by remember { mutableStateOf(texture) }
