@@ -370,7 +370,17 @@ private fun LayerVideo(
     // the effects are only replaced when the nodes (or the look) change – the values are read live from LiveGrades
     // (same key as the main player: nodes, tracking and stabilization)
     val structure = grade?.let { g -> se.gendut.klipp.engine.LiveGrades.structureOf(g) }
-    LaunchedEffect(gc?.id, structure, look) {
+    // as in the main player: 4K material is brought down to the preview size before the grade and the film (same
+    // picture as there; at the original's size the film took several times as long – the edit point layer fell
+    // hundreds of milliseconds behind with diffusion and halation on originals)
+    val scaleShort = segs.getOrNull(cue)?.let { sg -> controller.uriOf(sg.src.item) }?.let { u ->
+        val short = if (se.gendut.klipp.engine.Proxies.videoUri(u) != u) se.gendut.klipp.engine.Proxies.proxyShort(u)
+            else se.gendut.klipp.engine.Perf.cachedCodec(u)?.let { k -> if (k.width > 0 && k.height > 0) min(k.width, k.height) else null }
+        val pv = se.gendut.klipp.engine.VideoPipeline.previewShort
+        if (pv <= 0) null else se.gendut.klipp.engine.CompositionBuilder.previewSize(plan.width, plan.height, pv)
+            .let { (pw, ph) -> se.gendut.klipp.engine.CompositionBuilder.previewShortSide(short, pw, ph) }
+    }
+    LaunchedEffect(gc?.id, structure, look, scaleShort) {
         if (gc != null && grade != null) se.gendut.klipp.engine.LiveGrades.publish(mapOf(gc.id to grade))
         // tracked windows: the frame's source time (see LayerClock)
         // always (live): a window tracked afterwards follows along without the effects being rebuilt
@@ -379,7 +389,10 @@ private fun LayerVideo(
         val layer = grade?.layer?.takeIf { it.hasAlpha }
         val keyFx = gc?.let { cl -> layer?.key?.let { se.gendut.klipp.engine.LayerFxEffect(layer, cl.id, se.gendut.klipp.engine.LayerFxEffect.KEY, se.gendut.klipp.engine.LayerFxEffect.STRAIGHT) } }
         val maskFx = gc?.let { cl -> layer?.let { se.gendut.klipp.engine.LayerFxEffect(it, cl.id, se.gendut.klipp.engine.LayerFxEffect.MASK, se.gendut.klipp.engine.LayerFxEffect.PREMULTIPLIED, src) } }
-        runCatching { player.setVideoEffects(listOfNotNull(keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)) }
+        val fx = listOfNotNull(keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)
+        // (no effects: none – the downscale alone would add a pass the plain picture doesn't need)
+        val down = scaleShort?.takeIf { fx.isNotEmpty() }?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
+        runCatching { player.setVideoEffects(listOfNotNull(down) + fx) }
         repaint(player)
     }
     LaunchedEffect(grade) {
