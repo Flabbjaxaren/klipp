@@ -71,6 +71,20 @@ class VolumeLineTest {
 
     @Test fun draggingTheLineSetsTheLevel() {
         val (st, props, id) = setup()
+        st.playhead = 2f
+        var heard: Float? = null
+        rule.onNodeWithTag("timeline").performTouchInput {
+            val from = pt(2f, yOfDb(0f))
+            down(from)
+            for (i in 1..12) moveTo(Offset(from.x, from.y - 4f * density * i))
+        }
+        rule.waitForIdle()
+        heard = st.liveLevelDelta
+        rule.onNodeWithTag("timeline").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals("heard while dragging: the change at the playhead", 11f, heard!!, 0.05f)
+        assertEquals("nothing left after release", null, st.liveLevelDelta)
+        props.log.clear()
         rule.onNodeWithTag("timeline").performTouchInput {
             val from = pt(2f, yOfDb(0f))
             down(from)
