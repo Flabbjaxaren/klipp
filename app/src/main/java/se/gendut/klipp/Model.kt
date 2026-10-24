@@ -379,6 +379,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var clipLevels by mutableStateOf<Map<Long, ClipLevel>>(emptyMap())
     /** The volume lines on the audio clips can be edited (taller audio tracks, the line takes touches). */
     var volLines by mutableStateOf(false)
+    /** While a volume line is dragged: how much (dB) the level at the playhead changes – heard right away. */
+    var liveLevelDelta by mutableStateOf<Float?>(null)
     /** Track volume automation per audio track (A1–A3): (time, dB). Drawn as a line in the timeline. */
     var trackVolKf by mutableStateOf<List<List<Pair<Float, Float>>>>(emptyList())
     /** An audio effect slider is being dragged: (clip, effect index, parameter, value) to the playback chains. */

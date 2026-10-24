@@ -420,10 +420,15 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
     }
     // the volume slider is audible while dragging (lowering right away; raising up to the player's max volume)
     LaunchedEffect(playback) {
-        snapshotFlow { state.live }.collect { live ->
+        // (and the volume line in the timeline: its change at the playhead)
+        snapshotFlow { state.live to state.liveLevelDelta }.collect { (live, line) ->
             val committed = live?.takeIf { it.isAudio }?.let { controller.props(it.id)?.levelDb }
-            playback.liveGain = if (live != null && committed != null)
-                se.gendut.klipp.engine.CompositionBuilder.dbToGain((live.levelDb - committed).toDouble()).coerceIn(0f, 1f) else 1f
+            val db = when {
+                line != null -> line
+                live != null && committed != null -> live.levelDb - committed
+                else -> null
+            }
+            playback.liveGain = db?.let { se.gendut.klipp.engine.CompositionBuilder.dbToGain(it.toDouble()).coerceIn(0f, 1f) } ?: 1f
         }
     }
 }

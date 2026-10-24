@@ -817,7 +817,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 val p = ev.changes.filter { it.pressed }
                                 if (p.isEmpty()) break
                                 if (p.size >= 2 || ev.changes.any { it.isConsumed }) {
-                                    volEdit = null; volTip = null
+                                    volEdit = null; volTip = null; state.liveLevelDelta = null
                                     while (awaitPointerEvent().changes.any { it.pressed }) { }
                                     return@awaitEachGesture
                                 }
@@ -842,6 +842,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     lv.copy(kf = lv.kf.map { k -> if (around.any { it.mt == k.mt }) k.copy(v = listOf(((k.v.firstOrNull() ?: 0.0) + delta).coerceIn(ClipLevel.MIN_DB.toDouble(), ClipLevel.MAX_DB.toDouble()))) else k })
                                 }
                                 volEdit = id to shown
+                                // heard while dragging: the change of the level where the playhead is (if it is in the clip)
+                                val ph = state.playhead
+                                state.liveLevelDelta = if (ph >= c.start && ph < c.end) shown.at(ph) - lv.at(ph) else null
                                 // the level over the point being dragged (the line moves slower than the finger)
                                 val tipAt = va?.let { an ->
                                     val (bt, bb) = volBand(an)
@@ -851,6 +854,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 volTip = tipAt to db
                             }
                             volTip = null
+                            state.liveLevelDelta = null
                             val b = state.props
                             if (!moved) {
                                 if (key != null) {
