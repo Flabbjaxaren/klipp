@@ -34,6 +34,19 @@ public final class KlippPrecision {
   public static volatile long framesShown;
   public static volatile long framesLate;
 
+  /** When the latest frame was dropped as late (SystemClock.uptimeMillis; 0 = never). */
+  public static volatile long lastLateAt;
+
+  /** The latest late drops' times (uptime ms, at most 64), for the playback summary. */
+  public static final java.util.concurrent.ConcurrentLinkedDeque<Long> lateTimes = new java.util.concurrent.ConcurrentLinkedDeque<>();
+
+  static void noteLate() {
+    long now = android.os.SystemClock.uptimeMillis();
+    lastLateAt = now;
+    lateTimes.addLast(now);
+    while (lateTimes.size() > 64) lateTimes.pollFirst();
+  }
+
   private static final ThreadLocal<Boolean> CAN_RENDER_FLOAT = new ThreadLocal<>();
 
   /** Should a pool that asked for [requested] precision get floating point? Called on the GL thread with the context current. */

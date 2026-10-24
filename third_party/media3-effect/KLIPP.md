@@ -15,7 +15,7 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   10-bit encoder surfaces in multi-layer exports too).
 - `DefaultVideoFrameProcessor.java`: `Factory.klippGlObjectsProvider()` for the change above.
 - `FinalShaderProgramWrapper.java`: counts rendered and late-dropped frames (`KlippPrecision.framesShown`,
-  `framesLate`) for diagnostics.
+  `framesLate`, `lastLateAt`) for diagnostics and the preview's edit point layer.
 - `KlippBlend.java` (new): blend modes for the layers (multiply, screen, overlay, soft light, add, darken,
   lighten, difference). A layer's `OverlaySettings` that implements `KlippBlend.Settings` is blended with its mode.
 - `DefaultCompositorGlProgram.java`: a layer with a blend mode is drawn by copying the image so far into a

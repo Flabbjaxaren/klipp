@@ -426,7 +426,19 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
             if (!on) return@collect
             var last = playback.player.currentPosition
             var still = 0
+            // how long until the picture moves after play is pressed (in the trail)
+            val pressed = android.os.SystemClock.uptimeMillis()
+            var started = false
             while (state.playing) {
+                if (!started) {
+                    kotlinx.coroutines.delay(16)
+                    if (playback.player.currentPosition != last && playback.player.isPlaying) {
+                        started = true
+                        CrashReport.note("start: moving after ${android.os.SystemClock.uptimeMillis() - pressed} ms")
+                        last = playback.player.currentPosition
+                    } else if (android.os.SystemClock.uptimeMillis() - pressed < 3000) continue
+                    else started = true
+                }
                 kotlinx.coroutines.delay(500)
                 val p = playback.player
                 val now = p.currentPosition

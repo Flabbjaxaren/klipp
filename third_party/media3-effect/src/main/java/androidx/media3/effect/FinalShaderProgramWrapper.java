@@ -486,6 +486,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
         inputListener.onInputFrameProcessed(inputTexture);
         if (renderTimeNs == VideoFrameProcessor.DROP_OUTPUT_FRAME) {
           KlippPrecision.framesLate++; // Klipp: diagnostics
+          KlippPrecision.noteLate();
           checkNotNull(listener).onFrameRendered(presentationTimeUs);
         }
         return; // Drop frames when requested, or there is no output surface and output texture.

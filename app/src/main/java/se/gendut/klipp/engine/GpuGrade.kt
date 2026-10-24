@@ -86,10 +86,26 @@ object GpuGrade {
 
     @RequiresApi(33)
     private object Impl {
-        private var reader: ImageReader? = null
-        private var renderer: HardwareRenderer? = null
-        private var rw = 0
-        private var rh = 0
+        /**
+         * An output size's reader and renderer. Kept per size (the two latest): while scrubbing the stills switch
+         * between the small scrub frames and full-size frames, and making a new renderer ([HardwareRenderer.setSurface])
+         * blocked the app's render thread – the screen – for up to 50 ms every time.
+         */
+        private class Target(val w: Int, val h: Int) {
+            // CPU-readable: the result is copied out on the grading thread (a hardware bitmap's copy runs on the
+            // render thread, 3–16 ms per image while scrubbing)
+            val reader: ImageReader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2,
+                HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or HardwareBuffer.USAGE_GPU_COLOR_OUTPUT or HardwareBuffer.USAGE_CPU_READ_OFTEN)
+            val renderer: HardwareRenderer = HardwareRenderer().apply { setSurface(reader.surface) }
+            fun release() { renderer.destroy(); reader.close() }
+        }
+        private val targets = ArrayList<Target>()
+
+        private fun targetFor(w: Int, h: Int): Target {
+            targets.firstOrNull { it.w == w && it.h == h }?.let { t -> targets.remove(t); targets.add(t); return t }
+            if (targets.size >= 2) targets.removeAt(0).release()
+            return Target(w, h).also { targets.add(it) }
+        }
         private val lutCache = HashMap<CubeLut, Bitmap>()
         // reused between calls: compiling the AGSL shader and creating new bitmaps for every image
         // while dragging produced tens of MB of garbage per second (and CPU time for the SkSL interpreter)
@@ -120,12 +136,7 @@ object GpuGrade {
             if (chain.isEmpty()) return src0
             // blur and pixelation read the neighbours: then each shader gets a finished layer to read from
             val layered = chain.any { it.second }
-            if (reader == null || rw != w || rh != h) {
-                renderer?.destroy(); reader?.close()
-                reader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2, HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or HardwareBuffer.USAGE_GPU_COLOR_OUTPUT)
-                renderer = HardwareRenderer().apply { setSurface(reader!!.surface) }
-                rw = w; rh = h
-            }
+            val tg = targetFor(w, h)
             // one render node for all images (previously a new one per image that was never released)
             val node = renderNode
             node.setPosition(0, 0, w, h)
@@ -138,7 +149,7 @@ object GpuGrade {
                 c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply { shader = nest(chain.map { it.first }, src) })
             }
             node.endRecording()
-            val r = renderer!!
+            val r = tg.renderer
             r.setContentRoot(node)
             val t0 = android.os.SystemClock.uptimeMillis()
             r.createRenderRequest().setWaitForPresent(true).syncAndDraw()
@@ -147,14 +158,21 @@ object GpuGrade {
             if (ms > 1000) se.gendut.klipp.CrashReport.note("gpu grade slow: $ms ms, ${chain.size} shaders${if (layered) ", layered" else ""}")
             // the image is drawn (we waited for it): the display list and the source image are released
             node.discardDisplayList()
-            val img = reader!!.acquireLatestImage() ?: return null
+            val img = tg.reader.acquireLatestImage() ?: return null
             try {
-                val hb = img.hardwareBuffer ?: return null
-                // the reader's buffers are reused: copy the image out before the buffer is returned
-                val wrapped = Bitmap.wrapHardwareBuffer(hb, ColorSpace.get(ColorSpace.Named.SRGB))
-                val out = wrapped?.copy(Bitmap.Config.ARGB_8888, false)
-                wrapped?.recycle()
-                hb.close()
+                // the reader's buffers are reused: the pixels are copied out (on this thread) before the buffer goes back.
+                // RGBA bytes as ARGB_8888 stores them, rows possibly padded
+                val pl = img.planes[0]
+                val buf = pl.buffer
+                val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                if (pl.rowStride == w * 4 && pl.pixelStride == 4) out.copyPixelsFromBuffer(buf)
+                else {
+                    val row = java.nio.ByteBuffer.allocateDirect(w * 4 * h)
+                    val line = ByteArray(w * 4)
+                    for (y in 0 until h) { buf.position(y * pl.rowStride); buf.get(line, 0, w * 4); row.put(line) }
+                    row.rewind()
+                    out.copyPixelsFromBuffer(row)
+                }
                 return out
             } finally {
                 img.close()
