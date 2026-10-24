@@ -206,6 +206,7 @@
     <string name="colorpage_contrast">Contrast</string>
     <string name="colorpage_pivot">Pivot</string>
     <string name="colorpage_saturation">Saturation</string>
+    <string name="colorpage_film_density">Film Density</string>
     <string name="colorpage_hue">Hue</string>
     <string name="colorpage_temperature">Temperature</string>
     <string name="colorpage_tint">Tint</string>

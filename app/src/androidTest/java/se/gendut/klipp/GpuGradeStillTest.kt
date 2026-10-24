@@ -24,7 +24,7 @@ class GpuGradeStillTest {
         return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
     }
 
-    private val grade = ClipGrade(listOf(GradeNode(1, gain = Wheel(0.2f, -0.1f, 0.1f), sat = 1.3f, contrast = 1.15f, temp = 0.2f)))
+    private val grade = ClipGrade(listOf(GradeNode(1, gain = Wheel(0.2f, -0.1f, 0.1f), sat = 1.3f, contrast = 1.15f, temp = 0.2f, density = 0.6f)))
 
     private fun check(w: Int, h: Int) {
         val src = picture(w, h)

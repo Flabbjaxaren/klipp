@@ -372,6 +372,11 @@ data class GradeNode(
     val cache: Boolean = false,
     /** Noise reduction (0..1): an edge-keeping filter over the 5 × 5 neighbors ([Denoise]) before the node's color. */
     val denoise: Float = 0f,
+    /**
+     * Film density (0..1): subtractive saturation – colors get richer the way dye does, by losing light, never gaining
+     * it (see [density]). Gray and each pixel's strongest channel stay.
+     */
+    val density: Float = 0f,
 ) {
     val hasCurves get() = !(curveY.isIdentity && curveR.isIdentity && curveG.isIdentity && curveB.isIdentity)
     val hasHsl get() = !hsl.isNeutral
@@ -380,7 +385,7 @@ data class GradeNode(
     val hasKey get() = qual.on || win.on
     val hasBlur get() = blur > 0.0001f || pixelate > 0.0001f || denoise > 0.0001f
     val isNeutral get() = !enabled || mix <= 0.0001f || (lift.isNeutral && gamma.isNeutral && gain.isNeutral && offset.isNeutral &&
-        contrast == 1f && sat == 1f && hue == 0f && temp == 0f && tint == 0f && !hasCurves && !hasHsl && !hasLut && !hasBlur && drt == null && film == null)
+        contrast == 1f && sat == 1f && density == 0f && hue == 0f && temp == 0f && tint == 0f && !hasCurves && !hasHsl && !hasLut && !hasBlur && drt == null && film == null)
 
     /** Uniform values (shared by the CPU path and the shader). */
     class Params(
@@ -402,6 +407,8 @@ data class GradeNode(
         val ySide: FloatArray? = null,
         /** Noise reduction 0..1 (see [Denoise]); with blur or pixelation it is left out (they smooth more). */
         val denoise: Float = 0f,
+        /** Film density 0..1 (see [density]). */
+        val density: Float = 0f,
     ) {
         /** The node reads its neighbors (blur, pixelation, noise reduction): it needs a finished image to read from. */
         val neighbors get() = blur > 0f || pixel > 0f || denoise > 0f
@@ -450,7 +457,7 @@ data class GradeNode(
         val f = film?.takeIf { fl -> runCatching { FilmFx.warm(fl) }.onFailure { se.gendut.klipp.CrashReport.note("spektrafilm: ${it.message}") }.isSuccess }
         return Params(liftC, gammaExp, gainC, offC, contrast, pivot, wb, sat, hm, mix.coerceIn(0f, 1f), curves,
             l2, l2Mix, qual.takeIf { it.on }, win.takeIf { it.on },
-            blur.coerceIn(0f, 1f) * 0.04f, pixelate.coerceIn(0f, 1f) * 0.06f, f, hsl.tables(), ySide, denoise.coerceIn(0f, 1f))
+            blur.coerceIn(0f, 1f) * 0.04f, pixelate.coerceIn(0f, 1f) * 0.06f, f, hsl.tables(), ySide, denoise.coerceIn(0f, 1f), density.coerceIn(0f, 1f))
     }
 
     fun toJson(): JSONObject = JSONObject().put("id", id).put("label", label).put("on", enabled)
@@ -460,7 +467,7 @@ data class GradeNode(
         .put("cY", curveY.toJson()).put("cR", curveR.toJson()).put("cG", curveG.toJson()).put("cB", curveB.toJson())
         .apply { if (hasHsl) put("hsl", hsl.toJson()) }
         .put("lut", lut ?: JSONObject.NULL).put("lutMix", lutMix.toDouble()).put("qual", qual.toJson()).put("win", win.toJson())
-        .apply { if (blur > 0f) put("blur", blur.toDouble()); if (pixelate > 0f) put("pix", pixelate.toDouble()); drt?.let { put("drt", it.toJson()) }; film?.let { put("film", it.toJson()) }; if (cache) put("cache", true); if (denoise > 0f) put("dn", denoise.toDouble()) }
+        .apply { if (blur > 0f) put("blur", blur.toDouble()); if (pixelate > 0f) put("pix", pixelate.toDouble()); drt?.let { put("drt", it.toJson()) }; film?.let { put("film", it.toJson()) }; if (cache) put("cache", true); if (denoise > 0f) put("dn", denoise.toDouble()); if (density > 0f) put("den", density.toDouble()) }
 
     companion object {
         fun fromJson(o: JSONObject) = GradeNode(
@@ -478,6 +485,7 @@ data class GradeNode(
             Film.fromJson(o.optJSONObject("film")),
             o.optBoolean("cache", false),
             o.optDouble("dn", 0.0).toFloat(),
+            o.optDouble("den", 0.0).toFloat(),
         )
 
         /**
@@ -496,6 +504,25 @@ data class GradeNode(
             val d = max(1f + lift * (gain - 1f), 0.05f)
             val e = if (gamma >= 0f) 1f / (1f + gamma) else 1f - gamma
             return Triple(gain * lift / d, gain * (1f - lift) / d, e)
+        }
+
+        /** Below this strongest channel film density fades out (it would turn the chroma noise of the blacks into color). */
+        const val DENSITY_DARK_LO = 0.02f
+        const val DENSITY_DARK_HI = 0.1f
+
+        /**
+         * Film density [d] (0..1) on a pixel (0..1): subtractive saturation. In density terms (−log of the value) each
+         * channel gets d times its distance from the pixel's least dense channel added – dye, which only takes light
+         * away: `c·(c/max)^d`. Gray and the strongest channel stay, the others darken the more they differ from it, so
+         * colors get deeper and darker, never brighter. It depends on the channels' ratios only (the same on every
+         * exposure); it fades out in the blacks.
+         */
+        fun density(rgb: FloatArray, d: Float) {
+            val m = max(rgb[0], max(rgb[1], rgb[2]))
+            if (d <= 0f || m <= 1e-6f) return
+            val e = d * smooth(DENSITY_DARK_LO, DENSITY_DARK_HI, m)
+            if (e <= 0f) return
+            for (i in 0..2) { val c = max(rgb[i], 0f); rgb[i] = c * (c / m).pow(e) }
         }
 
         private fun smooth(e0: Float, e1: Float, x: Float): Float {
@@ -610,6 +637,7 @@ data class GradeNode(
             rgb[0] = (luma + (hr - luma) * p.sat).coerceIn(0f, 1f)
             rgb[1] = (luma + (hg - luma) * p.sat).coerceIn(0f, 1f)
             rgb[2] = (luma + (hb - luma) * p.sat).coerceIn(0f, 1f)
+            density(rgb, p.density)
             p.curves?.let { cv -> for (i in 0..2) rgb[i] = sample(cv[i], rgb[i]) }
             p.hsl?.let { t -> HslCurves.apply(t, rgb); for (i in 0..2) rgb[i] = rgb[i].coerceIn(0f, 1f) }
             p.lut?.let { l ->
@@ -1011,6 +1039,7 @@ uniform float uContrast;
 uniform float uPivot;
 uniform vec3 uWb;
 uniform float uSat;
+uniform float uDensity;
 uniform mat3 uHue;
 uniform float uMix;
 uniform float uUseCurves;
@@ -1228,6 +1257,12 @@ void main() {
   c = uHue * c;
   float y = dot(c, vec3(0.2126, 0.7152, 0.0722));
   c = clamp(vec3(y) + (c - vec3(y)) * uSat, 0.0, 1.0);
+  // film density (see GradeNode.density)
+  if (uDensity > 0.0) {
+    float m = max(c.r, max(c.g, c.b));
+    float e = uDensity * smoothstep(${GradeNode.DENSITY_DARK_LO}, ${GradeNode.DENSITY_DARK_HI}, m);
+    if (m > 1e-6 && e > 0.0) c = c * pow(c / m, vec3(e));
+  }
   if (uUseCurves > 0.5) {
     vec3 u = c * (255.0 / 256.0) + vec3(0.5 / 256.0);
     c = vec3(texture2D(uCurves, vec2(u.r, 0.5)).r, texture2D(uCurves, vec2(u.g, 0.5)).g, texture2D(uCurves, vec2(u.b, 0.5)).b);
@@ -1383,6 +1418,7 @@ class GradeNodeEffect(
                 program.setFloatUniform("uPivot", p.pivot)
                 program.setFloatsUniform("uWb", p.wb)
                 program.setFloatUniform("uSat", p.sat)
+                program.setFloatUniform("uDensity", p.density)
                 // GLSL matrices are column-major
                 program.setFloatsUniform("uHue", transpose3(p.hueMat))
                 program.setFloatUniform("uMix", p.mix)

@@ -256,6 +256,7 @@ object GpuGrade {
             s.setFloatUniform("uContrast", p.contrast)
             s.setFloatUniform("uPivot", p.pivot)
             s.setFloatUniform("uSat", p.sat)
+            s.setFloatUniform("uDensity", p.density)
             s.setFloatUniform("uHue", GradeNodeEffect.transpose3(p.hueMat))
             s.setFloatUniform("uMix", p.mix)
             s.setFloatUniform("uUseCurves", if (p.curves != null) 1f else 0f)
@@ -436,6 +437,7 @@ uniform float3 uWb;
 uniform float uContrast;
 uniform float uPivot;
 uniform float uSat;
+uniform float uDensity;
 uniform float3x3 uHue;
 uniform float uMix;
 uniform float uUseCurves;
@@ -589,6 +591,12 @@ half4 main(float2 pos) {
   c = uHue * c;
   float y = dot(c, float3(0.2126, 0.7152, 0.0722));
   c = clamp(float3(y) + (c - float3(y)) * uSat, 0.0, 1.0);
+  // film density (see GradeNode.density)
+  if (uDensity > 0.0) {
+    float m = max(c.r, max(c.g, c.b));
+    float e = uDensity * smoothstep(${GradeNode.DENSITY_DARK_LO}, ${GradeNode.DENSITY_DARK_HI}, m);
+    if (m > 1e-6 && e > 0.0) c = c * pow(c / m, float3(e));
+  }
   if (uUseCurves > 0.5) {
     c = float3(curves.eval(float2(c.r * 255.0 + 0.5, 0.5)).r, curves.eval(float2(c.g * 255.0 + 0.5, 0.5)).g, curves.eval(float2(c.b * 255.0 + 0.5, 0.5)).b);
   }

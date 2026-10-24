@@ -482,7 +482,7 @@ private fun ColorPageBody(
     val tabs = listOf(
         ToolTab(stringResource(R.string.colorpage_tool_wheels), Ic.Wheels, "editor:Hjul", marked = !(node.lift.isNeutral && node.gamma.isNeutral && node.gain.isNeutral && node.offset.isNeutral)),
         ToolTab(stringResource(R.string.colorpage_tool_curves), Ic.Curves, "editor:Kurvor", marked = node.hasCurves || node.hasHsl),
-        ToolTab(stringResource(R.string.colorpage_tool_adjust), Ic.Sliders, "editor:Justera", marked = node.contrast != 1f || node.sat != 1f || node.hue != 0f || node.temp != 0f || node.tint != 0f || node.mix < 1f),
+        ToolTab(stringResource(R.string.colorpage_tool_adjust), Ic.Sliders, "editor:Justera", marked = node.contrast != 1f || node.sat != 1f || node.density != 0f || node.hue != 0f || node.temp != 0f || node.tint != 0f || node.mix < 1f),
         ToolTab(stringResource(R.string.colorpage_tool_lut), Ic.Cube, "editor:LUT", marked = node.lut != null || node.drt != null),
         ToolTab(stringResource(R.string.colorpage_tool_qualifier), Ic.Dropper, "editor:Kvalificerare", marked = node.qual.on),
         ToolTab(stringResource(R.string.colorpage_tool_window), Ic.Window, "editor:Fönster", marked = node.win.on),
@@ -544,6 +544,7 @@ private fun ColorPageBody(
                     PropSlider(stringResource(R.string.colorpage_contrast), node.contrast, 0f, 2f, 1f, { "%.2f".format(it) }, "contrast", onLive = { live(node.copy(contrast = it)) }) { commit(node.copy(contrast = it)) }
                     PropSlider(stringResource(R.string.colorpage_pivot), node.pivot, 0f, 1f, 0.435f, { "%.3f".format(it) }, "pivot", onLive = { live(node.copy(pivot = it)) }) { commit(node.copy(pivot = it)) }
                     PropSlider(stringResource(R.string.colorpage_saturation), node.sat, 0f, 2f, 1f, { "%.0f".format(it * 50) }, "sat", onLive = { live(node.copy(sat = it)) }) { commit(node.copy(sat = it)) }
+                    PropSlider(stringResource(R.string.colorpage_film_density), node.density * 100f, 0f, 100f, 0f, { "%.0f".format(it) }, "density", onLive = { live(node.copy(density = it / 100f)) }) { commit(node.copy(density = it / 100f)) }
                     PropSlider(stringResource(R.string.colorpage_hue), node.hue, -180f, 180f, 0f, { "%.0f°".format(it) }, "hue", onLive = { live(node.copy(hue = it)) }) { commit(node.copy(hue = it)) }
                     PropSlider(stringResource(R.string.colorpage_temperature), node.temp, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "temp", onLive = { live(node.copy(temp = it)) }) { commit(node.copy(temp = it)) }
                     PropSlider(stringResource(R.string.colorpage_tint), node.tint, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "tint", onLive = { live(node.copy(tint = it)) }) { commit(node.copy(tint = it)) }

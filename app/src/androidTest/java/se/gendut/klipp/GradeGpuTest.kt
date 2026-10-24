@@ -93,6 +93,8 @@ class GradeGpuTest {
         hsl = HslCurves(hueSat = HslCurve(listOf(0f to 0.8f, 0.33f to 0.3f, 0.66f to 0.6f)), hueHue = HslCurve(listOf(0.5f to 0.6f)),
             lumSat = HslCurve(listOf(0f to 0.3f, 1f to 0.5f)))))
 
+    @Test fun filmDensity() = assertSame("density", GradeNode(1, density = 0.8f))
+
     @Test fun windowOffTheMiddle() = assertSame("window", GradeNode(1,
         gain = Wheel(0f, 0f, -0.5f), win = Window(shape = 1, cx = 0.3f, cy = 0.25f, rx = 0.2f, ry = 0.15f, soft = 0.4f, angle = 20f)))
 
