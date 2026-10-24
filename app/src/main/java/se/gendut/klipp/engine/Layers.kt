@@ -422,6 +422,42 @@ fun placementOf(item: OverlayItem, t: Double, w: Int, h: Int): Placement {
     return base.around(textPoint(title.t, w, h), ks, th, w, h)
 }
 
+/**
+ * A pinned title at [t]: its image at the resolution the quad needs and the perspective from that image's pixels to
+ * the frame's ([w]×[h]). Null = not pinned (the usual [placementOf] applies).
+ */
+fun pinArtOf(item: OverlayItem, t: Double, w: Int, h: Int): Pair<Bitmap, android.graphics.Matrix>? {
+    val title = item.overlay as? Overlay.Title ?: return null
+    val id = item.clip?.id ?: return null
+    // the quad in the sequence's own pixels (the clip's motion is in them), as fractions – the same whatever size it is drawn at
+    val q = TitleFollow.pinQuad(id, t) ?: return null
+    val art = PinArt.of(title.t, w, h, q)
+    return art.bitmap to CornerPins.matrix(art.box, q, w, h)
+}
+
+/** A point of the overlay's own [w]×[h] image (pixels) → where this placement puts it in the frame (pixels), as drawPlaced/Media3 do. */
+fun Placement.mapPx(x: Float, y: Float, w: Int, h: Int): FloatArray {
+    val ox = (ovX + 1f) / 2f * w; val oy = (1f - ovY) / 2f * h
+    val bx = (bgX + 1f) / 2f * w; val by = (1f - bgY) / 2f * h
+    val a = Math.toRadians(-rotation.toDouble())
+    val vx = (x - ox) * scale; val vy = (y - oy) * scale
+    return floatArrayOf(bx + (vx * kotlin.math.cos(a) - vy * kotlin.math.sin(a)).toFloat(), by + (vx * kotlin.math.sin(a) + vy * kotlin.math.cos(a)).toFloat())
+}
+
+/**
+ * The corners of a title's text box in the frame at [t] (fractions: top left, top right, bottom right, bottom left) –
+ * through its pin when it has one, otherwise its placement (motion, entrance, following).
+ */
+fun titleBoxQuad(c: ClipSnap, t: Double, w: Int, h: Int): FloatArray? {
+    val text = c.text ?: return null
+    val item = OverlayItem(c.start, c.end, Overlay.Title(text), c)
+    TitleFollow.pinQuad(c.id, t, w, h)?.let { return it }
+    val b = TitleBounds.of(text, w, h)
+    val pl = placementOf(item, t, w, h)
+    val pts = listOf(b.left to b.top, b.right to b.top, b.right to b.bottom, b.left to b.bottom).map { (x, y) -> pl.mapPx(x, y, w, h) }
+    return FloatArray(8) { i -> pts[i / 2][i % 2] / if (i % 2 == 0) w else h }
+}
+
 /** Where a title's text sits in its own image (NDC): a free title at its position, the templates at their anchor. */
 fun textPoint(t: TextSnap, w: Int, h: Int): Pair<Float, Float> = when (t.look.template) {
     TitleTemplate.FREE -> (((t.x ?: (w / 2.0)) / w * 2 - 1).toFloat()) to ((1 - (t.y ?: (h / 2.0)) / h * 2).toFloat())
@@ -476,16 +512,41 @@ object TitleFollow {
     @Volatile private var clips: Map<Long, ClipSnap> = emptyMap()
     @Volatile private var seqW = 1920
     @Volatile private var seqH = 1080
+    /** The sequence's size (pixels) as last published. */
+    val width get() = seqW
+    val height get() = seqH
     /** Increments on every publish (the title layer is redrawn). */
     var revision by androidx.compose.runtime.mutableIntStateOf(0)
         private set
 
-    fun publish(follows: Map<Long, Follow>, grades: Map<Long, ClipGrade>, snapshot: Snapshot?) {
+    @Volatile private var pins: Map<Long, CornerPin> = emptyMap()
+
+    fun publish(follows: Map<Long, Follow>, grades: Map<Long, ClipGrade>, snapshot: Snapshot?, pins: Map<Long, CornerPin> = emptyMap()) {
         this.follows = HashMap(follows)
+        this.pins = HashMap(pins)
         this.grades = HashMap(grades)
         this.clips = snapshot?.playable()?.sequence?.video.orEmpty().flatMap { it.clips }.associateBy { it.id }
         snapshot?.sequence?.let { q -> if (q.width > 0 && q.height > 0) { seqW = q.width; seqH = q.height } }
         revision++
+    }
+
+    /** Title [title]'s corner pin at timeline [t]: its quad (fractions of the frame), or null when it has none. */
+    fun pinQuad(title: Long, t: Double, w: Int, h: Int): FloatArray? {
+        val p = pins[title] ?: return null
+        return CornerPins.quadAt(p, t, w, h, { clips[it] }, { grades[it] })
+    }
+
+    fun hasPin(title: Long) = pins.containsKey(title)
+
+    /** [pinQuad] in the sequence's own size. */
+    fun pinQuad(title: Long, t: Double): FloatArray? = pinQuad(title, t, seqW, seqH)
+
+    /** A point drawn on the finished picture at [t] → the clip's own picture (before its motion and stabilization). */
+    fun pointToClip(clip: Long, t: Double, fx: Float, fy: Float): FloatArray? {
+        val c0 = clips[clip] ?: return null
+        val p = c0.at(t).fromFrame(fx, fy, seqW, seqH)
+        val st = grades[clip]?.stab?.transform(c0.sourceAt(t), seqW.toFloat(), seqH.toFloat())
+        return st?.let { unstab(it, p[0], p[1], seqW, seqH) } ?: p
     }
 
     /**
@@ -638,16 +699,27 @@ class TimedOverlay(
 
     fun at(t: Double): OverlayItem? = items.lastOrNull { t >= it.start && t < it.end }
 
+    /** A pinned title drawn in perspective into a frame-size image (redrawn per frame, reused). */
+    private var warped: Bitmap? = null
+    private val warpPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG or android.graphics.Paint.ANTI_ALIAS_FLAG)
+
     override fun getBitmap(presentationTimeUs: Long): Bitmap {
         val t = time.seconds(presentationTimeUs) ?: return empty
         val item = at(t) ?: return empty
-        return cache.getOrPut(item.overlay) { OverlayRenderer.draw(item.overlay, w, h) }
+        val pin = pinArtOf(item, t, w, h) ?: return cache.getOrPut(item.overlay) { OverlayRenderer.draw(item.overlay, w, h) }
+        val out = warped?.takeIf { it.width == w && it.height == h } ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { warped = it }
+        out.eraseColor(Color.TRANSPARENT)
+        android.graphics.Canvas(out).drawBitmap(pin.first, pin.second, warpPaint)
+        return out
     }
 
     override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
         val t = time.seconds(presentationTimeUs) ?: return hidden
         val item = at(t) ?: return hidden
-        return placementOf(item, t, w, h).toSettings()
+        val pl = placementOf(item, t, w, h)
+        // pinned: the image is already in place – only the opacity (fades, the entrance's fade)
+        if (item.clip?.id?.let { TitleFollow.hasPin(it) } == true) return StaticOverlaySettings.Builder().setAlphaScale(pl.alpha.coerceIn(0f, 1f)).build()
+        return pl.toSettings()
     }
 }
 

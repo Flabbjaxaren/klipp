@@ -384,7 +384,7 @@ fun KlippApp(
     LaunchedEffect(controller) {
         if (controller == null) return@LaunchedEffect
         androidx.compose.runtime.snapshotFlow { Triple(gs.revision, controller.revision, gs.follows.size) }.collect {
-            se.gendut.klipp.engine.TitleFollow.publish(HashMap(gs.follows), HashMap(gs.grades), controller.snapshot)
+            se.gendut.klipp.engine.TitleFollow.publish(HashMap(gs.follows), HashMap(gs.grades), controller.snapshot, HashMap(gs.pins))
         }
     }
     LaunchedEffect(controller) {

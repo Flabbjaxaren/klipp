@@ -241,6 +241,7 @@ fun ProgramMonitor(
                 // a still instead of black
                 LivePreview(controller, state, gs = gs, look = look, force = (!playback.frameShown && !state.playing) || look != playback.look)
                 if (state.boxPick != null) BoxPickOverlay(state)
+                else if (gs != null && state.pinEdit != null && state.pinEdit == state.selected && state.inspecting) PinOverlay(state, gs)
                 else if (state.inspecting) MotionOverlay(state)
                 // color page: windows to drag, eyedropper, comparison with a still
                 // the window is drawn for the same source time as the visible image (the still while scrubbing, otherwise the playhead)

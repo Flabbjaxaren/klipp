@@ -51,6 +51,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
@@ -103,6 +104,14 @@ fun DrawScope.drawPlaced(img: ImageBitmap, p: Placement, frameW: Int, frameH: In
             }
         }
     }
+}
+
+/** Draws a pinned title's image [bmp] through [m] (its pixels → frame pixels, see pinArtOf) into a [frameW]-wide frame. */
+fun DrawScope.drawPinned(bmp: android.graphics.Bitmap, m: android.graphics.Matrix, frameW: Int, alpha: Float) {
+    if (alpha < 0.003f) return
+    val total = android.graphics.Matrix(m).apply { postScale(size.width / frameW, size.width / frameW) }
+    val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG or android.graphics.Paint.ANTI_ALIAS_FLAG).apply { this.alpha = (alpha.coerceIn(0f, 1f) * 255).toInt() }
+    drawContext.canvas.nativeCanvas.drawBitmap(bmp, total, paint)
 }
 
 /** A small mock picture behind the title preview (sky, mountains, sun – as in the design mockup). */
@@ -341,7 +350,7 @@ private fun AddAtPlayhead(state: EditorState, onClick: () -> Unit) {
 fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
     val scope = rememberCoroutineScope()
     val look = TitleLook.parse(p.titleLook)
-    LocalGradeState.current?.let { gs -> FollowSection(state, p, gs) }
+    LocalGradeState.current?.let { gs -> PinSection(state, p, gs); FollowSection(state, p, gs) }
     SectionLabel(stringResource(R.string.titleui_title))
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for (t in TitleTemplate.entries) {

@@ -396,6 +396,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
      * picture, y down) goes to the callback; null = not drawing.
      */
     var boxPick by mutableStateOf<((cx: Float, cy: Float, rx: Float, ry: Float) -> Unit)?>(null)
+    /** The title whose corner pin is being dragged on the picture (see PinOverlay); null = none. */
+    var pinEdit by mutableStateOf<Long?>(null)
     /** Live values for the selected clip while a slider/gesture is dragged (previewed in the image). */
     var live by mutableStateOf<ClipProps?>(null)
     var liveToken = 0

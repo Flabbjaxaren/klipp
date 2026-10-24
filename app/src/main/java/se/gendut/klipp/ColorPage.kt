@@ -109,6 +109,8 @@ class GradeState {
     val grades = mutableStateMapOf<Long, ClipGrade>()
     /** Titles that follow a tracked window: the title's clip id → (clip, node). Saved with the grades. */
     val follows = mutableStateMapOf<Long, se.gendut.klipp.engine.Follow>()
+    /** Titles pinned by their corners (title id → pin), see CornerPin. */
+    val pins = androidx.compose.runtime.mutableStateMapOf<Long, se.gendut.klipp.engine.CornerPin>()
     var live by mutableStateOf<Pair<Long, ClipGrade>?>(null)
     private var liveToken = 0
     var clipboard by mutableStateOf<ClipGrade?>(null)
@@ -242,16 +244,39 @@ class GradeState {
         revision++
     }
 
+    fun setPin(title: Long, p: se.gendut.klipp.engine.CornerPin?) {
+        val before = pins[title]
+        putPin(title, p)
+        if (before != p) history?.invoke(Str.t(R.string.colorpage_history_pin), { putPin(title, before) }, { putPin(title, p) })
+    }
+
+    /** The corners while they are dragged (no undo step; [commitPin] when the finger lifts). */
+    fun livePin(title: Long, p: se.gendut.klipp.engine.CornerPin) = putPin(title, p)
+
+    /** After live drags: [p] becomes one undo step back to [before]. */
+    fun commitPin(title: Long, p: se.gendut.klipp.engine.CornerPin?, before: se.gendut.klipp.engine.CornerPin?) {
+        putPin(title, p)
+        if (before != p) history?.invoke(Str.t(R.string.colorpage_history_pin), { putPin(title, before) }, { putPin(title, p) })
+    }
+
+    private fun putPin(title: Long, p: se.gendut.klipp.engine.CornerPin?) {
+        if (p == null) pins.remove(title) else pins[title] = p
+        revision++
+    }
+
     fun toJson(): JSONObject = JSONObject().also { o ->
         grades.forEach { (id, g) -> o.put(id.toString(), g.toJson()) }
         // (keys that are not clip ids are skipped by older versions)
         if (follows.isNotEmpty()) o.put("_follow", JSONObject().also { f -> follows.forEach { (t, v) -> f.put(t.toString(), v.encode()) } })
+        if (pins.isNotEmpty()) o.put("_pin", JSONObject().also { f -> pins.forEach { (t, v) -> f.put(t.toString(), v.toJson()) } })
     }
     fun load(o: JSONObject?) {
         grades.clear()
         follows.clear()
+        pins.clear()
         o?.keys()?.forEach { k -> k.toLongOrNull()?.let { grades[it] = ClipGrade.fromJson(o.optJSONObject(k)) } }
         o?.optJSONObject("_follow")?.let { f -> f.keys().forEach { k -> k.toLongOrNull()?.let { t -> se.gendut.klipp.engine.Follow.parse(f.optString(k))?.let { follows[t] = it } } } }
+        o?.optJSONObject("_pin")?.let { f -> f.keys().forEach { k -> k.toLongOrNull()?.let { t -> se.gendut.klipp.engine.CornerPin.fromJson(f.optJSONObject(k))?.let { pins[t] = it } } } }
         revision++
     }
 }
