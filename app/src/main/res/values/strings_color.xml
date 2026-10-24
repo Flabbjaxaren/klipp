@@ -117,6 +117,8 @@
     <string name="colortools_circle">Circle</string>
     <string name="colortools_rectangle">Rectangle</string>
     <string name="colortools_window_intro">A window limits the node to part of the image – e.g. brighten a face or make a vignette (Invert).</string>
+    <string name="colortools_vignette">Vignette</string>
+    <string name="colortools_vignette_hint">Darkens the edges: a soft window around the picture with the gain lowered outside it. Shape it with the window, set the strength with Gain.</string>
     <string name="colortools_window_drag_hint">Drag the window in the image, pinch to resize.</string>
     <string name="colortools_center_x">Center X</string>
     <string name="colortools_center_y">Center Y</string>

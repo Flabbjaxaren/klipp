@@ -596,6 +596,12 @@ object TrackService {
     fun cancel() { job?.cancel(); job = null }
 }
 
+/** The node as a vignette: a soft inverted ellipse filling the picture; the gain goes down outside it (unless already set). */
+fun vignette(n: GradeNode): GradeNode = n.copy(
+    win = Window(shape = 1, cx = 0.5f, cy = 0.5f, rx = 0.6f, ry = 0.6f, soft = 1f, invert = true),
+    gain = if (n.gain.master == 0f) n.gain.copy(master = -0.4f) else n.gain,
+)
+
 @Composable
 fun WindowEditor(clip: Long, n: GradeNode, gs: GradeState, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit,
                  colorClip: ColorClip? = null, playhead: () -> Float = { 0f }, seek: ((Float) -> Unit)? = null) {
@@ -612,6 +618,10 @@ fun WindowEditor(clip: Long, n: GradeNode, gs: GradeState, onLive: (GradeNode) -
         }
         if (!w.on) {
             Text(stringResource(R.string.colortools_window_intro), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            // a vignette: a soft inverted ellipse the size of the picture, with the gain lowered outside it – then shaped
+            // with the window's sliders and darkened/lightened with the node's gain
+            PillButton(stringResource(R.string.colortools_vignette), { onCommit(vignette(n)) }, Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("win:vignette"), icon = Ic.Window, filled = false)
+            Text(stringResource(R.string.colortools_vignette_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
         } else {
             Text(stringResource(R.string.colortools_window_drag_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
             PropSlider(stringResource(R.string.colortools_center_x), w.cx * 100, 0f, 100f, 50f, { "%.0f".format(it) }, "wX", onLive = { set(w.copy(cx = it / 100), true) }) { set(w.copy(cx = it / 100)) }

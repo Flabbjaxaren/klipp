@@ -117,6 +117,8 @@
     <string name="colortools_circle">Cirkel</string>
     <string name="colortools_rectangle">Rektangel</string>
     <string name="colortools_window_intro">Ett fönster begränsar noden till en del av bilden – t.ex. ljusa upp ett ansikte eller göra en vinjett (Invertera).</string>
+    <string name="colortools_vignette">Vinjett</string>
+    <string name="colortools_vignette_hint">Mörkar kanterna: ett mjukt fönster runt bilden med sänkt gain utanför. Forma den med fönstret och ställ styrkan med Gain.</string>
     <string name="colortools_window_drag_hint">Dra fönstret i bilden, nyp för att ändra storleken.</string>
     <string name="colortools_center_x">Mitt X</string>
     <string name="colortools_center_y">Mitt Y</string>
