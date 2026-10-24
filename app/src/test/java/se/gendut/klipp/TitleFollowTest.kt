@@ -3,6 +3,7 @@ package se.gendut.klipp
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -67,6 +68,33 @@ class TitleFollowTest {
         assertEquals(2f, o[2], 1e-4f)
         // halfway (150 %)
         assertEquals(0.125f, TitleFollow.offsetOf(Follow(7, 1), zoom, g, 10.0, 11.0, 1920, 1080)!![0], 1e-4f)
+    }
+
+    /**
+     * A shaky camera, an object standing still in the world, the clip stabilized ("tripod"): the track follows the
+     * shake in the original, but the title must stand still in the stabilized picture. Unstabilized it shakes.
+     */
+    @Test fun followsTheStabilizedPicture() {
+        val n = 100
+        val shakeX = FloatArray(n) { (kotlin.math.sin(it * 0.9) * 0.01).toFloat() }
+        val shakeY = FloatArray(n) { (kotlin.math.cos(it * 1.3) * 0.008).toFloat() }
+        val ones = FloatArray(n) { 1f }
+        val camera = WindowTrack(2.0, 0.04, shakeX, shakeY, ones, ones, smooth = 0f)
+        val obj = WindowTrack(2.0, 0.04, shakeX.copyOf(), shakeY.copyOf(), ones, ones, smooth = 0f)
+        val node = GradeNode(1, win = Window(shape = 1, cx = 0.6f, cy = 0.4f, track = obj))
+        val stab = se.gendut.klipp.engine.Stabilization(camera, strength = 1f, mode = 1, maxZoom = 1.5f)
+        val still = ClipGrade(listOf(node), stab = stab)
+        val shaky = ClipGrade(listOf(node))
+        var worstStab = 0f; var worstRaw = 0f
+        for (i in 1 until 90) {
+            val t = 10.0 + i * 0.04
+            val o = TitleFollow.offsetOf(Follow(7, 1), clip, still, 10.0, t, 1920, 1080)!!
+            val r = TitleFollow.offsetOf(Follow(7, 1), clip, shaky, 10.0, t, 1920, 1080)!!
+            worstStab = maxOf(worstStab, kotlin.math.hypot(o[0] * 1920, o[1] * 1080))
+            worstRaw = maxOf(worstRaw, kotlin.math.hypot(r[0] * 1920, r[1] * 1080))
+        }
+        assertTrue("stabilized: the title stands still ($worstStab px)", worstStab < 0.5f)
+        assertTrue("unstabilized it shakes ($worstRaw px)", worstRaw > 20f)
     }
 
     /** A box drawn on the finished picture goes back through the clip's move/zoom/turn exactly. */
