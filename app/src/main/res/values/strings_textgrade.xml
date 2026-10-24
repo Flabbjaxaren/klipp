@@ -61,7 +61,7 @@
     <string name="titlepin_remove">Unpin</string>
     <string name="titlepin_hint">Drag the text\'s corners onto a surface in the picture (a sign, a wall) so the text looks like it sits on it, then track the corners.</string>
     <string name="titlepin_hint_edit">Drag the corners in the picture. Moving a corner drops the tracking – track again from there.</string>
-    <string name="titlepin_overlay_hint">Drag the corners onto the surface</string>
+    <string name="titlepin_overlay_hint">Drag the corners onto the surface · pinch to zoom</string>
     <string name="titlepin_done">Done</string>
     <string name="titlepin_tracked">Corners tracked: %1$.1f s in %2$.1f s</string>
     <string name="titleui_follow_scale">Scale with the object</string>

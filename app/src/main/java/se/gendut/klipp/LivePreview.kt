@@ -327,7 +327,7 @@ fun LivePreview(
                 val half = halves[c.id]
                 val img = half?.let { TitleBitmaps.cached(it, w / 2, h / 2) } ?: titles[c.id] ?: continue
                 // outside the clip: show the title fully in
-                val tt = if (t < c.start || t >= c.end) c.start + se.gendut.klipp.engine.TitleMotion.IN else t
+                val tt = if (t < c.start - 5e-4 || t >= c.end - 5e-4) c.start + se.gendut.klipp.engine.TitleMotion.IN else t.coerceAtLeast(c.start)
                 val item = OverlayItem(c.start, c.end, Overlay.Title(text), c)
                 // pinned: at half size like the other titles here
                 val pin = half?.let { hs -> se.gendut.klipp.engine.pinArtOf(OverlayItem(c.start, c.end, Overlay.Title(hs), c), tt, w / 2, h / 2) }?.let { it to (w / 2) }
@@ -364,7 +364,7 @@ fun LivePreview(
             }
         }
         // captions on top, with the track's style (same drawing as playback and export)
-        val caps = q.captions.filter { it.text.isNotBlank() && t >= it.start && t < it.start + it.duration }
+        val caps = q.captions.filter { it.text.isNotBlank() && t >= it.start - 5e-4 && t < it.start + it.duration - 5e-4 }
         if (caps.isNotEmpty()) drawContext.canvas.nativeCanvas.let { cv ->
             cv.save(); cv.scale(s, s)
             for (cap in caps) se.gendut.klipp.engine.OverlayRenderer.drawCaption(cv, cap.text,

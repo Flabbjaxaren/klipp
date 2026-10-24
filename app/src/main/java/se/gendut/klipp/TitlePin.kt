@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.foundation.magnifier
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -166,8 +168,17 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
     TitleFollow.revision
     val quad = TitleFollow.pinQuad(id, t) ?: pin.quad
     androidx.activity.compose.BackHandler { state.pinEdit = null }
+    // the corners are placed on a frame of the title: the playhead goes inside it (and stands still)
+    androidx.compose.runtime.LaunchedEffect(id) {
+        state.playing = false
+        if (state.playhead < title.start || state.playhead >= title.end) state.playhead = title.start
+    }
+    // the corner being dragged (local pixels): a magnifier shows what is under it
+    var dragAt by remember { mutableStateOf(Offset.Unspecified) }
     Box(
-        modifier.fillMaxSize().testTag("pinOverlay").pointerInput(id) {
+        modifier.fillMaxSize().testTag("pinOverlay")
+            .magnifier(sourceCenter = { dragAt }, zoom = 3f, size = androidx.compose.ui.unit.DpSize(120.dp, 120.dp), cornerRadius = 60.dp)
+            .pointerInput(id) {
             awaitEachGesture {
                 val down = awaitFirstDown()
                 val start = gs.pins[id] ?: return@awaitEachGesture
@@ -186,8 +197,10 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
                     if (!c.pressed) break
                     q = q.copyOf().also { it[2 * i] = ((c.position.x + grab.x) / w).coerceIn(-0.5f, 1.5f); it[2 * i + 1] = ((c.position.y + grab.y) / h).coerceIn(-0.5f, 1.5f) }
                     gs.livePin(id, CornerPin(q))
+                    dragAt = Offset(q[2 * i] * w, q[2 * i + 1] * h)
                     c.consume()
                 }
+                dragAt = Offset.Unspecified
                 haptics.confirm()
                 gs.commitPin(id, CornerPin(q), start)
             }
@@ -203,14 +216,18 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
             drawPath(path, K.Primary, style = Stroke(2.dp.toPx()))
             for (k in 0 until 4) {
                 val o = Offset(quad[2 * k] * size.width, quad[2 * k + 1] * size.height)
-                drawCircle(Color.Black.copy(alpha = 0.5f), 13.dp.toPx(), o)
-                drawCircle(Color.White, 11.dp.toPx(), o, style = Stroke(2.5.dp.toPx()))
-                drawCircle(K.Primary, 3.dp.toPx(), o)
+                // a ring with an open middle and a fine cross: the exact point stays visible (in the magnifier too)
+                drawCircle(Color.Black.copy(alpha = 0.5f), 12.dp.toPx(), o, style = Stroke(3.5.dp.toPx()))
+                drawCircle(Color.White, 12.dp.toPx(), o, style = Stroke(2.dp.toPx()))
+                val l = 4.dp.toPx(); val sw = 1.dp.toPx()
+                drawLine(K.Primary, Offset(o.x - l, o.y), Offset(o.x + l, o.y), sw)
+                drawLine(K.Primary, Offset(o.x, o.y - l), Offset(o.x, o.y + l), sw)
             }
         }
-        Row(Modifier.align(Alignment.TopCenter).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // the hint gives way (wraps) – the done button keeps its size
             Text(stringResource(R.string.titlepin_overlay_hint), color = Color.White, fontSize = 12.sp,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000)).padding(horizontal = 8.dp, vertical = 4.dp))
+                modifier = Modifier.weight(1f, fill = false).clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000)).padding(horizontal = 8.dp, vertical = 4.dp))
             Text(stringResource(R.string.titlepin_done), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 6.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000))
                     .clickable { state.pinEdit = null }.padding(horizontal = 8.dp, vertical = 4.dp).testTag("pin:done"))
