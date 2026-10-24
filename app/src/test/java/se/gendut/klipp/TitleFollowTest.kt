@@ -13,6 +13,8 @@ import se.gendut.klipp.engine.Follow
 import se.gendut.klipp.engine.GradeNode
 import se.gendut.klipp.engine.TitleFollow
 import se.gendut.klipp.engine.around
+import se.gendut.klipp.engine.fromFrame
+import se.gendut.klipp.engine.toFrame
 import se.gendut.klipp.engine.Window
 import se.gendut.klipp.engine.WindowTrack
 
@@ -29,13 +31,13 @@ class TitleFollowTest {
     @Test fun offsetSinceTitleStart() {
         val f = Follow(7, 1)
         // the title starts at 10.4 s (frame 10); at 11.2 s (frame 30) the object has moved 20 frames
-        val o = TitleFollow.offsetOf(f, clip, grade, 10.4, 11.2)!!
+        val o = TitleFollow.offsetOf(f, clip, grade, 10.4, 11.2, 1920, 1080)!!
         assertEquals(0.2f, o[0], 1e-5f)
         assertEquals(-0.04f, o[1], 1e-5f)
         // at the title's start: no displacement
-        assertEquals(0f, TitleFollow.offsetOf(f, clip, grade, 10.4, 10.4)!![0], 1e-6f)
+        assertEquals(0f, TitleFollow.offsetOf(f, clip, grade, 10.4, 10.4, 1920, 1080)!![0], 1e-6f)
         // the node is missing or has no tracking: none
-        assertNull(TitleFollow.offsetOf(Follow(7, 9), clip, grade, 10.4, 11.0))
+        assertNull(TitleFollow.offsetOf(Follow(7, 9), clip, grade, 10.4, 11.0, 1920, 1080))
     }
 
     @Test fun scaleAndTurnSinceTitleStart() {
@@ -43,11 +45,41 @@ class TitleFollowTest {
         val tr = WindowTrack(2.0, 0.04, FloatArray(100), FloatArray(100), FloatArray(100) { 1f + it * 0.01f }, FloatArray(100) { 1f }, smooth = 0f, r = FloatArray(100) { it * 0.002f })
         val g = ClipGrade(listOf(GradeNode(1, win = Window(shape = 1, track = tr))))
         // from frame 10 to frame 30: 1.3 / 1.1 and 20 · 0.002
-        val o = TitleFollow.offsetOf(Follow(7, 1, scale = true, rotate = true), clip, g, 10.4, 11.2)!!
+        val o = TitleFollow.offsetOf(Follow(7, 1, scale = true, rotate = true), clip, g, 10.4, 11.2, 1920, 1080)!!
         assertEquals(1.3f / 1.1f, o[2], 1e-4f); assertEquals(0.04f, o[3], 1e-5f)
         // not asked for: unchanged
-        val n = TitleFollow.offsetOf(Follow(7, 1), clip, g, 10.4, 11.2)!!
+        val n = TitleFollow.offsetOf(Follow(7, 1), clip, g, 10.4, 11.2, 1920, 1080)!!
         assertEquals(1f, n[2], 0f); assertEquals(0f, n[3], 0f)
+    }
+
+    /**
+     * A zoom made in the app (scale keyframes 100 → 200 %) on a still object: the title goes where the object shows in
+     * the finished picture, and with "scale" it grows as much as the zoom.
+     */
+    @Test fun followsTheAppsOwnZoom() {
+        val still = WindowTrack(2.0, 0.04, FloatArray(100), FloatArray(100), FloatArray(100) { 1f }, FloatArray(100) { 1f }, smooth = 0f)
+        // the object right of center in the clip's picture
+        val g = ClipGrade(listOf(GradeNode(1, win = Window(shape = 1, cx = 0.75f, cy = 0.5f, track = still))))
+        val zoom = clip.copy(kf = mapOf(se.gendut.klipp.engine.KfKeys.SCALE to listOf(se.gendut.klipp.engine.Kf(0, 10.0, listOf(100.0)), se.gendut.klipp.engine.Kf(1, 12.0, listOf(200.0)))))
+        val o = TitleFollow.offsetOf(Follow(7, 1, scale = true), zoom, g, 10.0, 12.0, 1920, 1080)!!
+        // at 200 % the point 0.25 of the width right of center lands 0.5 right of it: from 0.75 to 1.0
+        assertEquals(0.25f, o[0], 1e-4f); assertEquals(0f, o[1], 1e-4f)
+        assertEquals(2f, o[2], 1e-4f)
+        // halfway (150 %)
+        assertEquals(0.125f, TitleFollow.offsetOf(Follow(7, 1), zoom, g, 10.0, 11.0, 1920, 1080)!![0], 1e-4f)
+    }
+
+    /** A box drawn on the finished picture goes back through the clip's move/zoom/turn exactly. */
+    @Test fun frameAndClipPointsRoundTrip() {
+        val c = clip.copy(x = 1200.0, y = 400.0, scale = 160.0, rotation = 25.0)
+        for ((u, v) in listOf(0.3f to 0.7f, 0.5f to 0.5f, 0.9f to 0.1f)) {
+            val f = c.toFrame(u, v, 1920, 1080)
+            val back = c.fromFrame(f[0], f[1], 1920, 1080)
+            assertEquals(u, back[0], 1e-4f); assertEquals(v, back[1], 1e-4f)
+        }
+        // the clip's center lands at its position
+        val m = c.toFrame(0.5f, 0.5f, 1920, 1080)
+        assertEquals(1200f / 1920f, m[0], 1e-5f); assertEquals(400f / 1080f, m[1], 1e-5f)
     }
 
     @Test fun followChoicesAreSavedAndOldLinksRead() {
