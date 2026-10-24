@@ -121,6 +121,9 @@ replace an installed Klipp.
   `klipp_a.mp4`, `klipp_b.mp4` and `tal.m4a`; the workflow shows how to generate them with ffmpeg.
 - Kotlin (gestures, snapping, ripple, the Rust → Kotlin contract, video layers, properties, screenshots):
   `./gradlew testDebugUnitTest` and `./gradlew recordRoborazziDebug`
+- GPU (on a connected phone): the film and the grade nodes rendered by the phone's GPU, as playback runs them, against
+  the CPU path: `./gradlew connectedGpuTestAndroidTest`. They run in their own app (`se.gendut.klipp.gputest`), so
+  the installed Klipp and its projects are never touched.
 
 The FilmCraft version is pinned in `rust/Cargo.toml` (`rev`). Update it deliberately.
 
