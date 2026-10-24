@@ -411,7 +411,7 @@ fun placementOf(item: OverlayItem, t: Double, w: Int, h: Int): Placement {
     val title = item.overlay as? Overlay.Title ?: return Placement(0f, 0f, 0f, 0f, 1f, 0f, a)
     val pose = TitleMotion.pose(title.t.look, t - item.start, item.end - item.start, w, h, TitleArt.rollHeight(title.t, w, h))
     // follows a tracked object: the displacement since the title's start (fraction of the image, y down → NDC)
-    val f = item.clip?.let { TitleFollow.offset(it.id, item.start, t) }
+    val f = item.clip?.let { TitleFollow.offset(it.id, item.start, t, w, h) }
     val fx = (f?.get(0) ?: 0f) * 2f
     val fy = -(f?.get(1) ?: 0f) * 2f
     val base = Placement(pose.anchorX, pose.anchorY, pose.anchorX + pose.dx + mx + fx, pose.anchorY + pose.dy + my + fy, pose.scale * k, -rot, a * pose.alpha)
@@ -474,6 +474,8 @@ object TitleFollow {
     @Volatile private var follows: Map<Long, Follow> = emptyMap()
     @Volatile private var grades: Map<Long, ClipGrade> = emptyMap()
     @Volatile private var clips: Map<Long, ClipSnap> = emptyMap()
+    @Volatile private var seqW = 1920
+    @Volatile private var seqH = 1080
     /** Increments on every publish (the title layer is redrawn). */
     var revision by androidx.compose.runtime.mutableIntStateOf(0)
         private set
@@ -482,24 +484,46 @@ object TitleFollow {
         this.follows = HashMap(follows)
         this.grades = HashMap(grades)
         this.clips = snapshot?.playable()?.sequence?.video.orEmpty().flatMap { it.clips }.associateBy { it.id }
+        snapshot?.sequence?.let { q -> if (q.width > 0 && q.height > 0) { seqW = q.width; seqH = q.height } }
         revision++
+    }
+
+    /**
+     * A box drawn on the finished picture at timeline [t] (center and half sides, fractions of the frame) → the same
+     * box in clip [clip]'s own picture, before its position/scale/rotation (what the tracker sees). Null = unknown clip.
+     */
+    fun toClip(clip: Long, t: Double, cx: Float, cy: Float, rx: Float, ry: Float): FloatArray? {
+        val c = clips[clip]?.at(t) ?: return null
+        val k = (c.scale / 100.0).toFloat().coerceAtLeast(1e-3f)
+        val p = c.fromFrame(cx, cy, seqW, seqH)
+        return floatArrayOf(p[0], p[1], rx / k, ry / k)
     }
 
     /**
      * The displacement (dx, dy, fraction of the image) for title [title] at timeline [t] since the title's start
      * [start], then the scale factor and the turn (radians, clockwise) since then (1 and 0 unless the title follows those).
      */
-    fun offset(title: Long, start: Double, t: Double): FloatArray? {
+    fun offset(title: Long, start: Double, t: Double, w: Int, h: Int): FloatArray? {
         val f = follows[title] ?: return null
-        return offsetOf(f, clips[f.clip] ?: return null, grades[f.clip] ?: return null, start, t)
+        return offsetOf(f, clips[f.clip] ?: return null, grades[f.clip] ?: return null, start, t, w, h)
     }
 
-    /** Pure computation (testable): the window's displacement between [start] and [t] on the timeline. */
-    fun offsetOf(f: Follow, c: ClipSnap, g: ClipGrade, start: Double, t: Double): FloatArray? {
-        val track = g.nodes.firstOrNull { it.id == f.node }?.win?.track ?: return null
+    /**
+     * Pure computation (testable): where the object is in the finished [w]×[h] picture at [t] compared with the
+     * title's start [start] – the tracked window's center in the clip's own picture, then through the clip's position,
+     * scale and rotation (with keyframes) at each time, so a zoom or move made in the app is followed too. Scale and
+     * turn include both the object's and the clip's.
+     */
+    fun offsetOf(f: Follow, c: ClipSnap, g: ClipGrade, start: Double, t: Double, w: Int, h: Int): FloatArray? {
+        val win = g.nodes.firstOrNull { it.id == f.node }?.win ?: return null
+        val track = win.track ?: return null
         fun src(x: Double) = c.sourceAt(x)
         val a = track.at(src(start)); val b = track.at(src(t))
-        return floatArrayOf(b[0] - a[0], b[1] - a[1], if (f.scale && a[2] > 1e-4f) b[2] / a[2] else 1f, if (f.rotate) b[3] - a[3] else 0f)
+        val ca = c.at(start); val cb = c.at(t)
+        val pa = ca.toFrame(win.cx + a[0], win.cy + a[1], w, h); val pb = cb.toFrame(win.cx + b[0], win.cy + b[1], w, h)
+        val ks = if (f.scale && a[2] > 1e-4f && ca.scale > 1e-3) (b[2] / a[2]) * (cb.scale / ca.scale).toFloat() else 1f
+        val th = if (f.rotate) (b[3] - a[3]) + Math.toRadians(cb.rotation - ca.rotation).toFloat() else 0f
+        return floatArrayOf(pb[0] - pa[0], pb[1] - pa[1], ks, th)
     }
 }
 
@@ -653,6 +677,30 @@ class MotionMatrix(private val c: ClipSnap, private val w: Int, private val h: I
             }
         }
     }
+}
+
+/**
+ * A point in the clip's own picture ([u], [v]: fractions, y down) → where it lands in the [w]×[h] frame (fractions)
+ * with the clip's position, scale and rotation (clockwise), as [MotionMatrix] places it. The clip is taken to fill
+ * the frame (as the tracked windows assume).
+ */
+fun ClipSnap.toFrame(u: Float, v: Float, w: Int, h: Int): FloatArray {
+    val k = (scale / 100.0).toFloat()
+    val a = Math.toRadians(rotation)
+    val px = (u - 0.5f) * w; val py = (v - 0.5f) * h
+    val rx = (px * kotlin.math.cos(a) - py * kotlin.math.sin(a)).toFloat()
+    val ry = (px * kotlin.math.sin(a) + py * kotlin.math.cos(a)).toFloat()
+    return floatArrayOf(((x ?: (w / 2.0)).toFloat() + k * rx) / w, ((y ?: (h / 2.0)).toFloat() + k * ry) / h)
+}
+
+/** The inverse of [toFrame]: a point in the frame → the clip's own picture. */
+fun ClipSnap.fromFrame(fx: Float, fy: Float, w: Int, h: Int): FloatArray {
+    val k = (scale / 100.0).toFloat().coerceAtLeast(1e-3f)
+    val a = Math.toRadians(-rotation)
+    val qx = (fx * w - (x ?: (w / 2.0)).toFloat()) / k; val qy = (fy * h - (y ?: (h / 2.0)).toFloat()) / k
+    val px = (qx * kotlin.math.cos(a) - qy * kotlin.math.sin(a)).toFloat()
+    val py = (qx * kotlin.math.sin(a) + qy * kotlin.math.cos(a)).toFloat()
+    return floatArrayOf(px / w + 0.5f, py / h + 0.5f)
 }
 
 object OverlayRenderer {

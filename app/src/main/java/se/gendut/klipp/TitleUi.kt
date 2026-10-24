@@ -533,8 +533,11 @@ private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
                 if (c == null || c.uri == null) { TrackService.message = Str.t(R.string.titleui_follow_no_clip); return@PillButton }
                 state.playing = false
                 state.playhead = at
-                state.boxPick = { cx, cy, rx, ry ->
+                state.boxPick = { fx, fy, frx, fry ->
                     haptics.confirm()
+                    // drawn on the finished picture: back through the clip's own zoom/move to what the tracker sees
+                    val (cx, cy, rx, ry) = se.gendut.klipp.engine.TitleFollow.toClip(c.id, at.toDouble(), fx, fy, frx, fry)?.toList()
+                        ?: listOf(fx, fy, frx, fry)
                     val g = gs.of(c.id)
                     val id = (g.nodes.maxOfOrNull { it.id } ?: 0) + 1
                     val node = se.gendut.klipp.engine.GradeNode(id, Str.t(R.string.titleui_follow_node_label, title.name),
