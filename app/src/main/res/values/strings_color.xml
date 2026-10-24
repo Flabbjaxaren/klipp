@@ -209,6 +209,7 @@
     <string name="colorpage_hue">Hue</string>
     <string name="colorpage_temperature">Temperature</string>
     <string name="colorpage_tint">Tint</string>
+    <string name="colorpage_noise_reduction">Noise reduction</string>
     <string name="colorpage_node_mix">Node Mix</string>
     <string name="colorpage_gallery">Gallery</string>
     <string name="colorpage_gallery_hint">Tap = compare · hold = more</string>

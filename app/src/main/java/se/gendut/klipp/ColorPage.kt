@@ -547,6 +547,8 @@ private fun ColorPageBody(
                     PropSlider(stringResource(R.string.colorpage_hue), node.hue, -180f, 180f, 0f, { "%.0f°".format(it) }, "hue", onLive = { live(node.copy(hue = it)) }) { commit(node.copy(hue = it)) }
                     PropSlider(stringResource(R.string.colorpage_temperature), node.temp, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "temp", onLive = { live(node.copy(temp = it)) }) { commit(node.copy(temp = it)) }
                     PropSlider(stringResource(R.string.colorpage_tint), node.tint, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "tint", onLive = { live(node.copy(tint = it)) }) { commit(node.copy(tint = it)) }
+                    // edge-keeping noise reduction over the 5 × 5 neighbors (see Denoise)
+                    PropSlider(stringResource(R.string.colorpage_noise_reduction), node.denoise * 100f, 0f, 100f, 0f, { "%.0f".format(it) }, "denoise", onLive = { live(node.copy(denoise = it / 100f)) }) { commit(node.copy(denoise = it / 100f)) }
                     PropSlider(stringResource(R.string.colorpage_node_mix), node.mix, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "mix", onLive = { live(node.copy(mix = it)) }) { commit(node.copy(mix = it)) }
                 }
             }
