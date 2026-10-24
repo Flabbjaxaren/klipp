@@ -493,10 +493,14 @@ object TitleFollow {
      * box in clip [clip]'s own picture, before its position/scale/rotation (what the tracker sees). Null = unknown clip.
      */
     fun toClip(clip: Long, t: Double, cx: Float, cy: Float, rx: Float, ry: Float): FloatArray? {
-        val c = clips[clip]?.at(t) ?: return null
-        val k = (c.scale / 100.0).toFloat().coerceAtLeast(1e-3f)
+        val c0 = clips[clip] ?: return null
+        val c = c0.at(t)
         val p = c.fromFrame(cx, cy, seqW, seqH)
-        return floatArrayOf(p[0], p[1], rx / k, ry / k)
+        // a stabilized clip: back through the stabilization too (the tracker sees the shaky original)
+        val st = grades[clip]?.stab?.transform(c0.sourceAt(t), seqW.toFloat(), seqH.toFloat())
+        val q = st?.let { unstab(it, p[0], p[1], seqW, seqH) } ?: p
+        val k = (c.scale / 100.0).toFloat().coerceAtLeast(1e-3f) * (st?.let { scaleOf(it) } ?: 1f)
+        return floatArrayOf(q[0], q[1], rx / k, ry / k)
     }
 
     /**
@@ -520,9 +524,15 @@ object TitleFollow {
         fun src(x: Double) = c.sourceAt(x)
         val a = track.at(src(start)); val b = track.at(src(t))
         val ca = c.at(start); val cb = c.at(t)
-        val pa = ca.toFrame(win.cx + a[0], win.cy + a[1], w, h); val pb = cb.toFrame(win.cx + b[0], win.cy + b[1], w, h)
-        val ks = if (f.scale && a[2] > 1e-4f && ca.scale > 1e-3) (b[2] / a[2]) * (cb.scale / ca.scale).toFloat() else 1f
-        val th = if (f.rotate) (b[3] - a[3]) + Math.toRadians(cb.rotation - ca.rotation).toFloat() else 0f
+        // a stabilized clip: the object as it shows after the stabilization (the track is in the shaky original)
+        val sa = g.stab?.transform(src(start), w.toFloat(), h.toFloat()); val sb = g.stab?.transform(src(t), w.toFloat(), h.toFloat())
+        val ua = floatArrayOf(win.cx + a[0], win.cy + a[1]).let { u -> sa?.let { stab(it, u[0], u[1], w, h) } ?: u }
+        val ub = floatArrayOf(win.cx + b[0], win.cy + b[1]).let { u -> sb?.let { stab(it, u[0], u[1], w, h) } ?: u }
+        val pa = ca.toFrame(ua[0], ua[1], w, h); val pb = cb.toFrame(ub[0], ub[1], w, h)
+        val stabK = if (sa != null && sb != null) scaleOf(sb) / scaleOf(sa) else 1f
+        val stabR = if (sa != null && sb != null) turnOf(sb) - turnOf(sa) else 0f
+        val ks = if (f.scale && a[2] > 1e-4f && ca.scale > 1e-3) (b[2] / a[2]) * (cb.scale / ca.scale).toFloat() * stabK else 1f
+        val th = if (f.rotate) (b[3] - a[3]) + Math.toRadians(cb.rotation - ca.rotation).toFloat() + stabR else 0f
         return floatArrayOf(pb[0] - pa[0], pb[1] - pa[1], ks, th)
     }
 }
@@ -692,6 +702,19 @@ fun ClipSnap.toFrame(u: Float, v: Float, w: Int, h: Int): FloatArray {
     val ry = (px * kotlin.math.sin(a) + py * kotlin.math.cos(a)).toFloat()
     return floatArrayOf(((x ?: (w / 2.0)).toFloat() + k * rx) / w, ((y ?: (h / 2.0)).toFloat() + k * ry) / h)
 }
+
+/** A point in the clip's picture (fractions) through the stabilization [t] (pixels around the center, y down). */
+fun stab(t: Affine, u: Float, v: Float, w: Int, h: Int): FloatArray {
+    val q = t.map((u - 0.5f) * w, (v - 0.5f) * h)
+    return floatArrayOf(q[0] / w + 0.5f, q[1] / h + 0.5f)
+}
+
+/** The inverse of [stab]. */
+fun unstab(t: Affine, u: Float, v: Float, w: Int, h: Int): FloatArray = stab(t.inverse(), u, v, w, h)
+
+/** The stabilization's scale and turn (radians, clockwise on screen) in a frame. */
+fun scaleOf(t: Affine): Float = kotlin.math.hypot(t.a, t.c)
+fun turnOf(t: Affine): Float = kotlin.math.atan2(t.c, t.a)
 
 /** The inverse of [toFrame]: a point in the frame → the clip's own picture. */
 fun ClipSnap.fromFrame(fx: Float, fy: Float, w: Int, h: Int): FloatArray {
