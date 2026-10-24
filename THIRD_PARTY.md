@@ -12,6 +12,7 @@ Klipp itself is licensed under the GNU General Public License v3.0 (`LICENSE`). 
 | **Silero VAD** v6.2.0 (voice activity detection) – © Silero Team, ggml conversion by ggml-org | `app/src/main/assets/silero-vad-v6.2.0.bin` | MIT | None |
 | Spectral upsampling after **hanatos** (vkdt) | `engine/Spektra.kt` | BSD-2-Clause | Ported |
 | **OpenDRT** – © Jed Smith | `engine/OpenDrt.kt` | GPL-3.0 | Ported |
+| **Title fonts** (33 families from Google Fonts: Inter, Montserrat, Poppins, Playfair Display, Bebas Neue … – see `app/src/main/assets/fonts/fonts.json`) – © their authors, https://github.com/google/fonts | `app/src/main/assets/fonts` | SIL Open Font License 1.1 (`OFL.txt` in each folder); Roboto Slab and Permanent Marker Apache-2.0 (`LICENSE.txt`) | Subset to Latin; Inter, DM Sans, Merriweather and Archivo fixed at one optical size/width (the weight axis kept) |
 
 ## Dependencies fetched by the build
 

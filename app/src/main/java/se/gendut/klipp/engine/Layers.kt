@@ -682,25 +682,87 @@ object Fonts {
         "Inter" to "sans-serif", "Sans fet" to "sans-serif-black", "Smal" to "sans-serif-condensed", "Lätt" to "sans-serif-light",
         "Serif" to "serif", "Mono" to "monospace", "Handskrift" to "cursive", "Avslappnad" to "casual",
     )
+
+    /**
+     * A font family that comes with the app (assets/fonts, see fonts.json): [variable] = one file with a weight axis
+     * (bold = weight 700), otherwise separate files per style; [styles] = the files there are (regular, bold, italic,
+     * boldItalic). A style without a file is synthesized by Android (slanted / thickened).
+     */
+    class Bundled(val name: String, val dir: String, val variable: Boolean, val styles: Set<String>)
+
+    /** The app's font families by name (empty until [init]). */
+    var bundled: Map<String, Bundled> = emptyMap()
+        private set
+    private var assets: android.content.res.AssetManager? = null
     private var dir: java.io.File? = null
     private val cache = java.util.concurrent.ConcurrentHashMap<String, Typeface>()
     /** Imported fonts (names). */
     val custom = androidx.compose.runtime.mutableStateListOf<String>()
 
+    /** All font names in picker order: the phone's, the app's, the imported ones. */
+    val all: List<String> get() = builtIn.keys.toList() + bundled.keys + custom
+
     fun init(context: android.content.Context) {
         if (dir != null) return
+        assets = context.assets
+        bundled = runCatching {
+            val a = org.json.JSONArray(context.assets.open("fonts/fonts.json").bufferedReader().use { it.readText() })
+            (0 until a.length()).map { i -> a.getJSONObject(i) }.associate { o ->
+                val st = o.getJSONArray("styles").let { s -> (0 until s.length()).map { s.getString(it) }.toSet() }
+                // a bundled name the phone's list already has (Inter) gets its own name, so saved projects keep their look
+                val n = o.getString("name").let { if (it in builtIn) "$it Display" else it }
+                n to Bundled(n, o.getString("dir"), o.getBoolean("variable"), st)
+            }
+        }.getOrDefault(emptyMap())
         dir = java.io.File(context.filesDir, "fonts").apply { mkdirs() }
         custom.clear()
         dir?.listFiles { f -> f.extension.lowercase() in setOf("ttf", "otf") }?.sortedBy { it.name.lowercase() }?.forEach { custom += it.nameWithoutExtension }
     }
 
-    fun typeface(name: String): Typeface = cache.getOrPut(name) {
+    fun typeface(name: String): Typeface = typeface(name, bold = false, italic = false)
+
+    /** The font [name] in the style asked for: real bold/italic where the family has it, synthesized otherwise. */
+    fun typeface(name: String, bold: Boolean, italic: Boolean): Typeface = cache.getOrPut("$name|$bold|$italic") {
+        val style = styleOf(bold, italic)
         builtIn[name]?.let { fam ->
-            return@getOrPut if (fam == "sans-serif-black") Typeface.create("sans-serif", Typeface.BOLD) else Typeface.create(fam, Typeface.NORMAL)
+            return@getOrPut if (fam == "sans-serif-black") Typeface.create("sans-serif", styleOf(true, italic))
+                else Typeface.create(fam, style)
         }
+        bundled[name]?.let { b -> bundledFace(b, bold, italic)?.let { return@getOrPut it } }
         val f = dir?.let { d -> listOf("ttf", "otf").map { java.io.File(d, "$name.$it") }.firstOrNull { it.isFile } }
-        f?.let { runCatching { Typeface.createFromFile(it) }.getOrNull() } ?: Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+        val base = f?.let { runCatching { Typeface.createFromFile(it) }.getOrNull() } ?: Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+        if (style == Typeface.NORMAL) base else Typeface.create(base, style)
     }
+
+    private fun styleOf(bold: Boolean, italic: Boolean) = when {
+        bold && italic -> Typeface.BOLD_ITALIC
+        bold -> Typeface.BOLD
+        italic -> Typeface.ITALIC
+        else -> Typeface.NORMAL
+    }
+
+    private fun bundledFace(b: Bundled, bold: Boolean, italic: Boolean): Typeface? = runCatching {
+        val am = assets ?: return null
+        fun file(k: String) = "fonts/${b.dir}/${k.replaceFirstChar { it.uppercase() }}.ttf"
+        if (b.variable) {
+            val it = italic && "italic" in b.styles
+            val tf = Typeface.Builder(am, file(if (it) "italic" else "regular"))
+                .setFontVariationSettings("'wght' ${if (bold) 700 else 400}").build()
+            // no italic file: slanted by Android
+            if (italic && !it) Typeface.create(tf, Typeface.ITALIC) else tf
+        } else {
+            val want = when { bold && italic -> "boldItalic"; bold -> "bold"; italic -> "italic"; else -> "regular" }
+            val have = want.takeIf { it in b.styles } ?: when {
+                bold && italic && "bold" in b.styles -> "bold"
+                bold && italic && "italic" in b.styles -> "italic"
+                else -> "regular"
+            }
+            val tf = Typeface.Builder(am, file(have)).build()
+            // the styles the file lacks are synthesized
+            val missing = styleOf(bold && "bold" !in have.lowercase(), italic && "italic" !in have.lowercase())
+            if (missing == Typeface.NORMAL) tf else Typeface.create(tf, missing)
+        }
+    }.getOrNull()
 
     /** Import a font; returns the name (throws if the file cannot be read as a font). */
     fun import(context: android.content.Context, uri: android.net.Uri): String {
@@ -711,7 +773,7 @@ object Fonts {
         val f = java.io.File(dir, "$name.$ext")
         context.contentResolver.openInputStream(uri)!!.use { i -> f.outputStream().use { i.copyTo(it) } }
         runCatching { Typeface.createFromFile(f) }.getOrElse { f.delete(); error("the file is not a font") }
-        cache.remove(name)
+        cache.keys.removeAll { it.startsWith("$name|") }
         if (name !in custom) custom += name
         return name
     }
