@@ -164,6 +164,7 @@
     <string name="colorpage_history_color">Färg</string>
     <string name="colorpage_pick_hint_color">Tryck på färgen du vill välja ut</string>
     <string name="colorpage_history_follow">Följ</string>
+    <string name="colorpage_history_pin">Hörnfästning</string>
     <string name="colorpage_title">Färg</string>
     <string name="colorpage_original">Original</string>
     <string name="colorpage_tab_clip">Klipp</string>

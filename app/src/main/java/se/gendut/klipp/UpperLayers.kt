@@ -546,7 +546,11 @@ private fun OverlayText(plan: LayerPlan, state: EditorState) {
                 is Overlay.Caption -> o
             }
             val img = OverlayBitmaps.get(half, hw, hh)
-            drawPlaced(img, placementOf(OverlayItem(item.start, item.end, item.overlay, item.clip, item.fadeIn, item.fadeOut), t, plan.width, plan.height), hw, hh)
+            val full = OverlayItem(item.start, item.end, item.overlay, item.clip, item.fadeIn, item.fadeOut)
+            // pinned: drawn at the preview's half size, as the other titles (the export draws at full size)
+            val pin = se.gendut.klipp.engine.pinArtOf(OverlayItem(item.start, item.end, half, item.clip), t, hw, hh)
+            if (pin != null) drawPinned(pin.first, pin.second, hw, placementOf(full, t, plan.width, plan.height).alpha)
+            else drawPlaced(img, placementOf(full, t, plan.width, plan.height), hw, hh)
         }
     }
 }

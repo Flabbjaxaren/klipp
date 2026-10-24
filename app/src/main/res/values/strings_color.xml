@@ -164,6 +164,7 @@
     <string name="colorpage_history_color">Color</string>
     <string name="colorpage_pick_hint_color">Tap the color you want to select</string>
     <string name="colorpage_history_follow">Follow</string>
+    <string name="colorpage_history_pin">Corner pin</string>
     <string name="colorpage_title">Color</string>
     <string name="colorpage_original">Original</string>
     <string name="colorpage_tab_clip">Clip</string>

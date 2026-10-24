@@ -490,6 +490,13 @@ fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
         if (!active) { x = p.x ?: w / 2; y = p.y ?: h / 2; k = p.scale; r = p.rotation }
     }
     val pNow by rememberUpdatedState(p)
+    // a title's own snapshot (its text and look) for the box around the text; follows the engine's revision
+    val controller = backend as? se.gendut.klipp.engine.ProjectController
+    val titleSnap = if (!p.isTitle) null else controller?.let { c ->
+        c.revision
+        se.gendut.klipp.engine.TitleFollow.revision
+        c.snapshot.sequence?.video?.firstNotNullOfOrNull { tr -> tr.clips.firstOrNull { it.id == id && it.text != null } }
+    }
     BoxWithConstraints(modifier.fillMaxSize().testTag("motion")) {
         val s = constraints.maxWidth / w // screen pixels per sequence pixel
         Box(
@@ -562,12 +569,23 @@ fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
                     drawLine(K.OnSurface.copy(alpha = 0.35f * g), Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), 1.dp.toPx(), pathEffect = dash)
                     drawLine(K.OnSurface.copy(alpha = 0.35f * g), Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 1.dp.toPx(), pathEffect = dash)
                 }
-                rotate(r, Offset(cx, cy)) {
+                // a title: the box right around its text (as it is drawn now, with the live values while dragging)
+                val quad = titleSnap?.let { c -> se.gendut.klipp.engine.titleBoxQuad(c.copy(x = x.toDouble(), y = y.toDouble(), scale = k.toDouble(), rotation = r.toDouble(), kf = if (active) emptyMap() else c.kf),
+                    state.playhead.toDouble().coerceIn(c.start, c.end - 1e-3), w.toInt(), h.toInt()) }
+                val hs = (8f + 4f * g).dp.toPx()
+                if (quad != null) {
+                    val path = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(quad[0] * size.width, quad[1] * size.height)
+                        for (i in 1 until 4) lineTo(quad[2 * i] * size.width, quad[2 * i + 1] * size.height)
+                        close()
+                    }
+                    drawPath(path, K.Primary.copy(alpha = 0.85f), style = Stroke((1.5f + 1.5f * g).dp.toPx()))
+                    for (i in 0 until 4) drawRoundRect(K.PrimarySoft, Offset(quad[2 * i] * size.width - hs / 2, quad[2 * i + 1] * size.height - hs / 2), Size(hs, hs), CornerRadius(hs / 3))
+                } else rotate(r, Offset(cx, cy)) {
                     drawRect(
                         K.Primary.copy(alpha = 0.85f), Offset(cx - fw / 2, cy - fh / 2), Size(fw, fh),
                         style = Stroke((1.5f + 1.5f * g).dp.toPx()),
                     )
-                    val hs = (8f + 4f * g).dp.toPx()
                     for (dx in listOf(-1f, 1f)) for (dy in listOf(-1f, 1f)) {
                         drawRoundRect(K.PrimarySoft, Offset(cx + dx * fw / 2 - hs / 2, cy + dy * fh / 2 - hs / 2), Size(hs, hs), CornerRadius(hs / 3))
                     }

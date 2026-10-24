@@ -53,6 +53,17 @@
     <string name="titleui_follow_node">%1$s · nod %2$02d</string>
     <string name="titleui_follow_object">Följ ett föremål</string>
     <string name="titleui_follow_hint">Dra en ruta runt ett föremål så följer titeln det, eller välj ett fönster du spårat i färgläget.</string>
+    <string name="titlepin_title">Fäst på en yta</string>
+    <string name="titlepin_pin">Fäst i hörnen</string>
+    <string name="titlepin_edit">Flytta hörnen</string>
+    <string name="titlepin_track">Spåra hörnen</string>
+    <string name="titlepin_retrack">Spåra igen</string>
+    <string name="titlepin_remove">Lossa</string>
+    <string name="titlepin_hint">Dra textens hörn till en yta i bilden (en skylt, en vägg) så ser texten ut att sitta på den, och spåra sedan hörnen.</string>
+    <string name="titlepin_hint_edit">Dra hörnen i bilden. Flyttar du ett hörn släpps spårningen – spåra igen därifrån.</string>
+    <string name="titlepin_overlay_hint">Dra hörnen till ytan</string>
+    <string name="titlepin_done">Klar</string>
+    <string name="titlepin_tracked">Hörnen spårade: %1$.1f s på %2$.1f s</string>
     <string name="titleui_follow_scale">Skala med föremålet</string>
     <string name="titleui_follow_rotate">Rotera med föremålet</string>
     <string name="titleui_follow_draw">Följ ett föremål i bilden</string>

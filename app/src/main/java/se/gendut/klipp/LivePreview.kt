@@ -328,7 +328,12 @@ fun LivePreview(
                 val img = half?.let { TitleBitmaps.cached(it, w / 2, h / 2) } ?: titles[c.id] ?: continue
                 // outside the clip: show the title fully in
                 val tt = if (t < c.start || t >= c.end) c.start + se.gendut.klipp.engine.TitleMotion.IN else t
-                drawPlaced(img, placementOf(OverlayItem(c.start, c.end, Overlay.Title(text), c), tt, w, h), w / 2, h / 2)
+                val item = OverlayItem(c.start, c.end, Overlay.Title(text), c)
+                // pinned: at half size like the other titles here
+                val pin = half?.let { hs -> se.gendut.klipp.engine.pinArtOf(OverlayItem(c.start, c.end, Overlay.Title(hs), c), tt, w / 2, h / 2) }?.let { it to (w / 2) }
+                    ?: se.gendut.klipp.engine.pinArtOf(item, tt, w, h)?.let { it to w }
+                if (pin != null) drawPinned(pin.first.first, pin.first.second, pin.second, placementOf(item, tt, w, h).alpha)
+                else drawPlaced(img, placementOf(item, tt, w, h), w / 2, h / 2)
                 continue
             }
             val shown = hits[c.id] ?: frames[c.id] ?: continue

@@ -53,6 +53,17 @@
     <string name="titleui_follow_node">%1$s · node %2$02d</string>
     <string name="titleui_follow_object">Follow an Object</string>
     <string name="titleui_follow_hint">Draw a box around an object and the title follows it, or pick a window you tracked in Color.</string>
+    <string name="titlepin_title">Pin to a surface</string>
+    <string name="titlepin_pin">Pin by the corners</string>
+    <string name="titlepin_edit">Move the corners</string>
+    <string name="titlepin_track">Track the corners</string>
+    <string name="titlepin_retrack">Track again</string>
+    <string name="titlepin_remove">Unpin</string>
+    <string name="titlepin_hint">Drag the text\'s corners onto a surface in the picture (a sign, a wall) so the text looks like it sits on it, then track the corners.</string>
+    <string name="titlepin_hint_edit">Drag the corners in the picture. Moving a corner drops the tracking – track again from there.</string>
+    <string name="titlepin_overlay_hint">Drag the corners onto the surface</string>
+    <string name="titlepin_done">Done</string>
+    <string name="titlepin_tracked">Corners tracked: %1$.1f s in %2$.1f s</string>
     <string name="titleui_follow_scale">Scale with the object</string>
     <string name="titleui_follow_rotate">Rotate with the object</string>
     <string name="titleui_follow_draw">Follow an object in the picture</string>

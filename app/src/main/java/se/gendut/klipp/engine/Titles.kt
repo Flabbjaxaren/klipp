@@ -167,12 +167,20 @@ object TitleArt {
         return max(h, (lines * size * 1.5f + size).toInt())
     }
 
-    fun draw(t: TextSnap, w: Int, h: Int): Bitmap {
+    fun draw(t: TextSnap, w: Int, h: Int): Bitmap = draw(t, w, h, 1f, null)
+
+    /**
+     * Only the part [crop] (pixels of the [w]×[h] image) of the title, drawn [k] times larger – sharp text where a
+     * pinned title is drawn bigger than its own size (see PinArt). Null crop = the whole image at its size.
+     */
+    fun draw(t: TextSnap, w: Int, h: Int, k: Float, crop: RectF?): Bitmap {
         val look = t.look
         val bh = if (look.template == TitleTemplate.ROLL) rollHeight(t, w, h) else h
-        val bmp = Bitmap.createBitmap(w, bh, Bitmap.Config.ARGB_8888)
+        val bmp = if (crop == null) Bitmap.createBitmap(w, bh, Bitmap.Config.ARGB_8888)
+            else Bitmap.createBitmap(kotlin.math.ceil(crop.width() * k).toInt().coerceAtLeast(1), kotlin.math.ceil(crop.height() * k).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
         bmp.eraseColor(Color.TRANSPARENT)
         val cv = Canvas(bmp)
+        if (crop != null) { cv.scale(k, k); cv.translate(-crop.left, -crop.top) }
         val c = t.color
         val fill = Color.argb((c[3] * 255).toInt(), (c[0] * 255).toInt(), (c[1] * 255).toInt(), (c[2] * 255).toInt())
         val size = t.size.toFloat().coerceIn(4f, h * 2f)
