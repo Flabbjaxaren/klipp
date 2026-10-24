@@ -193,11 +193,15 @@ private fun LayerVideo(
             if (handoff && i >= 0) {
                 val id = segs[i].clip?.id
                 if (i != handSeg) { handSeg = i; handFrames = id?.let { se.gendut.klipp.engine.Occlusion.mainFrames(it) } ?: 0L; handReadyAt = 0L }
-                if (id != null && se.gendut.klipp.engine.Occlusion.mainFrames(id) - handFrames >= HANDOFF_FRAMES) {
+                // … and plays on time: a decoder that has just started can still drop frames as late for a while (they
+                // showed as a stutter right after the layer stood down)
+                val calm = android.os.SystemClock.uptimeMillis() - androidx.media3.effect.KlippPrecision.lastLateAt >= HANDOFF_CALM_MS
+                if (id != null && se.gendut.klipp.engine.Occlusion.mainFrames(id) - handFrames >= HANDOFF_FRAMES && calm) {
                     if (handReadyAt == 0L) handReadyAt = now
                     if (now - handReadyAt >= HANDOFF_SETTLE_MS) i = -1
                 }
             }
+            if (handoff) SyncStats.handoff(i >= 0)
             active = i
             // covering the whole frame, opaque, while playing: the clips below aren't seen – their film is skipped
             // (marked until LEAD before this one ends, so they are graded again before they show)
@@ -323,6 +327,8 @@ private fun LayerVideo(
 /** Main chain frames of the new clip before the edit point layer stands down, and the wait after that (ms). */
 private const val HANDOFF_FRAMES = 4L
 private const val HANDOFF_SETTLE_MS = 100L
+/** No late frame in the video chain for this long (ms) before the edit point layer stands down. */
+private const val HANDOFF_CALM_MS = 250L
 
 /** Segment [sg]'s box at [t] if it is an opaque rectangle there (see Occlusion.opaque); null otherwise. */
 private fun coverBox(sg: Seg, t: Double, plan: LayerPlan, video: VideoSize, gradeOf: (Long) -> se.gendut.klipp.engine.ClipGrade?): se.gendut.klipp.engine.Occlusion.Box? {
@@ -469,11 +475,22 @@ object SyncStats {
     fun forLayer(name: String): Layer = layers.getOrPut(name) { Layer(name) }
     fun reset() = layers.clear()
 
+    /** When the edit point layer covered the picture during this run (uptime ms; end 0 = still covering). */
+    private val covered = java.util.concurrent.ConcurrentLinkedDeque<LongArray>()
+    fun handoff(on: Boolean) {
+        val now = android.os.SystemClock.uptimeMillis()
+        val last = covered.peekLast()
+        if (on && (last == null || last[1] != 0L)) covered.addLast(longArrayOf(now, 0L))
+        else if (!on && last != null && last[1] == 0L) last[1] = now
+        while (covered.size > 64) covered.pollFirst()
+    }
+
     private var mark: Map<String, Pair<Long, Long>> = emptyMap()
     private var markShown = 0L
     private var markLate = 0L
     private var markAt = 0L
     private var markSkipped = 0L
+    private var markUptime = 0L
 
     /** Playback starts: the counters now (see [summary]). Main thread. */
     fun start() {
@@ -481,6 +498,8 @@ object SyncStats {
         markShown = androidx.media3.effect.KlippPrecision.framesShown; markLate = androidx.media3.effect.KlippPrecision.framesLate
         markAt = System.nanoTime()
         markSkipped = se.gendut.klipp.engine.Occlusion.skipped
+        markUptime = android.os.SystemClock.uptimeMillis()
+        covered.clear()
     }
 
     /**
@@ -500,7 +519,10 @@ object SyncStats {
             if (r == 0L && d == 0L) null else "$k %d shown, %d dropped".format(r, d)
         }
         val skipped = se.gendut.klipp.engine.Occlusion.skipped - markSkipped
-        return "played %.1f s: chain %.1f fps, %d late".format(sec, shown / sec, late) + (if (skipped > 0) ", film skipped under a layer ×$skipped" else "") + if (per.isEmpty()) "" else "; " + per.joinToString("; ")
+        // late frames the edit point layer didn't cover: these were seen as a stutter
+        val spans = covered.toList()
+        val seen = androidx.media3.effect.KlippPrecision.lateTimes.count { at -> at >= markUptime && spans.none { at >= it[0] && (it[1] == 0L || at <= it[1]) } }
+        return "played %.1f s: chain %.1f fps, %d late (%d not covered)".format(sec, shown / sec, late, seen) + (if (skipped > 0) ", film skipped under a layer ×$skipped" else "") + if (per.isEmpty()) "" else "; " + per.joinToString("; ")
     }
     fun describe(): String = buildString {
         for (l in layers.values) {
