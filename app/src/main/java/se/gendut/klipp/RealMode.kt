@@ -418,6 +418,37 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
             }
         }
     }
+    // a stall watch: playing, but the main player's position doesn't move. Media3's composition player can end up
+    // buffering without loading anything (with a second of media ready) and then waits forever – a seek to the same
+    // spot gets it going again (a short hitch instead of a frozen picture). What it was doing goes in the trail.
+    LaunchedEffect(playback) {
+        snapshotFlow { state.playing }.collect { on ->
+            if (!on) return@collect
+            var last = playback.player.currentPosition
+            var still = 0
+            while (state.playing) {
+                kotlinx.coroutines.delay(500)
+                val p = playback.player
+                val now = p.currentPosition
+                if (now == last) still++ else still = 0
+                last = now
+                // (real buffering always loads – buffering without loading for a second is the stall)
+                if (still == 2 && p.playbackState == androidx.media3.common.Player.STATE_BUFFERING && p.playWhenReady && !p.isLoading) {
+                    CrashReport.note("stall: buffering without loading at $now ms (buffered ${p.bufferedPosition}) – a frame on")
+                    p.seekTo(now + 40)
+                    still = 0
+                    continue
+                }
+                if (still == 4) CrashReport.note("stall: pos $now state ${p.playbackState} pwr ${p.playWhenReady} playing ${p.isPlaying} loading ${p.isLoading} buffered ${p.bufferedPosition} suppress ${p.playbackSuppressionReason} frames ${playback.framesShown} shown ${androidx.media3.effect.KlippPrecision.framesShown} late ${androidx.media3.effect.KlippPrecision.framesLate} heap ${Runtime.getRuntime().let { r -> "${(r.totalMemory() - r.freeMemory()) shr 20}/${r.maxMemory() shr 20} MB" }}")
+            }
+        }
+    }
+    // a short summary of each playback run in the trail (frames out, late, per layer shown/dropped) – measured on phones
+    LaunchedEffect(playback) {
+        snapshotFlow { state.playing }.collect { on ->
+            if (on) SyncStats.start() else SyncStats.summary()?.let { CrashReport.note(it) }
+        }
+    }
     // the volume slider is audible while dragging (lowering right away; raising up to the player's max volume)
     LaunchedEffect(playback) {
         // (and the volume line in the timeline: its change at the playhead)

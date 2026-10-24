@@ -279,7 +279,7 @@ object NodeCache {
         // the nodes with fixed values; tracked windows and grain get the source time
         val tb = TimeBase(r.end - r.start)
         val clock: (Long) -> Double? = { pts -> tb.seconds(pts)?.let { r.start + it } }
-        val effects = ClipGrade(r.nodes).effects(null, clock)
+        val effects = ClipGrade(r.nodes).effects(null, clock = clock)
         val item = EditedMediaItem.Builder(
             MediaItem.Builder().setUri(r.uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionUs((r.start * 1e6).toLong()).setEndPositionUs((r.end * 1e6).toLong()).build(),

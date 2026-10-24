@@ -433,6 +433,11 @@ void main() {
 }
 """
 
+    private const val COPY = HEAD + """
+uniform sampler2D uIn;
+void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
+"""
+
     // ------------------------------------------------------------------------------------------- GL helpers
 
     private class Prog(fs: String) {
@@ -744,6 +749,8 @@ void main() {
         override fun drawFrame(inputTexId: Int, presentationTimeUs: Long) = PassTimes.measure("film") { drawTimed(inputTexId, presentationTimeUs) }
 
         private fun drawTimed(inputTexId: Int, presentationTimeUs: Long) {
+            // covered by an opaque layer above (preview playback): the picture isn't seen – passed through, see Occlusion
+            if (live != null && Occlusion.hidden(live.first)) { Occlusion.skipped++; drawCopy(inputTexId, presentationTimeUs); return }
             live?.let { LiveGrades.get(it) }?.film?.let { f -> if (f != film) adopt(f) }
             if (broken) { drawColorOnly(inputTexId, presentationTimeUs); return }
             val prevFbo = IntArray(1); GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, prevFbo, 0)
@@ -770,6 +777,21 @@ void main() {
                 colorFor = film
             }
             return tColor
+        }
+
+        private var copy: Prog? = null
+
+        /** The input unchanged (a covered clip, see [Occlusion]). */
+        private fun drawCopy(inputTexId: Int, presentationTimeUs: Long) {
+            try {
+                val p = copy ?: Prog(COPY).also { copy = it }
+                p.use()
+                p.tex("uIn", GLES20.GL_TEXTURE_2D, inputTexId)
+                draw()
+                GlUtil.checkGlError()
+            } catch (e: Exception) {
+                throw VideoFrameProcessingException(e, presentationTimeUs)
+            }
         }
 
         private fun drawColorOnly(inputTexId: Int, presentationTimeUs: Long) {
@@ -990,6 +1012,7 @@ void main() {
                 deleteTables()
                 if (tColor != 0) GLES20.glDeleteTextures(1, intArrayOf(tColor), 0)
                 colorOnly?.delete()
+                copy?.delete()
                 listOf(expose, blur, blurVHalf, half, level, develop1, develop2, print, final, maxHalf, boostP).forEach { it.delete() }
             } catch (e: Exception) {
                 throw VideoFrameProcessingException(e)

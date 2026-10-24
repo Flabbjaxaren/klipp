@@ -111,7 +111,12 @@ private fun LayerVideo(
             repeatMode = Player.REPEAT_MODE_OFF
         }
     }
-    DisposableEffect(player) { onDispose { player.release() } }
+    DisposableEffect(player) {
+        // frames shown and dropped by this layer's decoder (diagnostics and the playback summary in the trail)
+        val stats = SyncStats.forLayer(layer.name)
+        stats.counters = { player.videoDecoderCounters?.let { it.ensureUpdated(); it.renderedOutputBufferCount.toLong() to (it.droppedBufferCount + it.skippedOutputBufferCount).toLong() } }
+        onDispose { stats.counters = null; player.release() }
+    }
     val segs = remember(layer) { layer.segs.filter { controller.uriOf(it.src.item) != null } }
     var videoSize by remember { mutableStateOf(VideoSize.UNKNOWN) }
     // the segment (index in the player) whose frame has actually been drawn on the layer's surface – until then the layer
@@ -164,6 +169,11 @@ private fun LayerVideo(
         var lastSeek = 0L
         var lastMainMs = -1L
         val stats = SyncStats.forLayer(layer.name)
+        // the edit point layer: the segment it is covering, the main chain's frames of that clip when it began, and
+        // when the main player had enough of them (see Occlusion.mainFrames)
+        var handSeg = -1; var handFrames = 0L; var handReadyAt = 0L
+        // the layers below this one (their clips are hidden while this one covers the frame, see Occlusion)
+        val below = plan.layers.indexOfFirst { it.name == layer.name }.let { k -> if (k < 0 || handoff) emptyList() else plan.layers.drop(k + 1) }
         // paused and done seeking: sleep until playback starts or the playhead moves (no needless frame loop)
         suspend fun idle() {
             val ph = state.playhead
@@ -176,8 +186,36 @@ private fun LayerVideo(
             val advancing = mainMs != null && lastMainMs >= 0 && mainMs != lastMainMs && main.isPlaying
             lastMainMs = mainMs ?: -1L
             val t = if (mainMs != null && state.playing) mainMs / 1000.0 else state.playhead.toDouble()
-            val i = if (handoff && !state.playing) -1 else segs.indexOfFirst { t >= it.start && t < it.end }
+            var i = if (handoff && !state.playing) -1 else segs.indexOfFirst { t >= it.start && t < it.end }
+            // the edit point layer stands down once the main player has the new clip going (it computed the same
+            // picture in the main chain for a whole second before – twice the GPU work at every cut)
+            if (handoff && i >= 0) {
+                val id = segs[i].clip?.id
+                if (i != handSeg) { handSeg = i; handFrames = id?.let { se.gendut.klipp.engine.Occlusion.mainFrames(it) } ?: 0L; handReadyAt = 0L }
+                if (id != null && se.gendut.klipp.engine.Occlusion.mainFrames(id) - handFrames >= HANDOFF_FRAMES) {
+                    if (handReadyAt == 0L) handReadyAt = now
+                    if (now - handReadyAt >= HANDOFF_SETTLE_MS) i = -1
+                }
+            }
             active = i
+            // covering the whole frame, opaque, while playing: the clips below aren't seen – their film is skipped
+            // (marked until LEAD before this one ends, so they are graded again before they show)
+            if (i >= 0 && below.isNotEmpty() && state.playing && drawnIndex == i && player.isPlaying) {
+                val sg = segs[i]
+                val ahead = t + se.gendut.klipp.engine.Occlusion.LEAD_S
+                val cover = if (ahead < sg.end) coverBox(sg, t, plan, videoSize, gradeOf) else null
+                val coverAhead = cover?.let { coverBox(sg, ahead, plan, videoSize, gradeOf) }
+                if (cover != null && coverAhead != null) {
+                    val nowMs = android.os.SystemClock.uptimeMillis()
+                    for (l in below) {
+                        val bs = l.at(t) ?: continue
+                        val id = bs.clip?.id ?: continue
+                        val size = controller.uriOf(bs.src.item)?.let { se.gendut.klipp.engine.Occlusion.Sizes.of(ctx, it) } ?: continue
+                        val inside = listOf(t, ahead).all { at -> clipBox(bs, at, plan, size)?.let { b -> (if (at == t) cover else coverAhead).contains(b) } == true }
+                        if (inside) se.gendut.klipp.engine.Occlusion.hide(id, nowMs)
+                    }
+                }
+            }
             if (i < 0) {
                 if (player.playWhenReady) player.pause()
                 // prepare the next segment right away (paused on its first frame) – the file is opened and the decoder started
@@ -225,7 +263,7 @@ private fun LayerVideo(
         val layer = grade?.layer?.takeIf { it.hasAlpha }
         val keyFx = gc?.let { cl -> layer?.key?.let { se.gendut.klipp.engine.LayerFxEffect(layer, cl.id, se.gendut.klipp.engine.LayerFxEffect.KEY, se.gendut.klipp.engine.LayerFxEffect.STRAIGHT) } }
         val maskFx = gc?.let { cl -> layer?.let { se.gendut.klipp.engine.LayerFxEffect(it, cl.id, se.gendut.klipp.engine.LayerFxEffect.MASK, se.gendut.klipp.engine.LayerFxEffect.PREMULTIPLIED, src) } }
-        runCatching { player.setVideoEffects(listOfNotNull(keyFx) + gc?.let { grade?.effects(it.id, src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)) }
+        runCatching { player.setVideoEffects(listOfNotNull(keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)) }
         repaint(player)
     }
     LaunchedEffect(grade) {
@@ -279,6 +317,32 @@ private fun LayerVideo(
             )
         }
     }
+}
+
+/** Main chain frames of the new clip before the edit point layer stands down, and the wait after that (ms). */
+private const val HANDOFF_FRAMES = 4L
+private const val HANDOFF_SETTLE_MS = 100L
+
+/** Segment [sg]'s box at [t] if it is an opaque rectangle there (see Occlusion.opaque); null otherwise. */
+private fun coverBox(sg: Seg, t: Double, plan: LayerPlan, video: VideoSize, gradeOf: (Long) -> se.gendut.klipp.engine.ClipGrade?): se.gendut.klipp.engine.Occlusion.Box? {
+    // (a size not reported yet: the layer is drawn in the frame's shape, as LayerVideo's box does)
+    val vw = if (video.width > 0) video.width * video.pixelWidthHeightRatio.toDouble() else plan.width.toDouble()
+    val vh = if (video.height > 0) video.height.toDouble() else plan.height.toDouble()
+    val c = sg.clip?.at(t)
+    val lfx = sg.clip?.let { gradeOf(it.id)?.layer }
+    if (!se.gendut.klipp.engine.Occlusion.opaque(c?.rotation ?: 0.0, sg.alpha(t),
+            plainBlend = lfx == null || lfx.blend == se.gendut.klipp.engine.BlendMode.NORMAL, noAlphaFx = lfx?.hasAlpha != true,
+            geomIdentity = sg.geomAt(t)?.identity ?: true)) return null
+    return se.gendut.klipp.engine.Occlusion.box(plan.width.toDouble(), plan.height.toDouble(), vw, vh,
+        (c?.scale ?: 100.0) / 100.0, (c?.x ?: plan.width / 2.0) - plan.width / 2.0, (c?.y ?: plan.height / 2.0) - plan.height / 2.0, 0.0)
+}
+
+/** Where segment [bs] (a video of display [size]) is drawn at [t] – its bounding box; null during a transition's geometry. */
+private fun clipBox(bs: Seg, t: Double, plan: LayerPlan, size: Pair<Int, Int>): se.gendut.klipp.engine.Occlusion.Box? {
+    if (bs.geomAt(t)?.identity == false) return null
+    val c = bs.clip?.at(t)
+    return se.gendut.klipp.engine.Occlusion.box(plan.width.toDouble(), plan.height.toDouble(), size.first.toDouble(), size.second.toDouble(),
+        (c?.scale ?: 100.0) / 100.0, (c?.x ?: plan.width / 2.0) - plan.width / 2.0, (c?.y ?: plan.height / 2.0) - plan.height / 2.0, c?.rotation ?: 0.0)
 }
 
 /** A clip's blend mode as Compose's (null = normal). */
@@ -390,6 +454,8 @@ object SyncStats {
         @Volatile var samples = 0L
         @Volatile var sumAbs = 0L
         @Volatile var seeks = 0
+        /** The layer player's decoder: (frames rendered, frames dropped or skipped) so far. */
+        @Volatile var counters: (() -> Pair<Long, Long>?)? = null
         fun record(d: Long) {
             drift = d; samples++; sumAbs += abs(d)
             if (abs(d) > abs(maxDrift)) maxDrift = d
@@ -398,6 +464,40 @@ object SyncStats {
     private val layers = java.util.concurrent.ConcurrentHashMap<String, Layer>()
     fun forLayer(name: String): Layer = layers.getOrPut(name) { Layer(name) }
     fun reset() = layers.clear()
+
+    private var mark: Map<String, Pair<Long, Long>> = emptyMap()
+    private var markShown = 0L
+    private var markLate = 0L
+    private var markAt = 0L
+    private var markSkipped = 0L
+
+    /** Playback starts: the counters now (see [summary]). Main thread. */
+    fun start() {
+        mark = layers.mapNotNull { (k, l) -> l.counters?.invoke()?.let { k to it } }.toMap()
+        markShown = androidx.media3.effect.KlippPrecision.framesShown; markLate = androidx.media3.effect.KlippPrecision.framesLate
+        markAt = System.nanoTime()
+        markSkipped = se.gendut.klipp.engine.Occlusion.skipped
+    }
+
+    /**
+     * Playback stopped: what happened since [start] – the video chains' frames out and too late (the main player and
+     * the layers' effect chains), and per layer player the frames rendered and dropped. Null for very short runs.
+     */
+    fun summary(): String? {
+        val sec = (System.nanoTime() - markAt) / 1e9
+        if (markAt == 0L || sec < 1.5) return null
+        val shown = androidx.media3.effect.KlippPrecision.framesShown - markShown
+        val late = androidx.media3.effect.KlippPrecision.framesLate - markLate
+        val per = layers.entries.sortedBy { it.key }.mapNotNull { (k, l) ->
+            val now = l.counters?.invoke() ?: return@mapNotNull null
+            val was = mark[k] ?: (0L to 0L)
+            // (the counters start over when the player restarts its decoder)
+            val r = (now.first - was.first).let { if (it < 0) now.first else it }; val d = (now.second - was.second).let { if (it < 0) now.second else it }
+            if (r == 0L && d == 0L) null else "$k %d shown, %d dropped".format(r, d)
+        }
+        val skipped = se.gendut.klipp.engine.Occlusion.skipped - markSkipped
+        return "played %.1f s: chain %.1f fps, %d late".format(sec, shown / sec, late) + (if (skipped > 0) ", film skipped under a layer ×$skipped" else "") + if (per.isEmpty()) "" else "; " + per.joinToString("; ")
+    }
     fun describe(): String = buildString {
         for (l in layers.values) {
             val avg = if (l.samples > 0) l.sumAbs / l.samples else 0
