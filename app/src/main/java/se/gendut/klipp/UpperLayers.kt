@@ -114,7 +114,8 @@ private fun LayerVideo(
     DisposableEffect(player) {
         // frames shown and dropped by this layer's decoder (diagnostics and the playback summary in the trail)
         val stats = SyncStats.forLayer(layer.name)
-        stats.counters = { player.videoDecoderCounters?.let { it.ensureUpdated(); it.renderedOutputBufferCount.toLong() to (it.droppedBufferCount + it.skippedOutputBufferCount).toLong() } }
+        // (dropped = too late to show; frames skipped on purpose while seeking to an exact spot are not counted)
+        stats.counters = { player.videoDecoderCounters?.let { it.ensureUpdated(); it.renderedOutputBufferCount.toLong() to it.droppedBufferCount.toLong() } }
         onDispose { stats.counters = null; player.release() }
     }
     val segs = remember(layer) { layer.segs.filter { controller.uriOf(it.src.item) != null } }
@@ -454,8 +455,11 @@ object SyncStats {
         @Volatile var samples = 0L
         @Volatile var sumAbs = 0L
         @Volatile var seeks = 0
-        /** The layer player's decoder: (frames rendered, frames dropped or skipped) so far. */
+        /** The layer player's decoder: (frames rendered, frames dropped as late) so far. */
         @Volatile var counters: (() -> Pair<Long, Long>?)? = null
+            set(v) { field = v; base = v?.invoke() ?: (0L to 0L) }
+        /** The counters when this player registered (a player made during a run counts from there). */
+        @Volatile var base: Pair<Long, Long> = 0L to 0L
         fun record(d: Long) {
             drift = d; samples++; sumAbs += abs(d)
             if (abs(d) > abs(maxDrift)) maxDrift = d
@@ -490,7 +494,7 @@ object SyncStats {
         val late = androidx.media3.effect.KlippPrecision.framesLate - markLate
         val per = layers.entries.sortedBy { it.key }.mapNotNull { (k, l) ->
             val now = l.counters?.invoke() ?: return@mapNotNull null
-            val was = mark[k] ?: (0L to 0L)
+            val was = mark[k] ?: l.base
             // (the counters start over when the player restarts its decoder)
             val r = (now.first - was.first).let { if (it < 0) now.first else it }; val d = (now.second - was.second).let { if (it < 0) now.second else it }
             if (r == 0L && d == 0L) null else "$k %d shown, %d dropped".format(r, d)
