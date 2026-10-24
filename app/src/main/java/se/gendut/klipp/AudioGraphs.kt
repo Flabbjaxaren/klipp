@@ -135,9 +135,9 @@ fun EqGraph(
                             val f = Math.round(g.f(pos.x) * 10) / 10.0
                             live[fId] = f; changed[fId] = f; liveCb(fId, f)
                             if (gId != null) {
-                                var d = Math.round(g.db(pos.y) * 10) / 10.0
-                                if (abs(d) < 0.6) d = 0.0 // magnetic zero
-                                if ((live[gId] ?: 1.0) != 0.0 && d == 0.0) haptics.tick()
+                                val d = Math.round(g.db(pos.y) * 10) / 10.0
+                                // no snapping: a tick when passing 0 dB
+                                if (kotlin.math.sign(d) != kotlin.math.sign(live[gId] ?: pv(gId))) haptics.tick()
                                 live[gId] = d; changed[gId] = d; liveCb(gId, d)
                                 // a disabled band is turned on when dragged
                                 if (pv(band.on) < 0.5) { live[band.on] = 1.0; changed[band.on] = 1.0; liveCb(band.on, 1.0) }

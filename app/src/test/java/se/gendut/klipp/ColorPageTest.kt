@@ -7,6 +7,7 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -113,6 +114,24 @@ class ColorPageTest {
         val g = gs.grades[1L]!!
         assertTrue("puck to the right = red gain", g.nodes[0].gain.rgb()[0] > 0.2f)
         rule.onRoot().captureRoboImage("$dir/33_farg_gain.png")
+    }
+
+    /** No snapping to the center: a tiny nudge of the puck stays; a double tap resets it. */
+    @Test fun wheelNudgeNearCenterStays() {
+        val (_, gs) = setUp()
+        rule.onNodeWithTag("wheel:Gain").performScrollTo().performTouchInput {
+            down(center)
+            for (i in 1..6) moveTo(Offset(center.x + width * 0.003f * i, center.y))
+            up()
+        }
+        rule.waitForIdle()
+        val w = gs.grades[1L]!!.nodes[0].gain
+        assertTrue("a small push stays (${w.x})", w.x > 0.005f && w.x < 0.035f)
+        rule.onNodeWithTag("wheel:Gain").performTouchInput { doubleClick(center) }
+        rule.waitForIdle()
+        // back to neutral (a neutral grade may be dropped altogether)
+        val r = gs.grades[1L]?.nodes?.get(0)?.gain
+        assertTrue("reset ($r)", r == null || r.x == 0f && r.y == 0f)
     }
 
     @Test fun nodesCurvesCopyPaste() {

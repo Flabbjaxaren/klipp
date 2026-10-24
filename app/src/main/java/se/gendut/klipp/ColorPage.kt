@@ -803,7 +803,7 @@ private fun WheelsGrid(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (Gra
 }
 
 /**
- * A color wheel: drag the puck toward a color (snaps to center with a click), drag the strip below the wheel for
+ * A color wheel: drag the puck toward a color (no snapping – a click when passing the center), drag the strip below the wheel for
  * luminance (the master control). Double-tap the wheel to reset the color, the strip to reset the master.
  */
 @Composable
@@ -861,10 +861,11 @@ fun ColorWheel(label: String, w: Wheel, modifier: Modifier, onLive: (Wheel) -> U
                         py -= d.y / r * 0.6f
                         val m = hypot(px, py)
                         if (m > 1f) { px /= m; py /= m }
+                        // a click when the puck passes the center (within the click zone once, again after leaving it)
                         val near = hypot(px, py) < 0.035f
                         if (near && !snapped) haptics.tick()
                         snapped = near
-                        cur = if (near) cur.copy(x = 0f, y = 0f) else cur.copy(x = px, y = py)
+                        cur = cur.copy(x = px, y = py)
                         live(cur)
                         ch.consume()
                     }
@@ -918,7 +919,7 @@ private fun MasterStrip(value: Float, label: String, onLive: (Float) -> Unit, on
                     }
                     var m = v
                     var last = down.position.x
-                    var zero = m == 0f
+                    var side = kotlin.math.sign(m)
                     while (true) {
                         val ev = awaitPointerEvent()
                         val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
@@ -926,13 +927,13 @@ private fun MasterStrip(value: Float, label: String, onLive: (Float) -> Unit, on
                         val dx = ch.position.x - last
                         last = ch.position.x
                         m = (m + dx / size.width * 1.2f).coerceIn(-1f, 1f)
-                        val near = abs(m) < 0.02f
-                        if (near && !zero) haptics.tick()
-                        zero = near
-                        live(if (near) 0f else m)
+                        // no snapping: a tick when passing 0
+                        val s = kotlin.math.sign(m)
+                        if (s != side) { if (side != 0f || s == 0f) haptics.tick(); side = s }
+                        live(m)
                         ch.consume()
                     }
-                    commit(if (abs(m) < 0.02f) 0f else m)
+                    commit(m)
                 }
             },
         contentAlignment = Alignment.Center,

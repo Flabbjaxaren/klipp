@@ -168,7 +168,10 @@ fun SpringChip(
     }
 }
 
-/** Material 3 Expressive-style slider: thick track, bar handle that grows when pressed, magnetic center position. */
+/**
+ * Material 3 Expressive-style slider: thick track, bar handle that grows when pressed. No snapping – a tick when passing
+ * [default]; double tap = back to it.
+ */
 @Composable
 fun ExpressiveSlider(
     label: String,
@@ -177,11 +180,12 @@ fun ExpressiveSlider(
     bipolar: Boolean = true,
     gradient: List<Color>? = null,
     format: (Float) -> String = { v -> (if (v > 0.005f) "+" else if (v < -0.005f) "−" else "") + "%.0f".format(abs(v) * 100) },
+    default: Float = 0f,
 ) {
     val haptics = rememberHaptics()
     var pressed by remember { mutableStateOf(false) }
     val grow by animateFloatAsState(if (pressed) 1f else 0f, androidx.compose.animation.core.spring(0.4f, 600f), label = "grow")
-    var stuckAtCenter by remember { mutableStateOf(true) }
+    val lastTap = remember { longArrayOf(0L) }
     Row(
         Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -195,19 +199,16 @@ fun ExpressiveSlider(
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         pressed = true
+                        var side = kotlin.math.sign(value.value - default)
                         fun setFrom(x: Float) {
                             val f = (x / size.width).coerceIn(0f, 1f)
-                            var v = if (bipolar) f * 2f - 1f else f
-                            val center = if (bipolar) 0f else -1f
-                            if (bipolar && abs(v - center) < 0.06f) {
-                                if (!stuckAtCenter) haptics.tick()
-                                stuckAtCenter = true
-                                v = center
-                            } else stuckAtCenter = false
+                            val v = if (bipolar) f * 2f - 1f else f
+                            val s = kotlin.math.sign(v - default)
+                            if (s != side) { if (side != 0f || s == 0f) haptics.tick(); side = s }
                             scope.launch { value.animateTo(v, Springs.follow()) }
                         }
-                        // wait until the finger moves sideways (drag) – vertically the panel may scroll; a tap without
-                        // movement sets the value where it was tapped
+                        // wait until the finger moves sideways (drag) – vertically the panel may scroll; a tap changes
+                        // nothing (it may brush the panel by accident), a double tap goes back to the default
                         var moved = false
                         var cancelled = false
                         while (true) {
@@ -226,7 +227,14 @@ fun ExpressiveSlider(
                                 c.consume()
                             }
                         }
-                        if (!moved && !cancelled) setFrom(down.position.x)
+                        if (!moved && !cancelled) {
+                            val now = System.currentTimeMillis()
+                            if (now - lastTap[0] < 350) {
+                                haptics.confirm()
+                                scope.launch { value.animateTo(default, Springs.pop()) }
+                                lastTap[0] = 0L
+                            } else lastTap[0] = now
+                        }
                         pressed = false
                     }
                 },
@@ -310,7 +318,7 @@ fun ColorPanel(grade: ColorGrade, onImportLut: (() -> Unit)? = null, scroll: Boo
             if (onImportLut != null) SpringChip(stringResource(R.string.panels_lut_import), false, onImportLut, selectedColor = K.Primary)
         }
         if (grade.lutName != null) {
-            ExpressiveSlider(stringResource(R.string.panels_lut_strength), grade.lutMix, scope, bipolar = false, format = { "%.0f %%".format(it * 100) })
+            ExpressiveSlider(stringResource(R.string.panels_lut_strength), grade.lutMix, scope, bipolar = false, format = { "%.0f %%".format(it * 100) }, default = 1f)
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 SpringChip(stringResource(R.string.panels_lut_tetra), grade.tetra, { grade.tetra = true })
                 SpringChip(stringResource(R.string.panels_lut_trilinear), !grade.tetra, { grade.tetra = false })

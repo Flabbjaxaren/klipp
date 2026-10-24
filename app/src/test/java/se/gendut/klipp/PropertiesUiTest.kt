@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.doubleClick
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -104,18 +105,22 @@ class PropertiesUiTest {
         rule.waitForIdle()
         assertEquals(1, fake.log.size)
         assertTrue(fake.log[0], fake.p.scale in 290f..310f)
-        // drag back near 100 % → snaps exactly to 100
+        // drag back near 100 % → stays where the finger is (no snapping: small changes around the default are possible)
         rule.onNodeWithTag("prop:scale").performTouchInput {
             down(Offset(width * 0.75f, height / 2f))
             for (i in 1..10) moveTo(Offset(width * (0.75f - 0.0505f * i), height / 2f))
             up()
         }
         rule.waitForIdle()
-        assertEquals(100f, fake.p.scale, 0.001f)
+        assertTrue("${fake.p.scale}", fake.p.scale in 95f..99.9f)
         // a single tap changes nothing (you can brush it by accident while scrolling)
         rule.onNodeWithTag("prop:opacity").performTouchInput { click(Offset(width * 0.1f, height / 2f)) }
         rule.waitForIdle()
         assertEquals(2, fake.log.size)
+        // double tap = exactly back to 100 %
+        rule.onNodeWithTag("prop:scale").performTouchInput { doubleClick(Offset(width * 0.6f, height / 2f)) }
+        rule.waitForIdle()
+        assertEquals(100f, fake.p.scale, 0.001f)
     }
 
     @Test
