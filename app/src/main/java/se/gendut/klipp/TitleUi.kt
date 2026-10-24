@@ -558,6 +558,15 @@ private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
     }
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ToggleChip(stringResource(R.string.titleui_follow_none), cur == null, { haptics.tick(); gs.setFollow(p.id, null) }, Modifier.testTag("follow:none"))
-        for ((f, label) in options) ToggleChip(label, cur == f, { haptics.tick(); gs.setFollow(p.id, f) }, Modifier.testTag("follow:${f.encode()}"))
+        // the same window keeps the scale/turn choices when picked again
+        for ((f, label) in options) {
+            val on = cur?.clip == f.clip && cur.node == f.node
+            ToggleChip(label, on, { haptics.tick(); gs.setFollow(p.id, if (on) cur else f.copy(scale = cur?.scale == true, rotate = cur?.rotate == true)) }, Modifier.testTag("follow:${f.clip}:${f.node}"))
+        }
+    }
+    // the title also grows/shrinks and turns as the object does
+    if (cur != null) Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ToggleChip(stringResource(R.string.titleui_follow_scale), cur.scale, { haptics.tick(); gs.setFollow(p.id, cur.copy(scale = !cur.scale)) }, Modifier.testTag("follow:scale"))
+        ToggleChip(stringResource(R.string.titleui_follow_rotate), cur.rotate, { haptics.tick(); gs.setFollow(p.id, cur.copy(rotate = !cur.rotate)) }, Modifier.testTag("follow:rotate"))
     }
 }

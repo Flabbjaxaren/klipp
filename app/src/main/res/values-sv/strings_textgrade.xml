@@ -53,6 +53,8 @@
     <string name="titleui_follow_node">%1$s · nod %2$02d</string>
     <string name="titleui_follow_object">Följ ett föremål</string>
     <string name="titleui_follow_hint">Dra en ruta runt ett föremål så följer titeln det, eller välj ett fönster du spårat i färgläget.</string>
+    <string name="titleui_follow_scale">Skala med föremålet</string>
+    <string name="titleui_follow_rotate">Rotera med föremålet</string>
     <string name="titleui_follow_draw">Följ ett föremål i bilden</string>
     <string name="titleui_follow_drawing">Dra en ruta i bilden…</string>
     <string name="titleui_follow_no_clip">Det finns ingen video under titeln vid spelhuvudet att spåra.</string>
