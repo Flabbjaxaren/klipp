@@ -23,7 +23,7 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
 ## ✨ Features
 
 - ✂️ **Editing:** three video and three audio tracks, insert/overwrite from a source monitor, ripple, roll, slip,
-  razor, linked audio, compound clips, markers, undo/redo for everything.
+  razor, linked audio, compound clips, markers, sync by sound (camera + separate recorder), undo/redo for everything.
 - 👆 **Touch first:** swipe down through a clip to cut it, drag a clip up out of the timeline to delete it, drag any
   edge to trim (with a loupe and a two-frame trim view), long-press to lift, pinch to zoom; scrub on the ruler or the
   picture and slide the finger down for ½, ¼, ⅛ speed; two-finger tap = undo, three = redo.
@@ -109,7 +109,8 @@ replace an installed Klipp.
 ## ⚠️ Known limitations
 
 - Clips imported through the system photo picker get generic names (e.g. `28.mp4`) – Android hides the file names.
-- Projects live inside the app; there is no project export yet, so uninstalling Klipp removes them.
+- Projects live inside the app: export them (Projects → long-press → Export…, with the media files) before
+  uninstalling Klipp or moving to another phone.
 - vivo Log has no published specification; its curve and gamut were measured from DaVinci Resolve 21.1's built-in
   transform (matches to about 1/65 000 of the signal range).
 - Speech recognition runs on the CPU (the GPU path was tried and dropped: unstable drivers, slower on phones).

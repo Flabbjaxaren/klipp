@@ -431,6 +431,16 @@ class ProjectController(
         } }
     }
 
+    override fun syncByAudio(ids: List<Long>) {
+        if (ids.size < 2) return
+        scope.launch { editLock.withLock {
+            engine.tryExec("clip.synchronize", JSONObject().put("method", "audio").put("clips", JSONArray().apply { ids.forEach { put(it) } }))
+                .onSuccess { r -> val n = r.optInt("moved"); onMessage(if (n > 0) Str.p(R.plurals.projectcontroller_synced, n, n) else Str.t(R.string.projectcontroller_sync_nothing)) }
+                .onFailure { onMessage(Str.t(R.string.projectcontroller_sync_failed, friendly(it.message))) }
+            refresh()
+        } }
+    }
+
     override fun remove(id: Long, ripple: Boolean) {
         run(if (ripple) "edit.rippleDelete" else "edit.clear", JSONObject().put("clips", JSONArray().put(id)))
     }
@@ -552,7 +562,9 @@ class ProjectController(
         }
         snapshot = snap
         se.gendut.klipp.projectFps = snap.fps.takeIf { it.isFinite() && it >= 1.0 } ?: 25.0
-        snap.sequence?.let { q -> state.subtitle = "${q.width}×${q.height} · ${"%.2f".format(snap.fps).trimEnd('0').trimEnd('.', ',')}p · ${Str.p(R.plurals.projectcontroller_media_count, snap.media.size, snap.media.size)}" }
+        // (no sequence yet, e.g. a new project: not the previous project's line)
+        state.subtitle = snap.sequence?.let { q -> "${q.width}×${q.height} · ${"%.2f".format(snap.fps).trimEnd('0').trimEnd('.', ',')}p · ${Str.p(R.plurals.projectcontroller_media_count, snap.media.size, snap.media.size)}" }
+            ?: if (snap.media.isEmpty()) Str.t(R.string.mainactivity_no_media_yet) else Str.p(R.plurals.projectcontroller_media_count, snap.media.size, snap.media.size)
         state.applyEngine(toUi(snap), snap.undoIds, snap.redoIds, snap.editSerial)
         state.linkedSelection = snap.linkedSelection
         snap.sequence?.let { q ->

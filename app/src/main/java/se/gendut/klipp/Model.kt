@@ -124,6 +124,8 @@ interface EditBackend {
     fun setReverse(ids: List<Long>, reverse: Boolean) {}
     /** Compound clip: group the clips (or break up their group). */
     fun setGrouped(ids: List<Long>, grouped: Boolean) {}
+    /** Line the clips up by their sound (e.g. the camera and a separate recorder); the lowest video stays put. One undo. */
+    fun syncByAudio(ids: List<Long>) {}
     fun remove(id: Long, ripple: Boolean)
     fun undo()
     fun redo()
@@ -515,6 +517,14 @@ class EditorState(initial: List<Clip> = initialClips()) {
         backend?.setGrouped(cs.map { it.id }, grouped)
     }
 
+    /** Synchronize the clips by their sound: at least two sources (linked video and audio count as one). */
+    fun syncByAudio(ids: Collection<Long>) {
+        val cs = ids.mapNotNull { id -> clips.firstOrNull { it.id == id } }
+        if (cs.any { locked(it.track) }) { onNotice?.invoke(Str.t(R.string.model_track_locked)); return }
+        if (cs.map { it.link?.let { l -> "l$l" } ?: "c${it.id}" }.toSet().size < 2) { onNotice?.invoke(Str.t(R.string.model_select_two_clips)); return }
+        backend?.syncByAudio(cs.map { it.id })
+    }
+
     /** The lasso caught [ids]: one clip (with partners) becomes a normal selection, more become a multi-selection. */
     fun lassoSelect(ids: Set<Long>, add: Boolean = false) {
         val all = withPartners(ids) + (if (add) multi + listOfNotNull(selected).let { withPartners(it) } else emptySet())
@@ -822,9 +832,28 @@ class EditorState(initial: List<Clip> = initialClips()) {
     /** Move a clip. With engine: overwrite (Select) or insert (Ripple). */
     fun moveClip(orig: Clip, start: Float, track: Int, insert: Boolean) {
         if (locked(orig.track) || locked(track)) { onNotice?.invoke(Str.t(R.string.model_track_locked)); return }
-        backend?.let { it.move(orig, start, track, insert); return }
+        backend?.let { b ->
+            // to another track: the linked partners move as many tracks the other way out from the middle (V1 → V2 takes
+            // A1 → A2), as in Premiere – otherwise the audio stayed on its track and overwrote the audio there
+            val partners = partnersOf(orig)
+            val d = levelOf(track) - levelOf(orig.track)
+            if (d != 0 && partners.isNotEmpty()) {
+                val dt = start - orig.start
+                val moves = listOf(Triple(orig, start, track)) + partners.map { p -> Triple(p, p.start + dt, partnerTrack(orig, track, p)) }
+                if (moves.any { locked(it.third) }) { onNotice?.invoke(Str.t(R.string.model_track_locked)); return }
+                b.moveMany(moves, insert)
+            } else b.move(orig, start, track, insert)
+            return
+        }
         commit(placeWithRipple(clips.filter { it.id != orig.id }, orig.copy(start = start, track = track)))
     }
+
+    /** How far out from the middle a track is: V1/A1 = 0, V2/A2 = 1, V3/A3 = 2. */
+    private fun levelOf(track: Int): Int = if (TRACKS[track].kind == TrackKind.VIDEO) 2 - track else track - 3
+    /** The track of the same kind as [like] at [level] (clamped to the tracks there are). */
+    private fun trackAtLevel(like: Int, level: Int): Int = level.coerceIn(0, 2).let { if (TRACKS[like].kind == TrackKind.VIDEO) 2 - it else 3 + it }
+    /** Where linked [partner] goes when [orig] moves to [track]: as many tracks out from the middle. */
+    fun partnerTrack(orig: Clip, track: Int, partner: Clip): Int = trackAtLevel(partner.track, levelOf(partner.track) + levelOf(track) - levelOf(orig.track))
 
     /** Receives a new timeline from the engine and prepares the animations for what changed. */
     /** Older form (tests): only whether there is anything to undo/redo. */

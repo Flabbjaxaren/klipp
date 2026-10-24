@@ -935,6 +935,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 for ((pc, pa) in partners) {
                                     scope.launch { pa.start.animateTo(pc.start, Springs.settle()) }
                                     scope.launch { pa.len.animateTo(pc.length, Springs.settle()) }
+                                    scope.launch { pa.track.animateTo(pc.track.toFloat(), Springs.track()) }
                                 }
                                 dragId = null
                                 snapLine = null
@@ -1214,6 +1215,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                         curTrack = nt
                                         haptics.tick()
                                         scope.launch { a.track.animateTo(nt.toFloat(), Springs.track()) }
+                                        // linked partners go as many tracks the other way (as when released)
+                                        if (!groupDrag) for ((pc, pa) in partners) scope.launch { pa.track.animateTo(state.partnerTrack(orig, nt, pc).toFloat(), Springs.track()) }
                                     }
                                     hoverTrack = if (groupDrag) -1 else curTrack
                                     // dragged up out of the timeline: released there, the clip is deleted (ripple)
@@ -1499,6 +1502,16 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     } else if (lastTarget != orig.start || curTrack != orig.track) {
                                         haptics.confirm()
                                         state.moveClip(orig, lastTarget, curTrack, insert = tool == Tool.RIPPLE)
+                                        // a move the engine didn't take (the timeline stays the same): the clips slide back
+                                        scope.launch {
+                                            delay(1500)
+                                            for ((cl, an) in listOf(orig to a) + partners) {
+                                                val now = state.clips.firstOrNull { it.id == cl.id } ?: continue
+                                                if (dragId != null) break
+                                                if (abs(an.track.value - now.track) > 0.01f) launch { an.track.animateTo(now.track.toFloat(), Springs.track()) }
+                                                if (abs(an.start.value - now.start) > 1e-3f) launch { an.start.animateTo(now.start, Springs.settle()) }
+                                            }
+                                        }
                                     }
                                 }
                             }
