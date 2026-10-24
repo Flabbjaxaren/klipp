@@ -48,6 +48,22 @@
     <string name="projectcontroller_open_failed_blocked">Kunde inte öppna projektet: %1$s. Inget sparas förrän du öppnar eller skapar ett projekt.</string>
     <string name="projectcontroller_copy_name">%1$s (kopia)</string>
     <string name="projectcontroller_project_fallback_name">Projekt</string>
+    <string name="projectcontroller_package_write_failed">Kunde inte skriva filen</string>
+    <string name="projectcontroller_package_read_failed">Kunde inte läsa filen</string>
+    <string name="projectcontroller_exported">Projektet är exporterat</string>
+    <plurals name="projectcontroller_exported_media">
+        <item quantity="one">Projektet är exporterat med %1$d mediefil</item>
+        <item quantity="other">Projektet är exporterat med %1$d mediefiler</item>
+    </plurals>
+    <plurals name="projectcontroller_exported_missing">
+        <item quantity="one">Projektet är exporterat – %1$d mediefil gick inte att läsa och saknas</item>
+        <item quantity="other">Projektet är exporterat – %1$d mediefiler gick inte att läsa och saknas</item>
+    </plurals>
+    <string name="projectcontroller_export_project_failed">Kunde inte exportera projektet: %1$s</string>
+    <string name="projectcontroller_imported">Importerat: %1$s</string>
+    <string name="projectcontroller_imported_name">%1$s (importerad)</string>
+    <string name="projectcontroller_import_project_failed">Kunde inte importera projektet: %1$s</string>
+    <string name="projectcontroller_not_a_package">filen är inte ett Klipp-projekt</string>
     <string name="projectcontroller_duplicate_failed">Kunde inte kopiera projektet: %1$s</string>
     <string name="projectcontroller_open_another_first">Öppna ett annat projekt först</string>
     <string name="projectcontroller_change_failed">Kunde inte ändra: %1$s</string>

@@ -123,6 +123,14 @@
     <string name="projectsscreen_duplicate">Duplicate</string>
     <string name="projectsscreen_delete">Delete</string>
     <string name="projectsscreen_close">Close</string>
+    <string name="projectsscreen_export_project">Export…</string>
+    <string name="projectsscreen_import">Import</string>
+    <string name="projectsscreen_export_title">Export “%1$s”</string>
+    <string name="projectsscreen_export_with_media">With the media files</string>
+    <string name="projectsscreen_export_with_media_hint">Everything in one file: opens on another phone or after reinstalling Klipp. As large as the videos.</string>
+    <string name="projectsscreen_export_only">Project only</string>
+    <string name="projectsscreen_export_only_hint">Small: the edit, grades and names. The media stay where they are on this phone.</string>
+    <string name="projectsscreen_copying">Copying… %1$d %%</string>
     <string name="projectsscreen_name">Name</string>
     <string name="projectsscreen_save">Save</string>
     <string name="projectsscreen_cancel">Cancel</string>

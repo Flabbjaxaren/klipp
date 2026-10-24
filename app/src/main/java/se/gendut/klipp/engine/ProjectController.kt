@@ -938,8 +938,109 @@ class ProjectController(
         if (id == currentId) { onMessage(Str.t(R.string.projectcontroller_open_another_first)); return@launch }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             for (ext in listOf("fcproj", "media.json", "media.json.bak", "jpg")) java.io.File(projectDir, "$id.$ext").delete()
+            // media unpacked from an imported package: removed with it, unless a copy of the project still uses them
+            val dir = mediaDirOf(id)
+            if (dir.exists()) {
+                val path = Uri.fromFile(dir).toString()
+                val used = projectDir.listFiles { f -> f.name.endsWith(".media.json") }.orEmpty().any { runCatching { it.readText().contains(path) }.getOrDefault(true) }
+                if (!used) dir.deleteRecursively()
+            }
         }
         projectsRevision++
+    }
+
+    // ------------------------------------------------------------------ project packages (.klipp)
+
+    /** Where an imported project's media files are unpacked. */
+    private fun mediaDirOf(id: String) = File(File(context.filesDir, "media"), id)
+
+    /** Progress (0..1) while a project package is written or read; null otherwise. */
+    var packProgress by mutableStateOf<Float?>(null)
+        private set
+
+    private fun sizeOf(u: Uri): Long = runCatching {
+        context.contentResolver.query(u, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null }
+    }.getOrNull() ?: runCatching { context.contentResolver.openAssetFileDescriptor(u, "r")?.use { it.length } }.getOrNull()?.takeIf { it > 0 } ?: 0L
+
+    /** Progress callback that only updates the state once per percent (the copy loop calls it per 64 kB). */
+    private fun progressOf(size: Long): (Long) -> Unit {
+        var last = -1
+        return { n -> val pc = if (size > 0) (n * 100 / size).toInt().coerceIn(0, 100) else 0; if (pc != last) { last = pc; packProgress = pc / 100f } }
+    }
+
+    /**
+     * Writes project [id] as a package to [to] (a document the user chose). [withMedia]: the media files go in too, so
+     * the project opens anywhere – otherwise only the links to them (fine on the same phone).
+     */
+    fun exportProject(id: String, withMedia: Boolean, to: Uri) = scope.launch {
+        if (packProgress != null) return@launch
+        if (id == currentId) save()
+        packProgress = 0f
+        try {
+            val w = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val pf = File(projectDir, "$id.fcproj")
+                val side = readSide(File(projectDir, "$id.media.json")).first
+                side.put("exportSettings", ExportSettings.load(context, id).toJson())
+                val a = side.optJSONArray("media") ?: JSONArray()
+                val links = (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { o -> runCatching { o.getLong("item") to Uri.parse(o.getString("uri")) }.getOrNull() } }
+                val media = if (!withMedia) emptyList() else links.map { (item, u) -> ProjectPackage.Media(item, displayName(u)) { context.contentResolver.openInputStream(u) } }
+                val size = pf.length() + (if (withMedia) links.sumOf { sizeOf(it.second) } else 0L)
+                val out = context.contentResolver.openOutputStream(to, "wt") ?: throw java.io.IOException(Str.t(R.string.projectcontroller_package_write_failed))
+                out.use { o ->
+                    ProjectPackage.write(o, pf.readBytes(), side, thumbFile(id).takeIf { it.exists() }?.readBytes(), media, se.gendut.klipp.BuildConfigShim.version, progressOf(size))
+                }
+            }
+            onMessage(when {
+                !withMedia -> Str.t(R.string.projectcontroller_exported)
+                w.unreadable.isEmpty() -> Str.p(R.plurals.projectcontroller_exported_media, w.packed.size, w.packed.size)
+                else -> Str.p(R.plurals.projectcontroller_exported_missing, w.unreadable.size, w.unreadable.size)
+            })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // a half-written file is no use: removed
+            runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, to) }
+            onMessage(Str.t(R.string.projectcontroller_export_project_failed, e.message.orEmpty()))
+        } finally {
+            packProgress = null
+        }
+    }
+
+    /** Reads a package (from [from]) as a new project; its media files are unpacked into the app. */
+    fun importProject(from: Uri) = scope.launch {
+        if (packProgress != null) return@launch
+        val nid = "p" + System.currentTimeMillis()
+        val dir = mediaDirOf(nid)
+        packProgress = 0f
+        try {
+            val name = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val size = sizeOf(from)
+                val u = (context.contentResolver.openInputStream(from) ?: throw java.io.IOException(Str.t(R.string.projectcontroller_package_read_failed)))
+                    .use { ProjectPackage.read(it, dir, progressOf(size)) }
+                val side = ProjectPackage.relinked(u.side, u.media.mapValues { Uri.fromFile(it.value).toString() })
+                side.optJSONObject("exportSettings")?.let { ExportSettings.save(context, nid, ExportSettings.fromJson(it)) }
+                side.remove("exportSettings")
+                val meta = side.optJSONObject("meta") ?: JSONObject()
+                // the same name as a project already here (e.g. imported back to the phone it came from): told apart
+                val n0 = meta.optString("name").ifBlank { Str.t(R.string.projectcontroller_project_fallback_name) }
+                val taken = listProjects().map { it.name }.toSet()
+                meta.put("name", if (n0 in taken) Str.t(R.string.projectcontroller_imported_name, n0) else n0)
+                side.put("meta", meta.put("modified", System.currentTimeMillis()))
+                File(projectDir, "$nid.fcproj").writeBytes(u.project)
+                writeAtomic(File(projectDir, "$nid.media.json"), side.toString())
+                u.thumb?.let { runCatching { thumbFile(nid).writeBytes(it) } }
+                meta.getString("name")
+            }
+            projectsRevision++
+            onMessage(Str.t(R.string.projectcontroller_imported, name))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            runCatching { dir.deleteRecursively(); File(projectDir, "$nid.fcproj").delete(); File(projectDir, "$nid.media.json").delete() }
+            onMessage(Str.t(R.string.projectcontroller_import_project_failed, (e as? ProjectPackage.NotAPackage)?.let { Str.t(R.string.projectcontroller_not_a_package) } ?: e.message.orEmpty()))
+        } finally {
+            packProgress = null
+        }
     }
 
     /** Project settings: resolution, frame rate, audio sample rate. */
