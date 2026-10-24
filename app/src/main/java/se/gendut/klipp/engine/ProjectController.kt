@@ -578,6 +578,9 @@ class ProjectController(
                 if (t == null) se.gendut.klipp.TrackState() else se.gendut.klipp.TrackState(t.locked, t.enabled, t.muted, t.solo, t.syncLock)
             }
             state.trackVolKf = q.audio.take(3).map { t -> if (t.autoMode == "Off") emptyList() else t.volKf.map { it.first.toFloat() to it.second.toFloat() } }
+            state.clipLevels = q.audio.flatMap { it.clips }.associate { c ->
+                c.id to se.gendut.klipp.ClipLevel(c.levelDb.toFloat(), c.kf[KfKeys.LEVEL]?.map { se.gendut.klipp.UiKf(it.t.toFloat(), it.mt, it.interp, it.v, it.inInf, it.outInf) }.orEmpty())
+            }
         }
         revision++
         scheduleSave()
@@ -1234,9 +1237,10 @@ class ProjectController(
             val tt = clampIn(c, at.toDouble())
             val frame = 1.0 / snapshot.fps.coerceAtLeast(1.0)
             // a keyframe at the clip's end (after it was shortened) counts as at its last frame
-            val existing = c.kf[key]?.firstOrNull { kotlin.math.abs(clampIn(c, it.t) - tt) < frame / 2 }
-            if (existing != null) {
-                engine.tryExec("effects.deleteKeyframe", JSONObject().put("clip", id).put("effect", eff).put("param", param).put("mediaTime", existing.mt))
+            // (one at the end and one on the last frame both count as here: the diamond removes both, or one would stay hidden)
+            val existing = c.kf[key]?.filter { kotlin.math.abs(clampIn(c, it.t) - tt) < frame / 2 }.orEmpty()
+            if (existing.isNotEmpty()) group(Str.t(R.string.keyframeui_remove_keyframe), on = existing.size > 1) {
+                for (k in existing) engine.tryExec("effects.deleteKeyframe", JSONObject().put("clip", id).put("effect", eff).put("param", param).put("mediaTime", k.mt))
                     .onFailure { onMessage(friendly(it.message)) }
             } else onHold(c, key, tt) {
                 engine.tryExec("effects.setParam", JSONObject().put("clip", id).put("effect", eff).put("param", param)
@@ -1324,6 +1328,51 @@ class ProjectController(
         } }
     }
 
+    // ------------------------------------------------------------------ the volume line on audio clips
+
+    override fun addLevelKey(id: Long, at: Float) {
+        scope.launch { editLock.withLock {
+            val (c, _, _) = find(id) ?: return@launch
+            val tt = clampIn(c, at.toDouble())
+            onHold(c, KfKeys.LEVEL, tt) {
+                engine.tryExec("effects.setParam", JSONObject().put("clip", id).put("effect", "volume").put("param", "level")
+                    .put("value", c.at(tt).levelDb).put("keyframe", true).put("time", frameTicks(tt))).onFailure { onMessage(friendly(it.message)) }
+            }
+            refresh()
+        } }
+    }
+
+    override fun moveLevelKey(id: Long, mt: Long, to: Float, db: Double) {
+        scope.launch { editLock.withLock {
+            val (c, _, _) = find(id) ?: return@launch
+            engine.tryExec("effects.moveKeyframe", JSONObject().put("clip", id).put("effect", "volume").put("param", "level")
+                .put("mediaTime", mt).put("to", c.mediaTicksAt(clampIn(c, to.toDouble()))).put("value", db.coerceIn(-60.0, 15.0)))
+                .onFailure { onMessage(friendly(it.message)) }
+            refresh()
+        } }
+    }
+
+    override fun setLevelLine(id: Long, keys: List<Pair<Long, Double>>, db: Double) {
+        scope.launch { editLock.withLock {
+            if (keys.isEmpty()) {
+                engine.tryExec("effects.setParam", JSONObject().put("clip", id).put("effect", "volume").put("param", "level").put("value", db.coerceIn(-60.0, 15.0)))
+                    .onFailure { onMessage(friendly(it.message)) }
+            } else group(Str.t(R.string.timeline_undo_volume_line), on = keys.size > 1) {
+                for ((mt, v) in keys) engine.tryExec("effects.setKeyframe", JSONObject().put("clip", id).put("effect", "volume").put("param", "level")
+                    .put("mediaTime", mt).put("value", v.coerceIn(-60.0, 15.0))).onFailure { onMessage(friendly(it.message)) }
+            }
+            refresh()
+        } }
+    }
+
+    override fun deleteLevelKey(id: Long, mt: Long) {
+        scope.launch { editLock.withLock {
+            engine.tryExec("effects.deleteKeyframe", JSONObject().put("clip", id).put("effect", "volume").put("param", "level").put("mediaTime", mt))
+                .onFailure { onMessage(friendly(it.message)) }
+            refresh()
+        } }
+    }
+
     private suspend fun setParam(clip: Long, effect: String, param: String, value: Any): Boolean {
         // animated parameter: the value goes into a keyframe at the playhead (within the clip)
         val p = JSONObject().put("clip", clip).put("effect", effect).put("param", param).put("value", value)
@@ -1336,7 +1385,9 @@ class ProjectController(
         // a keyframe past the clip's last frame (at its end, after it was shortened) is the one shown at the playhead
         // there: its value changes – otherwise a second keyframe would appear one frame before it
         val frame = 1.0 / snapshot.fps.coerceAtLeast(1.0)
-        val edge = if (c != null && tt != null && key != null) c.kf[key]?.firstOrNull { kotlin.math.abs(clampIn(c, it.t) - tt) < frame / 2 && kotlin.math.abs(it.t - tt) >= frame / 2 } else null
+        // (a keyframe right at the playhead as well: that one is written, as the plain write does)
+        val near = if (c != null && tt != null && key != null) c.kf[key]?.filter { kotlin.math.abs(clampIn(c, it.t) - tt) < frame / 2 }.orEmpty() else emptyList()
+        val edge = near.takeIf { l -> l.none { kotlin.math.abs(it.t - tt!!) < frame / 2 } }?.firstOrNull()
         if (edge != null) {
             val r = engine.tryExec("effects.setKeyframe", JSONObject().put("clip", clip).put("effect", effect).put("param", param).put("mediaTime", edge.mt).put("value", value))
             r.onFailure { onMessage(friendly(it.message)) }

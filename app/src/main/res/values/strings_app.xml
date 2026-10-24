@@ -95,6 +95,9 @@
     <string name="app_magnetic_snapping">Magnetic snapping</string>
     <string name="app_snapping_on">Magnetic snapping on</string>
     <string name="app_snapping_off">Magnetic snapping off</string>
+    <string name="app_volume_lines">Volume lines</string>
+    <string name="app_volume_lines_on">Volume lines: tap a line for a keyframe, drag it to change the level, double tap a keyframe to delete it</string>
+    <string name="app_volume_lines_off">Volume lines off</string>
     <string name="app_back">Back</string>
     <string name="app_ramp">Ramp</string>
     <string name="app_freeze">Freeze</string>
@@ -142,6 +145,7 @@
     <string name="app_short_link">Link</string>
     <string name="app_short_center">Lock</string>
     <string name="app_short_snap">Snap</string>
+    <string name="app_short_volume">Volume</string>
     <string name="app_edit_text">Edit text</string>
     <string name="app_volume">Volume</string>
     <string name="app_fade">Fade</string>

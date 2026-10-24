@@ -255,7 +255,8 @@ fun KeyframeLane(anim: AnimUi) {
                             val v = a.view
                             // through the zoom: the lane shows the clip fractions v.a..v.b
                             fun tOf(x: Float) = a.clipStart + (v.a + (x / size.width).coerceIn(0f, 1f) * (v.b - v.a)) * span
-                            fun xOf(t: Float) = ((t - a.clipStart) / span - v.a) / (v.b - v.a) * size.width
+                            // clamped like the drawing: a keyframe outside the clip (after a trim) sits at the lane's edge and is grabbed there
+                            fun xOf(t: Float) = (((t - a.clipStart) / span).coerceIn(0f, 1f) - v.a) / (v.b - v.a) * size.width
                             val hit = a.keys.minByOrNull { abs(xOf(it.t) - down.position.x) }?.takeIf { abs(xOf(it.t) - down.position.x) < 16.dp.toPx() }
                             var moved = false
                             var cancelled = false
