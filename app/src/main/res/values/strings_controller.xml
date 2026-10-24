@@ -62,6 +62,12 @@
     <string name="projectcontroller_export_project_failed">Couldn\'t export the project: %1$s</string>
     <string name="projectcontroller_imported">Imported: %1$s</string>
     <string name="projectcontroller_imported_name">%1$s (imported)</string>
+    <plurals name="projectcontroller_synced">
+        <item quantity="one">Synced by sound: %1$d clip moved</item>
+        <item quantity="other">Synced by sound: %1$d clips moved</item>
+    </plurals>
+    <string name="projectcontroller_sync_nothing">Already in sync</string>
+    <string name="projectcontroller_sync_failed">Couldn\'t sync by sound: %1$s</string>
     <string name="projectcontroller_import_project_failed">Couldn\'t import the project: %1$s</string>
     <string name="projectcontroller_not_a_package">the file isn\'t a Klipp project</string>
     <string name="projectcontroller_duplicate_failed">Couldn\'t duplicate the project: %1$s</string>

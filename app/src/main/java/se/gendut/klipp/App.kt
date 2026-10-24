@@ -1226,8 +1226,10 @@ private fun MultiBar(state: EditorState, modifier: Modifier) {
         exit = slideOutVertically { it } + fadeOut(),
         modifier = modifier.testTag("multiBar"),
     ) {
+        // more actions than fit on a narrow phone: the bar scrolls sideways (deselect stays reachable)
         Row(
-            Modifier.shadow(8.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(K.SurfaceHighest)
+            Modifier.padding(horizontal = 8.dp).shadow(8.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(K.SurfaceHighest)
+                .horizontalScroll(rememberScrollState())
                 .padding(horizontal = 6.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1247,6 +1249,8 @@ private fun MultiBar(state: EditorState, modifier: Modifier) {
                 if (whole) ContextAction(Ic.Ungroup, stringResource(R.string.app_ungroup)) { haptics.confirm(); state.setGrouped(state.multi, false) }
                 else ContextAction(Ic.Group, stringResource(R.string.app_group)) { haptics.confirm(); state.setGrouped(state.multi, true) }
             }
+            // separate sound (a recorder, another camera): lined up by the audio
+            if (state.props != null && nClips > 1) ContextAction(Ic.SyncAudio, stringResource(R.string.app_sync_audio), tag = "syncAudio") { haptics.confirm(); state.syncByAudio(state.multi) }
             ContextAction(Ic.Delete, stringResource(R.string.app_delete)) { haptics.heavy(); state.removeGroup(false) }
             if (nClips > 0) ContextAction(Ic.Ripple, stringResource(R.string.app_ripple_delete)) { haptics.heavy(); state.removeGroup(true) }
             ContextAction(Ic.Close, stringResource(R.string.app_deselect)) { haptics.tick(); state.clearSelection() }

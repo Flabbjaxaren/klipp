@@ -62,6 +62,12 @@
     <string name="projectcontroller_export_project_failed">Kunde inte exportera projektet: %1$s</string>
     <string name="projectcontroller_imported">Importerat: %1$s</string>
     <string name="projectcontroller_imported_name">%1$s (importerad)</string>
+    <plurals name="projectcontroller_synced">
+        <item quantity="one">Synkat på ljudet: %1$d klipp flyttat</item>
+        <item quantity="other">Synkat på ljudet: %1$d klipp flyttade</item>
+    </plurals>
+    <string name="projectcontroller_sync_nothing">Redan i synk</string>
+    <string name="projectcontroller_sync_failed">Kunde inte synka på ljudet: %1$s</string>
     <string name="projectcontroller_import_project_failed">Kunde inte importera projektet: %1$s</string>
     <string name="projectcontroller_not_a_package">filen är inte ett Klipp-projekt</string>
     <string name="projectcontroller_duplicate_failed">Kunde inte kopiera projektet: %1$s</string>

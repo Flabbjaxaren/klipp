@@ -86,6 +86,8 @@ object Ic {
     val KfPrev = shifted("kfprev", 0.5f, 0f, "M14 7l-5 5 5 5")
     val KfNext = shifted("kfnext", -0.5f, 0f, "M10 7l5 5-5 5")
     val Diamond = stroke("diamond", "M12 5l7 7-7 7-7-7z")
+    /** Sync by sound: two waveforms lined up on a common line. */
+    val SyncAudio = stroke("syncaudio", "M4 9v-2", "M7 10v-6", "M10 9v-2", "M14 17v-2", "M17 18v-6", "M20 17v-2", "M12 3v18")
     /** The volume line: a level line with two keyframes. */
     val VolLine = shifted("volline", 0f, -0.5f, "M3 16h4l5-7h9", "M7 13.5l2.5 2.5-2.5 2.5-2.5-2.5z", "M12 6.5l2.5 2.5-2.5 2.5-2.5-2.5z")
     /** Pre-render (lightning bolt). */

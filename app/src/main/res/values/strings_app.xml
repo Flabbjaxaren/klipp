@@ -146,6 +146,7 @@
     <string name="app_short_center">Lock</string>
     <string name="app_short_snap">Snap</string>
     <string name="app_short_volume">Volume</string>
+    <string name="app_sync_audio">Sync sound</string>
     <string name="app_edit_text">Edit text</string>
     <string name="app_volume">Volume</string>
     <string name="app_fade">Fade</string>

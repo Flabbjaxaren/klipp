@@ -146,6 +146,7 @@
     <string name="app_short_center">Lås</string>
     <string name="app_short_snap">Fäst</string>
     <string name="app_short_volume">Volym</string>
+    <string name="app_sync_audio">Synka ljud</string>
     <string name="app_edit_text">Redigera text</string>
     <string name="app_volume">Volym</string>
     <string name="app_fade">Tona</string>
