@@ -240,7 +240,8 @@ fun ProgramMonitor(
                 // ... and until the player has shown its first frame (start, reload) or while a new look is being built in:
                 // a still instead of black
                 LivePreview(controller, state, gs = gs, look = look, force = (!playback.frameShown && !state.playing) || look != playback.look)
-                if (state.inspecting) MotionOverlay(state)
+                if (state.boxPick != null) BoxPickOverlay(state)
+                else if (state.inspecting) MotionOverlay(state)
                 // color page: windows to drag, eyedropper, comparison with a still
                 // the window is drawn for the same source time as the visible image (the still while scrubbing, otherwise the playhead)
                 if (gs != null) GradeOverlay(gs, srcOf = { id ->

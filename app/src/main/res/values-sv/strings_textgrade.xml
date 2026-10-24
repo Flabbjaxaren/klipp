@@ -52,7 +52,11 @@
     <string name="titleui_generate_captions">Skapa undertexter</string>
     <string name="titleui_follow_node">%1$s · nod %2$02d</string>
     <string name="titleui_follow_object">Följ ett föremål</string>
-    <string name="titleui_follow_hint">Spåra ett föremål i färgläget (Fönster → Spåra föremålet) på klippet under titeln, så kan titeln följa det.</string>
+    <string name="titleui_follow_hint">Dra en ruta runt ett föremål så följer titeln det, eller välj ett fönster du spårat i färgläget.</string>
+    <string name="titleui_follow_draw">Följ ett föremål i bilden</string>
+    <string name="titleui_follow_drawing">Dra en ruta i bilden…</string>
+    <string name="titleui_follow_no_clip">Det finns ingen video under titeln vid spelhuvudet att spåra.</string>
+    <string name="titleui_follow_node_label">Följ: %1$s</string>
     <string name="titleui_follow_none">Står still</string>
 
     <!-- CaptionUi.kt -->

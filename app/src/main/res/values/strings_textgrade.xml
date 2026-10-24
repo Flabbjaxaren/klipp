@@ -52,7 +52,11 @@
     <string name="titleui_generate_captions">Generate Captions</string>
     <string name="titleui_follow_node">%1$s · node %2$02d</string>
     <string name="titleui_follow_object">Follow an Object</string>
-    <string name="titleui_follow_hint">Track an object in Color (Window → Track Object) on the clip under the title, and the title can follow it.</string>
+    <string name="titleui_follow_hint">Draw a box around an object and the title follows it, or pick a window you tracked in Color.</string>
+    <string name="titleui_follow_draw">Follow an object in the picture</string>
+    <string name="titleui_follow_drawing">Draw a box in the picture…</string>
+    <string name="titleui_follow_no_clip">No video under the title at the playhead to track.</string>
+    <string name="titleui_follow_node_label">Follow: %1$s</string>
     <string name="titleui_follow_none">Static</string>
 
     <!-- CaptionUi.kt -->

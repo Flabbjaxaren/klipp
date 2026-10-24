@@ -133,6 +133,10 @@
     <string name="colortools_cancel">Cancel</string>
     <string name="colortools_retrack">Track again</string>
     <string name="colortools_track_object">Track Object</string>
+    <string name="colortools_track_points">Tracking points</string>
+    <string name="colortools_points_normal">Normal</string>
+    <string name="colortools_points_dense">Dense</string>
+    <string name="colortools_points_very_dense">Very dense</string>
     <string name="colortools_remove_tracking">Remove tracking</string>
     <string name="colortools_correct_from_here">Correct from here</string>
     <string name="colortools_continue_from_here">Continue tracking from here</string>

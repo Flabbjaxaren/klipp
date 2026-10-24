@@ -858,6 +858,16 @@ mod jni_track {
         catch_unwind(|| Box::into_raw(Box::new(Tracker::new(w as usize, h as usize))) as jlong).unwrap_or(0)
     }
 
+    /// Point cloud density (1 = normal … 4): set before the first frame.
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_se_gendut_klipp_engine_Engine_nativeTrackDensity(_env: JNIEnv, _c: JClass, h: jlong, d: jfloat) {
+        if h == 0 {
+            return;
+        }
+        // SAFETY: h comes from nativeTrackNew and is alive (Kotlin frees it only once, after the last use).
+        let _ = catch_unwind(AssertUnwindSafe(|| unsafe { &mut *(h as *mut Tracker) }.set_density(d)));
+    }
+
     #[unsafe(no_mangle)]
     pub extern "system" fn Java_se_gendut_klipp_engine_Engine_nativeTrackFree(_env: JNIEnv, _c: JClass, h: jlong) {
         if h == 0 {

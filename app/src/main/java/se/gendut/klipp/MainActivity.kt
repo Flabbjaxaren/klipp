@@ -37,6 +37,7 @@ class MainActivity : ComponentActivity() {
         se.gendut.klipp.engine.Reversals.init(applicationContext)
         se.gendut.klipp.engine.RenderCache.init(applicationContext)
         se.gendut.klipp.engine.Fonts.init(applicationContext)
+        se.gendut.klipp.engine.WindowTracker.density = AppPrefs.trackDensity(applicationContext)
         se.gendut.klipp.engine.Spektra.init(applicationContext)
         // theme and haptics from settings (before anything is drawn)
         AppPrefs.apply(applicationContext)

@@ -113,6 +113,7 @@ class Engine {
         // window tracking (rust/src/track.rs): one tracker per direction, the luma plane straight from the decoder
         @JvmStatic external fun nativeTrackNew(w: Int, h: Int): Long
         @JvmStatic external fun nativeTrackFree(h: Long)
+        @JvmStatic external fun nativeTrackDensity(h: Long, d: Float)
         @JvmStatic external fun nativeTrackFrame(h: Long, buf: java.nio.ByteBuffer, offset: Int, rowStride: Int, pixelStride: Int, srcW: Int, srcH: Int, reset: Boolean, cx: Float, cy: Float, rx: Float, ry: Float, shape: Int): FloatArray?
         @JvmStatic external fun nativeMotionFrame(h: Long, buf: java.nio.ByteBuffer, offset: Int, rowStride: Int, pixelStride: Int, srcW: Int, srcH: Int): FloatArray?
     }

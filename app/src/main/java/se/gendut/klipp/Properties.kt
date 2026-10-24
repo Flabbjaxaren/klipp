@@ -424,6 +424,7 @@ private fun MaskControls(
     if (info != null && info.hold == null && info.uri != null) {
         val busy = MaskTrackService.target == clip
         val progress = MaskTrackService.progress
+        if (!busy) TrackDensityRow()
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             if (busy) {
                 PillButton(stringResource(R.string.properties_cancel), { MaskTrackService.cancel() }, Modifier.testTag("mask:trackCancel"), icon = Ic.Close, filled = false)
@@ -585,3 +586,54 @@ fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
     }
 }
 
+
+/**
+ * Draw a box around something in the picture (a title follows it, see FollowSection): drag from corner to corner; a
+ * tap gives a box around the point. Back or the cancel chip leaves without one.
+ */
+@Composable
+fun BoxPickOverlay(state: EditorState, modifier: Modifier = Modifier) {
+    val pick = state.boxPick ?: return
+    var a by remember { mutableStateOf<Offset?>(null) }
+    var b by remember { mutableStateOf<Offset?>(null) }
+    androidx.activity.compose.BackHandler { state.boxPick = null }
+    Box(
+        modifier.fillMaxSize().border(2.dp, K.Primary).testTag("boxPick").pointerInput(pick) {
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                down.consume()
+                a = down.position; b = down.position
+                while (true) {
+                    val ev = awaitPointerEvent()
+                    val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!c.pressed) break
+                    b = c.position; c.consume()
+                }
+                val p = a ?: return@awaitEachGesture; val q = b ?: p
+                val w = size.width.toFloat(); val h = size.height.toFloat()
+                var rx = kotlin.math.abs(q.x - p.x) / 2f / w; var ry = kotlin.math.abs(q.y - p.y) / 2f / h
+                var cx = (p.x + q.x) / 2f / w; var cy = (p.y + q.y) / 2f / h
+                // a tap (or a tiny box): a box around the point, square on screen
+                if (rx * w < 12.dp.toPx() || ry * h < 12.dp.toPx()) { ry = 0.08f; rx = ry * h / w; cx = p.x / w; cy = p.y / h }
+                a = null; b = null
+                state.boxPick = null
+                pick(cx.coerceIn(0f, 1f), cy.coerceIn(0f, 1f), rx.coerceIn(0.01f, 0.5f), ry.coerceIn(0.01f, 0.5f))
+            }
+        }
+    ) {
+        val p = a; val q = b
+        if (p != null && q != null) Canvas(Modifier.fillMaxSize()) {
+            val tl = Offset(minOf(p.x, q.x), minOf(p.y, q.y))
+            val sz = androidx.compose.ui.geometry.Size(kotlin.math.abs(q.x - p.x), kotlin.math.abs(q.y - p.y))
+            drawRect(Color.Black.copy(alpha = 0.25f), tl, sz)
+            drawRect(Color.White, tl, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+        }
+        Row(Modifier.align(Alignment.TopCenter).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.properties_box_pick_hint), color = Color.White, fontSize = 12.sp,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000)).padding(horizontal = 8.dp, vertical = 4.dp))
+            Text(stringResource(R.string.properties_cancel), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 6.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xAA000000))
+                    .clickable { state.boxPick = null }.padding(horizontal = 8.dp, vertical = 4.dp).testTag("boxPick:cancel"))
+        }
+    }
+}

@@ -501,20 +501,56 @@ private fun AutoCaptionsCard(controller: se.gendut.klipp.engine.ProjectControlle
 }
 
 /**
- * The title follows a tracked object: pick a tracked window on a clip under the title (Color mode → Window →
- * Track Object). The title stays where you put it when it starts and then moves with the object.
+ * The title follows a tracked object: draw a box around it in the picture and it is tracked right here (a tracked
+ * window on the clip under the title, which grades nothing), or pick a window already tracked in Color. The title stays
+ * where you put it when it starts and then moves with the object.
  */
 @Composable
 private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
     val haptics = rememberHaptics()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val title = state.clips.firstOrNull { it.id == p.id } ?: return
     val t0 = title.start; val t1 = title.start + title.length
     // tracked windows on video clips that lie under the title at some point
     val options = state.clips.filter { it.kind == ClipKind.VIDEO && it.start < t1 && it.start + it.length > t0 }.flatMap { c ->
-        gs.grades[c.id]?.nodes.orEmpty().filter { it.win.on && it.win.track != null }.map { n -> se.gendut.klipp.engine.Follow(c.id, n.id) to Str.t(R.string.titleui_follow_node, c.name, n.id) }
+        gs.grades[c.id]?.nodes.orEmpty().filter { it.win.on && it.win.track != null }.map { n ->
+            se.gendut.klipp.engine.Follow(c.id, n.id) to (if (n.label.isNotBlank()) "${c.name} · ${Str.name(n.label)}" else Str.t(R.string.titleui_follow_node, c.name, n.id))
+        }
     }
     val cur = gs.follows[p.id]
     SectionLabel(stringResource(R.string.titleui_follow_object))
+    val busy = TrackService.target?.let { (c, n) -> cur?.clip == c && cur.node == n } == true
+    // the clip the box is drawn on: the topmost visible video under the title at the playhead (inside the title)
+    val at = state.playhead.coerceIn(t0, t1 - 0.001f)
+    val under = state.clips.filter { it.kind == ClipKind.VIDEO && it.enabled && state.trackStates.getOrNull(it.track)?.enabled != false && at >= it.start && at < it.start + it.length }.minByOrNull { it.track }
+    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (busy) {
+            PillButton(stringResource(R.string.titleui_cancel), { TrackService.cancel() }, Modifier.testTag("follow:cancel"), icon = Ic.Close, filled = false)
+        } else {
+            PillButton(stringResource(if (state.boxPick != null) R.string.titleui_follow_drawing else R.string.titleui_follow_draw), {
+                haptics.tick()
+                val c = under?.let { gs.clipInfo?.invoke(it.id) }
+                if (c == null || c.uri == null) { TrackService.message = Str.t(R.string.titleui_follow_no_clip); return@PillButton }
+                state.playing = false
+                state.playhead = at
+                state.boxPick = { cx, cy, rx, ry ->
+                    haptics.confirm()
+                    val g = gs.of(c.id)
+                    val id = (g.nodes.maxOfOrNull { it.id } ?: 0) + 1
+                    val node = se.gendut.klipp.engine.GradeNode(id, Str.t(R.string.titleui_follow_node_label, title.name),
+                        win = se.gendut.klipp.engine.Window(shape = 2, cx = cx, cy = cy, rx = rx, ry = ry, soft = 0f))
+                    gs.set(c.id, g.copy(nodes = g.nodes + node))
+                    gs.setFollow(p.id, se.gendut.klipp.engine.Follow(c.id, id))
+                    TrackService.start(ctx, gs, c, id, at, follow = { t -> state.playing = false; state.playhead = t })
+                }
+            }, Modifier.testTag("follow:draw"), icon = Ic.Target, filled = state.boxPick == null)
+        }
+    }
+    if (!busy && state.boxPick == null) TrackDensityRow()
+    TrackService.progress?.takeIf { busy }?.let { pr ->
+        androidx.compose.material3.LinearProgressIndicator(progress = { pr }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), color = K.Primary)
+    }
+    TrackService.message?.takeIf { !busy }?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("follow:msg")) }
     if (options.isEmpty() && cur == null) {
         Text(stringResource(R.string.titleui_follow_hint),
             color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
@@ -525,4 +561,3 @@ private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
         for ((f, label) in options) ToggleChip(label, cur == f, { haptics.tick(); gs.setFollow(p.id, f) }, Modifier.testTag("follow:${f.encode()}"))
     }
 }
-
