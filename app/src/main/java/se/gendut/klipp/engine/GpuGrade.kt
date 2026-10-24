@@ -259,6 +259,7 @@ object GpuGrade {
             s.setFloatUniform("uWinRot", kotlin.math.cos(ang).toFloat(), kotlin.math.sin(ang).toFloat())
             s.setFloatUniform("uBlur", if (showKey) 0f else p.blur)
             s.setFloatUniform("uPixel", if (showKey) 0f else p.pixel)
+            s.setFloatUniform("uDenoise", if (showKey) 0f else p.denoise)
             s.setFloatUniform("uShowKey", if (showKey) 1f else 0f)
             return s
         }
@@ -297,11 +298,11 @@ object GpuGrade {
             }
             // blur and pixelation read the neighbours: then the image before the node must be a finished layer
             // (not the node whose key is shown: its key ignores the blur, and the big shader would be compiled for nothing)
-            val layered = nodes.any { (n, p) -> !(keyOf != null && n.id == keyOf) && (p.blur > 0f || p.pixel > 0f) }
+            val layered = nodes.any { (n, p) -> !(keyOf != null && n.id == keyOf) && p.neighbors }
             val out = ArrayList<Pair<RuntimeShader, Boolean>>()
             for ((n, p) in nodes) {
                 val key = keyOf != null && n.id == keyOf
-                out += nodeShader(p, key, w, h, nested = !layered) to (!key && (p.blur > 0f || p.pixel > 0f))
+                out += nodeShader(p, key, w, h, nested = !layered) to (!key && p.neighbors)
                 if (key) return out
                 // (effects only: the colors stay – while dragging the effects aren't shown)
                 n.film?.takeIf { !it.effectsOnly }?.let { out += filmShader(it) to false }
@@ -431,6 +432,7 @@ uniform float3 uWinOpt;
 uniform float2 uWinRot;
 uniform float uBlur;
 uniform float uPixel;
+uniform float uDenoise;
 uniform float uShowKey;
 """ + LUT_FNS + """
 float band(float v, float lo, float hi, float soft) {
@@ -488,6 +490,25 @@ float3 colorIn(float3 src, float2 pos) {
       float2 o = q + float2(cos(a), sin(a)) * (rr * r);
       acc += float3(content.eval(o).rgb) * wgt;
       ws += wgt;
+    }
+    cin = acc / ws;
+  }
+  if (uDenoise > 0.0 && uBlur <= 0.0 && uPixel <= 0.0) {
+    // edge-keeping noise reduction, as Denoise on the CPU and GradeShaders
+    float sr = 0.012 + 0.1 * uDenoise;
+    float inv = 1.0 / (2.0 * sr * sr);
+    float3 acc = float3(0.0);
+    float ws = 0.0;
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        float2 o = float2(float(dx), float(dy));
+        float2 at = clamp(pos + o, float2(0.5, 0.5), uSize - float2(0.5, 0.5));
+        float3 c = float3(content.eval(at).rgb);
+        float3 d = c - cin;
+        float wgt = exp(-dot(o, o) / 4.5) * exp(-dot(d, d) * inv);
+        acc += c * wgt;
+        ws += wgt;
+      }
     }
     cin = acc / ws;
   }

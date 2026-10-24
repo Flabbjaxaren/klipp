@@ -9,6 +9,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import se.gendut.klipp.engine.Curve
+import se.gendut.klipp.engine.Denoise
 import se.gendut.klipp.engine.GradeNode
 import se.gendut.klipp.engine.GradeNodeEffect
 import se.gendut.klipp.engine.HslCurve
@@ -99,4 +100,23 @@ class GradeGpuTest {
         sat = 0f, qual = Qualifier(on = true, hue = 200f, hueWidth = 80f, satLo = 0.3f, soft = 0.15f)))
 
     @Test fun vignette() = assertSame("vignette", vignette(GradeNode(1)))
+
+    /** Noise reduction reads the neighbors: the GPU pass against [Denoise] on a noisy picture. */
+    @Test fun noiseReduction() {
+        val rnd = java.util.Random(7)
+        val noisy = FloatArray(image.size) { (image[it] + rnd.nextGaussian().toFloat() * 0.03f).coerceIn(0f, 1f) }
+        val ctx = InstrumentationRegistry.getInstrumentation().targetContext
+        val p = GradeNodeEffect(GradeNode(1, denoise = 0.6f).params()).toGlShaderProgram(ctx, false) as BaseGlShaderProgram
+        p.configure(w, h)
+        val g = gl.draw(p, gl.upload(noisy))
+        p.release()
+        val c = Denoise.apply(noisy, w, h, 0.6f)
+        val d = FloatArray(g.size) { abs(g[it] - c[it]) }
+        val mean = d.average().toFloat(); val p99 = d.sorted()[(d.size * 0.99).toInt()]
+        android.util.Log.i("GradeGpuTest", "denoise: mean %.4f p99 %.4f".format(mean, p99))
+        val changed = c.indices.count { abs(c[it] - noisy[it]) > 0.01f }
+        assertTrue("it smooths on the CPU", changed > c.size / 4)
+        assertTrue("denoise: GPU and CPU differ, mean $mean", mean < 0.01f)
+        assertTrue("denoise: GPU and CPU differ, 99th percentile $p99", p99 < 0.04f)
+    }
 }

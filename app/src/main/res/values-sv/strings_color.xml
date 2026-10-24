@@ -209,6 +209,7 @@
     <string name="colorpage_hue">Nyans</string>
     <string name="colorpage_temperature">Temperatur</string>
     <string name="colorpage_tint">Ton</string>
+    <string name="colorpage_noise_reduction">Brusreducering</string>
     <string name="colorpage_node_mix">Nodmix</string>
     <string name="colorpage_gallery">Galleri</string>
     <string name="colorpage_gallery_hint">Tryck = jämför · håll in = mer</string>

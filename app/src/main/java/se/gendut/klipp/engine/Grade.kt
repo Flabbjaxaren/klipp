@@ -370,13 +370,15 @@ data class GradeNode(
      * supports it) and playback reads it instead of computing the nodes – see [NodeCache].
      */
     val cache: Boolean = false,
+    /** Noise reduction (0..1): an edge-keeping filter over the 5 × 5 neighbors ([Denoise]) before the node's color. */
+    val denoise: Float = 0f,
 ) {
     val hasCurves get() = !(curveY.isIdentity && curveR.isIdentity && curveG.isIdentity && curveB.isIdentity)
     val hasHsl get() = !hsl.isNeutral
     val hasLut get() = lut != null && lutMix > 0.0001f
     /** The node affects only part of the image (qualifier and/or window). */
     val hasKey get() = qual.on || win.on
-    val hasBlur get() = blur > 0.0001f || pixelate > 0.0001f
+    val hasBlur get() = blur > 0.0001f || pixelate > 0.0001f || denoise > 0.0001f
     val isNeutral get() = !enabled || mix <= 0.0001f || (lift.isNeutral && gamma.isNeutral && gain.isNeutral && offset.isNeutral &&
         contrast == 1f && sat == 1f && hue == 0f && temp == 0f && tint == 0f && !hasCurves && !hasHsl && !hasLut && !hasBlur && drt == null && film == null)
 
@@ -398,7 +400,12 @@ data class GradeNode(
          * its color but takes this luminance (see [primaries]). null = RGB only.
          */
         val ySide: FloatArray? = null,
-    )
+        /** Noise reduction 0..1 (see [Denoise]); with blur or pixelation it is left out (they smooth more). */
+        val denoise: Float = 0f,
+    ) {
+        /** The node reads its neighbors (blur, pixelation, noise reduction): it needs a finished image to read from. */
+        val neighbors get() = blur > 0f || pixel > 0f || denoise > 0f
+    }
 
     /**
      * The uniform values – computed once per node (curve tables, LUT, OpenDRT baking) and reused: a node never
@@ -443,7 +450,7 @@ data class GradeNode(
         val f = film?.takeIf { fl -> runCatching { FilmFx.warm(fl) }.onFailure { se.gendut.klipp.CrashReport.note("spektrafilm: ${it.message}") }.isSuccess }
         return Params(liftC, gammaExp, gainC, offC, contrast, pivot, wb, sat, hm, mix.coerceIn(0f, 1f), curves,
             l2, l2Mix, qual.takeIf { it.on }, win.takeIf { it.on },
-            blur.coerceIn(0f, 1f) * 0.04f, pixelate.coerceIn(0f, 1f) * 0.06f, f, hsl.tables(), ySide)
+            blur.coerceIn(0f, 1f) * 0.04f, pixelate.coerceIn(0f, 1f) * 0.06f, f, hsl.tables(), ySide, denoise.coerceIn(0f, 1f))
     }
 
     fun toJson(): JSONObject = JSONObject().put("id", id).put("label", label).put("on", enabled)
@@ -453,7 +460,7 @@ data class GradeNode(
         .put("cY", curveY.toJson()).put("cR", curveR.toJson()).put("cG", curveG.toJson()).put("cB", curveB.toJson())
         .apply { if (hasHsl) put("hsl", hsl.toJson()) }
         .put("lut", lut ?: JSONObject.NULL).put("lutMix", lutMix.toDouble()).put("qual", qual.toJson()).put("win", win.toJson())
-        .apply { if (blur > 0f) put("blur", blur.toDouble()); if (pixelate > 0f) put("pix", pixelate.toDouble()); drt?.let { put("drt", it.toJson()) }; film?.let { put("film", it.toJson()) }; if (cache) put("cache", true) }
+        .apply { if (blur > 0f) put("blur", blur.toDouble()); if (pixelate > 0f) put("pix", pixelate.toDouble()); drt?.let { put("drt", it.toJson()) }; film?.let { put("film", it.toJson()) }; if (cache) put("cache", true); if (denoise > 0f) put("dn", denoise.toDouble()) }
 
     companion object {
         fun fromJson(o: JSONObject) = GradeNode(
@@ -470,6 +477,7 @@ data class GradeNode(
             Drt.fromJson(o.optJSONObject("drt")),
             Film.fromJson(o.optJSONObject("film")),
             o.optBoolean("cache", false),
+            o.optDouble("dn", 0.0).toFloat(),
         )
 
         /**
@@ -667,7 +675,11 @@ data class ClipGrade(
             val rgb = FloatArray(3)
             val ci = FloatArray(3)
             for ((j, p) in ps.withIndex()) {
-                val blurred = if (j != keyIdx && (p.blur > 0f || p.pixel > 0f)) Blur.apply(img, w, h, p.blur * w, p.pixel * w) else null
+                val blurred = when {
+                    j == keyIdx || !p.neighbors -> null
+                    p.blur > 0f || p.pixel > 0f -> Blur.apply(img, w, h, p.blur * w, p.pixel * w)
+                    else -> Denoise.apply(img, w, h, p.denoise)
+                }
                 for (i in 0 until w * h) {
                     rgb[0] = img[i * 3]; rgb[1] = img[i * 3 + 1]; rgb[2] = img[i * 3 + 2]
                     val x = ((i % w) + 0.5f) / w; val y = ((i / w) + 0.5f) / h
@@ -894,6 +906,38 @@ class StabMatrix(private val stab: Stabilization, private val clock: (Long) -> D
     }
 }
 
+/**
+ * Noise reduction: each pixel becomes the mean of its 5 × 5 neighbors weighted by distance (σ 1.5 px) and by how
+ * alike their color is (σ grows with [strength] from 0.012 to 0.112 in code values) – flat areas smooth out, edges
+ * stay. The same weights as the shaders (GradeShaders, AgslShaders); edges read the nearest pixel.
+ */
+object Denoise {
+    const val R = 2
+    fun sigma(strength: Float) = 0.012f + 0.1f * strength.coerceIn(0f, 1f)
+
+    fun apply(img: FloatArray, w: Int, h: Int, strength: Float): FloatArray {
+        val out = FloatArray(img.size)
+        val sr = sigma(strength)
+        val inv = 1f / (2f * sr * sr)
+        val sp = FloatArray((2 * R + 1) * (2 * R + 1)) { k -> val dx = k % (2 * R + 1) - R; val dy = k / (2 * R + 1) - R; kotlin.math.exp(-(dx * dx + dy * dy) / 4.5f) }
+        for (y in 0 until h) for (x in 0 until w) {
+            val i0 = (y * w + x) * 3
+            val r0 = img[i0]; val g0 = img[i0 + 1]; val b0 = img[i0 + 2]
+            var ar = 0f; var ag = 0f; var ab = 0f; var ws = 0f
+            var k = 0
+            for (dy in -R..R) for (dx in -R..R) {
+                val i = ((y + dy).coerceIn(0, h - 1) * w + (x + dx).coerceIn(0, w - 1)) * 3
+                val r = img[i]; val g = img[i + 1]; val b = img[i + 2]
+                val d = (r - r0) * (r - r0) + (g - g0) * (g - g0) + (b - b0) * (b - b0)
+                val wt = sp[k++] * kotlin.math.exp(-d * inv)
+                ar += r * wt; ag += g * wt; ab += b * wt; ws += wt
+            }
+            out[i0] = ar / ws; out[i0 + 1] = ag / ws; out[i0 + 2] = ab / ws
+        }
+        return out
+    }
+}
+
 /** Blur and pixelation on the CPU (stills, scopes): three box blurs ≈ Gaussian, block mean for pixelation. */
 object Blur {
     fun apply(img: FloatArray, w: Int, h: Int, radiusPx: Float, pixelPx: Float): FloatArray {
@@ -987,6 +1031,9 @@ uniform vec3 uWinOpt;
 uniform vec2 uWinRot;
 uniform float uAspect;
 uniform float uBlur;
+// noise reduction (Denoise): strength 0..1 and the size of a pixel in texture coordinates
+uniform float uDenoise;
+uniform vec2 uTexel;
 uniform float uPixel;
 varying vec2 vTexSamplingCoord;
 
@@ -1103,6 +1150,24 @@ vec3 colorIn(vec4 src) {
       float wgt = 1.0 - 0.5 * rr;
       acc += texture2D(uTexSampler, uv + o).rgb * wgt;
       ws += wgt;
+    }
+    cin = acc / ws;
+  }
+  if (uDenoise > 0.0 && uBlur <= 0.0 && uPixel <= 0.0) {
+    // edge-keeping: neighbors weighted by distance and by how alike their color is (as Denoise on the CPU)
+    float sr = 0.012 + 0.1 * uDenoise;
+    float inv = 1.0 / (2.0 * sr * sr);
+    vec3 acc = vec3(0.0);
+    float ws = 0.0;
+    for (int dy = -2; dy <= 2; dy++) {
+      for (int dx = -2; dx <= 2; dx++) {
+        vec2 o = vec2(float(dx), float(dy));
+        vec3 c = texture2D(uTexSampler, clamp(uv + o * uTexel, 0.5 * uTexel, 1.0 - 0.5 * uTexel)).rgb;
+        vec3 d = c - cin;
+        float wgt = exp(-dot(o, o) / 4.5) * exp(-dot(d, d) * inv);
+        acc += c * wgt;
+        ws += wgt;
+      }
     }
     cin = acc / ws;
   }
@@ -1288,9 +1353,10 @@ class GradeNodeEffect(
         }
 
         private var aspect = 16f / 9f
+        private var texW = 1920; private var texH = 1080
 
         override fun configure(inputWidth: Int, inputHeight: Int): Size {
-            if (inputWidth > 0 && inputHeight > 0) aspect = inputWidth.toFloat() / inputHeight
+            if (inputWidth > 0 && inputHeight > 0) { aspect = inputWidth.toFloat() / inputHeight; texW = inputWidth; texH = inputHeight }
             PassTimes.noteSize(inputWidth, inputHeight)
             return Size(inputWidth, inputHeight)
         }
@@ -1342,6 +1408,8 @@ class GradeNodeEffect(
                 program.setFloatsUniform("uWinRot", floatArrayOf(cos(ang).toFloat(), sin(ang).toFloat()))
                 program.setFloatUniform("uAspect", aspect)
                 program.setFloatUniform("uBlur", p.blur)
+                program.setFloatUniform("uDenoise", p.denoise)
+                program.setFloatsUniform("uTexel", floatArrayOf(1f / texW, 1f / texH))
                 program.setFloatUniform("uPixel", p.pixel)
                 program.bindAttributesAndUniforms()
                 GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
