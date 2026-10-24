@@ -86,6 +86,8 @@ object Ic {
     val KfPrev = shifted("kfprev", 0.5f, 0f, "M14 7l-5 5 5 5")
     val KfNext = shifted("kfnext", -0.5f, 0f, "M10 7l5 5-5 5")
     val Diamond = stroke("diamond", "M12 5l7 7-7 7-7-7z")
+    /** The volume line: a level line with two keyframes. */
+    val VolLine = shifted("volline", 0f, -0.5f, "M3 16h4l5-7h9", "M7 13.5l2.5 2.5-2.5 2.5-2.5-2.5z", "M12 6.5l2.5 2.5-2.5 2.5-2.5-2.5z")
     /** Pre-render (lightning bolt). */
     val Bolt = shifted("bolt", 0.5f, 0f, "M13 3L5 14h6l-1 7 8-11h-6z")
     val Center = stroke("center", "M12 3v18", "M6 9l-3 3 3 3", "M18 9l3 3-3 3", "M9 3h6")

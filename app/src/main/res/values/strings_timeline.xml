@@ -17,6 +17,7 @@
     <string name="timeline_hide_captions">Hide captions</string>
     <string name="timeline_show_captions">Show captions</string>
     <string name="timeline_locked">Locked</string>
+    <string name="timeline_undo_volume_line">Volume line</string>
     <string name="timeline_hide_track">Hide track</string>
     <string name="timeline_show_track">Show track</string>
     <string name="timeline_unmute">Unmute</string>

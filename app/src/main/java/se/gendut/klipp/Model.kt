@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import kotlin.math.abs
 import kotlin.random.Random
+import se.gendut.klipp.engine.valueAt
 
 /** The sequence frame rate (set from the engine; 25 until a project exists). */
 var projectFps by androidx.compose.runtime.mutableDoubleStateOf(25.0)
@@ -192,6 +193,38 @@ data class ClipProps(
  * A keyframe in the UI: timeline time, media time (the engine's id for the keyframe) and interpolation; for the value
  * graph also its value(s) [v] and the ease handles' influence ([inInf], [outInf], 0..1).
  */
+/** An audio clip's level (dB) and its keyframes ("level"), for the volume line in the timeline. */
+data class ClipLevel(val db: Float, val kf: List<UiKf> = emptyList()) {
+    private val keys = kf.sortedBy { it.t }.map { se.gendut.klipp.engine.Kf(it.mt, it.t.toDouble(), it.v, it.interp, it.inInf, it.outInf) }
+    val animated get() = keys.isNotEmpty()
+    /** The level at timeline time [t], evaluated as the engine does. */
+    fun at(t: Float): Float = keys.valueAt(t.toDouble())?.toFloat() ?: db
+
+    companion object {
+        /** The level range the line edits (as the clip's volume slider). */
+        const val MIN_DB = -60f
+        const val MAX_DB = 15f
+        // the mixer's fader taper (the engine's): dB → position 0 (bottom) … 1 (top)
+        private val TAPER = arrayOf(-96f to 0f, -60f to 0.05f, -40f to 0.14f, -30f to 0.24f, -20f to 0.38f, -12f to 0.52f, -6f to 0.64f, 0f to 0.76f, 6f to 0.88f, 15f to 1f)
+        fun pos(db: Float): Float {
+            if (db <= TAPER[0].first) return 0f
+            for (i in 0 until TAPER.size - 1) {
+                val (d0, p0) = TAPER[i]; val (d1, p1) = TAPER[i + 1]
+                if (db <= d1) return p0 + (p1 - p0) * (db - d0) / (d1 - d0)
+            }
+            return 1f
+        }
+        fun dbAt(pos: Float): Float {
+            val p = pos.coerceIn(0f, 1f)
+            for (i in 0 until TAPER.size - 1) {
+                val (d0, p0) = TAPER[i]; val (d1, p1) = TAPER[i + 1]
+                if (p <= p1) return d0 + (d1 - d0) * (p - p0) / (p1 - p0)
+            }
+            return TAPER.last().first
+        }
+    }
+}
+
 data class UiKf(
     val t: Float, val mt: Long, val interp: String,
     val v: List<Double> = emptyList(),
@@ -269,6 +302,13 @@ interface PropsBackend {
     fun setInfluence(id: Long, key: String, mt: Long, inInf: Double?, outInf: Double?, interp: String? = null) {}
     /** The keyframe's value (position: x, y). */
     fun setKeyframeValue(id: Long, key: String, mt: Long, v: List<Double>) {}
+    /** The volume line in the timeline: a level keyframe at [at] with the value the line has there. */
+    fun addLevelKey(id: Long, at: Float) {}
+    /** A level keyframe dragged on the line: to timeline time [to] and [db]. One undo step. */
+    fun moveLevelKey(id: Long, mt: Long, to: Float, db: Double) {}
+    /** The line dragged between keyframes: those keyframes get new values (none: the clip's level is [db]). One undo step. */
+    fun setLevelLine(id: Long, keys: List<Pair<Long, Double>>, db: Double) {}
+    fun deleteLevelKey(id: Long, mt: Long) {}
     fun deleteCaption(id: Long) {}
     /** Move a caption [dt] seconds (the engine keeps it clear of its neighbors). One undo step. */
     fun moveCaption(id: Long, dt: Float) {}
@@ -333,6 +373,10 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var scrubbing by mutableStateOf(false)
     /** While a clip edge is trimmed: the frame at the edit point (source time), as in Premiere. */
     var trimView by mutableStateOf<TrimView?>(null)
+    /** Each audio clip's level and its keyframes (the volume line on the clips). */
+    var clipLevels by mutableStateOf<Map<Long, ClipLevel>>(emptyMap())
+    /** The volume lines on the audio clips can be edited (taller audio tracks, the line takes touches). */
+    var volLines by mutableStateOf(false)
     /** Track volume automation per audio track (A1–A3): (time, dB). Drawn as a line in the timeline. */
     var trackVolKf by mutableStateOf<List<List<Pair<Float, Float>>>>(emptyList())
     /** An audio effect slider is being dragged: (clip, effect index, parameter, value) to the playback chains. */

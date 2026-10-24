@@ -148,6 +148,10 @@ private sealed interface Hit {
     data class Cap(val id: Long, val edge: Int) : Hit
     /** Empty area in the caption lane. */
     data object CapLane : Hit
+    /** A keyframe on an audio clip's volume line (volume lines on): drag = time and level, double tap = delete. */
+    data class VolKey(val id: Long, val mt: Long) : Hit
+    /** An audio clip's volume line: drag = the level (between the keyframes around the finger), tap = a keyframe. */
+    data class VolLine(val id: Long) : Hit
     data object Ruler : Hit
     data object Empty : Hit
 }
@@ -187,7 +191,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     for (i in TRACKS.indices) {
         val full = i == 2 || i == 3 || i == state.targetVideo || i == state.targetAudio || i == hoverTrack ||
             state.clips.any { it.track == i && it.id !in state.removing }
-        LaunchedEffect(i, full, fullPx, slimPx) { trackH[i].animateTo(if (full) fullPx[i] else slimPx, Springs.settle()) }
+        // volume lines: taller audio tracks, so the line has room to be dragged
+        val tall = state.volLines && TRACKS[i].kind == TrackKind.AUDIO
+        LaunchedEffect(i, full, tall, fullPx, slimPx) { trackH[i].animateTo(if (!full) slimPx else if (tall) fullPx[i] * VOL_TRACK_SCALE else fullPx[i], Springs.settle()) }
     }
     // read at use (in gestures and drawing), so they always follow the animated heights
     val heightsPx: List<Float> = remember(trackH) { object : AbstractList<Float>() { override val size get() = TRACKS.size; override fun get(index: Int) = trackH[index].value } }
@@ -250,6 +256,18 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
 
     val anims = remember { mutableStateMapOf<Long, ClipAnim>() }
     var initialized by remember { mutableStateOf(false) }
+    /** A volume line being dragged (or just released): the clip and its level as shown until the engine's reply arrives. */
+    var volEdit by remember { mutableStateOf<Pair<Long, ClipLevel>?>(null) }
+    LaunchedEffect(state.clipLevels) { volEdit = null }
+    /** The level next to the finger while a volume line is dragged: (screen position, dB). */
+    var volTip by remember { mutableStateOf<Pair<Offset, Float>?>(null) }
+    /** The last tap on a volume keyframe (clip, media time, time) – a second one soon after deletes it. */
+    val volTap = remember { longArrayOf(0L, 0L, 0L) }
+    val clipInsetPx = with(density) { 3.dp.toPx() }
+    val volGrabPx = with(density) { 22.dp.toPx() }
+    val volLinePx = with(density) { 18.dp.toPx() }
+    /** A drag this long covers the whole level range (the line is short; a finger needs room for small steps). */
+    val volRangePx = with(density) { 150.dp.toPx() }
 
     fun yOf(tf: Float): Float {
         val last = TRACKS.lastIndex
@@ -275,6 +293,33 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
             if (d < bestD) { bestD = d; best = i }
         }
         return best
+    }
+
+    /** An audio clip's volume line band in content coordinates (top, bottom), as ClipView draws it. */
+    fun volBand(a: ClipAnim): Pair<Float, Float> {
+        val top = yOf(a.track.value) + clipInsetPx
+        val h = hOf(a.track.value) - clipInsetPx * 2
+        val b = volBandOf(h, density.density)
+        return top + b.first to top + b.second
+    }
+    /** The volume line or one of its keyframes under (cx, y) (content coordinates), or null. */
+    fun volHit(cx: Float, y: Float, list: List<Clip>): Hit? {
+        for (c in list.asReversed()) {
+            if (c.kind.track != TrackKind.AUDIO || state.locked(c.track)) continue
+            val a = anims[c.id] ?: continue
+            val x0 = a.start.value * pps
+            val x1 = (a.start.value + a.len.value) * pps
+            val (bt, bb) = volBand(a)
+            if (cx < x0 || cx > x1 || y < bt - volLinePx || y > bb + volLinePx) continue
+            val lv = state.clipLevels[c.id] ?: ClipLevel(0f)
+            fun xOfT(t: Float) = (x0 + (t - c.start) / c.length.coerceAtLeast(0.001f) * (x1 - x0)).coerceIn(x0, x1)
+            fun yOfDb(db: Float) = bb - ClipLevel.pos(db) * (bb - bt)
+            val k = lv.kf.minByOrNull { kotlin.math.hypot(xOfT(it.t) - cx, yOfDb(it.v.firstOrNull()?.toFloat() ?: 0f) - y) }
+            if (k != null && kotlin.math.hypot(xOfT(k.t) - cx, yOfDb(k.v.firstOrNull()?.toFloat() ?: 0f) - y) < volGrabPx) return Hit.VolKey(c.id, k.mt)
+            val t = c.start + (cx - x0) / (x1 - x0).coerceAtLeast(1f) * c.length
+            if (abs(yOfDb(lv.at(t)) - y) < volLinePx) return Hit.VolLine(c.id)
+        }
+        return null
     }
 
     /** The track (any kind) at height [y] in content coordinates. */
@@ -518,6 +563,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             if (y < 0) return@run Hit.Ruler
                             val sel = state.selected
                             val list = state.clips.filter { it.id !in state.removing }
+                            if (state.volLines && tool != Tool.RAZOR && state.props != null) volHit(cx, y, list)?.let { return@run it }
                             val canFade = state.props != null && tool != Tool.RAZOR
                             // the fade handles in the selected clip's top corners
                             if (sel != null && canFade) {
@@ -742,6 +788,93 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 if (b == null) capDrag = null
                                 else scope.launch { delay(1500); if (capDrag === d) capDrag = null }
                             }
+                            return@awaitEachGesture
+                        }
+                        // the volume line: drag a keyframe (time and level) or the line (the level between the keyframes around
+                        // the finger), tap the line = a keyframe there, double tap a keyframe = delete it
+                        if (hit is Hit.VolKey || hit is Hit.VolLine) {
+                            val id = (hit as? Hit.VolKey)?.id ?: (hit as Hit.VolLine).id
+                            val c = state.clips.firstOrNull { it.id == id } ?: return@awaitEachGesture
+                            val lv = state.clipLevels[id] ?: ClipLevel(0f)
+                            val keys = lv.kf.sortedBy { it.t }
+                            val key = (hit as? Hit.VolKey)?.let { h -> keys.firstOrNull { it.mt == h.mt } }
+                            val va = anims[id]
+                            val t0 = if (va == null) c.start else (c.start + ((start.x + sx()) / pps - va.start.value) / va.len.value.coerceAtLeast(0.001f) * c.length).coerceIn(c.start, c.end)
+                            // the keyframes the line drag moves: the ones on either side of the finger (none: the clip's level)
+                            val around = if (key != null) emptyList() else listOfNotNull(keys.lastOrNull { it.t <= t0 }, keys.firstOrNull { it.t > t0 })
+                            val db0 = key?.v?.firstOrNull()?.toFloat() ?: lv.at(t0)
+                            val pos0 = ClipLevel.pos(db0)
+                            val i = keys.indexOf(key)
+                            val lo = maxOf(c.start, keys.getOrNull(i - 1)?.t?.plus(FRAME) ?: c.start)
+                            val hi = minOf(lastFrame(c.start, c.end), keys.getOrNull(i + 1)?.t?.minus(FRAME) ?: Float.MAX_VALUE)
+                            var moved = false
+                            var origin = start
+                            var lastDb = db0
+                            var lastT = key?.t ?: t0
+                            var lastStep = Math.round(db0)
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val p = ev.changes.filter { it.pressed }
+                                if (p.isEmpty()) break
+                                if (p.size >= 2 || ev.changes.any { it.isConsumed }) {
+                                    volEdit = null; volTip = null
+                                    while (awaitPointerEvent().changes.any { it.pressed }) { }
+                                    return@awaitEachGesture
+                                }
+                                val ch = p[0]
+                                // measured from where the drag began (past the touch slop), so nothing jumps when it starts
+                                if (!moved && (ch.position - start).getDistance() > viewConfiguration.touchSlop) { moved = true; origin = ch.position; haptics.tick() }
+                                if (!moved) continue
+                                ch.consume()
+                                val d = ch.position - origin
+                                var db = ClipLevel.dbAt(pos0 - d.y / volRangePx).coerceIn(ClipLevel.MIN_DB, ClipLevel.MAX_DB)
+                                // 0 dB holds a little (the clip's own level)
+                                if (abs(db) < 0.4f) db = 0f
+                                val step = Math.round(db)
+                                if (step != lastStep) { haptics.tick(); lastStep = step }
+                                lastDb = db
+                                val shown = if (key != null) {
+                                    lastT = if (lo <= hi) snapFrame(key.t + d.x / pps).coerceIn(lo, hi) else key.t
+                                    lv.copy(kf = lv.kf.map { if (it.mt == key.mt) it.copy(t = lastT, v = listOf(db.toDouble())) else it })
+                                } else if (around.isEmpty()) ClipLevel(db)
+                                else {
+                                    val delta = db - db0
+                                    lv.copy(kf = lv.kf.map { k -> if (around.any { it.mt == k.mt }) k.copy(v = listOf(((k.v.firstOrNull() ?: 0.0) + delta).coerceIn(ClipLevel.MIN_DB.toDouble(), ClipLevel.MAX_DB.toDouble()))) else k })
+                                }
+                                volEdit = id to shown
+                                // the level over the point being dragged (the line moves slower than the finger)
+                                val tipAt = va?.let { an ->
+                                    val (bt, bb) = volBand(an)
+                                    val x = if (key == null) ch.position.x else (an.start.value + (lastT - c.start) / c.length.coerceAtLeast(0.001f) * an.len.value) * pps - sx()
+                                    Offset(x, bb - ClipLevel.pos(db) * (bb - bt) + rulerPx - scrollY)
+                                } ?: ch.position
+                                volTip = tipAt to db
+                            }
+                            volTip = null
+                            val b = state.props
+                            if (!moved) {
+                                if (key != null) {
+                                    val now = down.uptimeMillis
+                                    if (volTap[0] == id && volTap[1] == key.mt && now - volTap[2] < viewConfiguration.doubleTapTimeoutMillis * 2) {
+                                        volTap[2] = 0L
+                                        haptics.heavy()
+                                        volEdit = id to lv.copy(kf = lv.kf.filter { it.mt != key.mt })
+                                        b?.deleteLevelKey(id, key.mt)
+                                    } else { volTap[0] = id; volTap[1] = key.mt; volTap[2] = now; haptics.tick() }
+                                } else {
+                                    haptics.confirm()
+                                    b?.addLevelKey(id, snapFrame(t0).coerceIn(c.start, lastFrame(c.start, c.end)))
+                                }
+                                return@awaitEachGesture
+                            }
+                            haptics.confirm()
+                            when {
+                                key != null -> b?.moveLevelKey(id, key.mt, lastT, lastDb.toDouble())
+                                else -> b?.setLevelLine(id, around.map { k -> k.mt to ((k.v.firstOrNull() ?: 0.0) + (lastDb - db0)) }, lastDb.toDouble())
+                            }
+                            // the preview stays until the engine's levels arrive (or a while, if nothing changed)
+                            val pending = volEdit
+                            scope.launch { delay(1500); if (volEdit === pending) volEdit = null }
                             return@awaitEachGesture
                         }
                         val orig: Clip? = when (hit) {
@@ -1306,7 +1439,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     if (state.groupSelected) { state.toggleMulti(id); haptics.tick() }
                                     else if (state.selected != id) { state.tapSelect(id); haptics.tick() }
                                 }
-                                is Hit.Fade, is Hit.Roll, is Hit.Cap, Hit.CapLane -> Unit
+                                is Hit.Fade, is Hit.Roll, is Hit.Cap, Hit.CapLane, is Hit.VolKey, is Hit.VolLine -> Unit
                                 is Hit.TransBody, is Hit.TransEdge -> {
                                     val id = if (hit is Hit.TransBody) hit.id else (hit as Hit.TransEdge).id
                                     state.selected = null
@@ -1533,6 +1666,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         scroll = { sx() },
                         yOf = { yOf(it) - scrollY },
                         hOf = ::hOf,
+                        level = if (c.kind.track == TrackKind.AUDIO) volEdit?.takeIf { it.first == c.id }?.second ?: state.clipLevels[c.id] else null,
+                        editLine = state.volLines,
                     )
                 }
             }
@@ -1705,6 +1840,16 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         drawCircle(red, 5.dp.toPx(), Offset(x, cy))
                     }
                 }
+                volTip?.let { (at, db) ->
+                    val paint = capPaint.apply { textSize = 13.sp.toPx() }
+                    val text = (if (db > 0.05f) "+" else "") + "%.1f dB".format(db).replace('-', '−')
+                    val tw = paint.measureText(text)
+                    val pad = 8.dp.toPx()
+                    val bx = (at.x - tw / 2 - pad).coerceIn(4.dp.toPx(), size.width - tw - pad * 2 - 4.dp.toPx())
+                    val by = (at.y - 40.dp.toPx()).coerceAtLeast(rulerBasePx + 2.dp.toPx())
+                    drawRoundRect(Color(0xEE1D2026), Offset(bx, by), Size(tw + pad * 2, 26.dp.toPx()), CornerRadius(13.dp.toPx()))
+                    drawContext.canvas.nativeCanvas.drawText(text, bx + pad, by + 13.dp.toPx() + paint.textSize * 0.36f, paint)
+                }
                 snapLine?.let { s ->
                     val x = s * pps - sx()
                     val g = snapGlow.value
@@ -1791,6 +1936,10 @@ private fun ClipView(
     scroll: () -> Float,
     yOf: (Float) -> Float,
     hOf: (Float) -> Float,
+    /** An audio clip's level: its volume line (and the waveform follows it). */
+    level: ClipLevel? = null,
+    /** The volume lines can be edited: drawn bolder, with large keyframes. */
+    editLine: Boolean = false,
 ) {
     val density = LocalDensity.current
     val shape = RoundedCornerShape(10.dp)
@@ -1830,7 +1979,7 @@ private fun ClipView(
             .drawWithContent { drawContent(); val d = anim.doom.value; if (d > 0.01f) drawRect(Color(0xFFE5484D).copy(alpha = 0.6f * d)) }
     ) {
         if (clip.kind == ClipKind.AUDIO || clip.kind == ClipKind.MUSIC) {
-            Waveform(clip, uri, Modifier.fillMaxSize())
+            Waveform(clip, uri, Modifier.fillMaxSize(), level)
         } else if (uri != null) Filmstrip(clip, uri, pps, Modifier.fillMaxSize())
         Text(
             (if (clip.enabled) "" else stringResource(R.string.timeline_clip_off_prefix)) + (if (clip.hold) "❄ " else "") + (if (clip.reverse) "◀◀ " else "") + (if (clip.group != null) "⧉ " else "") + (if (clip.kind == ClipKind.TITLE) "T  ${clip.name}" else clip.name) +
@@ -1843,6 +1992,7 @@ private fun ClipView(
             overflow = TextOverflow.Clip,
             modifier = Modifier.padding(start = if (selected) 14.dp else 8.dp, top = 4.dp, end = 8.dp)
         )
+        if (level != null && (editLine || level.animated || abs(level.db) > 0.05f)) VolumeLine(clip, level, editLine, Modifier.fillMaxSize())
         if (selected) {
             Box(
                 Modifier.align(Alignment.CenterStart).width(10.dp).fillMaxHeight()
@@ -1858,12 +2008,52 @@ private fun ClipView(
     }
 }
 
+/** Audio tracks are this much taller while the volume lines are edited. */
+const val VOL_TRACK_SCALE = 1.6f
+
+/** Where an audio clip [h] px tall draws its volume line: (top, bottom) within the clip – under the name, to the bottom edge. */
+fun volBandOf(h: Float, density: Float): Pair<Float, Float> = 17f * density to (h - 3f * density).coerceAtLeast(17f * density + 1f)
+
+/** An audio clip's volume line: its level over time on the fader scale, with the keyframes. */
+@Composable
+private fun VolumeLine(clip: Clip, level: ClipLevel, edit: Boolean, modifier: Modifier) {
+    val path = remember { Path() }
+    val diamond = remember { Path() }
+    Canvas(modifier.testTag("volline:${clip.id}")) {
+        val (bt, bb) = volBandOf(size.height, density)
+        if (bb - bt < 6f) return@Canvas
+        fun y(db: Float) = bb - ClipLevel.pos(db) * (bb - bt)
+        fun x(t: Float) = ((t - clip.start) / clip.length.coerceAtLeast(0.001f) * size.width).coerceIn(0f, size.width)
+        path.reset()
+        if (level.animated) {
+            // a point every 2 px (at most 600 per clip, also when zoomed far in): eased keyframes bend the line
+            val n = (size.width / 2f).toInt().coerceIn(1, 600)
+            for (i in 0..n) {
+                val px = size.width * i / n
+                val py = y(level.at(clip.start + px / size.width * clip.length))
+                if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+            }
+        } else { path.moveTo(0f, y(level.db)); path.lineTo(size.width, y(level.db)) }
+        val w = (if (edit) 2f else 1.2f).dp.toPx()
+        val a = if (edit) 1f else 0.6f
+        drawPath(path, Color.Black.copy(alpha = 0.5f * a), style = androidx.compose.ui.graphics.drawscope.Stroke(w + 2.dp.toPx()))
+        drawPath(path, Color(0xFFFFE08A).copy(alpha = a), style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+        val r = (if (edit) 5f else 3f).dp.toPx()
+        for (k in level.kf) {
+            val cx = x(k.t); val cy = y(k.v.firstOrNull()?.toFloat() ?: 0f)
+            val d = diamond.apply { reset(); moveTo(cx, cy - r); lineTo(cx + r, cy); lineTo(cx, cy + r); lineTo(cx - r, cy); close() }
+            drawPath(d, Color.Black.copy(alpha = 0.6f * a), style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+            drawPath(d, Color(0xFFFFE08A).copy(alpha = a))
+        }
+    }
+}
+
 /**
  * The waveform from the file's real audio (peak values, see Peaks), for the clip's part of the source. Without a file
  * (prototype mode) or while it decodes: a calm placeholder.
  */
 @Composable
-private fun Waveform(clip: Clip, uri: android.net.Uri?, modifier: Modifier) {
+private fun Waveform(clip: Clip, uri: android.net.Uri?, modifier: Modifier, level: ClipLevel? = null) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val peaks by androidx.compose.runtime.produceState(uri?.let { se.gendut.klipp.engine.Peaks.cached(it) }, uri) {
         if (uri != null && value == null) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.Peaks.load(ctx, uri) }
@@ -1888,9 +2078,10 @@ private fun Waveform(clip: Clip, uri: android.net.Uri?, modifier: Modifier) {
             var m = 0f
             for (k in a until b) if (k in p.indices && p[k] > m) m = p[k]
             if (m <= 0.002f) continue
-            // dB scale (−48 … 0 dBFS) so speech shows even when it's quiet
-            val v = ((20f * kotlin.math.log10(m) + 48f) / 48f).coerceIn(0.03f, 1f)
             val x = i * step + step / 2
+            // dB scale (−48 … 0 dBFS) so speech shows even when it's quiet; with the clip's level (as it plays)
+            val gain = level?.at(clip.start + x / size.width * clip.length) ?: 0f
+            val v = ((20f * kotlin.math.log10(m) + gain + 48f) / 48f).coerceIn(0.03f, 1f)
             drawLine(col, Offset(x, mid - maxH * v), Offset(x, mid + maxH * v * 0.55f), strokeWidth = step * 0.7f)
         }
     }

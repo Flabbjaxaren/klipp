@@ -95,6 +95,9 @@
     <string name="app_magnetic_snapping">Magnetisk fästning</string>
     <string name="app_snapping_on">Magnetisk fästning på</string>
     <string name="app_snapping_off">Magnetisk fästning av</string>
+    <string name="app_volume_lines">Volymlinjer</string>
+    <string name="app_volume_lines_on">Volymlinjer: tryck på en linje för en keyframe, dra i den för att ändra nivån, dubbeltryck på en keyframe för att ta bort den</string>
+    <string name="app_volume_lines_off">Volymlinjer av</string>
     <string name="app_back">Tillbaka</string>
     <string name="app_ramp">Ramp</string>
     <string name="app_freeze">Frys</string>
@@ -142,6 +145,7 @@
     <string name="app_short_link">Länk</string>
     <string name="app_short_center">Lås</string>
     <string name="app_short_snap">Fäst</string>
+    <string name="app_short_volume">Volym</string>
     <string name="app_edit_text">Redigera text</string>
     <string name="app_volume">Volym</string>
     <string name="app_fade">Tona</string>

@@ -37,7 +37,8 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
 - 🎞️ **Video layers:** transitions, titles and templates, captions, blend modes, masks with keyframes and tracking,
   keyframed motion, opacity and volume – linear, easy ease, ease in/out or hold, and a value graph with bezier
   handles (evaluated with the engine's own curve math, so preview and export match).
-- 🎧 **Audio:** mixer with automation, effects (noise reduction, speech enhance, EQ, compressor …), auto ducking,
+- 🎧 **Audio:** volume lines on the clips in the timeline (tap for a keyframe, drag the line or a keyframe, double tap
+  to delete), mixer with automation, effects (noise reduction, speech enhance, EQ, compressor …), auto ducking,
   loudness measurement, voice-over, downloadable sound effect packs.
 - ⚡ **Performance:** proxies, pre-rendering of heavy parts, render cache, HDR and 10-bit.
 - 🔒 **Private:** nothing leaves the phone: speech recognition and all processing run locally; the network is only used to
@@ -107,8 +108,6 @@ replace an installed Klipp.
 
 ## ⚠️ Known limitations
 
-- Keyframes that end up before a clip's start (after trimming its start later) are drawn at the lane's edge but can't
-  be grabbed until the clip is extended again.
 - Clips imported through the system photo picker get generic names (e.g. `28.mp4`) – Android hides the file names.
 - Projects live inside the app; there is no project export yet, so uninstalling Klipp removes them.
 - vivo Log has no published specification; its curve and gamut were measured from DaVinci Resolve 21.1's built-in

@@ -17,6 +17,7 @@
     <string name="timeline_hide_captions">Dölj undertexter</string>
     <string name="timeline_show_captions">Visa undertexter</string>
     <string name="timeline_locked">Låst</string>
+    <string name="timeline_undo_volume_line">Volymlinje</string>
     <string name="timeline_hide_track">Dölj spåret</string>
     <string name="timeline_show_track">Visa spåret</string>
     <string name="timeline_unmute">Slå på ljudet</string>

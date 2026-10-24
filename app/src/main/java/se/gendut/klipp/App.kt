@@ -1000,10 +1000,13 @@ private fun EditPage(
     val barPad = if (barSpace) 92.dp else 12.dp
     val haptics = rememberHaptics()
     Column(Modifier.fillMaxSize()) {
-        // Tools: connected buttons (icon + name) where the selected one morphs into a pill
+        // Tools: connected buttons (icon + name) where the selected one morphs into a pill. On a narrow screen (under
+        // 400 dp) everything is a little tighter, so the four toggles still fit next to the tools
+        val compact = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 400
+        val gap = if (compact) 0.dp else 4.dp
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
+            Modifier.fillMaxWidth().padding(horizontal = if (compact) 6.dp else 10.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val tools = listOf(
@@ -1011,29 +1014,35 @@ private fun EditPage(
                 Tool.TRIM to (stringResource(R.string.app_tool_trim) to Ic.Trim), Tool.RAZOR to (stringResource(R.string.app_tool_razor) to Ic.Razor),
             )
             tools.forEachIndexed { i, (t, li) ->
-                ToolButton(li.first, li.second, tool == t, first = i == 0, last = i == tools.lastIndex) {
+                ToolButton(li.first, li.second, tool == t, first = i == 0, last = i == tools.lastIndex, compact = compact) {
                     haptics.tick(); setTool(t)
                 }
             }
             Spacer(Modifier.weight(1f))
-            ToggleIcon(Ic.Link, stringResource(R.string.app_linked_selection), stringResource(R.string.app_short_link), state.linkedSelection) {
+            ToggleIcon(Ic.Link, stringResource(R.string.app_linked_selection), stringResource(R.string.app_short_link), state.linkedSelection, compact) {
                 val on = !state.linkedSelection
                 state.linkedSelection = on
                 state.onLinkedSelection?.invoke(on)
                 haptics.tick()
                 toaster.show(Str.t(if (on) R.string.app_linked_on else R.string.app_linked_off))
             }
-            Spacer(Modifier.width(4.dp))
-            ToggleIcon(Ic.Center, stringResource(R.string.app_locked_playhead), stringResource(R.string.app_short_center), state.centerPlayhead) {
+            Spacer(Modifier.width(gap))
+            ToggleIcon(Ic.Center, stringResource(R.string.app_locked_playhead), stringResource(R.string.app_short_center), state.centerPlayhead, compact) {
                 state.centerPlayhead = !state.centerPlayhead
                 haptics.tick()
                 toaster.show(Str.t(if (state.centerPlayhead) R.string.app_playhead_locked else R.string.app_playhead_free))
             }
-            Spacer(Modifier.width(4.dp))
-            ToggleIcon(Ic.Magnet, stringResource(R.string.app_magnetic_snapping), stringResource(R.string.app_short_snap), state.magnet) {
+            Spacer(Modifier.width(gap))
+            ToggleIcon(Ic.Magnet, stringResource(R.string.app_magnetic_snapping), stringResource(R.string.app_short_snap), state.magnet, compact) {
                 state.magnet = !state.magnet
                 haptics.tick()
                 toaster.show(Str.t(if (state.magnet) R.string.app_snapping_on else R.string.app_snapping_off))
+            }
+            Spacer(Modifier.width(gap))
+            ToggleIcon(Ic.VolLine, stringResource(R.string.app_volume_lines), stringResource(R.string.app_short_volume), state.volLines, compact) {
+                state.volLines = !state.volLines
+                haptics.tick()
+                toaster.show(Str.t(if (state.volLines) R.string.app_volume_lines_on else R.string.app_volume_lines_off))
             }
         }
         Box(Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp)) {
@@ -1447,7 +1456,7 @@ private fun ContextAction(icon: ImageVector, label: String, selected: Boolean = 
 }
 
 @Composable
-private fun ToolButton(label: String, icon: ImageVector, selected: Boolean, first: Boolean, last: Boolean, onClick: () -> Unit) {
+private fun ToolButton(label: String, icon: ImageVector, selected: Boolean, first: Boolean, last: Boolean, compact: Boolean = false, onClick: () -> Unit) {
     val spec = spring<androidx.compose.ui.unit.Dp>(0.5f, 500f)
     val outer = 22.dp
     val inner = 8.dp
@@ -1466,7 +1475,7 @@ private fun ToolButton(label: String, icon: ImageVector, selected: Boolean, firs
                 scope.launch { press.snapTo(0.9f); press.animateTo(1f, Springs.pop()) }
                 onClick()
             }
-            .padding(horizontal = 9.dp),
+            .padding(horizontal = if (compact) 6.dp else 9.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -1476,13 +1485,13 @@ private fun ToolButton(label: String, icon: ImageVector, selected: Boolean, firs
 }
 
 @Composable
-private fun ToggleIcon(icon: ImageVector, desc: String, label: String, on: Boolean, onClick: () -> Unit) {
+private fun ToggleIcon(icon: ImageVector, desc: String, label: String, on: Boolean, compact: Boolean = false, onClick: () -> Unit) {
     val bg by animateColorAsState(if (on) K.Tonal else K.SurfaceHigh, label = "tb")
     val r by animateDpAsState(if (on) 22.dp else 12.dp, spring(0.45f, 500f), label = "tr")
     val rot = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     Column(
-        Modifier.size(44.dp, 48.dp).clip(RoundedCornerShape(r)).background(bg)
+        Modifier.size(if (compact) 41.dp else 44.dp, 48.dp).clip(RoundedCornerShape(r)).background(bg)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                 scope.launch { rot.snapTo(-25f); rot.animateTo(0f, Springs.pop()) }
                 onClick()

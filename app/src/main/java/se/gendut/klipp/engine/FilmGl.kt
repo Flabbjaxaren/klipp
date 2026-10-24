@@ -807,20 +807,22 @@ void main() {
                 expose.f1("uEv", s.evScale)
                 draw()
                 // highlight boost: the image's largest raw exposure (as FilmFx.boostRef: averaged down to at most
-                // BOOST_REF_W wide, then max-halving down to 1×1), then the curve
+                // BOOST_REF_W wide, then max-halving down to 1×1), then the curve. Only the image itself (w × h, not the
+                // mirrored padding), so the averages match the CPU's
                 var exposed = f0
                 if (s.f.boostEv > 0f) {
-                    var src = f0; var k = 0
-                    while (src.w > 1 || src.h > 1) {
+                    var src = f0; var sw = w; var sh = h; var k = 0
+                    while (sw > 1 || sh > 1) {
                         k++
-                        val dst = lv("mx", k)
+                        val d = FilmFx.Pyramid.dims(w, h, k)
+                        val dst = levels.getOrPut("mx${d[0]}x${d[1]}") { Tex(d[0], d[1]) }
                         target(dst)
-                        val p = if (src.w > FilmFx.BOOST_REF_W) half else maxHalf
+                        val p = if (sw > FilmFx.BOOST_REF_W) half else maxHalf
                         p.use()
                         p.tex("uSrc", GLES20.GL_TEXTURE_2D, src.id)
-                        p.i2("uSrcSize", src.w, src.h)
+                        p.i2("uSrcSize", sw, sh)
                         draw()
-                        src = dst
+                        src = dst; sw = d[0]; sh = d[1]
                     }
                     target(f4)
                     boostP.use()
