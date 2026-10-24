@@ -64,7 +64,7 @@ import kotlin.math.hypot
 import kotlin.math.roundToInt
 
 /**
- * Slider for a real value: drag anywhere on the track, magnetic default position with haptics,
+ * Slider for a real value: drag anywhere on the track (no snapping – a tick when passing the default position),
  * double tap = reset. The engine only gets the value when the finger lifts (one undo step per drag).
  */
 @Composable
@@ -108,16 +108,13 @@ fun PropSlider(
                         // the value when the gesture started: live values can be fed back into [value] during the drag
                         // (color page), so the comparison on release is against the start value – otherwise nothing is saved
                         val start = current
-                        var atDefault = abs(v.value - default) < 1e-3f
+                        var side = kotlin.math.sign(v.value - default)
                         var moved = false
                         var cancelled = false
                         fun valueAt(x: Float): Float {
-                            var nv = min + (x / size.width).coerceIn(0f, 1f) * (max - min)
-                            if (abs(nv - default) < (max - min) * 0.025f) {
-                                if (!atDefault) haptics.tick()
-                                atDefault = true
-                                nv = default
-                            } else atDefault = false
+                            val nv = min + (x / size.width).coerceIn(0f, 1f) * (max - min)
+                            val s = kotlin.math.sign(nv - default)
+                            if (s != side) { if (side != 0f || s == 0f) haptics.tick(); side = s }
                             return nv
                         }
                         var last = v.value
@@ -500,8 +497,8 @@ fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
                     awaitFirstDown(requireUnconsumed = false)
                     active = true
                     scope.launch { glow.animateTo(1f, Springs.pop()) }
-                    var snapX = false; var snapY = false; var snapK = false; var snapR = false
                     var rawX = x; var rawY = y; var rawK = k; var rawR = r
+                    var snapX = rawX > w / 2; var snapY = rawY > h / 2; var snapK = rawK > 100f; var snapR = kotlin.math.floor(rawR / 90f).roundToInt()
                     // if the gesture is canceled (clip changes, view goes away) the overlay must not get stuck as active
                     try { while (true) {
                         val ev = awaitPointerEvent()
@@ -525,18 +522,12 @@ fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
                                 rawR += da
                             }
                             rawK = rawK.coerceIn(1f, 1000f)
-                            // magnetic snapping
-                            val tolPos = 14.dp.toPx() / s
-                            val nx = if (abs(rawX - w / 2) < tolPos) w / 2 else rawX
-                            val ny = if (abs(rawY - h / 2) < tolPos) h / 2 else rawY
-                            val nk = if (abs(rawK - 100f) < 4f) 100f else rawK
-                            val near = (rawR / 90f).roundToInt() * 90f
-                            val nr = if (abs(rawR - near) < 4f) near else rawR
-                            if ((nx == w / 2) != snapX) { snapX = nx == w / 2; if (snapX) haptics.tick() }
-                            if ((ny == h / 2) != snapY) { snapY = ny == h / 2; if (snapY) haptics.tick() }
-                            if ((nk == 100f) != snapK) { snapK = nk == 100f; if (snapK) haptics.tick() }
-                            if ((nr == near) != snapR) { snapR = nr == near; if (snapR) haptics.tick() }
-                            x = nx; y = ny; k = nk; r = nr
+                            // no snapping: a tick when passing the center, 100 % or a multiple of 90°
+                            val sx = rawX > w / 2; val sy = rawY > h / 2; val sk = rawK > 100f
+                            val sr = kotlin.math.floor(rawR / 90f).roundToInt()
+                            if (sx != snapX || sy != snapY || sk != snapK || sr != snapR) haptics.tick()
+                            snapX = sx; snapY = sy; snapK = sk; snapR = sr
+                            x = rawX; y = rawY; k = rawK; r = rawR
                             state.setLive(pNow.copy(x = x, y = y, scale = k, rotation = r))
                         }
                         ev.changes.forEach { it.consume() }
