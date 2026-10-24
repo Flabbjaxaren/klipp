@@ -61,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -1736,8 +1737,9 @@ private fun FullViewer(
             },
         contentAlignment = Alignment.Center
     ) {
-        // fitted inside the screen (the whole picture, bars where the shapes differ)
-        Box(Modifier.fillMaxSize().wrapContentSize().aspectRatio(aspect)) {
+        // fitted inside the screen (the whole picture, bars where the shapes differ), clipped to the frame like the monitor:
+        // a scaled or moved layer must not show outside the program image
+        Box(Modifier.fillMaxSize().wrapContentSize().aspectRatio(aspect).clipToBounds()) {
             when {
                 isSource -> FitPlayerSurface(source.player, Modifier.fillMaxSize())
                 controller != null && playback != null -> {
