@@ -101,6 +101,16 @@
     <string name="app_back">Tillbaka</string>
     <string name="app_ramp">Ramp</string>
     <string name="app_freeze">Frys</string>
+    <string name="app_label">Etikett</string>
+    <string name="app_label_none">Ingen</string>
+    <string name="label_red">Röd</string>
+    <string name="label_orange">Orange</string>
+    <string name="label_yellow">Gul</string>
+    <string name="label_green">Grön</string>
+    <string name="label_teal">Turkos</string>
+    <string name="label_sky">Himmelsblå</string>
+    <string name="label_blue">Blå</string>
+    <string name="label_purple">Lila</string>
     <string name="app_seconds">%1$d s</string>
     <string name="app_half_second">0,5 s</string>
     <string name="app_copy">Kopiera</string>

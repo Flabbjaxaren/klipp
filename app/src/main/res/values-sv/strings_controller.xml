@@ -114,6 +114,7 @@
     <string name="projectcontroller_undo_trim">Trimma</string>
     <string name="projectcontroller_undo_reverse">Baklänges</string>
     <string name="projectcontroller_undo_group">Gruppera</string>
+    <string name="projectcontroller_undo_label">Etikett</string>
     <string name="projectcontroller_undo_ungroup">Dela upp grupp</string>
     <string name="projectcontroller_undo_razor">Rakblad</string>
     <string name="projectcontroller_undo_roll">Rulla</string>

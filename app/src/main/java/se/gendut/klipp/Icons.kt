@@ -45,6 +45,7 @@ object Ic {
     val Film = stroke("film", "M5 3h14v18H5z", "M9 3v18", "M15 3v18", "M5 7.5h4", "M5 12h4", "M5 16.5h4", "M15 7.5h4", "M15 12h4", "M15 16.5h4")
     val Eye = stroke("eye", "M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z", "M12 9a3 3 0 110 6 3 3 0 010-6z")
     /** On/off (disabled clip). */
+    val Tag = stroke("tag", "M3 12V4a1 1 0 011-1h8l9 9-9 9z", "M7.5 7.5h.01")
     val Power = shifted("power", 0f, 1.3f, "M12 3v8", "M7 6.5a7 7 0 1010 0")
     val Speaker = shifted("speaker", 1f, 0f, "M4 9h4l5-4v14l-5-4H4z", "M16.5 9a4 4 0 010 6")
     val SpeakerOff = shifted("speakeroff", -0.5f, 0f, "M4 9h4l5-4v14l-5-4H4z", "M16 9.5l5 5", "M21 9.5l-5 5")

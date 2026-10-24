@@ -39,6 +39,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -1093,7 +1095,8 @@ private fun ContextBar(state: EditorState, modifier: Modifier) {
     var speedMode by remember { mutableStateOf(false) }
     var freezeMode by remember { mutableStateOf(false) }
     var volumeMode by remember { mutableStateOf(false) }
-    LaunchedEffect(state.selected) { speedMode = false; freezeMode = false; volumeMode = false }
+    var labelMode by remember { mutableStateOf(false) }
+    LaunchedEffect(state.selected) { speedMode = false; freezeMode = false; volumeMode = false; labelMode = false }
     // the actions follow what is selected: video, sound or a title
     val sel = state.clips.firstOrNull { it.id == state.selected }
     val isSound = sel?.kind == ClipKind.AUDIO || sel?.kind == ClipKind.MUSIC
@@ -1104,7 +1107,7 @@ private fun ContextBar(state: EditorState, modifier: Modifier) {
         exit = slideOutVertically { it } + fadeOut(),
         modifier = modifier
     ) {
-        AnimatedContent(Triple(speedMode, freezeMode, volumeMode), transitionSpec = { (fadeIn() + scaleIn(spring(0.6f, 500f), initialScale = 0.9f)) togetherWith fadeOut() }, label = "ctx") { (speed, freeze, volume) ->
+        AnimatedContent(listOf(speedMode, freezeMode, volumeMode, labelMode), transitionSpec = { (fadeIn() + scaleIn(spring(0.6f, 500f), initialScale = 0.9f)) togetherWith fadeOut() }, label = "ctx") { (speed, freeze, volume, label) ->
             Row(
                 Modifier.shadow(8.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(K.SurfaceHighest)
                     // narrow screen: the row scrolls sideways instead of buttons ending up off-screen
@@ -1163,6 +1166,8 @@ private fun ContextBar(state: EditorState, modifier: Modifier) {
                             contentAlignment = Alignment.Center
                         ) { Text(if (db > 0) "+$db dB" else "$db dB", color = if (on) K.OnPrimary else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     }
+                } else if (label) {
+                    LabelPicker(sel?.label, onBack = { labelMode = false }) { l -> state.selected?.let { haptics.confirm(); state.setLabel(listOf(it), l); labelMode = false } }
                 } else if (freeze) {
                     // freeze frame at the playhead: choose how long the frame is held
                     RoundIcon(Ic.Back, stringResource(R.string.app_back)) { freezeMode = false }
@@ -1207,6 +1212,7 @@ private fun ContextBar(state: EditorState, modifier: Modifier) {
                     state.clips.firstOrNull { it.id == state.selected }?.takeIf { (it.kind == ClipKind.VIDEO || it.kind == ClipKind.AUDIO) && !it.hold }?.let { c ->
                         ContextAction(Ic.Reverse, stringResource(if (c.reverse) R.string.app_forward else R.string.app_reverse)) { haptics.confirm(); state.toggleReverse(c.id) }
                     }
+                    ContextAction(Ic.Tag, stringResource(R.string.app_label), selected = sel?.label != null, tag = "ctx:label") { haptics.tick(); labelMode = true }
                     val off = state.clips.firstOrNull { it.id == state.selected }?.enabled == false
                     ContextAction(Ic.Power, stringResource(if (off) R.string.app_enable else R.string.app_disable)) { state.selected?.let { haptics.confirm(); state.toggleEnabled(listOf(it)) } }
                     ContextAction(Ic.Delete, stringResource(R.string.app_delete)) { state.selected?.let { haptics.heavy(); state.requestRemove(it, false) } }
@@ -1221,6 +1227,8 @@ private fun ContextBar(state: EditorState, modifier: Modifier) {
 @Composable
 private fun MultiBar(state: EditorState, modifier: Modifier) {
     val haptics = rememberHaptics()
+    var labelMode by remember { mutableStateOf(false) }
+    LaunchedEffect(state.groupSelected) { labelMode = false }
     AnimatedVisibility(
         visible = state.groupSelected,
         enter = slideInVertically(spring(0.6f, 500f)) { it } + fadeIn(),
@@ -1236,12 +1244,18 @@ private fun MultiBar(state: EditorState, modifier: Modifier) {
         ) {
             val nClips = state.multi.size
             val nCaps = state.multiCaptions.size
+            if (labelMode) {
+                val labels = state.multi.map { id -> state.clips.firstOrNull { it.id == id }?.label }.toSet()
+                LabelPicker(labels.singleOrNull(), onBack = { labelMode = false }) { l -> haptics.confirm(); state.setLabel(state.multi, l); labelMode = false }
+                return@Row
+            }
             val clipsLabel = if (nClips > 0) pluralStringResource(R.plurals.app_n_clips, nClips, nClips) else null
             val capsLabel = if (nCaps > 0) pluralStringResource(R.plurals.app_n_captions, nCaps, nCaps) else null
             Text(
                 listOfNotNull(clipsLabel, capsLabel).joinToString(" · "),
                 color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp),
             )
+            if (nClips > 0) ContextAction(Ic.Tag, stringResource(R.string.app_label), tag = "multi:label") { haptics.tick(); labelMode = true }
             if (nClips > 0) ContextAction(Ic.Power, stringResource(R.string.app_toggle_enabled)) { haptics.confirm(); state.toggleEnabled(state.multi) }
             // compound clip: selected, moved and graded together
             if (state.props != null && nClips > 0) {
@@ -1435,6 +1449,28 @@ private fun TransitionBar(state: EditorState, modifier: Modifier) {
                 haptics.heavy(); state.selectedTransition = null; state.props?.removeTransition(id)
             }
         }
+    }
+}
+
+/** The color labels in a row (plus none): the current one ringed. */
+@Composable
+private fun LabelPicker(current: ClipLabel?, onBack: () -> Unit, onPick: (ClipLabel?) -> Unit) {
+    RoundIcon(Ic.Back, stringResource(R.string.app_back)) { onBack() }
+    val none = stringResource(R.string.app_label_none)
+    Box(
+        Modifier.padding(horizontal = 4.dp).size(34.dp).clip(CircleShape)
+            .border(if (current == null) 2.5.dp else 1.5.dp, if (current == null) K.OnSurface else K.Outline, CircleShape)
+            .clickable(onClickLabel = none) { onPick(null) }.testTag("label:none"),
+        contentAlignment = Alignment.Center,
+    ) { Box(Modifier.size(18.dp, 2.dp).graphicsLayer { rotationZ = -45f }.background(K.Outline)) }
+    for (l in ClipLabel.entries) {
+        val name = stringResource(l.title)
+        Box(
+            Modifier.padding(horizontal = 4.dp).size(34.dp)
+                .then(if (l == current) Modifier.border(2.5.dp, K.OnSurface, CircleShape).padding(5.dp) else Modifier.padding(3.dp))
+                .clip(CircleShape).background(l.color)
+                .clickable(onClickLabel = name) { onPick(l) }.testTag("label:${l.name}")
+        )
     }
 }
 
