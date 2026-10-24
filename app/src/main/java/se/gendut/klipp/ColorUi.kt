@@ -150,7 +150,13 @@ fun ToolTabs(tabs: List<ToolTab>, selected: Int, onSelect: (Int) -> Unit, modifi
                         if (t.marked) Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 10.dp).size(7.dp).clip(CircleShape).background(K.Primary))
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text(t.label, color = fg, fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
+                    // a long name (e.g. Qualifier) shrinks to its cell on a narrow phone instead of running into the next one
+                    androidx.compose.foundation.text.BasicText(
+                        t.label, color = { fg }, maxLines = 1, softWrap = false,
+                        style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium),
+                        autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
+                        modifier = Modifier.padding(horizontal = 2.dp),
+                    )
                 }
             }
         }
