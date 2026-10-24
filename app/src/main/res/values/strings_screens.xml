@@ -131,6 +131,10 @@
     <string name="projectsscreen_export_only">Project only</string>
     <string name="projectsscreen_export_only_hint">Small: the edit, grades and names. The media stay where they are on this phone.</string>
     <string name="projectsscreen_copying">Copying… %1$d %%</string>
+    <string name="projectsscreen_versions">Earlier versions…</string>
+    <string name="projectsscreen_versions_title">Earlier versions of “%1$s”</string>
+    <string name="projectsscreen_versions_hint">Kept every 10 minutes while you edit. The one you pick opens as a new project; this one stays as it is.</string>
+    <string name="projectsscreen_versions_none">No earlier versions yet. They are kept every 10 minutes while you edit.</string>
     <string name="projectsscreen_name">Name</string>
     <string name="projectsscreen_save">Save</string>
     <string name="projectsscreen_cancel">Cancel</string>

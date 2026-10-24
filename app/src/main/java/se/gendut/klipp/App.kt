@@ -1785,4 +1785,6 @@ private fun controllerProjects(c: se.gendut.klipp.engine.ProjectController) = ob
     override fun export(id: String, withMedia: Boolean, to: android.net.Uri) { c.exportProject(id, withMedia, to) }
     override fun import(from: android.net.Uri) { c.importProject(from) }
     override val progress: Float? get() = c.packProgress
+    override fun versions(id: String) = c.versions(id).map { it.stamp to it.clips }
+    override fun restoreVersion(id: String, stamp: Long) { c.restoreVersion(id, stamp) }
 }

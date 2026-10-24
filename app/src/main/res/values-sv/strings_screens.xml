@@ -131,6 +131,10 @@
     <string name="projectsscreen_export_only">Bara projektet</string>
     <string name="projectsscreen_export_only_hint">Liten: klippningen, graderingen och namnen. Medierna ligger kvar där de är på den här telefonen.</string>
     <string name="projectsscreen_copying">Kopierar… %1$d %%</string>
+    <string name="projectsscreen_versions">Tidigare versioner…</string>
+    <string name="projectsscreen_versions_title">Tidigare versioner av ”%1$s”</string>
+    <string name="projectsscreen_versions_hint">Sparas var tionde minut medan du redigerar. Den du väljer öppnas som ett nytt projekt; det här ligger kvar som det är.</string>
+    <string name="projectsscreen_versions_none">Inga tidigare versioner än. De sparas var tionde minut medan du redigerar.</string>
     <string name="projectsscreen_name">Namn</string>
     <string name="projectsscreen_save">Spara</string>
     <string name="projectsscreen_cancel">Avbryt</string>

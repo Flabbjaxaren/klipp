@@ -62,6 +62,9 @@
     <string name="projectcontroller_export_project_failed">Couldn\'t export the project: %1$s</string>
     <string name="projectcontroller_imported">Imported: %1$s</string>
     <string name="projectcontroller_imported_name">%1$s (imported)</string>
+    <string name="projectcontroller_version_name">%1$s (%2$s)</string>
+    <string name="projectcontroller_version_restored">The earlier version is a new project in the list</string>
+    <string name="projectcontroller_version_failed">Couldn\'t restore the version: %1$s</string>
     <plurals name="projectcontroller_synced">
         <item quantity="one">Synced by sound: %1$d clip moved</item>
         <item quantity="other">Synced by sound: %1$d clips moved</item>
