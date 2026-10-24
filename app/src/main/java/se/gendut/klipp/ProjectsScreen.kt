@@ -86,6 +86,10 @@ interface ProjectsBackend {
     fun import(from: android.net.Uri) {}
     /** Progress (0..1) of an export/import in progress; null = none. */
     val progress: Float? get() = null
+    /** The project's earlier versions (time, clips), newest first. */
+    fun versions(id: String): List<Pair<Long, Int>> = emptyList()
+    /** Earlier version [stamp] of project [id] as a new project. */
+    fun restoreVersion(id: String, stamp: Long) {}
 }
 
 /**
@@ -137,8 +141,8 @@ private fun durLabel(sec: Double): String {
     return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
 }
 
-/** "today 12:07", "yesterday 12:07" or "21 Oct" – in the app's locale. */
-private fun dateLabel(ms: Long): String {
+/** "today 12:07", "yesterday 12:07" or "21 Oct" ([withTime]: "21 Oct 12:07") – in the app's locale. */
+private fun dateLabel(ms: Long, withTime: Boolean = false): String {
     val now = System.currentTimeMillis()
     val days = (now - ms) / 86_400_000
     val locale = java.util.Locale.getDefault()
@@ -147,7 +151,7 @@ private fun dateLabel(ms: Long): String {
     return when {
         days < 1 -> Str.t(R.string.projectsscreen_today_at, fmt("jmm"))
         days < 2 -> Str.t(R.string.projectsscreen_yesterday_at, fmt("jmm"))
-        else -> fmt("dMMM")
+        else -> fmt(if (withTime) "dMMMjmm" else "dMMM")
     }
 }
 
@@ -165,6 +169,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
     var renaming by remember { mutableStateOf<ProjectCard?>(null) }
     var deleting by remember { mutableStateOf<ProjectCard?>(null) }
     var exporting by remember { mutableStateOf<ProjectCard?>(null) }
+    var versionsOf by remember { mutableStateOf<ProjectCard?>(null) }
     // the project and choice waiting for the file picker (kept if the activity is recreated meanwhile)
     var pendingExport by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     val createDoc = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -212,10 +217,37 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
                     MenuRow(stringResource(R.string.projectsscreen_rename)) { menuFor = null; renaming = p }
                     MenuRow(stringResource(R.string.projectsscreen_duplicate)) { menuFor = null; backend.duplicate(p.id) }
                     MenuRow(stringResource(R.string.projectsscreen_export_project)) { menuFor = null; exporting = p }
+                    MenuRow(stringResource(R.string.projectsscreen_versions)) { menuFor = null; versionsOf = p }
                     if (!p.current) MenuRow(stringResource(R.string.projectsscreen_delete), danger = true) { menuFor = null; deleting = p }
                 }
             },
             confirmButton = { TextButton(onClick = { menuFor = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
+            containerColor = K.SurfaceHigh,
+        )
+    }
+    versionsOf?.let { p ->
+        val list by produceState<List<Pair<Long, Int>>?>(null, p.id) { value = withContext(Dispatchers.IO) { backend.versions(p.id) } }
+        AlertDialog(
+            onDismissRequest = { versionsOf = null },
+            title = { Text(stringResource(R.string.projectsscreen_versions_title, p.name)) },
+            text = {
+                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                    val l = list
+                    when {
+                        l == null -> Unit
+                        l.isEmpty() -> Text(stringResource(R.string.projectsscreen_versions_none), color = K.OnSurfaceVar, fontSize = 14.sp)
+                        else -> {
+                            Text(stringResource(R.string.projectsscreen_versions_hint), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(bottom = 6.dp))
+                            for ((stamp, clips) in l) {
+                                ExportChoice(dateLabel(stamp, withTime = true), pluralStringResource(R.plurals.app_n_clips, clips, clips), "version:$stamp") {
+                                    versionsOf = null; haptics.confirm(); backend.restoreVersion(p.id, stamp)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { versionsOf = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
             containerColor = K.SurfaceHigh,
         )
     }

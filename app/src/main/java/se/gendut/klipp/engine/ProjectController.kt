@@ -31,6 +31,11 @@ import kotlin.math.abs
  * Connects the UI to the FilmCraft engine. The engine owns the project; the UI gets snapshots and
  * animates the differences. Video files are read in place via /proc/self/fd – nothing is copied.
  */
+/** At most one earlier version of a project per this long of editing … */
+private const val VERSION_EVERY_MS = 10 * 60_000L
+/** … and this many are kept per project. */
+private const val VERSIONS_KEPT = 20
+
 class ProjectController(
     private val context: Context,
     val state: EditorState,
@@ -679,6 +684,7 @@ class ProjectController(
             withContext(kotlinx.coroutines.Dispatchers.IO) {
                 writeAtomic(mf, side, bak = true)
                 writeThumb(id, snap, links)
+                runCatching { keepVersion(id, pf, mf) }
             }
         } catch (e: java.io.IOException) {
             onMessage(Str.t(R.string.projectcontroller_save_media_failed, e.message.orEmpty()))
@@ -950,6 +956,7 @@ class ProjectController(
         if (id == currentId) { onMessage(Str.t(R.string.projectcontroller_open_another_first)); return@launch }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             for (ext in listOf("fcproj", "media.json", "media.json.bak", "jpg")) java.io.File(projectDir, "$id.$ext").delete()
+            versionDir(id).deleteRecursively()
             // media unpacked from an imported package: removed with it, unless a copy of the project still uses them
             val dir = mediaDirOf(id)
             if (dir.exists()) {
@@ -957,6 +964,62 @@ class ProjectController(
                 val used = projectDir.listFiles { f -> f.name.endsWith(".media.json") }.orEmpty().any { runCatching { it.readText().contains(path) }.getOrDefault(true) }
                 if (!used) dir.deleteRecursively()
             }
+        }
+        projectsRevision++
+    }
+
+    // ------------------------------------------------------------------ earlier versions
+
+    /** A saved earlier version of a project: when, and how many clips it had. */
+    data class ProjectVersion(val stamp: Long, val clips: Int, val duration: Double)
+
+    private fun versionDir(id: String) = File(File(projectDir, "versions"), id)
+
+    /**
+     * A copy of the project as just saved, at most every [VERSION_EVERY_MS] while it is edited; the [VERSIONS_KEPT]
+     * newest are kept. They don't touch the project itself – a damaged save or a regretted change can be gone back from.
+     */
+    private fun keepVersion(id: String, pf: File, mf: File) {
+        val dir = versionDir(id)
+        val now = System.currentTimeMillis()
+        val newest = dir.listFiles { f -> f.name.endsWith(".fcproj") }.orEmpty().maxOfOrNull { it.name.removeSuffix(".fcproj").toLongOrNull() ?: 0L } ?: 0L
+        if (now - newest < VERSION_EVERY_MS || !pf.exists()) return
+        dir.mkdirs()
+        pf.copyTo(File(dir, "$now.fcproj"), overwrite = true)
+        if (mf.exists()) mf.copyTo(File(dir, "$now.media.json"), overwrite = true)
+        val all = dir.listFiles { f -> f.name.endsWith(".fcproj") }.orEmpty().mapNotNull { it.name.removeSuffix(".fcproj").toLongOrNull() }.sortedDescending()
+        for (old in all.drop(VERSIONS_KEPT)) { File(dir, "$old.fcproj").delete(); File(dir, "$old.media.json").delete() }
+    }
+
+    /** The project's earlier versions, newest first. */
+    fun versions(id: String): List<ProjectVersion> =
+        versionDir(id).listFiles { f -> f.name.endsWith(".fcproj") }.orEmpty().mapNotNull { f ->
+            val stamp = f.name.removeSuffix(".fcproj").toLongOrNull() ?: return@mapNotNull null
+            val meta = runCatching { JSONObject(File(f.parentFile, "$stamp.media.json").readText()).optJSONObject("meta") }.getOrNull()
+            ProjectVersion(stamp, meta?.optInt("clips") ?: 0, meta?.optDouble("duration", 0.0) ?: 0.0)
+        }.sortedByDescending { it.stamp }
+
+    /** Earlier version [stamp] of project [id] as a new project beside it (the project itself is left as it is). */
+    fun restoreVersion(id: String, stamp: Long) = scope.launch {
+        val nid = "p" + System.currentTimeMillis()
+        try {
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val dir = versionDir(id)
+                File(dir, "$stamp.fcproj").copyTo(File(projectDir, "$nid.fcproj"))
+                val o = readSide(File(dir, "$stamp.media.json")).first
+                val meta = o.optJSONObject("meta") ?: JSONObject()
+                val time = java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(stamp))
+                o.put("meta", meta.put("name", Str.t(R.string.projectcontroller_version_name, meta.optString("name", Str.t(R.string.projectcontroller_project_fallback_name)), time))
+                    .put("modified", System.currentTimeMillis()))
+                writeAtomic(File(projectDir, "$nid.media.json"), o.toString())
+                thumbFile(id).takeIf { it.exists() }?.let { runCatching { it.copyTo(thumbFile(nid)) } }
+            }
+            onMessage(Str.t(R.string.projectcontroller_version_restored))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            runCatching { File(projectDir, "$nid.fcproj").delete(); File(projectDir, "$nid.media.json").delete() }
+            onMessage(Str.t(R.string.projectcontroller_version_failed, e.message.orEmpty()))
         }
         projectsRevision++
     }
