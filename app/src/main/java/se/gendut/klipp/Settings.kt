@@ -47,6 +47,10 @@ import se.gendut.klipp.engine.ExportSettings
 object AppPrefs {
     private fun p(c: Context) = c.getSharedPreferences("klipp", Context.MODE_PRIVATE)
 
+    /** Tracking point cloud density (see WindowTracker.density). */
+    fun trackDensity(c: Context): Float = p(c).getFloat("trackDensity", 1f)
+    fun setTrackDensity(c: Context, d: Float) { p(c).edit().putFloat("trackDensity", d).apply(); se.gendut.klipp.engine.WindowTracker.density = d }
+
     /** Playhead locked in the center when the app starts. */
     fun centerDefault(c: Context): Boolean = p(c).getBoolean("centerPlayhead", false)
     fun setCenterDefault(c: Context, on: Boolean) { p(c).edit().putBoolean("centerPlayhead", on).apply() }

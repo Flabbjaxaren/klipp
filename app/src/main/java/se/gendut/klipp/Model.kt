@@ -391,6 +391,11 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var props: PropsBackend? by mutableStateOf(null)
     /** The properties panel is open for the selected clip. */
     var inspecting by mutableStateOf(false)
+    /**
+     * Draw a box on the picture (what a title should follow): the box as center and half sides (fractions of the
+     * picture, y down) goes to the callback; null = not drawing.
+     */
+    var boxPick by mutableStateOf<((cx: Float, cy: Float, rx: Float, ry: Float) -> Unit)?>(null)
     /** Live values for the selected clip while a slider/gesture is dragged (previewed in the image). */
     var live by mutableStateOf<ClipProps?>(null)
     var liveToken = 0

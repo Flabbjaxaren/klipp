@@ -33,6 +33,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.produceState
@@ -643,6 +645,7 @@ fun WindowEditor(clip: Long, n: GradeNode, gs: GradeState, onLive: (GradeNode) -
             // tracking: the window follows the object through the clip (from the frame at the playhead, in both directions)
             val busy = TrackService.target == (clip to n.id)
             val progress = TrackService.progress
+            if (!busy) TrackDensityRow()
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (busy) {
                     PillButton(stringResource(R.string.colortools_cancel), { TrackService.cancel() }, Modifier.testTag("win:trackCancel"), icon = Ic.Close, filled = false)
@@ -1065,3 +1068,15 @@ fun StabilizeCard(gs: GradeState, clip: ColorClip) {
     }
 }
 
+
+/** How many points the tracker follows: normal, dense, very dense (saved; used by every tracking in the app). */
+@Composable
+fun TrackDensityRow() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var d by remember { mutableStateOf(se.gendut.klipp.engine.WindowTracker.density) }
+    val ds = se.gendut.klipp.engine.WindowTracker.DENSITIES
+    Text(stringResource(R.string.colortools_track_points), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+    ConnectedToggleGroup(listOf(stringResource(R.string.colortools_points_normal), stringResource(R.string.colortools_points_dense), stringResource(R.string.colortools_points_very_dense)),
+        ds.indexOfFirst { kotlin.math.abs(it - d) < 0.01f }.coerceAtLeast(0), { i -> d = ds[i]; AppPrefs.setTrackDensity(ctx, ds[i]) },
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "trackPts:$it" })
+}

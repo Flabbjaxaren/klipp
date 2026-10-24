@@ -48,6 +48,7 @@
     <string name="properties_mask_height">Height</string>
     <string name="properties_mask_feather">Feather</string>
     <string name="properties_cancel">Cancel</string>
+    <string name="properties_box_pick_hint">Drag a box around what the title should follow</string>
     <string name="properties_track_again">Track Again</string>
     <string name="properties_track_object">Track Object</string>
     <string name="properties_clear_keyframes">Remove Keyframes</string>

@@ -133,6 +133,10 @@
     <string name="colortools_cancel">Avbryt</string>
     <string name="colortools_retrack">Spåra om</string>
     <string name="colortools_track_object">Spåra föremålet</string>
+    <string name="colortools_track_points">Spårpunkter</string>
+    <string name="colortools_points_normal">Normal</string>
+    <string name="colortools_points_dense">Tät</string>
+    <string name="colortools_points_very_dense">Mycket tät</string>
     <string name="colortools_remove_tracking">Ta bort spårning</string>
     <string name="colortools_correct_from_here">Rätta härifrån</string>
     <string name="colortools_continue_from_here">Spåra vidare härifrån</string>

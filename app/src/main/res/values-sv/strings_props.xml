@@ -48,6 +48,7 @@
     <string name="properties_mask_height">Höjd</string>
     <string name="properties_mask_feather">Mjuk kant</string>
     <string name="properties_cancel">Avbryt</string>
+    <string name="properties_box_pick_hint">Dra en ruta runt det titeln ska följa</string>
     <string name="properties_track_again">Spåra om</string>
     <string name="properties_track_object">Spåra föremålet</string>
     <string name="properties_clear_keyframes">Ta bort nyckelbilder</string>

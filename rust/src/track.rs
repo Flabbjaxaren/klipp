@@ -148,6 +148,10 @@ struct RoiPx {
 pub struct Tracker {
     w: usize,
     h: usize,
+    /// Most object points (MAX_PTS × the density, see `set_density`).
+    max_pts: usize,
+    /// The smallest distance between points (px at working resolution).
+    min_dist: f32,
     /// Double-buffered pyramids; `cur` is the most recently loaded.
     frames: [Vec<Level>; 2],
     cur: usize,
@@ -229,6 +233,8 @@ impl Tracker {
         Tracker {
             w,
             h,
+            max_pts: MAX_PTS,
+            min_dist: 5.0,
             frames: [mk(), mk()],
             cur: 0,
             loaded: 0,
@@ -518,6 +524,14 @@ impl Tracker {
     }
 
     /// Starts tracking `roi` (normalized) in the most recently loaded frame.
+    /// A denser point cloud: `d` (1–4) times as many object points, closer together. More points follow small or
+    /// partly covered objects better; each frame takes about `d` times as long. Set before `reset`.
+    pub fn set_density(&mut self, d: f32) {
+        let d = d.clamp(1.0, 4.0);
+        self.max_pts = (MAX_PTS as f32 * d).round() as usize;
+        self.min_dist = (5.0 / d.sqrt()).max(2.5);
+    }
+
     pub fn reset(&mut self, roi: Roi) -> TrackResult {
         self.pts.clear();
         self.bg.clear();
@@ -737,7 +751,7 @@ impl Tracker {
                 inliers = c;
                 let fg = self.isbg.iter().filter(|b| !**b).count();
                 if fg < 30.max(self.init_count / 2) {
-                    let cap = (self.pts.len() + MAX_PTS.saturating_sub(fg)).min(MAX_PTS + BG_MAX);
+                    let cap = (self.pts.len() + self.max_pts.saturating_sub(fg)).min(self.max_pts + BG_MAX);
                     self.detect(DET_K, cap);
                     self.sync_state(false);
                 }
@@ -797,12 +811,12 @@ impl Tracker {
 
     /// Points in the inner part of the window; too few (small or smooth object) → the whole window, then a bit outside.
     fn detect_fallback(&mut self) {
-        self.detect(DET_K, MAX_PTS);
+        self.detect(DET_K, self.max_pts);
         if self.pts.len() < 12 {
-            self.detect(1.0, MAX_PTS);
+            self.detect(1.0, self.max_pts);
         }
         if self.pts.len() < 8 {
-            self.detect(1.2, MAX_PTS);
+            self.detect(1.2, self.max_pts);
         }
     }
 
@@ -939,7 +953,10 @@ impl Tracker {
                 let up = &self.eig[(r - 1) * rw + i - 1..][..3];
                 let mid = &self.eig[r * rw + i - 1..][..3];
                 let dn = &self.eig[(r + 1) * rw + i - 1..][..3];
-                if e < up[0] || e < up[1] || e < up[2] || e < mid[0] || e <= mid[2] || e <= dn[0] || e <= dn[1] || e <= dn[2] {
+                // a denser cloud (object points only) takes every textured pixel, not just the local maxima – the
+                // minimum distance below spreads them out
+                let dense = k_in <= 0.0 && self.max_pts > MAX_PTS;
+                if !dense && (e < up[0] || e < up[1] || e < up[2] || e < mid[0] || e <= mid[2] || e <= dn[0] || e <= dn[1] || e <= dn[2]) {
                     continue;
                 }
                 let ins = self.inside([(x0 + i) as f32, (y0 + r) as f32], k) && !(k_in > 0.0 && self.inside([(x0 + i) as f32, (y0 + r) as f32], k_in));
@@ -951,7 +968,7 @@ impl Tracker {
         self.cand.sort_unstable_by(|a, b| b.0.total_cmp(&a.0).then(a.1.cmp(&b.1)));
         // minimum distance via a grid (cell side md/√2 → at most one point per cell)
         let area = 4.0 * hx * hy;
-        let md = (0.5 * (area / (if k_in > 0.0 { BG_MAX } else { MAX_PTS }) as f32).sqrt()).max(5.0);
+        let md = (0.5 * (area / (if k_in > 0.0 { BG_MAX } else { self.max_pts }) as f32).sqrt()).max(if k_in > 0.0 { 5.0 } else { self.min_dist });
         let cell = md / std::f32::consts::SQRT_2;
         let gw = (w as f32 / cell) as usize + 1;
         let gh = (h as f32 / cell) as usize + 1;
@@ -1574,9 +1591,14 @@ mod tests {
 
     /// Runs a sequence; `occ(t, patch)` gives an optional occluding rectangle. Returns the max center error (working px) and scale error.
     fn run_patch(frames: usize, occ: impl Fn(usize) -> Option<(f32, f32, f32, f32)>, label: &str) -> (f32, f32, f32, f32) {
+        run_patch_dense(frames, occ, label, 1.0)
+    }
+
+    fn run_patch_dense(frames: usize, occ: impl Fn(usize) -> Option<(f32, f32, f32, f32)>, label: &str, density: f32) -> (f32, f32, f32, f32) {
         let bg = Tex::new(1200, 800, 7, 400);
         let fg = Tex::new(256, 256, 1234, 120);
         let mut tr = Tracker::new(WW, WH);
+        tr.set_density(density);
         let p0 = path(0);
         let (mut emax, mut smax, mut rmax, mut qmin) = (0f32, 0f32, 0f32, 1f32);
         let mut ms = 0f64;
@@ -1672,6 +1694,27 @@ mod tests {
         assert!(e < 1.5, "center error {e}");
         assert!(s < 0.03, "scale error {s}");
         assert!(r < 0.03, "rotation error {r}");
+    }
+
+    /// A denser cloud: more points in the same window, and the moving, scaling, turning patch is still followed as well.
+    #[test]
+    fn track_dense_cloud() {
+        let bg = Tex::new(1200, 800, 99, 400);
+        let img = render(&Scene { bg: &bg, fg: None, pan: (0.0, 0.0), occ: None });
+        let roi = Roi { cx: 0.4, cy: 0.5, rx: 0.15, ry: 0.2, shape: 2 };
+        let count = |d: f32| {
+            let mut tr = Tracker::new(WW, WH);
+            tr.set_density(d);
+            tr.load(&img, STRIDE, 1, SW, SH);
+            tr.reset(roi).points
+        };
+        let (n1, n2, n4) = (count(1.0), count(2.0), count(4.0));
+        println!("points: normal {n1}, dense {n2}, very dense {n4}");
+        assert!(n2 as f32 > n1 as f32 * 1.5 && n4 as f32 > n2 as f32 * 1.3, "{n1} {n2} {n4}");
+        for d in [2.0, 4.0] {
+            let (e, s, r, _) = run_patch_dense(72, |_| None, "dense", d);
+            assert!(e < 1.5 && s < 0.03 && r < 0.03, "density {d}: center {e} scale {s} rotation {r}");
+        }
     }
 
     #[test]

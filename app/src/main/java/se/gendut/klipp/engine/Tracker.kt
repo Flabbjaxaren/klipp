@@ -182,9 +182,16 @@ object WindowTracker {
         else -> du to dv
     }
 
+    /**
+     * How dense the point cloud is: 1 = normal (150 points), 2 = dense, 4 = very dense (600) – more points follow small,
+     * low-contrast or partly covered objects better; tracking takes about as many times longer. Saved in the settings.
+     */
+    @Volatile var density = 1f
+    val DENSITIES = floatArrayOf(1f, 2f, 4f)
+
     /** A tracker in Rust (always closed). */
     private class Native(w: Int, h: Int) : AutoCloseable {
-        val h = Engine.nativeTrackNew(w, h).also { if (it == 0L) error("the tracker could not be started") }
+        val h = Engine.nativeTrackNew(w, h).also { if (it == 0L) error("the tracker could not be started"); Engine.nativeTrackDensity(it, density) }
         override fun close() = Engine.nativeTrackFree(h)
     }
 
