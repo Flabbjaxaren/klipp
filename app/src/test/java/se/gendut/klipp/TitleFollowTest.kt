@@ -41,6 +41,15 @@ class TitleFollowTest {
         assertNull(TitleFollow.offsetOf(Follow(7, 9), clip, grade, 10.4, 11.0, 1920, 1080))
     }
 
+    /** The clip under the title split after tracking: the follow names the first piece, later times come from the next. */
+    @Test fun followCarriesOnIntoTheSplitPiece() {
+        val left = clip.copy(duration = 1.0)
+        val right = clip.copy(id = 8, start = 11.0, duration = 3.0, sourceIn = 3.0)
+        val all = listOf(left, right)
+        val o = TitleFollow.offsetOf(Follow(7, 1), left, grade, 10.4, 11.2, 1920, 1080) { t -> TitleFollow.continuation(left, t, all) }!!
+        assertEquals(0.2f, o[0], 1e-5f)
+    }
+
     @Test fun scaleAndTurnSinceTitleStart() {
         // the object grows 1 % and turns 0.002 rad (clockwise) per frame
         val tr = WindowTrack(2.0, 0.04, FloatArray(100), FloatArray(100), FloatArray(100) { 1f + it * 0.01f }, FloatArray(100) { 1f }, smooth = 0f, r = FloatArray(100) { it * 0.002f })

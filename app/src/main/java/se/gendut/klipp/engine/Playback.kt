@@ -442,10 +442,9 @@ object CompositionBuilder {
                 if (!multi) fx.add(0, androidx.media3.effect.Presentation.createForWidthAndHeight(plan.width, plan.height, androidx.media3.effect.Presentation.LAYOUT_SCALE_TO_FIT))
                 // titles and captions as separate overlays (they can show at the same time); captions on top
                 val tb = TimeBase(plan.total).also { times += it }
-                fx += androidx.media3.effect.OverlayEffect(listOf(
-                    TimedOverlay(plan.overlays, false, plan.width, plan.height, tb),
-                    TimedOverlay(plan.overlays, true, plan.width, plan.height, tb),
-                ))
+                // titles that overlap (a dissolve between two) each in their own overlay
+                val titles = overlayLanes(plan.overlays.filter { it.overlay !is Overlay.Caption }).map { TimedOverlay(it, false, plan.width, plan.height, tb) }
+                fx += androidx.media3.effect.OverlayEffect(titles + TimedOverlay(plan.overlays, true, plan.width, plan.height, tb))
             }
             // the export's frame rate and size last (titles and captions are already drawn at the project size)
             if (output != null) {

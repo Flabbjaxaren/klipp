@@ -58,13 +58,14 @@ object CornerPins {
     /**
      * The quad at timeline time [t] (fractions of the [w]×[h] frame): the pin's own without tracking; with tracking each
      * corner moves with its window in the clip's picture, then through the clip's stabilization and its own motion –
-     * as the picture is built. Null = the tracked clip is gone.
+     * as the picture is built. Null = the tracked clip is gone. [clip] = the clip (id) at a timeline time: after a split
+     * the piece that time falls in.
      */
-    fun quadAt(pin: CornerPin, t: Double, w: Int, h: Int, clip: (Long) -> ClipSnap?, grade: (Long) -> ClipGrade?): FloatArray? {
+    fun quadAt(pin: CornerPin, t: Double, w: Int, h: Int, clip: (Long, Double) -> ClipSnap?, grade: (Long) -> ClipGrade?): FloatArray? {
         val tr = pin.track ?: return pin.quad
-        val c = clip(tr.clip) ?: return null
+        val c = clip(tr.clip, t) ?: return null
         val g = grade(tr.clip)
-        val src = c.sourceAt(t); val ref = c.sourceAt(tr.refT)
+        val src = c.sourceAt(t); val ref = (clip(tr.clip, tr.refT) ?: c).sourceAt(tr.refT)
         val st = g?.stab?.transform(src, w.toFloat(), h.toFloat())
         val ct = c.at(t)
         val out = FloatArray(8)
