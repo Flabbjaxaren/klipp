@@ -36,8 +36,8 @@ import java.util.concurrent.TimeUnit
  *     adb forward tcp:8765 localabstract:klipp-mcp
  *     claude mcp add --transport http klipp http://127.0.0.1:8765/mcp
  *
- * It listens on an abstract local socket (never the network) and only answers adb – the shell user, who can do
- * all of this on the phone anyway; other apps on the phone are turned away. Streamable HTTP with plain JSON
+ * Off unless turned on in Settings. It listens on an abstract local socket (never the network) and only answers adb –
+ * the shell user, who can do all of this on the phone anyway; other apps on the phone are turned away. Streamable HTTP with plain JSON
  * answers (no event stream): initialize, tools/list, tools/call.
  */
 object McpBridge {
@@ -48,24 +48,38 @@ object McpBridge {
     @Volatile private var state: EditorState? = null
     @Volatile private var ui: AppUi? = null
     @Volatile private var controller: ProjectController? = null
-    private var started = false
+    @Volatile private var server: LocalServerSocket? = null
+    private val conns = java.util.Collections.synchronizedSet(HashSet<LocalSocket>())
 
     fun attach(state: EditorState, ui: AppUi, controller: ProjectController?) {
         this.state = state; this.ui = ui; this.controller = controller
     }
 
+    /** Listen (the setting "let the computer control Klipp" is on). */
     @Synchronized fun start() {
-        if (started) return
-        started = true
+        if (server != null) return
+        val srv = runCatching { LocalServerSocket(SOCKET) }.getOrElse { CrashReport.note("mcp: no socket: ${it.message}"); return }
+        server = srv
         Thread({
-            val server = runCatching { LocalServerSocket(SOCKET) }.getOrElse { CrashReport.note("mcp: no socket: ${it.message}"); return@Thread }
-            while (true) {
-                val s = runCatching { server.accept() }.getOrNull() ?: continue
+            while (server === srv) {
+                val s = runCatching { srv.accept() }.getOrNull() ?: run { if (server === srv) Thread.sleep(100); null } ?: continue
+                if (server !== srv) { runCatching { s.close() }; break }
                 val uid = runCatching { s.peerCredentials.uid }.getOrDefault(-1)
                 if (uid != SHELL_UID && uid != Process.myUid()) { runCatching { s.close() }; continue }
-                Thread({ serve(s) }, "mcp-conn").apply { isDaemon = true }.start()
+                conns += s
+                Thread({ try { serve(s) } finally { conns -= s } }, "mcp-conn").apply { isDaemon = true }.start()
             }
         }, "mcp").apply { isDaemon = true }.start()
+    }
+
+    /** Stop listening and drop the connections (the setting turned off). */
+    @Synchronized fun stop() {
+        val srv = server ?: return
+        server = null
+        // closing doesn't wake a waiting accept(): connect once so it returns and sees it is stopped
+        runCatching { LocalSocket().use { it.connect(android.net.LocalSocketAddress(SOCKET)) } }
+        runCatching { srv.close() }
+        synchronized(conns) { conns.forEach { runCatching { it.close() } }; conns.clear() }
     }
 
     // ------------------------------------------------------------------ HTTP (just enough of it)

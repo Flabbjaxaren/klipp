@@ -41,6 +41,9 @@
     <string name="settings_group_export">Export</string>
     <string name="settings_export_note">Standard för nya projekt (varje projekt kommer ihåg sina egna val).</string>
     <string name="settings_hdr_at_export">HDR väljs vid exporten (när klippen är filmade i HDR).</string>
+    <string name="settings_group_developer">Utvecklare</string>
+    <string name="settings_agent_bridge">Låt datorn styra Klipp</string>
+    <string name="settings_agent_bridge_hint">via USB- eller trådlös felsökning (adb) – för test med en AI-agent. Stäng av när du inte använder det.</string>
     <string name="settings_group_about">Om Klipp</string>
     <string name="settings_about">Klipp %1$s – fri programvara, GNU GPL v3.\nRedigeringsmotor: FilmCraft · uppspelning och export: Media3 1.11.1\nFilm: spektrafilm © Andrea Volpato m.fl. (GPL-3.0), filmprofiler CC BY-SA 4.0 – github.com/andreavolpato/spektrafilm\nBildomvandling: OpenDRT © Jed Smith (GPL-3.0) · taligenkänning: whisper.cpp (MIT)\nVideokedjan: Media3 effect © The Android Open Source Project (Apache 2.0), ändrad för flyttal i hela kedjan\nLjudeffekter: Kenney (kenney.nl) och BigSoundBank (bigsoundbank.com), CC0 · sökning: Freesound (CC0-ljud)</string>
     <string name="exportui_auto">Auto</string>
