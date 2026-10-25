@@ -205,6 +205,10 @@ class PropertiesUiTest {
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("$dir/24_text.png")
         rule.onNodeWithText("Lägg till vid", substring = true).performScrollTo().performClick()
+        // captions have their own tab
+        rule.onNodeWithTag("textTab:1").performClick()
+        rule.waitForIdle()
+        rule.onRoot().captureRoboImage("$dir/24b_undertexter.png")
         rule.onNodeWithText("Importera SRT / VTT").performScrollTo().performClick()
         rule.onNodeWithText("Första raden").performScrollTo().performClick()
         rule.waitForIdle()

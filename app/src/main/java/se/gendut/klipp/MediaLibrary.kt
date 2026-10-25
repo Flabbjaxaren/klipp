@@ -329,17 +329,15 @@ private fun FolderCard(b: BinSnap, count: Int, picked: Boolean, onClick: () -> U
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     Column(
-        Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+        Modifier.pressPop(src, 0.93f)
             .clip(RoundedCornerShape(18.dp)).background(K.SurfaceHigh)
             .then(if (picked) Modifier.border(3.dp, K.Primary, RoundedCornerShape(18.dp)) else Modifier)
             .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() }, indication = null,
+                interactionSource = src, indication = null,
                 onLongClick = onLongClick,
             ) {
-                scope.launch { press.snapTo(0.93f); press.animateTo(1f, Springs.pop()) }
                 onClick()
             }
             .testTag("media:${m.name}")

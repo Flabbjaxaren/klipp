@@ -43,4 +43,34 @@ class SpeechTextTest {
         val s = SpeechText.srt(listOf(SpeechLine(1.5, 3.25, "Hej"), SpeechLine(3661.0, 3662.0, "Sent")))
         assertTrue(s, s.startsWith("1\n00:00:01,500 --> 00:00:03,250\nHej\n\n2\n01:01:01,000 --> 01:01:02,000\nSent\n"))
     }
+
+    private fun w(s: Double, e: Double, t: String) = SpeechLine(s, e, t)
+
+    /** Captions from the word transcript: a clip's words land where the clip plays them, cut to what it plays. */
+    @Test fun transcriptWordsOnTheTimeline() {
+        val words = listOf(w(8.0, 8.4, "före"), w(9.1, 9.5, "Hej"), w(9.6, 10.0, "där."), w(12.9, 13.3, "efter"))
+        // the clip plays 9..13 s of the file at half speed from 4 s on the timeline (8 s long)
+        val l = SpeechText.onTimeline(words, start = 4.0, sourceIn = 9.0, duration = 8.0, speed = 0.5)
+        assertEquals(listOf("Hej", "där."), l.map { it.text })
+        assertEquals(4.2, l[0].start, 1e-9)
+        assertEquals(6.0, l[1].end, 1e-9)
+        assertTrue(SpeechText.onTimeline(words, 4.0, 9.0, 8.0, 0.5, reverse = true).isEmpty())
+    }
+
+    @Test fun wordsGroupIntoLinesAtSentencesPausesAndLength() {
+        val words = listOf(
+            w(0.0, 0.3, "Hej"), w(0.35, 0.6, "och"), w(0.65, 1.0, "välkommen."),
+            w(1.1, 1.4, "Idag"), w(1.45, 1.7, "ska"), w(1.75, 2.0, "vi"),
+            w(3.0, 3.3, "fiska"), // after a pause of a second
+        )
+        assertEquals(listOf("Hej och välkommen.", "Idag ska vi", "fiska"), SpeechText.group(words).map { it.text })
+        assertEquals(1.1, SpeechText.group(words)[1].start, 1e-9)
+        assertEquals(2.0, SpeechText.group(words)[1].end, 1e-9)
+        // a long run without pauses is split before 42 characters
+        val long = (0 until 20).map { i -> w(i * 0.3, i * 0.3 + 0.25, "ordet$i") }
+        val lines = SpeechText.group(long)
+        assertTrue(lines.size > 1)
+        assertTrue(lines.joinToString { it.text }, lines.all { it.text.length <= 42 })
+        assertEquals(long.joinToString(" ") { it.text }, lines.joinToString(" ") { it.text })
+    }
 }

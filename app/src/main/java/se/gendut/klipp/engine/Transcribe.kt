@@ -333,6 +333,43 @@ object SpeechText {
         }.filter { it.end - it.start >= 0.05 }
     }
 
+    /**
+     * A clip's words (media seconds, from its item's transcript) on the timeline: those whose middle lies in the part of
+     * the source the clip plays, in timeline seconds (cut at the clip's edges). A reversed clip gets none.
+     */
+    fun onTimeline(words: List<SpeechLine>, start: Double, sourceIn: Double, duration: Double, speed: Double, reverse: Boolean = false): List<SpeechLine> {
+        if (reverse) return emptyList()
+        val sp = kotlin.math.abs(speed).coerceAtLeast(1e-3)
+        val srcEnd = sourceIn + duration * sp
+        fun map(m: Double) = (start + (m - sourceIn) / sp).coerceIn(start, start + duration)
+        return words.filter { (it.start + it.end) / 2 in sourceIn..<srcEnd }.map { it.copy(start = map(it.start), end = map(it.end)) }
+    }
+
+    /**
+     * Words (timeline seconds) → caption lines. A new line after a sentence ends, at a pause longer than [maxGap], when
+     * the line would get longer than [maxChars] or last longer than [maxLen] s, and after a comma once it is half full.
+     */
+    fun group(words: List<SpeechLine>, maxChars: Int = 42, maxGap: Double = 0.7, maxLen: Double = 6.0): List<SpeechLine> {
+        val out = ArrayList<SpeechLine>()
+        val cur = ArrayList<SpeechLine>()
+        fun flush() {
+            if (cur.isEmpty()) return
+            out += SpeechLine(cur.first().start, cur.last().end, cur.joinToString(" ") { it.text })
+            cur.clear()
+        }
+        for (w in words.sortedBy { it.start }) {
+            if (cur.isNotEmpty()) {
+                val prev = cur.last().text
+                val len = cur.sumOf { it.text.length + 1 } - 1
+                if (prev.last() in ".?!…" || (prev.last() == ',' && len >= maxChars / 2) || w.start - cur.last().end > maxGap ||
+                    len + 1 + w.text.length > maxChars || w.end - cur.first().start > maxLen) flush()
+            }
+            cur += w
+        }
+        flush()
+        return out
+    }
+
     fun srt(lines: List<SpeechLine>): String = buildString {
         fun tc(t: Double): String {
             val ms = (t.coerceAtLeast(0.0) * 1000).roundToInt()
@@ -388,46 +425,45 @@ object AutoCaptions {
     var modelRevision by mutableStateOf(0)
         private set
 
-    /** The clips on audio track [track] (index into the sequence's audio tracks). The model must be downloaded. */
+    /**
+     * Captions for the clips on audio track [track] (index into the sequence's audio tracks), made from the same word
+     * transcript as text-based editing: files already transcribed are not listened to again (then it takes a moment and
+     * needs no model); the others are transcribed first – and then are ready for text-based editing too.
+     */
     fun start(context: Context, controller: ProjectController, model: SpeechModel, language: String, track: Int) {
         if (running) return
         val q = controller.snapshot.sequence ?: run { message = Str.t(R.string.transcribe_no_sequence); return }
-        val clips = q.audio.getOrNull(track)?.clips.orEmpty().filter { it.duration > 0.2 }.sortedBy { it.start }
+        val clips = q.audio.getOrNull(track)?.clips.orEmpty().filter { it.duration > 0.2 && it.item > 0 }.sortedBy { it.start }
         if (clips.isEmpty()) { message = Str.t(R.string.transcribe_no_audio, track + 1); return }
-        launchJob(context, model, language, words = false) { recognize ->
-            val lines = ArrayList<SpeechLine>()
-            val total = clips.sumOf { it.duration * kotlin.math.abs(it.speed) }.coerceAtLeast(1e-3)
-            var done = 0.0
-            for ((i, c) in clips.withIndex()) {
-                val uri = controller.uriOf(c.item) ?: continue
-                val sp = kotlin.math.abs(c.speed).coerceAtLeast(1e-3)
-                val srcLen = c.duration * sp
-                // long clips in chunks of at most 5 minutes (memory: the audio is held in memory as floats)
-                var a = c.sourceIn
-                val end = c.sourceIn + srcLen
-                while (a < end - 0.2) {
-                    currentCoroutineContext().ensureActive()
-                    val b = minOf(end, a + 300.0)
-                    phase = Str.t(R.string.transcribe_listening, i + 1, clips.size)
-                    val pcm = SpeechAudio.decode(context, uri, a, b)
-                    if (pcm.size > SpeechAudio.RATE / 4) {
-                        val base = done
-                        val part = b - a
-                        val json = recognize(pcm, 42) { pct -> progress = ((base + part * pct / 100.0) / total).toFloat().coerceIn(0f, 1f) }
-                        lines += SpeechText.parse(json, a) { src -> c.start + (src - c.sourceIn) / sp }
-                    }
-                    done += b - a
-                    progress = (done / total).toFloat().coerceIn(0f, 1f)
-                    a = b
-                }
+        message = null
+        // held while reading which files already have a transcript (so a second tap doesn't start a second job)
+        running = true
+        scope.launch {
+            val known = try {
+                clips.map { it.item }.distinct().associateWith { controller.mediaWords(it) }
+            } finally { running = false }
+            val missing = known.filterValues { it.isEmpty() }.keys.toList()
+            if (missing.isEmpty()) {
+                message = runCatching { captionsFrom(context, controller, clips, known, Run()) }
+                    .getOrElse { e -> Str.t(R.string.transcribe_failed, e.message ?: e.javaClass.simpleName) }
+                return@launch
             }
-            val tidy = SpeechText.tidy(lines)
-            if (tidy.isEmpty()) return@launchJob Str.t(R.string.transcribe_no_speech)
-            val f = File(File(context.cacheDir, "captions").apply { mkdirs() }, "auto_${System.currentTimeMillis()}.srt")
-            withContext(Dispatchers.IO) { f.writeText(SpeechText.srt(tidy)) }
-            controller.importCaptionFile(f, Str.t(R.string.transcribe_track_name))
-            Str.p(R.plurals.transcribe_done, tidy.size, tidy.size, seconds())
+            launchJob(context, model, language, words = true) { recognize ->
+                transcribeWords(context, controller, model, language, missing, recognize)
+                captionsFrom(context, controller, clips, known + missing.associateWith { controller.mediaWords(it) }, this)
+            }
         }
+    }
+
+    /** The clips' words on the timeline, grouped into lines, imported as the auto captions track (replacing the last one). */
+    private suspend fun captionsFrom(context: Context, controller: ProjectController, clips: List<ClipSnap>, words: Map<Long, List<SpeechLine>>, run: Run): String {
+        val onTimeline = clips.flatMap { c -> SpeechText.onTimeline(words[c.item].orEmpty(), c.start, c.sourceIn, c.duration, c.speed, c.reverse) }
+        val lines = SpeechText.tidy(SpeechText.group(onTimeline))
+        if (lines.isEmpty()) return Str.t(R.string.transcribe_no_speech)
+        val f = File(File(context.cacheDir, "captions").apply { mkdirs() }, "auto_${System.currentTimeMillis()}.srt")
+        withContext(Dispatchers.IO) { f.writeText(SpeechText.srt(lines)) }
+        controller.importCaptionFile(f, Str.t(R.string.transcribe_track_name))
+        return Str.p(R.plurals.transcribe_done, lines.size, lines.size, run.seconds())
     }
 
     /**
@@ -450,38 +486,45 @@ object AutoCaptions {
         if (running || items.isEmpty()) return
         item = items.singleOrNull()
         launchJob(context, model, language, words = true) { recognize ->
-            val durations = items.associateWith { id -> controller.snapshot.media.firstOrNull { it.id == id }?.duration ?: 0.0 }
-            val total = durations.values.sum().coerceAtLeast(1e-3)
-            var done = 0.0
-            var count = 0
-            for ((i, item) in items.withIndex()) {
-                val uri = controller.uriOf(item) ?: continue
-                val len = durations[item] ?: 0.0
-                val words = ArrayList<SpeechLine>()
-                var a = 0.0
-                while (a < len - 0.2) {
-                    currentCoroutineContext().ensureActive()
-                    val b = minOf(len, a + 300.0)
-                    phase = Str.t(R.string.transcribe_listening, i + 1, items.size)
-                    val pcm = SpeechAudio.decode(context, uri, a, b)
-                    if (pcm.size > SpeechAudio.RATE / 4) {
-                        val base = done
-                        val part = b - a
-                        // one word per segment (max_len 1 with word splitting), with token timestamps
-                        val json = recognize(pcm, 1) { pct -> progress = ((base + part * pct / 100.0) / total).toFloat().coerceIn(0f, 1f) }
-                        words += SpeechText.words(json, a)
-                    }
-                    done += b - a
-                    progress = (done / total).toFloat().coerceIn(0f, 1f)
-                    a = b
-                }
-                // no speech found: an earlier transcript of the item (another language, model) must not stay behind
-                if (words.isNotEmpty()) controller.setTranscript(item, SpeechChoice.whisperLanguage(model, language).takeIf { it != "auto" } ?: "", words)
-                else controller.deleteTranscript(item)
-                count += words.size
-            }
+            val count = transcribeWords(context, controller, model, language, items, recognize)
             if (count == 0) Str.t(R.string.transcribe_no_speech) else Str.p(R.plurals.transcribe_words_done, count, count, seconds())
         }
+    }
+
+    /** Word transcripts of [items], each stored in the project (no speech: an earlier one is removed). Returns the word count. */
+    private suspend fun transcribeWords(context: Context, controller: ProjectController, model: SpeechModel, language: String, items: List<Long>,
+                                        recognize: suspend (FloatArray, Int, (Int) -> Unit) -> String): Int {
+        val durations = items.associateWith { id -> controller.snapshot.media.firstOrNull { it.id == id }?.duration ?: 0.0 }
+        val total = durations.values.sum().coerceAtLeast(1e-3)
+        var done = 0.0
+        var count = 0
+        for ((i, item) in items.withIndex()) {
+            val uri = controller.uriOf(item) ?: continue
+            val len = durations[item] ?: 0.0
+            val words = ArrayList<SpeechLine>()
+            var a = 0.0
+            while (a < len - 0.2) {
+                currentCoroutineContext().ensureActive()
+                val b = minOf(len, a + 300.0)
+                phase = Str.t(R.string.transcribe_listening, i + 1, items.size)
+                val pcm = SpeechAudio.decode(context, uri, a, b)
+                if (pcm.size > SpeechAudio.RATE / 4) {
+                    val base = done
+                    val part = b - a
+                    // one word per segment (max_len 1 with word splitting), with token timestamps
+                    val json = recognize(pcm, 1) { pct -> progress = ((base + part * pct / 100.0) / total).toFloat().coerceIn(0f, 1f) }
+                    words += SpeechText.words(json, a)
+                }
+                done += b - a
+                progress = (done / total).toFloat().coerceIn(0f, 1f)
+                a = b
+            }
+            // no speech found: an earlier transcript of the item (another language, model) must not stay behind
+            if (words.isNotEmpty()) controller.setTranscript(item, SpeechChoice.whisperLanguage(model, language).takeIf { it != "auto" } ?: "", words)
+            else controller.deleteTranscript(item)
+            count += words.size
+        }
+        return count
     }
 
     /** The job's start time (for "… in 12 s"). */

@@ -320,13 +320,11 @@ private fun MenuRow(label: String, danger: Boolean = false, onClick: () -> Unit)
 
 @Composable
 private fun NewProjectCard(onClick: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp).graphicsLayer { scaleX = press.value; scaleY = press.value }
+        Modifier.fillMaxWidth().padding(vertical = 6.dp).pressPop(src, 0.95f)
             .clip(RoundedCornerShape(28.dp)).background(K.Primary)
-            .combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.95f); press.animateTo(1f, Springs.pop()) }
+            .combinedClickable(interactionSource = src, indication = null) {
                 onClick()
             }
             .padding(20.dp)

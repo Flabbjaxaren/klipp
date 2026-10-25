@@ -71,6 +71,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.horizontalDrag
+import androidx.compose.ui.input.pointer.PointerInputChange
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
@@ -90,6 +93,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.sign
 import kotlin.math.roundToInt
 
 var DEBUG_GESTURES = false
@@ -884,14 +888,12 @@ private fun TopBar(state: EditorState, toaster: Toaster, export: () -> Unit, tit
 
 @Composable
 fun RoundIcon(icon: ImageVector, desc: String, enabled: Boolean = true, tint: Color = K.OnSurface, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     val alpha by animateFloatAsState(if (enabled) 1f else 0.35f, label = "a")
     Box(
-        modifier.size(48.dp).graphicsLayer { scaleX = press.value; scaleY = press.value; this.alpha = alpha }
+        modifier.size(48.dp).pressPop(src, 0.8f).graphicsLayer { this.alpha = alpha }
             .clip(RoundedCornerShape(24.dp))
-            .clickable(enabled = enabled, interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.8f); press.animateTo(1f, Springs.pop()) }
+            .clickable(enabled = enabled, interactionSource = src, indication = null) {
                 onClick()
             },
         contentAlignment = Alignment.Center
@@ -900,13 +902,11 @@ fun RoundIcon(icon: ImageVector, desc: String, enabled: Boolean = true, tint: Co
 
 @Composable
 private fun PillButton(label: String, onClick: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     Box(
-        Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+        Modifier.pressPop(src, 0.88f)
             .height(40.dp).clip(RoundedCornerShape(20.dp)).background(K.Primary)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.88f); press.animateTo(1f, Springs.pop()) }
+            .clickable(interactionSource = src, indication = null) {
                 onClick()
             }
             .padding(horizontal = 16.dp),
@@ -917,8 +917,7 @@ private fun PillButton(label: String, onClick: () -> Unit) {
 @Composable
 private fun Transport(state: EditorState) {
     val haptics = rememberHaptics()
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     val playW by animateDpAsState(if (state.playing) 80.dp else 64.dp, spring(0.45f, 500f), label = "pw")
     val playR by animateDpAsState(if (state.playing) 24.dp else 16.dp, spring(0.45f, 500f), label = "pr")
     val playBg = K.Primary
@@ -941,11 +940,10 @@ private fun Transport(state: EditorState) {
         }
         RoundIcon(Ic.Prev, stringResource(R.string.app_prev_frame)) { state.playing = false; state.playhead = snapFrame((state.playhead - FRAME).coerceAtLeast(0f)); haptics.tick() }
         Box(
-            Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+            Modifier.pressPop(src, 0.86f)
                 .size(playW, 48.dp).clip(RoundedCornerShape(playR)).background(playBg)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                .clickable(interactionSource = src, indication = null) {
                     haptics.confirm()
-                    scope.launch { press.snapTo(0.86f); press.animateTo(1f, Springs.pop()) }
                     if (!state.playing && state.playhead >= state.projectEnd - 0.05f) state.playhead = 0f
                     state.playing = !state.playing
                 },
@@ -1483,15 +1481,13 @@ private fun LabelPicker(current: ClipLabel?, onBack: () -> Unit, onPick: (ClipLa
 
 @Composable
 private fun ContextAction(icon: ImageVector, label: String, selected: Boolean = false, tag: String? = null, onClick: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     Column(
-        Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+        Modifier.pressPop(src, 0.85f)
             .clip(RoundedCornerShape(18.dp))
             .then(if (selected) Modifier.background(K.Primary) else Modifier)
             .then(if (tag != null) Modifier.testTag(tag) else Modifier)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.85f); press.animateTo(1f, Springs.pop()) }
+            .clickable(interactionSource = src, indication = null) {
                 onClick()
             }
             .padding(horizontal = 8.dp, vertical = 6.dp),
@@ -1512,15 +1508,13 @@ private fun ToolButton(label: String, icon: ImageVector, selected: Boolean, firs
     val r by animateDpAsState(if (selected || last) outer else inner, spec, label = "r")
     val bg by animateColorAsState(if (selected) K.Primary else K.SurfaceHigh, label = "bg")
     val fg by animateColorAsState(if (selected) K.OnPrimary else K.OnSurface, label = "fg")
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     Column(
-        Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+        Modifier.pressPop(src, 0.9f)
             .height(48.dp)
             .clip(RoundedCornerShape(topStart = l, bottomStart = l, topEnd = r, bottomEnd = r))
             .background(bg)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.9f); press.animateTo(1f, Springs.pop()) }
+            .clickable(interactionSource = src, indication = null) {
                 onClick()
             }
             .padding(horizontal = if (compact) 6.dp else 9.dp),
@@ -1584,6 +1578,40 @@ private fun FloatingModes(pageOf: () -> Float, modifier: Modifier, onPick: (Int)
         modifier.height(64.dp).shadow(10.dp, RoundedCornerShape(32.dp)).clip(RoundedCornerShape(32.dp)).background(K.SurfaceHighest).padding(6.dp)
     ) {
         val itemW = maxWidth / MODES.size
+        val itemPx = with(LocalDensity.current) { itemW.toPx() }
+        // Sideways along the row the mode steps: one on each time the finger passes into the next mode's place (not
+        // following it smoothly). A quick flick that never got that far still steps one. Taps pick a mode as before.
+        val dragging = Modifier.pointerInput(itemPx) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                // tracked from the touch down, so a short flick (mostly within the slop) still has its speed
+                val vt = VelocityTracker().apply { addPosition(down.uptimeMillis, down.position) }
+                val from = pageOf().roundToInt()
+                var at = from
+                var p = from.toFloat()
+                fun follow(c: PointerInputChange, dx: Float) {
+                    c.consume()
+                    p += dx / itemPx
+                    val step = p.roundToInt().coerceIn(0, MODES.lastIndex)
+                    if (step != at) { at = step; onPick(step) }
+                }
+                // past the slop sideways it is a drag (a tap is left to the mode's own click); every move counts for the speed
+                var dx = 0f
+                var dy = 0f
+                while (true) {
+                    val c = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+                    if (!c.pressed || c.isConsumed) return@awaitEachGesture
+                    vt.addPosition(c.uptimeMillis, c.position)
+                    dx += c.positionChange().x
+                    dy += c.positionChange().y
+                    if (abs(dy) > viewConfiguration.touchSlop && abs(dy) > abs(dx)) return@awaitEachGesture
+                    if (abs(dx) > viewConfiguration.touchSlop) { follow(c, dx - sign(dx) * viewConfiguration.touchSlop); break }
+                }
+                if (!horizontalDrag(down.id) { vt.addPosition(it.uptimeMillis, it.position); follow(it, it.positionChange().x) }) return@awaitEachGesture
+                val v = vt.calculateVelocity().x / itemPx
+                if (at == from && abs(v) > 1.5f) onPick(from + sign(v).toInt())
+            }
+        }
         val p = page.coerceIn(0f, MODES.lastIndex.toFloat())
         // The indicator stretches between modes and contracts when it lands
         val frac = abs(page - page.roundToInt())
@@ -1595,7 +1623,7 @@ private fun FloatingModes(pageOf: () -> Float, modifier: Modifier, onPick: (Int)
                 .graphicsLayer { scaleX = stretch; scaleY = 1f - frac * 0.12f }
                 .clip(RoundedCornerShape(26.dp)).background(K.Primary)
         )
-        Row(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxSize().then(dragging).testTag("modes")) {
             MODES.forEachIndexed { i, nameId ->
                 val name = stringResource(nameId)
                 val active = abs(p - i) < 0.5f
@@ -1617,13 +1645,12 @@ private fun FloatingModes(pageOf: () -> Float, modifier: Modifier, onPick: (Int)
 @Composable
 private fun AddFab(onClick: () -> Unit) {
     val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     val rot = remember { Animatable(0f) }
     Box(
-        Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+        Modifier.pressPop(src, 0.82f)
             .size(60.dp).shadow(10.dp, RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp)).background(K.Primary)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.82f); press.animateTo(1f, Springs.pop()) }
+            .clickable(interactionSource = src, indication = null) {
                 scope.launch { rot.animateTo(rot.value + 90f, Springs.pop()) }
                 onClick()
             },

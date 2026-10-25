@@ -771,8 +771,7 @@ private fun GradeNode.toolIcons() = buildList {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NodeCard(n: GradeNode, upTo: ClipGrade, base: Bitmap?, selected: Boolean, onClick: () -> Unit, onLong: () -> Unit, cacheText: String? = null) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     // selected: rounder, filled with the primary container color and a ring – shape and color show the selection
     val r by animateDpAsState(if (selected) 24.dp else 16.dp, spring(0.55f, 600f), label = "nr")
     val bg by animateColorAsState(if (selected) K.PrimaryContainer else K.SurfaceHigh, label = "nb")
@@ -785,10 +784,9 @@ private fun NodeCard(n: GradeNode, upTo: ClipGrade, base: Bitmap?, selected: Boo
         value = withContext(Dispatchers.Default) { upTo.applyTo(b).asImageBitmap() }
     }
     Column(
-        Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value; alpha = if (n.enabled) 1f else 0.45f }
+        Modifier.pressPop(src, 0.9f).graphicsLayer { alpha = if (n.enabled) 1f else 0.45f }
             .width(128.dp).clip(RoundedCornerShape(r)).background(bg).border(2.dp, ring, RoundedCornerShape(r))
-            .combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onLongClick = onLong) {
-                scope.launch { press.snapTo(0.9f); press.animateTo(1f, Springs.pop()) }
+            .combinedClickable(interactionSource = src, indication = null, onLongClick = onLong) {
                 onClick()
             }
             .padding(6.dp)

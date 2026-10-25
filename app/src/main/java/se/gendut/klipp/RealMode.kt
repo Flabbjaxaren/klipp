@@ -320,13 +320,11 @@ fun ProgramMonitor(
 
 @Composable
 fun BigButton(label: String, onClick: () -> Unit, color: Color = K.Primary, textColor: Color = K.OnPrimary, modifier: Modifier = Modifier) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     Box(
-        modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+        modifier.pressPop(src, 0.9f)
             .height(52.dp).clip(RoundedCornerShape(26.dp)).background(color)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.9f); press.animateTo(1f, Springs.pop()) }
+            .clickable(interactionSource = src, indication = null) {
                 onClick()
             }
             .padding(horizontal = 24.dp),
@@ -612,13 +610,11 @@ fun SourcePanel(
 
 @Composable
 private fun EditButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, bg: Color, fg: Color, shape: RoundedCornerShape, modifier: Modifier, onClick: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     Row(
-        modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+        modifier.pressPop(src, 0.92f)
             .height(48.dp).clip(shape).background(bg)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.92f); press.animateTo(1f, Springs.pop()) }
+            .clickable(interactionSource = src, indication = null) {
                 onClick()
             },
         horizontalArrangement = Arrangement.Center,

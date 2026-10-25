@@ -1,14 +1,22 @@
 package se.gendut.klipp
 
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import kotlinx.coroutines.launch
 
 /** The accent color (buttons, selection, playhead). The tones are Material 3's dark roles for the color. */
 enum class Accent(@StringRes private val labelId: Int, val primary: Long, val onPrimary: Long, val container: Long, val soft: Long, val tonal: Long) {
@@ -86,6 +94,37 @@ object Springs {
     fun track() = spring<Float>(dampingRatio = 0.5f, stiffness = 500f)
     fun page() = spring<Float>(dampingRatio = 0.72f, stiffness = 300f)
     fun pop() = spring<Float>(dampingRatio = 0.35f, stiffness = 380f)
+}
+
+/**
+ * A button shrinks to [to] as the finger lands and springs back when it lifts – the press shows at once, not only
+ * after release (feedback later than ~80 ms no longer reads as caused by the touch). A tap too quick for the shrink
+ * to show (or a press reported late, inside a scrolling row) still gets the whole pop; a press turned into a scroll
+ * just settles back.
+ */
+@Composable
+fun Modifier.pressPop(src: MutableInteractionSource, to: Float): Modifier {
+    val s = rememberPressScale(src, to)
+    return graphicsLayer { scaleX = s.value; scaleY = s.value }
+}
+
+/** The scale behind [pressPop]. */
+@Composable
+fun rememberPressScale(src: MutableInteractionSource, to: Float): Animatable<Float, *> {
+    val s = remember { Animatable(1f) }
+    LaunchedEffect(src) {
+        src.interactions.collect { i ->
+            when (i) {
+                is PressInteraction.Press -> launch { s.animateTo(to, spring(1f, 1400f)) }
+                is PressInteraction.Release -> launch {
+                    if (s.value > 1f - (1f - to) / 2) s.snapTo(to)
+                    s.animateTo(1f, Springs.pop())
+                }
+                is PressInteraction.Cancel -> launch { s.animateTo(1f, Springs.follow()) }
+            }
+        }
+    }
+    return s
 }
 
 @Composable
