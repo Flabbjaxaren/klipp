@@ -38,6 +38,9 @@ object CrashReport {
      * A trail of what happened (last 40 events), written straight to file – so a report about a crash
      * without a stack trace (Android saves nothing for ordinary crashes) still shows what the app was doing.
      */
+    /** The trail so far (the agent bridge's log). */
+    fun trail(): List<String> = synchronized(trail) { trail.toList() }
+
     fun note(msg: String) {
         val c = app ?: return
         val line = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.ROOT).format(java.util.Date()) + "  " + msg

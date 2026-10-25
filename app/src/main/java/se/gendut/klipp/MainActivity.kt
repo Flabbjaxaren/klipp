@@ -16,6 +16,11 @@ class MainActivity : ComponentActivity() {
     /** So we can save right away when the app goes to the background (the controller is created in setContent). */
     private var controller: ProjectController? = null
 
+    override fun onDestroy() {
+        if (McpBridge.activity === this) McpBridge.activity = null
+        super.onDestroy()
+    }
+
     override fun onStop() {
         super.onStop()
         // save changes now – the process may be killed in the background before a delayed save has run
@@ -44,6 +49,8 @@ class MainActivity : ComponentActivity() {
         // the phone's encoders (export options) are read in the background – the export dialog then opens instantly
         Thread({ runCatching { se.gendut.klipp.engine.EncoderCaps.codecs; se.gendut.klipp.engine.EncoderCaps.hdrSupported } }, "encoders").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
         val crash = CrashReport.takePending(applicationContext)
+        McpBridge.activity = this
+        McpBridge.start()
         enableEdgeToEdge()
         setContent {
             KlippTheme {
@@ -62,15 +69,17 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(controller) {
                     if (controller == null) toaster.show(Str.t(R.string.mainactivity_engine_failed))
                 }
+                val ui = remember { AppUi() }
                 DisposableEffect(controller) {
                     this@MainActivity.controller = controller
+                    McpBridge.attach(state, ui, controller)
                     onDispose {
                         if (this@MainActivity.controller === controller) this@MainActivity.controller = null
                         controller?.close()
                     }
                 }
-                if (controller != null) KlippApp(state, controller = controller, toaster = toaster)
-                else KlippApp(toaster = toaster)
+                if (controller != null) KlippApp(state, ui, controller = controller, toaster = toaster)
+                else KlippApp(ui = ui, toaster = toaster)
                 var report by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(crash) }
                 report?.let { r ->
                     CrashDialog(r, onCopy = {

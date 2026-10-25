@@ -547,6 +547,14 @@ class ProjectController(
 
     // ------------------------------------------------------------------ snapshot → UI
 
+    /** An engine command from the agent bridge (McpBridge): run like any edit, then the timeline follows and is saved. */
+    suspend fun execExternal(id: String, params: JSONObject): JSONObject {
+        val r = editLock.withLock { engine.exec(id, params) }
+        refresh()
+        scheduleSave()
+        return r
+    }
+
     /**
      * Reread the engine's state into the timeline. The same state as before (no change, or an edit that didn't go
      * through) does nothing – no playback rebuild, no save. [force]: do it anyway (e.g. new file lengths).
