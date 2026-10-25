@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
         Thread({ runCatching { se.gendut.klipp.engine.EncoderCaps.codecs; se.gendut.klipp.engine.EncoderCaps.hdrSupported } }, "encoders").apply { isDaemon = true; priority = Thread.MIN_PRIORITY }.start()
         val crash = CrashReport.takePending(applicationContext)
         McpBridge.activity = this
-        McpBridge.start()
+        if (AppPrefs.agentBridge(applicationContext)) McpBridge.start()
         enableEdgeToEdge()
         setContent {
             KlippTheme {

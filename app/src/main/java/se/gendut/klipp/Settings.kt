@@ -60,6 +60,10 @@ object AppPrefs {
     fun setMagnetDefault(c: Context, on: Boolean) { p(c).edit().putBoolean("magnet", on).apply() }
 
     /** Vibration on taps. */
+    /** The agent bridge (McpBridge): off unless turned on. */
+    fun agentBridge(c: Context): Boolean = p(c).getBoolean("agentBridge", false)
+    fun setAgentBridge(c: Context, on: Boolean) { p(c).edit().putBoolean("agentBridge", on).apply(); if (on) McpBridge.start() else McpBridge.stop() }
+
     fun haptics(c: Context): Boolean = p(c).getBoolean("haptics", true)
     fun setHaptics(c: Context, on: Boolean) { p(c).edit().putBoolean("haptics", on).apply(); Haptics.enabled = on }
 
@@ -207,6 +211,12 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             var exp by remember { mutableStateOf(ExportSettings.load(ctx, null)) }
             ExportOptions(exp.copy(hdr = false), 1920, 1080, 60.0, hdrPossible = false,
                 hdrBlocked = stringResource(R.string.settings_hdr_at_export)) { exp = it; ExportSettings.save(ctx, null, it) }
+
+            Group(stringResource(R.string.settings_group_developer))
+            var bridge by remember { mutableStateOf(AppPrefs.agentBridge(ctx)) }
+            SwitchRow(stringResource(R.string.settings_agent_bridge), stringResource(R.string.settings_agent_bridge_hint), bridge, "set:agentBridge") {
+                bridge = it; AppPrefs.setAgentBridge(ctx, it); haptics.confirm()
+            }
 
             Group(stringResource(R.string.settings_group_about))
             Text(
