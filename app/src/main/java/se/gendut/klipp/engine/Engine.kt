@@ -80,6 +80,9 @@ class Engine {
         Snapshot.parse(o)
     }
 
+    /** The engine's state as it gives it (JSON text) – for the agent bridge, which shows it unparsed. */
+    suspend fun snapshotJson(): String = withContext(dispatcher) { nativeSnapshot(live()) }
+
     /** Frees the engine on its own thread (after calls already running), then the thread. */
     fun close() {
         if (closed) return
