@@ -1382,73 +1382,76 @@ private fun TransitionBar(state: EditorState, modifier: Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Ic.Fade, null, tint = K.PrimarySoft, modifier = Modifier.padding(horizontal = 8.dp).size(20.dp))
-            // the type (engine effect): a menu; fades in/out to black or white, between two clips all types
-            val type = se.gendut.klipp.engine.TransitionType.of(tr?.effect ?: "cross_dissolve")
-            val choices = if (tr?.anchor == 0) se.gendut.klipp.engine.TransitionType.entries.toList() else se.gendut.klipp.engine.TransitionType.FADES
-            var open by remember { mutableStateOf(false) }
-            Box {
-                Box(
-                    Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(10.dp)).background(K.Tonal)
-                        .clickable { haptics.tick(); open = true }.padding(horizontal = 10.dp).testTag("transition:type"),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        when (tr?.anchor) {
-                            -1 -> stringResource(if (type == se.gendut.klipp.engine.TransitionType.DIP_WHITE) R.string.app_fade_in_from_white else R.string.app_fade_in)
-                            1 -> stringResource(if (type == se.gendut.klipp.engine.TransitionType.DIP_WHITE) R.string.app_fade_out_to_white else R.string.app_fade_out)
-                            else -> type.label
-                        },
-                        color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    )
-                }
-                androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(20.dp), containerColor = K.SurfaceHighest) {
-                    for (ty in choices) {
-                        val label = when {
-                            tr?.anchor == 0 -> ty.label
-                            ty == se.gendut.klipp.engine.TransitionType.DIP_WHITE -> stringResource(R.string.app_to_white)
-                            else -> stringResource(R.string.app_to_black)
-                        }
-                        androidx.compose.material3.DropdownMenuItem(
-                            text = { Text(label, color = if (ty == type) K.Primary else K.OnSurface, fontWeight = FontWeight.Medium) },
-                            onClick = {
-                                open = false
-                                val id = state.selectedTransition ?: return@DropdownMenuItem
-                                haptics.confirm(); state.props?.setTransitionType(id, ty.effect, tr?.reverse ?: false)
+            // the choices scroll when they don't fit (a phone's width); Remove stays in view at the end
+            Row(Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                // the type (engine effect): a menu; fades in/out to black or white, between two clips all types
+                val type = se.gendut.klipp.engine.TransitionType.of(tr?.effect ?: "cross_dissolve")
+                val choices = if (tr?.anchor == 0) se.gendut.klipp.engine.TransitionType.entries.toList() else se.gendut.klipp.engine.TransitionType.FADES
+                var open by remember { mutableStateOf(false) }
+                Box {
+                    Box(
+                        Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(10.dp)).background(K.Tonal)
+                            .clickable { haptics.tick(); open = true }.padding(horizontal = 10.dp).testTag("transition:type"),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            when (tr?.anchor) {
+                                -1 -> stringResource(if (type == se.gendut.klipp.engine.TransitionType.DIP_WHITE) R.string.app_fade_in_from_white else R.string.app_fade_in)
+                                1 -> stringResource(if (type == se.gendut.klipp.engine.TransitionType.DIP_WHITE) R.string.app_fade_out_to_white else R.string.app_fade_out)
+                                else -> type.label
                             },
-                            modifier = Modifier.testTag("transition:${ty.effect}"),
+                            color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                         )
+                    }
+                    androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(20.dp), containerColor = K.SurfaceHighest) {
+                        for (ty in choices) {
+                            val label = when {
+                                tr?.anchor == 0 -> ty.label
+                                ty == se.gendut.klipp.engine.TransitionType.DIP_WHITE -> stringResource(R.string.app_to_white)
+                                else -> stringResource(R.string.app_to_black)
+                            }
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(label, color = if (ty == type) K.Primary else K.OnSurface, fontWeight = FontWeight.Medium) },
+                                onClick = {
+                                    open = false
+                                    val id = state.selectedTransition ?: return@DropdownMenuItem
+                                    haptics.confirm(); state.props?.setTransitionType(id, ty.effect, tr?.reverse ?: false)
+                                },
+                                modifier = Modifier.testTag("transition:${ty.effect}"),
+                            )
+                        }
+                    }
+                }
+                if (type.directional && tr?.anchor == 0) {
+                    RoundIcon(Ic.Reverse, stringResource(R.string.app_reverse_direction)) {
+                        val id = state.selectedTransition ?: return@RoundIcon
+                        haptics.tick(); state.props?.setTransitionType(id, type.effect, !(tr.reverse))
+                    }
+                }
+                for (sec in listOf(0.5f, 1f, 2f)) {
+                    val on = abs(cur - sec) < 0.03f
+                    Box(
+                        Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(if (on) 20.dp else 10.dp))
+                            .background(if (on) K.Primary else K.SurfaceHigh)
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+                                val id = state.selectedTransition ?: return@clickable
+                                haptics.confirm(); state.props?.resizeTransition(id, sec)
+                            }
+                            .padding(horizontal = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) { Text(if (sec < 1f) stringResource(R.string.app_half_second) else stringResource(R.string.app_seconds, sec.toInt()), color = if (on) K.OnPrimary else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                }
+                // pre-render: the transition plays from a finished file (smooth, no lag); re-rendered in the background after each change
+                val from = tr?.from; val to = tr?.to
+                if (from != null && to != null && tr.anchor == 0) {
+                    val pinned = se.gendut.klipp.engine.RenderCache.isPinned(from, to)
+                    val ready = pinned && se.gendut.klipp.engine.RenderCache.states.filter { it.a < tr.end - 1e-3 && it.b > tr.start + 1e-3 }.let { l -> l.isNotEmpty() && l.all { it.ready } }
+                    ContextAction(Ic.Bolt, when { !pinned -> stringResource(R.string.app_prerender); ready -> stringResource(R.string.app_rendered); else -> stringResource(R.string.app_rendering) }, selected = pinned, tag = "transition:render") {
+                        haptics.confirm(); se.gendut.klipp.engine.RenderCache.setPinned(from, to, !pinned); state.props?.requestSave()
                     }
                 }
             }
-            if (type.directional && tr?.anchor == 0) {
-                RoundIcon(Ic.Reverse, stringResource(R.string.app_reverse_direction)) {
-                    val id = state.selectedTransition ?: return@RoundIcon
-                    haptics.tick(); state.props?.setTransitionType(id, type.effect, !(tr.reverse))
-                }
-            }
-            for (sec in listOf(0.5f, 1f, 2f)) {
-                val on = abs(cur - sec) < 0.03f
-                Box(
-                    Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(if (on) 20.dp else 10.dp))
-                        .background(if (on) K.Primary else K.SurfaceHigh)
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                            val id = state.selectedTransition ?: return@clickable
-                            haptics.confirm(); state.props?.resizeTransition(id, sec)
-                        }
-                        .padding(horizontal = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) { Text(if (sec < 1f) stringResource(R.string.app_half_second) else stringResource(R.string.app_seconds, sec.toInt()), color = if (on) K.OnPrimary else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-            }
-            // pre-render: the transition plays from a finished file (smooth, no lag); re-rendered in the background after each change
-            val from = tr?.from; val to = tr?.to
-            if (from != null && to != null && tr.anchor == 0) {
-                val pinned = se.gendut.klipp.engine.RenderCache.isPinned(from, to)
-                val ready = pinned && se.gendut.klipp.engine.RenderCache.states.filter { it.a < tr.end - 1e-3 && it.b > tr.start + 1e-3 }.let { l -> l.isNotEmpty() && l.all { it.ready } }
-                ContextAction(Ic.Bolt, when { !pinned -> stringResource(R.string.app_prerender); ready -> stringResource(R.string.app_rendered); else -> stringResource(R.string.app_rendering) }, selected = pinned, tag = "transition:render") {
-                    haptics.confirm(); se.gendut.klipp.engine.RenderCache.setPinned(from, to, !pinned); state.props?.requestSave()
-                }
-            }
-            ContextAction(Ic.Delete, stringResource(R.string.app_remove)) {
+            ContextAction(Ic.Delete, stringResource(R.string.app_remove), tag = "transition:remove") {
                 val id = state.selectedTransition ?: return@ContextAction
                 haptics.heavy(); state.selectedTransition = null; state.props?.removeTransition(id)
             }

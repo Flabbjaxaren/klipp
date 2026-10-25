@@ -16,6 +16,7 @@ import se.gendut.klipp.engine.CornerPin
 import se.gendut.klipp.engine.CornerPins
 import se.gendut.klipp.engine.PinTrack
 import se.gendut.klipp.engine.TitleBounds
+import se.gendut.klipp.engine.TitleFollow
 import se.gendut.klipp.engine.Window
 import se.gendut.klipp.engine.WindowTrack
 
@@ -32,7 +33,7 @@ class CornerPinTest {
     private fun track(dx: (Int) -> Float, s: (Int) -> Float = { 1f }, r: (Int) -> Float = { 0f }) =
         WindowTrack(2.0, 0.04, FloatArray(100) { dx(it) }, FloatArray(100), FloatArray(100) { s(it) }, FloatArray(100) { 1f }, smooth = 0f, r = FloatArray(100) { r(it) })
 
-    private fun quadAt(pin: CornerPin, t: Double) = CornerPins.quadAt(pin, t, w, h, { if (it == 7L) clip else null }, { ClipGrade() })!!
+    private fun quadAt(pin: CornerPin, t: Double) = CornerPins.quadAt(pin, t, w, h, { id, _ -> if (id == 7L) clip else null }, { ClipGrade() })!!
 
     @Test fun untrackedPinStays() {
         val q = quadAt(CornerPin(quad), 11.0)
@@ -59,6 +60,25 @@ class CornerPinTest {
         val c = wins[0]
         assertEquals(c.cx + (quad[0] - c.cx) * 1.5f, q[0], 1e-4f)
         assertEquals(c.cy + (quad[1] - c.cy) * 1.5f, q[1], 1e-4f)
+    }
+
+    /**
+     * The clip under the title is split after the tracking: the pin still names the first piece, and later times are
+     * read from the piece that continues it in the file (it froze at the first piece's end).
+     */
+    @Test fun trackingCarriesOnIntoTheSplitPiece() {
+        val wins = CornerPins.windows(quad, w, h).map { it.copy(track = track({ it * 0.001f })) }
+        val pin = CornerPin(quad, PinTrack(7, 10.0, quad, wins))
+        val left = clip.copy(duration = 1.0)
+        val right = clip.copy(id = 8, start = 11.0, duration = 3.0, sourceIn = 3.0)
+        val all = listOf(left, right)
+        val q = CornerPins.quadAt(pin, 12.0, w, h, { id, t -> all.firstOrNull { it.id == id }?.let { TitleFollow.continuation(it, t, all) } }, { ClipGrade() })!!
+        // 50 frames after the reference: 0.05 to the right
+        assertEquals(quad[0] + 0.05f, q[0], 1e-4f)
+        // another file (or a part of it that doesn't continue the piece) is not taken for it
+        val other = right.copy(sourceIn = 5.0)
+        assertEquals(left, TitleFollow.continuation(left, 12.0, listOf(left, other)))
+        assertEquals(left, TitleFollow.continuation(left, 12.0, listOf(left, right.copy(item = 2))))
     }
 
     /** The perspective: the text box's corners land exactly on the quad's corners. */

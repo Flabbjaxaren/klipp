@@ -540,18 +540,20 @@ private fun OverlayText(plan: LayerPlan, state: EditorState) {
         // titles that follow a tracked object are redrawn when the tracking or the link changes
         se.gendut.klipp.engine.TitleFollow.revision
         for (captions in OVERLAY_KINDS) {
-            // the playhead is a Float: a frame's time can come out a hair before the title's start – the same margin as the clips
-            val item = plan.overlays.lastOrNull { (it.overlay is Overlay.Caption) == captions && t >= it.start - 5e-4 && t < it.end - 5e-4 } ?: continue
-            val half = when (val o = item.overlay) {
-                is Overlay.Title -> Overlay.Title(o.t.copy(size = o.t.size / 2, x = o.t.x?.div(2), y = o.t.y?.div(2)))
-                is Overlay.Caption -> o
+            // the playhead is a Float: a frame's time can come out a hair before the title's start – the same margin as the clips.
+            // Titles: every one that shows (two during a dissolve), in start order; captions: one
+            val shown = plan.overlays.filter { (it.overlay is Overlay.Caption) == captions && it.shows(t, 5e-4) }
+            for (item in if (captions) listOfNotNull(shown.lastOrNull()) else shown) {
+                val half = when (val o = item.overlay) {
+                    is Overlay.Title -> Overlay.Title(o.t.copy(size = o.t.size / 2, x = o.t.x?.div(2), y = o.t.y?.div(2)))
+                    is Overlay.Caption -> o
+                }
+                val img = OverlayBitmaps.get(half, hw, hh)
+                // pinned: drawn at the preview's half size, as the other titles (the export draws at full size)
+                val pin = se.gendut.klipp.engine.pinArtOf(item.copy(overlay = half), t, hw, hh)
+                if (pin != null) drawPinned(pin.first, pin.second, hw, placementOf(item, t, plan.width, plan.height).alpha)
+                else drawPlaced(img, placementOf(item, t, plan.width, plan.height), hw, hh)
             }
-            val img = OverlayBitmaps.get(half, hw, hh)
-            val full = OverlayItem(item.start, item.end, item.overlay, item.clip, item.fadeIn, item.fadeOut)
-            // pinned: drawn at the preview's half size, as the other titles (the export draws at full size)
-            val pin = se.gendut.klipp.engine.pinArtOf(OverlayItem(item.start, item.end, half, item.clip), t, hw, hh)
-            if (pin != null) drawPinned(pin.first, pin.second, hw, placementOf(full, t, plan.width, plan.height).alpha)
-            else drawPlaced(img, placementOf(full, t, plan.width, plan.height), hw, hh)
         }
     }
 }

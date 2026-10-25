@@ -115,8 +115,16 @@ data class Seg(
     fun alpha(t: Double): Float = ((clip?.at(t)?.opacity ?: 100.0) / 100.0).toFloat().coerceIn(0f, 1f) * (ramp?.at(t) ?: 1f)
 }
 
-/** A title or caption on the timeline. */
-data class OverlayItem(val start: Double, val end: Double, val overlay: Overlay, val clip: ClipSnap? = null, val fadeIn: Ramp? = null, val fadeOut: Ramp? = null) {
+/**
+ * A title or caption on the timeline. [shownFrom]–[shownTo] = when it is drawn: wider than the clip when it dissolves
+ * into the next title (the outgoing one lasts to the transition's end, the incoming one begins at its start).
+ */
+data class OverlayItem(
+    val start: Double, val end: Double, val overlay: Overlay, val clip: ClipSnap? = null, val fadeIn: Ramp? = null, val fadeOut: Ramp? = null,
+    val shownFrom: Double = start, val shownTo: Double = end,
+) {
+    /** Drawn at [t]? [margin]: the preview's Float playhead can land a hair before a frame's time. */
+    fun shows(t: Double, margin: Double = 0.0) = t >= shownFrom - margin && t < shownTo - margin
     fun alpha(t: Double): Float {
         var a = ((clip?.at(t)?.opacity ?: 100.0) / 100.0).toFloat().coerceIn(0f, 1f)
         fadeIn?.let { if (t < it.t1) a *= it.at(t) }
@@ -143,10 +151,7 @@ object LayerPlanner {
                 val fadeIn = t.transitions.firstOrNull { it.to == c.id && it.from == null }
                 val fadeOut = t.transitions.firstOrNull { it.from == c.id && it.to == null }
                 if (c.text != null) {
-                    overlays += OverlayItem(
-                        c.start, c.end, Overlay.Title(c.text), c,
-                        fadeIn?.let { Ramp(it.start, it.end, 0f, 1f) }, fadeOut?.let { Ramp(it.start, it.end, 1f, 0f) },
-                    )
+                    overlays += titleItem(c, t, byId, fadeIn, fadeOut)
                     continue
                 }
                 val src = srcOf(c)
@@ -269,6 +274,24 @@ object LayerPlanner {
         // simple path: fades to black are done as an effect on the whole image
         val fades = if (layers.size == 1) layers[0].segs.mapNotNull { it.ramp }.distinct() else emptyList()
         return LayerPlan(q.width.coerceAtLeast(2), q.height.coerceAtLeast(2), q.duration, layers, overlays.sortedBy { it.start }, fades)
+    }
+
+    /**
+     * Title [c] with its fades: to/from nothing a fade, and between two titles a dissolve – the outgoing title is drawn on
+     * to the transition's end fading out, the incoming one from its start fading in (a dip: out to the edit point, then in).
+     */
+    internal fun titleItem(c: ClipSnap, t: TrackSnap, byId: Map<Long, ClipSnap>, fadeIn: TransitionSnap?, fadeOut: TransitionSnap?): OverlayItem {
+        fun title(id: Long?) = id?.let { byId[it] }?.takeIf { it.text != null }
+        val xin = t.transitions.firstOrNull { it.to == c.id && title(it.from) != null && it.duration > EPS }
+        val xout = t.transitions.firstOrNull { it.from == c.id && title(it.to) != null && it.duration > EPS }
+        fun dip(x: TransitionSnap) = TransitionType.of(x.effect).let { it == TransitionType.DIP_BLACK || it == TransitionType.DIP_WHITE }
+        val inRamp = fadeIn?.let { Ramp(it.start, it.end, 0f, 1f) }
+            ?: xin?.let { x -> if (dip(x)) Ramp(c.start, x.end, 0f, 1f) else Ramp(x.start, x.end, 0f, 1f) }
+        val outRamp = fadeOut?.let { Ramp(it.start, it.end, 1f, 0f) }
+            ?: xout?.let { x -> if (dip(x)) Ramp(x.start, c.end, 1f, 0f) else Ramp(x.start, x.end, 1f, 0f) }
+        val from = xin?.takeIf { !dip(it) }?.start?.coerceAtMost(c.start) ?: c.start
+        val to = xout?.takeIf { !dip(it) }?.end?.coerceAtLeast(c.end) ?: c.end
+        return OverlayItem(c.start, c.end, Overlay.Title(c.text!!), c, inRamp, outRamp, from, to)
     }
 
     /**
@@ -409,7 +432,10 @@ fun placementOf(item: OverlayItem, t: Double, w: Int, h: Int): Placement {
     val k = ((c?.scale ?: 100.0) / 100.0).toFloat()
     val rot = (c?.rotation ?: 0.0).toFloat()
     val title = item.overlay as? Overlay.Title ?: return Placement(0f, 0f, 0f, 0f, 1f, 0f, a)
-    val pose = TitleMotion.pose(title.t.look, t - item.start, item.end - item.start, w, h, TitleArt.rollHeight(title.t, w, h))
+    // outside the clip (a dissolve's overhang): the pose of its first/last moment
+    val dur = item.end - item.start
+    val tl = (t - item.start).coerceIn(0.0, (dur - 1e-4).coerceAtLeast(0.0))
+    val pose = TitleMotion.pose(title.t.look, tl, dur, w, h, TitleArt.rollHeight(title.t, w, h))
     // follows a tracked object: the displacement since the title's start (fraction of the image, y down → NDC)
     val f = item.clip?.let { TitleFollow.offset(it.id, item.start, t, w, h) }
     val fx = (f?.get(0) ?: 0f) * 2f
@@ -533,7 +559,7 @@ object TitleFollow {
     /** Title [title]'s corner pin at timeline [t]: its quad (fractions of the frame), or null when it has none. */
     fun pinQuad(title: Long, t: Double, w: Int, h: Int): FloatArray? {
         val p = pins[title] ?: return null
-        return CornerPins.quadAt(p, t, w, h, { clips[it] }, { grades[it] })
+        return CornerPins.quadAt(p, t, w, h, ::pieceAt, { grades[it] })
     }
 
     fun hasPin(title: Long) = pins.containsKey(title)
@@ -570,7 +596,28 @@ object TitleFollow {
      */
     fun offset(title: Long, start: Double, t: Double, w: Int, h: Int): FloatArray? {
         val f = follows[title] ?: return null
-        return offsetOf(f, clips[f.clip] ?: return null, grades[f.clip] ?: return null, start, t, w, h)
+        return offsetOf(f, clips[f.clip] ?: return null, grades[f.clip] ?: return null, start, t, w, h) { x -> pieceAt(f.clip, x) }
+    }
+
+    /**
+     * Clip [id] at timeline [t], or – when [t] lies outside it – the piece of the same stretch of the file there: after a
+     * split the tracking (made on the whole clip) carries on into the new pieces. Null = unknown clip.
+     */
+    fun pieceAt(id: Long, t: Double): ClipSnap? {
+        val c = clips[id] ?: return null
+        return continuation(c, t, clips.values)
+    }
+
+    /** Pure (testable): [c], or the clip in [all] that continues it uninterrupted in the file and covers [t]. */
+    fun continuation(c: ClipSnap, t: Double, all: Collection<ClipSnap>): ClipSnap {
+        if (t >= c.start - 1e-6 && t <= c.end + 1e-6) return c
+        if (c.hold != null || c.reverse) return c
+        // the file's time at the timeline's zero for this clip; a piece of the same split has the same
+        val zero = c.sourceIn - c.start * kotlin.math.abs(c.speed)
+        return all.firstOrNull { o ->
+            o.id != c.id && o.item == c.item && o.hold == null && !o.reverse && kotlin.math.abs(o.speed - c.speed) < 1e-9 &&
+                t >= o.start - 1e-6 && t <= o.end + 1e-6 && kotlin.math.abs(o.sourceIn - o.start * kotlin.math.abs(o.speed) - zero) < 1e-3
+        } ?: c
     }
 
     /**
@@ -579,12 +626,14 @@ object TitleFollow {
      * scale and rotation (with keyframes) at each time, so a zoom or move made in the app is followed too. Scale and
      * turn include both the object's and the clip's.
      */
-    fun offsetOf(f: Follow, c: ClipSnap, g: ClipGrade, start: Double, t: Double, w: Int, h: Int): FloatArray? {
+    fun offsetOf(f: Follow, c: ClipSnap, g: ClipGrade, start: Double, t: Double, w: Int, h: Int, pieceAt: (Double) -> ClipSnap? = { c }): FloatArray? {
         val win = g.nodes.firstOrNull { it.id == f.node }?.win ?: return null
         val track = win.track ?: return null
-        fun src(x: Double) = c.sourceAt(x)
+        // (each time from the piece of the clip it falls in – the same as [c] unless the clip was split)
+        fun at(x: Double) = pieceAt(x) ?: c
+        fun src(x: Double) = at(x).sourceAt(x)
         val a = track.at(src(start)); val b = track.at(src(t))
-        val ca = c.at(start); val cb = c.at(t)
+        val ca = at(start).at(start); val cb = at(t).at(t)
         // a stabilized clip: the object as it shows after the stabilization (the track is in the shaky original)
         val sa = g.stab?.transform(src(start), w.toFloat(), h.toFloat()); val sb = g.stab?.transform(src(t), w.toFloat(), h.toFloat())
         val ua = floatArrayOf(win.cx + a[0], win.cy + a[1]).let { u -> sa?.let { stab(it, u[0], u[1], w, h) } ?: u }
@@ -681,6 +730,18 @@ private class BlendOverlay(base: OverlaySettings, private val mode: Int) : Overl
     override fun getBlendMode(): Int = mode
 }
 
+/**
+ * Titles that show at the same time (a dissolve between two, titles on different tracks) in separate lanes – an
+ * overlay draws one item at a time. Each title goes in the first lane that is free when it begins; lanes keep start order.
+ */
+fun overlayLanes(items: List<OverlayItem>): List<List<OverlayItem>> {
+    val lanes = ArrayList<ArrayList<OverlayItem>>()
+    for (it in items.sortedBy { it.shownFrom }) {
+        (lanes.firstOrNull { l -> l.last().shownTo <= it.shownFrom + 1e-9 } ?: ArrayList<OverlayItem>().also { lanes += it }).add(it)
+    }
+    return lanes
+}
+
 /** Titles and captions as an overlay on the whole image; the images are drawn when needed and cached. */
 @OptIn(UnstableApi::class)
 class TimedOverlay(
@@ -697,7 +758,7 @@ class TimedOverlay(
     private val hidden = StaticOverlaySettings.Builder().setAlphaScale(0f).build()
     private val items = allItems.filter { (it.overlay is Overlay.Caption) == captions }
 
-    fun at(t: Double): OverlayItem? = items.lastOrNull { t >= it.start && t < it.end }
+    fun at(t: Double): OverlayItem? = items.lastOrNull { it.shows(t) }
 
     /** A pinned title drawn in perspective into a frame-size image (redrawn per frame, reused). */
     private var warped: Bitmap? = null
