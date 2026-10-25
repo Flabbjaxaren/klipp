@@ -145,20 +145,18 @@ fun SpringChip(
     selectedText: Color = K.PrimarySoft,
 ) {
     val haptics = rememberHaptics()
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     val radius by animateDpAsState(if (selected) 20.dp else 10.dp, androidx.compose.animation.core.spring(0.5f, 500f), label = "r")
     val bg by animateColorAsState(if (selected) selectedColor else Color.Transparent, label = "bg")
     Box(
         modifier
-            .graphicsLayer { scaleX = press.value; scaleY = press.value }
+            .pressPop(src, 0.9f)
             .height(40.dp)
             .clip(RoundedCornerShape(radius))
             .background(bg)
             .border(1.dp, if (selected) bg else K.OutlineVar, RoundedCornerShape(radius))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+            .clickable(interactionSource = src, indication = null) {
                 haptics.tick()
-                scope.launch { press.snapTo(0.9f); press.animateTo(1f, Springs.pop()) }
                 onClick()
             }
             .padding(horizontal = 14.dp),
@@ -590,6 +588,7 @@ private fun ChannelStrip(name: String, i: Int, mix: AudioMix, scope: CoroutineSc
     val haptics = rememberHaptics()
     val g = mix.gains[i]
     var atUnity by remember { mutableStateOf(true) }
+    val lastTap = remember { longArrayOf(0L) }
     val isMix = i == 3
     Column(
         modifier.clip(RoundedCornerShape(20.dp)).background(if (isMix) Color(0xFF2A1D12) else K.Surface).padding(vertical = 10.dp),
@@ -606,10 +605,13 @@ private fun ChannelStrip(name: String, i: Int, mix: AudioMix, scope: CoroutineSc
                     val startV = g.value
                     down.consume()
                     mix.dragging[i] = true
+                    var moved = false
                     try { while (true) {
                         val ev = awaitPointerEvent()
                         val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                         if (!c.pressed) break
+                        if (!moved && abs(c.position.y - startY) < viewConfiguration.touchSlop / 2) { c.consume(); continue }
+                        moved = true
                         var v = (startV - (c.position.y - startY) / size.height).coerceIn(0f, 1f)
                         if (abs(v - 0.75f) < 0.035f) {
                             if (!atUnity) haptics.tick()
@@ -622,6 +624,16 @@ private fun ChannelStrip(name: String, i: Int, mix: AudioMix, scope: CoroutineSc
                         }
                         c.consume()
                     } } finally { mix.dragging[i] = false }
+                    if (!moved) {
+                        // a tap changes nothing; a double tap = back to 0 dB
+                        if (lastTap[0] == 0L || down.uptimeMillis - lastTap[0] >= viewConfiguration.doubleTapTimeoutMillis) { lastTap[0] = down.uptimeMillis; return@awaitEachGesture }
+                        lastTap[0] = 0L
+                        haptics.confirm()
+                        atUnity = true
+                        // saved once it is there (the commit reads the fader)
+                        scope.launch { g.animateTo(0.75f, Springs.pop()); mix.onCommit(i) }
+                        return@awaitEachGesture
+                    }
                     mix.onCommit(i)
                 }
             }
@@ -668,16 +680,14 @@ private fun ChannelStrip(name: String, i: Int, mix: AudioMix, scope: CoroutineSc
 @Composable
 private fun ToggleSquare(label: String, on: Boolean, width: Dp = 28.dp, onClick: () -> Unit) {
     val haptics = rememberHaptics()
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     val bg by animateColorAsState(if (on) K.Primary else K.SurfaceHigh, label = "t")
     val radius by animateDpAsState(if (on) 14.dp else 8.dp, androidx.compose.animation.core.spring(0.45f, 600f), label = "tr")
     Box(
-        Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+        Modifier.pressPop(src, 0.8f)
             .size(width, 28.dp).clip(RoundedCornerShape(radius)).background(bg)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
+            .clickable(interactionSource = src, indication = null) {
                 haptics.tick()
-                scope.launch { press.snapTo(0.8f); press.animateTo(1f, Springs.pop()) }
                 onClick()
             },
         contentAlignment = Alignment.Center
@@ -716,17 +726,15 @@ fun TextPanel(title: TitleState) {
 
 @Composable
 private fun TemplateCard(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
+    val src = remember { MutableInteractionSource() }
     val radius by animateDpAsState(if (selected) 28.dp else 16.dp, androidx.compose.animation.core.spring(0.5f, 400f), label = "c")
     val shape: Shape = RoundedCornerShape(radius)
     Box(
-        modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+        modifier.pressPop(src, 0.92f)
             .height(76.dp).clip(shape)
             .background(if (selected) Color(0xFF5E2C55) else K.Surface)
             .border(1.5.dp, if (selected) Color(0xFFFFD7F0) else K.OutlineVar, shape)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.92f); press.animateTo(1f, Springs.pop()) }
+            .clickable(interactionSource = src, indication = null) {
                 onClick()
             }
             .padding(12.dp),

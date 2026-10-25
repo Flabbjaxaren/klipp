@@ -26,6 +26,11 @@
     <string name="titleui_field_text">Text</string>
     <string name="titleui_roll_hint">Rader som slutar med kolon blir små rubriker. Texten rullar under hela klippet.</string>
     <string name="titleui_panel_title">Text &amp; undertexter</string>
+    <string name="titleui_tab_titles">Titlar</string>
+    <string name="titleui_tpl_desc_lower_third">Namn och roll nere till vänster</string>
+    <string name="titleui_tpl_desc_chapter">Stor rubrik mitt i bilden</string>
+    <string name="titleui_tpl_desc_roll">Medverkande som rullar uppåt</string>
+    <string name="titleui_tpl_desc_free">Egen text, var som helst</string>
     <string name="titleui_template">Mall</string>
     <string name="titleui_entrance">Kommer in</string>
     <string name="titleui_content">Innehåll</string>

@@ -189,22 +189,19 @@ fun PanelCard(
 @Composable
 fun ActionTile(label: String, icon: ImageVector, modifier: Modifier = Modifier, enabled: Boolean = true, danger: Boolean = false, onClick: () -> Unit) {
     val haptics = rememberHaptics()
-    val scope = rememberCoroutineScope()
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val r by animateDpAsState(if (pressed) 28.dp else 16.dp, cornerSpring(), label = "ar")
-    val press = remember { Animatable(1f) }
     val tint = when { !enabled -> K.Outline; danger -> K.Error; else -> K.PrimarySoft }
     Column(
         modifier.clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Button) {
             haptics.tick()
-            scope.launch { press.snapTo(0.9f); press.animateTo(1f, Springs.pop()) }
             onClick()
         },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(
-            Modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
+            Modifier.pressPop(src, 0.9f)
                 .size(width = 64.dp, height = 48.dp).clip(RoundedCornerShape(r))
                 .background(if (danger) Color(0x33FFB4AB) else if (enabled) K.Tonal else K.SurfaceHigh),
             contentAlignment = Alignment.Center,

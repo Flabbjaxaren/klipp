@@ -181,26 +181,35 @@ fun TitlePreview(look: TitleLook, text: String, modifier: Modifier = Modifier, c
     }
 }
 
-/** Template card: a live preview with a name; selected = rounder shape and a bright border. */
+private val TitleTemplate.desc: Int get() = when (this) {
+    TitleTemplate.LOWER_THIRD -> R.string.titleui_tpl_desc_lower_third
+    TitleTemplate.CHAPTER -> R.string.titleui_tpl_desc_chapter
+    TitleTemplate.ROLL -> R.string.titleui_tpl_desc_roll
+    TitleTemplate.FREE -> R.string.titleui_tpl_desc_free
+}
+
+/** A template in the list: a small still of it, its name and what it is for; selected = tonal with a bright edge. */
 @Composable
-private fun TemplateTile(t: TitleTemplate, anim: TitleAnim, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val press = remember { Animatable(1f) }
-    val r by animateDpAsState(if (selected) 22.dp else 14.dp, spring(0.5f, 400f), label = "tr")
-    val border by animateColorAsState(if (selected) K.Primary else K.OutlineVar, label = "tb")
-    Column(
-        modifier.graphicsLayer { scaleX = press.value; scaleY = press.value }
-            .clip(RoundedCornerShape(r)).background(K.Surface)
-            .border(if (selected) 2.dp else 1.dp, border, RoundedCornerShape(r))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { press.snapTo(0.93f); press.animateTo(1f, Springs.pop()) }
-                onClick()
-            }
+private fun TemplateRow(t: TitleTemplate, anim: TitleAnim, selected: Boolean, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val bg by animateColorAsState(if (selected) K.Tonal else Color.Transparent, label = "tb")
+    val border by animateColorAsState(if (selected) K.Primary else Color.Transparent, label = "tbr")
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp).pressPop(src, 0.97f)
+            .clip(RoundedCornerShape(16.dp)).background(bg)
+            .border(1.5.dp, border, RoundedCornerShape(16.dp))
+            .clickable(interactionSource = src, indication = null, onClick = onClick)
             .padding(6.dp)
             .testTag("mall:${t.key}"),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        TitlePreview(TitleLook(t, anim), "", Modifier.fillMaxWidth(), playing = selected)
-        Text(t.label, color = if (selected) K.Primary else K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 4.dp, top = 4.dp))
+        // a still – only the big preview above plays
+        TitlePreview(TitleLook(t, anim), "", Modifier.width(80.dp), playing = false)
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            Text(t.label, color = if (selected) K.PrimarySoft else K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(t.desc), color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1)
+        }
+        if (selected) androidx.compose.material3.Icon(Ic.Check, null, tint = K.Primary, modifier = Modifier.padding(end = 6.dp).size(20.dp))
     }
 }
 
@@ -247,95 +256,111 @@ private fun AnimChips(template: TitleTemplate, anim: TitleAnim, onPick: (TitleAn
     }
 }
 
-/** Text mode: pick a template and how the title enters, watch it play, insert at the playhead. Captions below. */
+/**
+ * Text mode, in three tabs: titles (watch the chosen template play, pick it from the list and how it enters, write it,
+ * insert at the playhead), captions, and editing by the transcript.
+ */
 @Composable
 fun TitlesPanel(state: EditorState, onEdit: () -> Unit) {
     val backend = state.props ?: return
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("titles")) {
+        PanelTitle(stringResource(R.string.titleui_panel_title))
+        ConnectedToggleGroup(
+            listOf(stringResource(R.string.titleui_tab_titles), stringResource(R.string.titleui_captions), stringResource(R.string.transcript_title)),
+            tab, { tab = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
+            tag = { "textTab:$it" },
+        )
+        Spacer(Modifier.height(6.dp))
+        when (tab) {
+            0 -> TitlesTab(state, backend, onEdit)
+            1 -> CaptionsTab(state, backend, onEdit)
+            else -> (backend as? se.gendut.klipp.engine.ProjectController)?.let { TranscriptCard(it, state) }
+        }
+        Spacer(Modifier.height(120.dp))
+    }
+}
+
+@Composable
+private fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
     val haptics = rememberHaptics()
     var template by remember { mutableStateOf(TitleTemplate.LOWER_THIRD) }
     var anim by remember { mutableStateOf(TitleAnim.BOUNCE) }
     var lines by remember { mutableStateOf(sampleText(TitleTemplate.LOWER_THIRD).split('\n')) }
     var replay by remember { mutableStateOf(0) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("titles")) {
-        PanelTitle(stringResource(R.string.titleui_panel_title))
-        SectionLabel(stringResource(R.string.titleui_template))
-        for (row in TitleTemplate.entries.chunked(2)) {
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (t in row) TemplateTile(t, anim, template == t, Modifier.weight(1f)) {
-                    haptics.confirm()
-                    if (template != t) { template = t; lines = sampleText(t).split('\n') }
-                    replay++
-                }
-            }
+    Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+        TitlePreview(TitleLook(template, anim), lines.joinToString("\n"), Modifier.fillMaxWidth(), replayKey = replay)
+    }
+    SectionLabel(stringResource(R.string.titleui_template))
+    for (t in TitleTemplate.entries) TemplateRow(t, anim, template == t) {
+        haptics.confirm()
+        if (template != t) { template = t; lines = sampleText(t).split('\n') }
+        replay++
+    }
+    if (template != TitleTemplate.ROLL) SectionLabel(stringResource(R.string.titleui_entrance))
+    AnimChips(template, anim) { anim = it; replay++; haptics.tick() }
+    SectionLabel(stringResource(R.string.titleui_content))
+    TitleFields(template, lines) { lines = it }
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        AddAtPlayhead(state) {
+            haptics.confirm()
+            val text = lines.joinToString("\n").trim('\n').ifBlank { Str.t(R.string.titleui_title) }
+            backend.addTitle(text, state.playhead, TitleLook(template, anim).encode())
+            onEdit()
         }
-        SectionLabel(stringResource(R.string.titleui_entrance))
-        AnimChips(template, anim) { anim = it; replay++; haptics.tick() }
-        Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-            TitlePreview(TitleLook(template, anim), lines.joinToString("\n"), Modifier.fillMaxWidth(), replayKey = replay)
+    }
+    val titles = state.clips.filter { it.kind == ClipKind.TITLE }.sortedBy { it.start }
+    if (titles.isNotEmpty()) {
+        SectionLabel(stringResource(R.string.titleui_titles_on_timeline))
+        for (t in titles) ListRow(formatTc(t.start), t.name) {
+            haptics.tick()
+            state.playing = false
+            state.playhead = t.start
+            state.selected = t.id
+            state.inspecting = true
+            onEdit()
         }
-        SectionLabel(stringResource(R.string.titleui_content))
-        TitleFields(template, lines) { lines = it }
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            AddAtPlayhead(state) {
-                haptics.confirm()
-                val text = lines.joinToString("\n").trim('\n').ifBlank { Str.t(R.string.titleui_title) }
-                backend.addTitle(text, state.playhead, TitleLook(template, anim).encode())
-                onEdit()
-            }
+    }
+}
+
+/** Captions: shown or hidden, new / import, made from the speech, their style, and the list to correct. */
+@Composable
+private fun CaptionsTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
+    val haptics = rememberHaptics()
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PillButton(stringResource(R.string.titleui_new_caption), {
+            backend.addCaption(state.playhead) { id -> state.selectedCaption = id; state.editingCaption = true; onEdit() }
+        }, icon = Ic.Plus)
+        PillButton(stringResource(R.string.titleui_import_captions), { backend.importCaptions() }, filled = false)
+    }
+    (backend as? se.gendut.klipp.engine.ProjectController)?.let { AutoCaptionsCard(it) }
+    if (state.captions.isEmpty()) {
+        Text(
+            stringResource(R.string.titleui_captions_hint),
+            color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+        )
+        return
+    }
+    // shown / hidden and the style, then the captions themselves
+    var styleOpen by remember { mutableStateOf(false) }
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (backend.hasCaptionTrack) {
+            val vis = backend.captionsVisible
+            SpringChip(stringResource(if (vis) R.string.titleui_captions_shown else R.string.titleui_captions_hidden), vis, { backend.setCaptionsVisible(!vis) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
         }
-        val titles = state.clips.filter { it.kind == ClipKind.TITLE }.sortedBy { it.start }
-        if (titles.isNotEmpty()) {
-            SectionLabel(stringResource(R.string.titleui_titles_on_timeline))
-            for (t in titles) ListRow(formatTc(t.start), t.name) {
-                haptics.tick()
-                state.playing = false
-                state.playhead = t.start
-                state.selected = t.id
-                state.inspecting = true
-                onEdit()
-            }
+        SpringChip(stringResource(if (styleOpen) R.string.titleui_hide_style else R.string.titleui_font_and_style), styleOpen, { haptics.tick(); styleOpen = !styleOpen }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+    }
+    androidx.compose.animation.AnimatedVisibility(styleOpen) { Column { CaptionStyleEditor(backend, state.captions.first().track) } }
+    var editing by remember { mutableStateOf<Long?>(null) }
+    for (c in state.captions.take(300)) key(c.id) {
+        ListRow(formatTc(c.start), c.text.replace('\n', ' ')) {
+            haptics.tick(); state.playing = false; state.playhead = c.start
+            editing = if (editing == c.id) null else c.id
         }
-        // text-based editing: delete words to cut the video
-        (backend as? se.gendut.klipp.engine.ProjectController)?.let { TranscriptCard(it, state) }
-        Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.titleui_captions)) }
-            if (backend.hasCaptionTrack) {
-                val vis = backend.captionsVisible
-                SpringChip(stringResource(if (vis) R.string.titleui_captions_shown else R.string.titleui_captions_hidden), vis, { backend.setCaptionsVisible(!vis) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
-            }
+        androidx.compose.animation.AnimatedVisibility(editing == c.id) {
+            CaptionEditor(c, backend) { editing = null }
         }
-        (backend as? se.gendut.klipp.engine.ProjectController)?.let { AutoCaptionsCard(it) }
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            BigButton(stringResource(R.string.titleui_new_caption), {
-                haptics.confirm()
-                backend.addCaption(state.playhead) { id -> state.selectedCaption = id; state.editingCaption = true; onEdit() }
-            }, modifier = Modifier.weight(1f))
-            BigButton(stringResource(R.string.titleui_import_captions), { haptics.tick(); backend.importCaptions() }, color = K.SurfaceHigh, textColor = K.OnSurface, modifier = Modifier.weight(1f))
-        }
-        state.captions.firstOrNull()?.let { first ->
-            var styleOpen by remember { mutableStateOf(false) }
-            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
-                SpringChip(stringResource(if (styleOpen) R.string.titleui_hide_style else R.string.titleui_font_and_style), styleOpen, { haptics.tick(); styleOpen = !styleOpen }, selectedColor = K.Primary, selectedText = K.OnPrimary)
-            }
-            androidx.compose.animation.AnimatedVisibility(styleOpen) { Column { CaptionStyleEditor(backend, first.track) } }
-        }
-        if (state.captions.isEmpty()) {
-            Text(
-                stringResource(R.string.titleui_captions_hint),
-                color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-            )
-        }
-        var editing by remember { mutableStateOf<Long?>(null) }
-        for (c in state.captions.take(300)) key(c.id) {
-            ListRow(formatTc(c.start), c.text.replace('\n', ' ')) {
-                haptics.tick(); state.playing = false; state.playhead = c.start
-                editing = if (editing == c.id) null else c.id
-            }
-            androidx.compose.animation.AnimatedVisibility(editing == c.id) {
-                CaptionEditor(c, backend) { editing = null }
-            }
-        }
-        Spacer(Modifier.height(120.dp))
     }
 }
 
@@ -487,7 +512,13 @@ private fun AutoCaptionsCard(controller: se.gendut.klipp.engine.ProjectControlle
         )
         SpeechPicker(pick, "asr")
         val model = pick.model
-        val ready = remember(model, ac.modelRevision, ac.running) { se.gendut.klipp.engine.SpeechModels.ready(ctx, model) }
+        val downloaded = remember(model, ac.modelRevision, ac.running) { se.gendut.klipp.engine.SpeechModels.ready(ctx, model) }
+        // the track's files already transcribed (text-based editing): the captions are made from that, no model needed
+        val transcribed by androidx.compose.runtime.produceState(false, track, controller.revision, controller.transcriptRevision) {
+            val items = tracks.getOrNull(track)?.clips.orEmpty().map { it.item }.filter { it > 0 }.distinct()
+            value = items.isNotEmpty() && items.all { controller.mediaWords(it).isNotEmpty() }
+        }
+        val ready = downloaded || transcribed
         if (tracks.size > 1) {
             androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((i, t) in tracks.withIndex()) ToggleChip(if (t.clips.isEmpty()) stringResource(R.string.titleui_track_empty, i + 1) else "A${i + 1}", track == i, { track = i }, Modifier.testTag("asr:track$i"))

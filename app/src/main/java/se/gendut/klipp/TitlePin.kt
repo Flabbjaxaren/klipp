@@ -31,7 +31,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -178,14 +179,21 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
     // the corner being dragged (local pixels): a magnifier shows what is under it
     var dragAt by remember { mutableStateOf(Offset.Unspecified) }
     var dragIdx by remember { mutableStateOf(-1) }
-    // how many screen pixels one of the overlay's pixels takes (the monitor's pinch zoom scales the overlay)
+    // how many screen pixels one of the overlay's pixels takes (the monitor's pinch zoom scales the overlay) – measured
+    // through the layout's transform (its bounds in the root are clipped to the screen, so they don't tell when zoomed)
     var screenPerLocal by remember { mutableStateOf(1f) }
+    var coords by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     Box(
         modifier.fillMaxSize().testTag("pinOverlay")
-            .onGloballyPositioned { c -> if (c.size.width > 0) screenPerLocal = c.boundsInRoot().width / c.size.width }
+            .onGloballyPositioned { c ->
+                coords = c
+                if (c.isAttached) screenPerLocal = (c.localToRoot(Offset(1f, 0f)) - c.localToRoot(Offset.Zero)).getDistance().takeIf { it > 0f } ?: 1f
+            }
             // the magnifier shows exactly what is inside a corner's ring (radius HANDLE_R on screen): its 120 dp circle
-            // is the ring, enlarged – with the fine cross in the middle on the corner itself
-            .magnifier(sourceCenter = { dragAt }, zoom = (LOUPE / 2f / HANDLE_R).toFloat().coerceAtLeast(1f),
+            // is the ring, enlarged – with the fine cross in the middle on the corner itself. Its source is taken as
+            // the layout's position plus an unscaled offset, so the corner goes in as its offset on screen (zoomed: scaled
+            // and moved with the monitor) – it used to magnify somewhere else as soon as the monitor was zoomed.
+            .magnifier(sourceCenter = { magnifierSource(coords, dragAt) }, zoom = (LOUPE / 2f / HANDLE_R).toFloat().coerceAtLeast(1f),
                 size = androidx.compose.ui.unit.DpSize(LOUPE.dp, LOUPE.dp), cornerRadius = (LOUPE / 2).dp)
             .pointerInput(id) {
             awaitEachGesture {
@@ -260,6 +268,15 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
                     .clickable { state.pinEdit = null }.padding(horizontal = 8.dp, vertical = 4.dp).testTag("pin:done"))
         }
     }
+}
+
+/**
+ * The magnifier's source for the local point [p]: Compose places it at the layout's position in the root plus the given
+ * offset as is, which is only right unscaled – so the offset is [p]'s distance from the layout's origin on screen.
+ */
+internal fun magnifierSource(c: androidx.compose.ui.layout.LayoutCoordinates?, p: Offset): Offset {
+    if (c == null || !c.isAttached || !p.isSpecified) return p
+    return c.localToRoot(p) - c.positionInRoot()
 }
 
 /** A corner handle's ring radius and the magnifier's size (dp on screen): the magnifier is the ring, enlarged. */
