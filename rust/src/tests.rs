@@ -1058,7 +1058,8 @@ fn clip_groups_in_snapshot() {
     let snap: Value = serde_json::from_str(&b.snapshot()).unwrap();
     assert!(snap["sequence"]["video"][0]["clips"].as_array().unwrap().iter().all(|c| c["group"].is_null()));
     ok(&mut b, "edit.redo", json!({}));
-    ok(&mut b, "timeline.select", json!({"clips": [v[0]], "linked": true}));
+    // (linked: true would bring the whole group along)
+    ok(&mut b, "timeline.select", json!({"clips": [v[0]], "linked": false}));
     ok(&mut b, "clip.ungroup", json!({}));
     let snap: Value = serde_json::from_str(&b.snapshot()).unwrap();
     assert!(snap["sequence"]["video"][0]["clips"][0]["group"].is_null());
@@ -1168,8 +1169,7 @@ fn transcript_set_inspect_extract() {
 }
 
 /// Keyframes on a reversed clip are shown where they were set (timeline time from the reversed media time), and on a
-/// freeze frame the app's move to the moving source time keeps them apart (the engine alone puts them all on the
-/// frozen frame).
+/// freeze frame the engine keeps them apart, each where the playhead was.
 #[test]
 fn keyframe_times_on_reverse_and_freeze_frame() {
     let mut b = Bridge::new();
@@ -1188,21 +1188,19 @@ fn keyframe_times_on_reverse_and_freeze_frame() {
     assert!((t - 1.0).abs() < 0.001, "reversed clip keyframe at {t}");
     ok(&mut b, "edit.undo", json!({}));
     ok(&mut b, "edit.undo", json!({}));
-    // freeze frame 2 s at 1.5 s: the engine puts keyframes at the frozen source time …
+    // freeze frame 2 s at 1.5 s: keyframes are set at the moving source time
     ok(&mut b, "clip.insertFrameHoldSegment", json!({"clip": id, "time": 3 * tps / 2, "seconds": 2.0}));
     let hold = clip(&b, 1);
     let hid = hold["id"].as_u64().unwrap();
     for at in [2.0, 3.0] {
         ok(&mut b, "effects.setParam", json!({"clip": hid, "effect": "motion", "param": "scale", "value": 80.0, "keyframe": true, "time": (at * tps as f64) as i64}));
     }
-    assert_eq!(clip(&b, 1)["kf"]["scale"].as_array().unwrap().len(), 1, "the engine collapses them onto the frozen frame");
-    // … and moving it to the moving source time (as the app does) puts it where it was set
-    let k = clip(&b, 1)["kf"]["scale"][0].clone();
-    let h = clip(&b, 1);
-    let to = ((h["sourceIn"].as_f64().unwrap() + (3.0 - h["start"].as_f64().unwrap())) * tps as f64).round() as i64;
-    ok(&mut b, "effects.moveKeyframe", json!({"clip": hid, "effect": "motion", "param": "scale", "mediaTime": k["mt"], "to": to}));
-    let t = clip(&b, 1)["kf"]["scale"][0]["t"].as_f64().unwrap();
-    assert!((t - 3.0).abs() < 0.001, "freeze frame keyframe at {t}");
+    let kf = clip(&b, 1)["kf"]["scale"].as_array().unwrap().clone();
+    assert_eq!(kf.len(), 2, "{kf:?}");
+    for (k, at) in kf.iter().zip([2.0, 3.0]) {
+        let t = k["t"].as_f64().unwrap();
+        assert!((t - at).abs() < 0.001, "freeze frame keyframe at {t}, set at {at}");
+    }
 }
 
 #[test]

@@ -332,6 +332,12 @@ object Reversals {
                 val size = ex.readSampleData(buf, 0)
                 // the frame was shown [t, t + frame) → reversed: [end − t − frame, end − t)
                 val pts = (end - t - frame).coerceAtLeast(last + 1)
+                // a video shorter than the range (the audio track runs longer): the muxer moves the first frame to 0,
+                // which would slide the whole file forward – the first frame is held from 0 instead
+                if (last < 0 && pts > 0) {
+                    info.set(0, size, 0L, MediaCodec.BUFFER_FLAG_KEY_FRAME)
+                    m.writeSampleData(outTrack, buf, info)
+                }
                 info.set(0, size, pts, MediaCodec.BUFFER_FLAG_KEY_FRAME)
                 m.writeSampleData(outTrack, buf, info)
                 last = pts
@@ -458,7 +464,10 @@ object Reversals {
 
     // ------------------------------------------------------------------ index on disk
 
-    private fun index(d: File) = File(d, "index.json")
+    /** Bumped when reversed files come out differently: the old ones are then made anew. */
+    private const val INDEX = "index2.json"
+
+    private fun index(d: File) = File(d, INDEX)
 
     private fun save(d: File) = synchronized(ready) {
         runCatching {
@@ -470,6 +479,7 @@ object Reversals {
 
     private fun load(d: File) = synchronized(ready) {
         if (ready.isNotEmpty()) return@synchronized
+        if (File(d, "index.json").exists()) d.listFiles()?.forEach { it.delete() }
         runCatching {
             val a = JSONArray(index(d).readText())
             for (i in 0 until a.length()) {

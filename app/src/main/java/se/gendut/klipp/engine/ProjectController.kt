@@ -35,6 +35,7 @@ import kotlin.math.abs
 private const val VERSION_EVERY_MS = 10 * 60_000L
 /** … and this many are kept per project. */
 private const val VERSIONS_KEPT = 20
+private val SCHEMA_BACKUP = Regex(""".* \(schema v\d+ backup\)\.fcproj""")
 
 class ProjectController(
     private val context: Context,
@@ -812,8 +813,11 @@ class ProjectController(
         val width: Int, val height: Int, val fps: Double, val clips: Int, val thumb: java.io.File?,
     )
 
+    /** The copy the engine keeps of a project saved in an older format ("<id> (schema v15 backup).fcproj"): not a project of its own. */
+    private fun isSchemaBackup(name: String) = SCHEMA_BACKUP.matches(name)
+
     /** All saved projects, most recently modified first (including those archived before the projects page). */
-    fun listProjects(): List<ProjectInfo> = projectDir.listFiles { f -> f.name.endsWith(".fcproj") }.orEmpty().map { f ->
+    fun listProjects(): List<ProjectInfo> = projectDir.listFiles { f -> f.name.endsWith(".fcproj") && !isSchemaBackup(f.name) }.orEmpty().map { f ->
         val id = f.name.removeSuffix(".fcproj")
         val meta = runCatching { JSONObject(java.io.File(projectDir, "$id.media.json").readText()).optJSONObject("meta") }.getOrNull()
         val name = meta?.optString("name").orEmpty().ifBlank {
@@ -970,6 +974,7 @@ class ProjectController(
         if (id == currentId) { onMessage(Str.t(R.string.projectcontroller_open_another_first)); return@launch }
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             for (ext in listOf("fcproj", "media.json", "media.json.bak", "jpg")) java.io.File(projectDir, "$id.$ext").delete()
+            projectDir.listFiles { f -> f.name.startsWith("$id (") && isSchemaBackup(f.name) }?.forEach { it.delete() }
             versionDir(id).deleteRecursively()
             // media unpacked from an imported package: removed with it, unless a copy of the project still uses them
             val dir = mediaDirOf(id)
@@ -1403,10 +1408,8 @@ class ProjectController(
                 setParam(id, eff, param, valueOf(key, v))
             } else {
                 engine.tryExec("playhead.set", JSONObject().put("time", frameTicks(tt)))
-                onHold(c, key, tt) {
-                    engine.tryExec("effects.setParam", JSONObject().put("clip", id).put("effect", eff).put("param", param)
-                        .put("value", valueOf(key, c)).put("keyframe", true).put("time", frameTicks(tt))).onFailure { onMessage(friendly(it.message)) }
-                }
+                engine.tryExec("effects.setParam", JSONObject().put("clip", id).put("effect", eff).put("param", param)
+                    .put("value", valueOf(key, c)).put("keyframe", true).put("time", frameTicks(tt))).onFailure { onMessage(friendly(it.message)) }
             }
             refresh()
         } }
@@ -1432,7 +1435,7 @@ class ProjectController(
             if (existing.isNotEmpty()) group(Str.t(R.string.keyframeui_remove_keyframe), on = existing.size > 1) {
                 for (k in existing) engine.tryExec("effects.deleteKeyframe", JSONObject().put("clip", id).put("effect", eff).put("param", param).put("mediaTime", k.mt))
                     .onFailure { onMessage(friendly(it.message)) }
-            } else onHold(c, key, tt) {
+            } else {
                 engine.tryExec("effects.setParam", JSONObject().put("clip", id).put("effect", eff).put("param", param)
                     .put("value", valueOf(key, c.at(tt))).put("keyframe", true).put("time", frameTicks(tt))).onFailure { onMessage(friendly(it.message)) }
             }
@@ -1524,10 +1527,8 @@ class ProjectController(
         scope.launch { editLock.withLock {
             val (c, _, _) = find(id) ?: return@launch
             val tt = clampIn(c, at.toDouble())
-            onHold(c, KfKeys.LEVEL, tt) {
-                engine.tryExec("effects.setParam", JSONObject().put("clip", id).put("effect", "volume").put("param", "level")
-                    .put("value", c.at(tt).levelDb).put("keyframe", true).put("time", frameTicks(tt))).onFailure { onMessage(friendly(it.message)) }
-            }
+            engine.tryExec("effects.setParam", JSONObject().put("clip", id).put("effect", "volume").put("param", "level")
+                .put("value", c.at(tt).levelDb).put("keyframe", true).put("time", frameTicks(tt))).onFailure { onMessage(friendly(it.message)) }
             refresh()
         } }
     }
@@ -1569,8 +1570,6 @@ class ProjectController(
         val c = find(clip)?.first
         val tt = c?.let { clampIn(it, state.playhead.toDouble()) }
         if (c != null && tt != null) p.put("time", frameTicks(tt))
-        var ok = false
-        suspend fun write() { val r = engine.tryExec("effects.setParam", p); r.onFailure { onMessage(friendly(it.message)) }; ok = r.isSuccess }
         val key = KEYS.firstOrNull { KfKeys.engine(it) == effect to param }
         // a keyframe past the clip's last frame (at its end, after it was shortened) is the one shown at the playhead
         // there: its value changes – otherwise a second keyframe would appear one frame before it
@@ -1583,31 +1582,9 @@ class ProjectController(
             r.onFailure { onMessage(friendly(it.message)) }
             return r.isSuccess
         }
-        if (c != null && tt != null && key != null && c.kf.containsKey(key)) onHold(c, key, tt) { write() } else write()
-        return ok
-    }
-
-    /**
-     * A keyframe write ([write]) at timeline [tt]. The engine puts a keyframe at the clip's source time there – on a
-     * freeze frame that is the frozen frame for the whole clip, so every keyframe would land on one spot (at the start)
-     * and replace the previous one. There the new keyframe is moved to the moving source time, where the engine
-     * evaluates the effect; a keyframe already on the frozen spot is moved aside meanwhile.
-     */
-    private suspend fun onHold(c: ClipSnap, key: String, tt: Double, write: suspend () -> Unit) {
-        val h = c.hold
-        val to = c.mediaTicksAt(tt)
-        val frozen = h?.let { exactTicks(it) }
-        if (frozen == null || frozen == to) { write(); return }
-        val (eff, param) = KfKeys.engine(key)
-        fun move(from: Long, dest: Long) = JSONObject().put("clip", c.id).put("effect", eff).put("param", param).put("mediaTime", from).put("to", dest)
-        val parked = c.kf[key]?.any { it.mt == frozen } == true
-        val aside = frozen - 1
-        group(Str.t(R.string.keyframeui_add_keyframe)) {
-            if (parked) engine.tryExec("effects.moveKeyframe", move(frozen, aside))
-            write()
-            engine.tryExec("effects.moveKeyframe", move(frozen, to))
-            if (parked) engine.tryExec("effects.moveKeyframe", move(aside, frozen))
-        }
+        val r = engine.tryExec("effects.setParam", p)
+        r.onFailure { onMessage(friendly(it.message)) }
+        return r.isSuccess
     }
 
     override fun setProps(id: Long, x: Float?, y: Float?, scale: Float?, rotation: Float?, opacity: Float?, levelDb: Float?) {

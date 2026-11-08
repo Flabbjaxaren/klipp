@@ -11,10 +11,10 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # The FilmCraft engine, pinned to a reviewed commit. Update rev deliberately.
-filmcraft-engine = { git = "https://github.com/storytold/filmcraft", rev = "dd525c93d43b96843aedc50d7fa94a052474f476" }
+filmcraft-engine = { git = "https://github.com/storytold/filmcraft", rev = "72831a4dc2ad79f43235bf0c175c9a58afdd67f0" }
 # DSP (real-time audio effects, BS.1770 loudness) – same commit as the engine
-filmcraft-audio-dsp = { git = "https://github.com/storytold/filmcraft", rev = "dd525c93d43b96843aedc50d7fa94a052474f476" }
-filmcraft-media = { git = "https://github.com/storytold/filmcraft", rev = "dd525c93d43b96843aedc50d7fa94a052474f476" }
+filmcraft-audio-dsp = { git = "https://github.com/storytold/filmcraft", rev = "72831a4dc2ad79f43235bf0c175c9a58afdd67f0" }
+filmcraft-media = { git = "https://github.com/storytold/filmcraft", rev = "72831a4dc2ad79f43235bf0c175c9a58afdd67f0" }
 serde_json = "1"
 jni = { version = "0.21", default-features = false }
 
