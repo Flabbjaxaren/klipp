@@ -51,6 +51,19 @@ object AudioFxCatalog {
             Param("max", R.string.audiofxcatalog_ceiling, -12f, 0f, -0.1f, ::db),
             Param("boost", R.string.audiofxcatalog_boost, 0f, 20f, 0f, ::db),
         )),
+        Fx("pitch_shifter", R.string.audiofxcatalog_pitch, R.string.audiofxcatalog_pitch_hint, listOf(
+            Param("semitones", R.string.audiofxcatalog_semitones, -12f, 12f, 0f, { "%+.0f".format(it).replace('-', '−') }),
+        )),
+        Fx("delay", R.string.audiofxcatalog_echo, R.string.audiofxcatalog_echo_hint, listOf(
+            Param("delay", R.string.audiofxcatalog_echo_time, 0f, 2f, 1f, { "%.2f s".format(it) }),
+            Param("feedback", R.string.audiofxcatalog_feedback, 0f, 100f, 0f, ::pct),
+            Param("mix", R.string.audiofxcatalog_mix, 0f, 100f, 50f, ::pct),
+        )),
+        Fx("chorus_flanger", R.string.audiofxcatalog_chorus, R.string.audiofxcatalog_chorus_hint, listOf(
+            Param("speed", R.string.audiofxcatalog_chorus_rate, 0.05f, 10f, 0.8f, { "%.2f Hz".format(it) }),
+            Param("intensity", R.string.audiofxcatalog_chorus_depth, 0f, 100f, 30f, ::pct),
+            Param("mix", R.string.audiofxcatalog_mix, 0f, 100f, 50f, ::pct),
+        )),
     )
 
     fun of(id: String): Fx? = all.firstOrNull { it.id == id }

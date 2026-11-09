@@ -73,4 +73,52 @@ class SpeechTextTest {
         assertTrue(lines.joinToString { it.text }, lines.all { it.text.length <= 42 })
         assertEquals(long.joinToString(" ") { it.text }, lines.joinToString(" ") { it.text })
     }
+
+    private fun say(text: String, t0: Double = 0.0): List<SpeechLine> {
+        var t = t0
+        return text.split(" ").map { x -> val d = 0.08 * x.length + 0.1; SpeechLine(t, t + d, x).also { t += d + 0.03 } }
+    }
+
+    @Test fun aSentenceThatFitsStaysWhole() {
+        assertEquals(listOf("Vi åkte till Sicilien i somras."), SpeechText.group(say("Vi åkte till Sicilien i somras.")).map { it.text })
+    }
+
+    @Test fun sentencesNeverShareALine() {
+        assertEquals(listOf("Det var kul.", "Ja."), SpeechText.group(say("Det var kul. Ja.")).map { it.text })
+    }
+
+    @Test fun aLongSentenceBreaksAtTheCommaAndKeepsWordsTogether() {
+        val lines = SpeechText.group(say("När vi kom fram till byn vid havet, så gick vi direkt ner till stranden och badade hela dagen.")).map { it.text }
+        assertTrue(lines.toString(), lines.all { it.length <= 42 })
+        assertTrue(lines.toString(), lines[0].endsWith("havet,"))
+        val tied = setOf("en", "den", "till", "vid", "och", "att", "på", "jag", "har")
+        assertTrue(lines.toString(), lines.dropLast(1).none { it.substringAfterLast(' ').trimEnd(',') in tied })
+    }
+
+    @Test fun noOrphanWordAtTheEndOfASentence() {
+        val lines = SpeechText.group(say("Jag tycker verkligen att det här är det bästa vi någonsin har gjort tillsammans.")).map { it.text }
+        assertTrue(lines.toString(), lines.none { ' ' !in it })
+        assertTrue(lines.toString(), lines.none { it.endsWith(" har") || it.endsWith(" att") || it.endsWith(" jag") })
+    }
+
+    @Test fun fillersAndRepeatsLeaveTheCaptionsOnly() {
+        val w = say("Jag jag gick eh, hem öh.")
+        assertEquals("Jag gick hem.", SpeechText.clean(w).joinToString(" ") { it.text })
+        // digits may really be repeated, and a sentence end separates
+        assertEquals(2, SpeechText.clean(say("10 10")).size)
+        assertEquals(2, SpeechText.clean(say("Nej. Nej")).size)
+    }
+
+    @Test fun aFirstWordStretchedOverSilenceStartsWhenItIsSaid() {
+        val l = SpeechText.group(listOf(w(1.0, 5.0, "Hej"), w(5.05, 5.4, "alla.")))
+        assertEquals(5.0 - 0.65, l[0].start, 1e-9)
+        val e = SpeechText.group(listOf(w(1.0, 1.3, "Hej"), w(1.35, 6.0, "alla.")))
+        assertEquals(1.35 + 0.75, e[0].end, 1e-9)
+    }
+
+    @Test fun shortGapsClose() {
+        val t = SpeechText.tidy(listOf(SpeechLine(0.0, 1.0, "a"), SpeechLine(1.2, 2.2, "b"), SpeechLine(4.0, 5.0, "c")))
+        assertEquals(1.2, t[0].end, 1e-9)
+        assertEquals(2.2, t[1].end, 1e-9)
+    }
 }

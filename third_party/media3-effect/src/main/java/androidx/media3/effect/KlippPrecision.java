@@ -40,6 +40,18 @@ public final class KlippPrecision {
   /** The latest late drops' times (uptime ms, at most 64), for the playback summary. */
   public static final java.util.concurrent.ConcurrentLinkedDeque<Long> lateTimes = new java.util.concurrent.ConcurrentLinkedDeque<>();
 
+  /** Frames shown late instead of dropped (see {@link #takeLateFrame}). */
+  public static volatile long framesRescued;
+  private static volatile long lastRescueAt;
+  /** Whether a frame about to be dropped as late is shown anyway: one at a time, never under sustained load. */
+  static boolean takeLateFrame(long now) {
+    if (now - lastRescueAt < RESCUE_SPACING_MS || now - lastLateAt < RESCUE_SPACING_MS) return false;
+    lastRescueAt = now;
+    framesRescued++;
+    return true;
+  }
+  private static final long RESCUE_SPACING_MS = 300;
+
   static void noteLate() {
     long now = android.os.SystemClock.uptimeMillis();
     lastLateAt = now;

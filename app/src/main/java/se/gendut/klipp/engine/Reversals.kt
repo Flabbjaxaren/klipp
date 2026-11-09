@@ -317,7 +317,7 @@ object Reversals {
             times.sort()
             // one frame's duration (median) – the last frame ends at the range's end
             val frame = if (times.size > 1) times.zipWithNext { a, b -> b - a }.sorted()[(times.size - 1) / 2] else 33_333L
-            val end = maxOf(times.last() + frame, Math.round(span * 1_000_000))
+            val end = Math.round(span * 1_000_000)
             val m = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4).also { muxer = it }
             if (format.containsKey(MediaFormat.KEY_ROTATION)) m.setOrientationHint(format.getInteger(MediaFormat.KEY_ROTATION))
             val outTrack = m.addTrack(format)
@@ -465,7 +465,7 @@ object Reversals {
     // ------------------------------------------------------------------ index on disk
 
     /** Bumped when reversed files come out differently: the old ones are then made anew. */
-    private const val INDEX = "index2.json"
+    private const val INDEX = "index3.json"
 
     private fun index(d: File) = File(d, INDEX)
 
@@ -479,7 +479,7 @@ object Reversals {
 
     private fun load(d: File) = synchronized(ready) {
         if (ready.isNotEmpty()) return@synchronized
-        if (File(d, "index.json").exists()) d.listFiles()?.forEach { it.delete() }
+        if (d.list()?.any { it.startsWith("index") && it != INDEX } == true) d.listFiles()?.forEach { it.delete() }
         runCatching {
             val a = JSONArray(index(d).readText())
             for (i in 0 until a.length()) {

@@ -274,6 +274,8 @@ data class SequenceSnap(
     val sampleRate: Int = 48000,
     /** Captions on disabled tracks (not visible, shown gray in the timeline). */
     val hiddenCaptions: List<CaptionSnap> = emptyList(),
+    /** The transcript's words in timeline seconds (only sent when a caption track marks the spoken word). */
+    val words: List<SpeechLine> = emptyList(),
 )
 
 data class CaptionTrackSnap(val id: Long, val name: String, val enabled: Boolean, val count: Int, val captionIds: List<Long> = emptyList(), val style: CaptionStyle = CaptionStyle())
@@ -291,8 +293,24 @@ data class CaptionStyle(
     val lineSpacing: Float = 1.25f,
     val outline: Float = 0f,
     val outlineColor: Int = 0xFF000000.toInt(),
+    /** The color of the word being spoken; null = no marking. Stored after [WORD_TAG] in the track's name, as the two below. */
+    val wordColor: Int? = null,
+    /** How many words are on screen at a time; 0 = the whole caption. */
+    val wordCount: Int = 0,
+    /** The size of the word being spoken relative to the others (1 = the same). */
+    val wordZoom: Float = 1f,
 ) {
+    /** This style with the word settings stored in the track called [trackName]. */
+    fun withWordsOf(trackName: String): CaptionStyle {
+        val kv = trackName.substringAfter(WORD_TAG, "").split(';').drop(1).associate { it.substringBefore('=') to it.substringAfter('=') }
+        return copy(wordColor = wordColorOf(trackName), wordCount = kv["n"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0, wordZoom = kv["zoom"]?.toFloatOrNull()?.coerceIn(1f, 2f) ?: 1f)
+    }
+
     companion object {
+        const val WORD_TAG = ";klipp:word="
+        fun wordColorOf(trackName: String): Int? =
+            trackName.substringAfter(WORD_TAG, "").substringBefore(';').takeIf { it.isNotEmpty() }?.let { parseColor(it, 0xFFFFD400.toInt()) }
+        fun wordTag(color: String, count: Int, zoom: Float) = "$WORD_TAG$color;n=$count;zoom=$zoom"
         /** "#rrggbb" or "#rrggbbaa" → ARGB. */
         fun parseColor(s: String?, def: Int): Int {
             val h = s?.removePrefix("#") ?: return def
@@ -450,8 +468,10 @@ data class Snapshot(
                     hiddenCaptions = q.optJSONArray("hiddenCaptions").list { c -> CaptionSnap(c.optLong("id"), c.optDouble("start"), c.optDouble("duration"), c.optString("text"), c.optLong("track")) },
                     captionTracks = q.optJSONArray("captionTracks").list { c ->
                         CaptionTrackSnap(c.optLong("id"), c.optString("name"), c.optBoolean("enabled", true), c.optInt("count"),
-                            c.optJSONArray("captionIds")?.let { a -> List(a.length()) { a.optLong(it) } }.orEmpty(), CaptionStyle.fromJson(c.optJSONObject("style")))
+                            c.optJSONArray("captionIds")?.let { a -> List(a.length()) { a.optLong(it) } }.orEmpty(),
+                            CaptionStyle.fromJson(c.optJSONObject("style")).withWordsOf(c.optString("name")))
                     },
+                    words = q.optJSONArray("words").list { w -> SpeechLine(w.optDouble("start"), w.optDouble("end"), w.optString("text")) },
                 )
             }
             return Snapshot(

@@ -239,6 +239,8 @@ class AudioRoundTest {
             "dynamics_rack" to setOf("comp_on", "comp_threshold", "comp_ratio", "comp_attack", "comp_release", "comp_makeup", "lim_on", "lim_threshold",
                 "gate_on", "gate_threshold", "exp_on", "exp_threshold", "exp_ratio", "output"),
             "hard_limiter" to setOf("max", "boost"),
+            "pitch_shifter" to setOf("semitones", "cents"), "delay" to setOf("delay", "feedback", "mix"),
+            "chorus_flanger" to setOf("mode", "speed", "width", "intensity", "transience", "mix"),
         )
         for (fx in AudioFxCatalog.all) {
             val k = known[fx.id] ?: error("unknown effect ${fx.id}")
@@ -258,6 +260,7 @@ class AudioRoundTest {
         st.onFxLive = { c, i, prm, v -> live += "$c $i $prm" }
         rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { PropertiesPanel(st) {} } } }
         rule.waitForIdle()
+        rule.onNodeWithTag("propTab:afx").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("addFx:denoise").performScrollTo().performClick()
         rule.waitForIdle()
         assertTrue(be.log.contains("addfx denoise"))
@@ -297,10 +300,12 @@ class AudioRoundTest {
         rule.onNodeWithTag("kf:A2").performScrollTo().performClick()
         rule.waitForIdle()
         assertTrue(log.toString(), log.contains("kf 1 3.0 0.0"))
+        rule.onNodeWithTag("audioTab:loudness").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("normalize").performScrollTo().performClick()
         rule.waitUntil(3000) { commits > 0 }
         assertEquals(5.9f, mix.normDb, 0.01f)
         assertEquals(1, commits)
+        rule.onNodeWithTag("audioTab:record").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("voStart").performScrollTo().performClick()
         assertTrue(log.contains("vo start"))
         rule.onRoot().captureRoboImage("$dir/41_mixer.png")

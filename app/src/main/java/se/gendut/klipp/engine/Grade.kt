@@ -317,15 +317,16 @@ class WindowTrack(
             val r = (sigma * 3).toInt().coerceAtLeast(1)
             val w = FloatArray(2 * r + 1) { val d = (it - r).toFloat(); kotlin.math.exp(-d * d / (2 * sigma * sigma)) }
             val n = v.size
-            fun at(j: Int): Float = when {
-                j < 0 -> 2 * v[0] - v[(-j).coerceAtMost(n - 1)]
-                j >= n -> 2 * v[n - 1] - v[(2 * (n - 1) - j).coerceAtLeast(0)]
-                else -> v[j]
-            }
+            // a straight line fitted under the Gaussian: the same as the plain Gaussian mid-clip, and at the ends it follows
+            // the trend without being pinned to the first frame (which left the clip's start uncorrected)
             return FloatArray(n) { i ->
-                var acc = 0f; var ws = 0f
-                for (k in -r..r) { acc += at(i + k) * w[k + r]; ws += w[k + r] }
-                acc / ws
+                var s0 = 0f; var s1 = 0f; var s2 = 0f; var y0 = 0f; var y1 = 0f
+                for (j in maxOf(0, i - r)..minOf(n - 1, i + r)) {
+                    val d = (j - i).toFloat(); val g = w[j - i + r]
+                    s0 += g; s1 += g * d; s2 += g * d * d; y0 += g * v[j]; y1 += g * d * v[j]
+                }
+                val det = s0 * s2 - s1 * s1
+                if (det > 1e-6f) (s2 * y0 - s1 * y1) / det else y0 / s0
             }
         }
     }
@@ -377,7 +378,14 @@ data class GradeNode(
      * it (see [density]). Gray and each pixel's strongest channel stay.
      */
     val density: Float = 0f,
+    /** The log wheels: offsets that act on one tonal zone each, split at [logLow] and [logHigh]. */
+    val logShadow: Wheel = Wheel(),
+    val logMid: Wheel = Wheel(),
+    val logHi: Wheel = Wheel(),
+    val logLow: Float = 0.333f,
+    val logHigh: Float = 0.55f,
 ) {
+    val hasLog get() = !(logShadow.isNeutral && logMid.isNeutral && logHi.isNeutral)
     val hasCurves get() = !(curveY.isIdentity && curveR.isIdentity && curveG.isIdentity && curveB.isIdentity)
     val hasHsl get() = !hsl.isNeutral
     val hasLut get() = lut != null && lutMix > 0.0001f
@@ -385,7 +393,7 @@ data class GradeNode(
     val hasKey get() = qual.on || win.on
     val hasBlur get() = blur > 0.0001f || pixelate > 0.0001f || denoise > 0.0001f
     val isNeutral get() = !enabled || mix <= 0.0001f || (lift.isNeutral && gamma.isNeutral && gain.isNeutral && offset.isNeutral &&
-        contrast == 1f && sat == 1f && density == 0f && hue == 0f && temp == 0f && tint == 0f && !hasCurves && !hasHsl && !hasLut && !hasBlur && drt == null && film == null)
+        contrast == 1f && sat == 1f && density == 0f && hue == 0f && temp == 0f && tint == 0f && !hasCurves && !hasLog && !hasHsl && !hasLut && !hasBlur && drt == null && film == null)
 
     /** Uniform values (shared by the CPU path and the shader). */
     class Params(
@@ -443,10 +451,15 @@ data class GradeNode(
             k * (1 - c) + sq * s, c + k * (1 - c), k * (1 - c) - sq * s,
             k * (1 - c) - sq * s, k * (1 - c) + sq * s, c + k * (1 - c),
         )
-        val curves = if (hasCurves) {
+        val curves = if (hasCurves || hasLog) {
             val y = curveY.table(); val r = curveR.table(); val gg = curveG.table(); val b = curveB.table()
-            fun comp(ch: FloatArray) = FloatArray(256) { i -> sample(ch, y[i]) }
-            arrayOf(comp(r), comp(gg), comp(b))
+            val sh = logShadow.rgb(); val md = logMid.rgb(); val hi = logHi.rgb()
+            fun amount(w: Wheel, c: FloatArray, i: Int) = c[i] * 0.25f + w.master * 0.5f
+            // the log wheels first, then the curves: both are tables per channel
+            fun comp(ch: FloatArray, c: Int) = FloatArray(256) { i ->
+                sample(ch, sample(y, logTone(i / 255f, amount(logShadow, sh, c), amount(logMid, md, c), amount(logHi, hi, c), logLow, logHigh)))
+            }
+            arrayOf(comp(r, 0), comp(gg, 1), comp(b, 2))
         } else null
         val base = if (hasLut) lut?.let { runCatching { LutStore.get(it) }.getOrNull() } else null
         // with OpenDRT: the node's LUT (with its mix) and the transform in one single LUT, fully on
@@ -466,6 +479,7 @@ data class GradeNode(
         .put("temp", temp.toDouble()).put("tint", tint.toDouble()).put("mix", mix.toDouble())
         .put("cY", curveY.toJson()).put("cR", curveR.toJson()).put("cG", curveG.toJson()).put("cB", curveB.toJson())
         .apply { if (hasHsl) put("hsl", hsl.toJson()) }
+        .apply { if (hasLog) { put("logS", logShadow.toJson()); put("logM", logMid.toJson()); put("logH", logHi.toJson()) }; if (logLow != 0.333f) put("logL", logLow.toDouble()); if (logHigh != 0.55f) put("logR", logHigh.toDouble()) }
         .put("lut", lut ?: JSONObject.NULL).put("lutMix", lutMix.toDouble()).put("qual", qual.toJson()).put("win", win.toJson())
         .apply { if (blur > 0f) put("blur", blur.toDouble()); if (pixelate > 0f) put("pix", pixelate.toDouble()); drt?.let { put("drt", it.toJson()) }; film?.let { put("film", it.toJson()) }; if (cache) put("cache", true); if (denoise > 0f) put("dn", denoise.toDouble()); if (density > 0f) put("den", density.toDouble()) }
 
@@ -486,7 +500,22 @@ data class GradeNode(
             o.optBoolean("cache", false),
             o.optDouble("dn", 0.0).toFloat(),
             o.optDouble("den", 0.0).toFloat(),
+            Wheel.fromJson(o.optJSONArray("logS")), Wheel.fromJson(o.optJSONArray("logM")), Wheel.fromJson(o.optJSONArray("logH")),
+            o.optDouble("logL", 0.333).toFloat(), o.optDouble("logR", 0.55).toFloat(),
         )
+
+        /**
+         * The log wheels on one channel value: three offsets whose zones overlap softly and always add up to one, so the
+         * same amount on all three is a plain offset.
+         */
+        fun logTone(x: Float, shadow: Float, mid: Float, high: Float, low: Float, top: Float): Float {
+            fun step(a: Float, b: Float): Float { val t = ((x - a) / (b - a)).coerceIn(0f, 1f); return t * t * (3f - 2f * t) }
+            val soft = 0.12f
+            val s = 1f - step(low - soft, low + soft)
+            val h = step(top - soft, top + soft)
+            val m = (1f - s - h).coerceAtLeast(0f)
+            return x + shadow * s + mid * m + high * h
+        }
 
         /**
          * The primaries, per channel: lift and gain are one linear step, y = gain·(lift + x·(1 − lift)) / (1 + lift·(gain − 1))
@@ -664,7 +693,7 @@ data class ClipGrade(
     val layer: LayerFx? = null,
 ) {
     /** Needs the frames' source time (tracked windows, stabilization, the mask's keyframes). */
-    val needsClock get() = hasTrack || stab != null || layer?.mask?.animated == true
+    val needsClock get() = hasTrack || stab != null || layer?.mask?.animated == true || layer?.crop?.animated == true
     /** The whole chain that is computed (the nodes in order). */
     val chain: List<GradeNode> get() = nodes
     val isNeutral get() = chain.all { it.isNeutral } && stab == null
@@ -1313,7 +1342,7 @@ object LiveGrades {
         g.chain.filter { !it.isNeutral }.flatMap { n -> n.film?.let { f -> listOf(n.id, FILM_KEY, if (f.effectsOnly) 1 else 0) } ?: listOf(n.id) } +
             (g.stab?.let { listOf(STAB_KEY, it.hashCode()) } ?: emptyList()) +
             // key/mask (values live) and the blend mode (a compositor setting)
-            (g.layer?.let { l -> listOf(LAYER_KEY, if (l.hasAlpha) 1 else 0, l.blend.ordinal, if (l.mask?.animated == true) 1 else 0) } ?: emptyList())
+            (g.layer?.let { l -> listOf(LAYER_KEY, if (l.hasAlpha) 1 else 0, l.blend.ordinal, if (l.mask?.animated == true || l.crop?.animated == true) 1 else 0) } ?: emptyList())
 
     private const val STAB_KEY = -2
     private const val LAYER_KEY = -4

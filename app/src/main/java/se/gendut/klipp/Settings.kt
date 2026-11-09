@@ -1,5 +1,6 @@
 package se.gendut.klipp
 
+import androidx.compose.ui.graphics.graphicsLayer
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -115,12 +116,24 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
     val ctx = LocalContext.current
     val haptics = rememberHaptics()
     Column(Modifier.fillMaxSize().background(K.Bg).windowInsetsPadding(WindowInsets.safeDrawing).testTag("settings")) {
+        var page by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(-1) }
+        val pageTitles = listOf(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_group_playback), stringResource(R.string.settings_group_export), stringResource(R.string.settings_group_developer))
+        if (page >= 0) androidx.activity.compose.BackHandler { page = -1 }
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundIcon(Ic.Back, stringResource(R.string.settings_back)) { onClose() }
-            Text(stringResource(R.string.settings_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+            RoundIcon(Ic.Back, stringResource(R.string.settings_back)) { if (page >= 0) page = -1 else onClose() }
+            Text(pageTitles.getOrNull(page) ?: stringResource(R.string.settings_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 40.dp)) {
-            Group(stringResource(R.string.settings_group_appearance))
+            when (page) {
+                -1 -> PanelCard(Modifier.padding(top = 8.dp)) {
+                    CategoryRow(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_cat_appearance), Ic.Eye, "set:cat:appearance") { page = 0 }
+                    CategoryRow(stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_cat_timeline), Ic.Trim, "set:cat:timeline") { page = 1 }
+                    CategoryRow(stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_cat_pipeline), Ic.Film, "set:cat:pipeline") { page = 2 }
+                    CategoryRow(stringResource(R.string.settings_group_playback), stringResource(R.string.settings_cat_playback), Ic.Folder, "set:cat:playback") { page = 3 }
+                    CategoryRow(stringResource(R.string.settings_group_export), stringResource(R.string.settings_cat_export), Ic.Download, "set:cat:export") { page = 4 }
+                    CategoryRow(stringResource(R.string.settings_group_developer), stringResource(R.string.settings_cat_developer), Ic.Gear, "set:cat:developer") { page = 5 }
+                }
+                0 -> PanelCard(Modifier.padding(top = 8.dp)) {
             Text(stringResource(R.string.settings_accent_color), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
             Row(
                 Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
@@ -142,7 +155,8 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             }
             DropField(stringResource(R.string.settings_background), Base.entries.map { Opt(it, it.label, it.hint, key = it.name) }, K.base, "base") { AppPrefs.setBase(ctx, it) }
 
-            Group(stringResource(R.string.settings_group_timeline))
+                }
+                1 -> PanelCard(Modifier.padding(top = 8.dp)) {
             var center by remember { mutableStateOf(AppPrefs.centerDefault(ctx)) }
             SwitchRow(stringResource(R.string.settings_center_playhead), stringResource(R.string.settings_center_playhead_hint), center, "set:center") {
                 center = it; AppPrefs.setCenterDefault(ctx, it); onCenterDefault(it)
@@ -164,7 +178,8 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             DropField(stringResource(R.string.settings_caption_length), CAPTION_SECONDS.map { Opt(it, secLabel(it), if (it == 2f) defaultHint else null, key = "c$it") },
                 capSec, "set:capSec") { capSec = it; AppPrefs.setCaptionSeconds(ctx, it) }
 
-            Group(stringResource(R.string.settings_group_pipeline))
+                }
+                2 -> PanelCard(Modifier.padding(top = 8.dp)) {
             val vp = se.gendut.klipp.engine.VideoPipeline
             SwitchRow(stringResource(R.string.settings_float_pipeline), stringResource(R.string.settings_float_pipeline_hint), vp.highPrecision, "set:16f") { vp.setHighPrecision(ctx, it) }
             val full = stringResource(R.string.settings_preview_full)
@@ -190,7 +205,8 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             ), vp.hdrToneMap, "set:toneMap") { vp.setHdrToneMap(ctx, it) }
             Text(stringResource(R.string.settings_ten_bit_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
-            Group(stringResource(R.string.settings_group_playback))
+                }
+                3 -> PanelCard(Modifier.padding(top = 8.dp)) {
             ProxySection(ctx)
             var cacheSize by remember { mutableStateOf(0L) }
             androidx.compose.runtime.LaunchedEffect(se.gendut.klipp.engine.NodeCache.revision) {
@@ -204,33 +220,54 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                 }
                 androidx.compose.material3.TextButton(onClick = { se.gendut.klipp.engine.NodeCache.clear(ctx); cacheSize = 0 }, modifier = Modifier.testTag("set:clearNodeCache")) { Text(stringResource(R.string.settings_clear)) }
             }
+            var renderSize by remember { mutableStateOf(0L) }
+            androidx.compose.runtime.LaunchedEffect(se.gendut.klipp.engine.RenderCache.revision) {
+                renderSize = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.RenderCache.bytes() }
+            }
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.app_delete_renders), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.app_megabytes, renderSize / 1e6), color = K.OnSurfaceVar, fontSize = 12.sp)
+                }
+                androidx.compose.material3.TextButton(onClick = { se.gendut.klipp.engine.RenderCache.clear(); renderSize = 0 }, modifier = Modifier.testTag("set:clearRenders")) { Text(stringResource(R.string.settings_clear)) }
+            }
 
-            Group(stringResource(R.string.settings_group_export))
+                }
+                4 -> PanelCard(Modifier.padding(top = 8.dp)) {
             Text(stringResource(R.string.settings_export_note), color = K.OnSurfaceVar, fontSize = 12.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             var exp by remember { mutableStateOf(ExportSettings.load(ctx, null)) }
             ExportOptions(exp.copy(hdr = false), 1920, 1080, 60.0, hdrPossible = false,
                 hdrBlocked = stringResource(R.string.settings_hdr_at_export)) { exp = it; ExportSettings.save(ctx, null, it) }
 
-            Group(stringResource(R.string.settings_group_developer))
+                }
+                5 -> PanelCard(Modifier.padding(top = 8.dp)) {
             var bridge by remember { mutableStateOf(AppPrefs.agentBridge(ctx)) }
             SwitchRow(stringResource(R.string.settings_agent_bridge), stringResource(R.string.settings_agent_bridge_hint), bridge, "set:agentBridge") {
                 bridge = it; AppPrefs.setAgentBridge(ctx, it); haptics.confirm()
             }
 
-            Group(stringResource(R.string.settings_group_about))
             Text(
                 stringResource(R.string.settings_about, BuildConfigShim.version),
                 color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
+                }
+            }
         }
     }
 }
 
+/** A row on the settings' first page: an icon, the category and what is in it. */
 @Composable
-private fun Group(title: String) {
-    Text(title.uppercase(), color = K.Primary, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp,
-        modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 4.dp))
+private fun CategoryRow(title: String, hint: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tag: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClickLabel = title, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp).testTag(tag), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(40.dp).clip(CircleShape).background(K.Tonal), contentAlignment = Alignment.Center) { Icon(icon, null, tint = K.PrimarySoft, modifier = Modifier.size(20.dp)) }
+        Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+            Text(title, color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(hint, color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1)
+        }
+        Icon(Ic.ChevronDown, null, tint = K.OnSurfaceVar, modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = -90f })
+    }
 }
 
 @Composable

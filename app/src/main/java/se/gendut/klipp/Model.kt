@@ -376,6 +376,7 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var onSpeed: ((Long, Int) -> Unit)? by mutableStateOf(null)
     /** Speed ramp on a clip (set when the engine is attached). */
     var onSpeedRamp: ((Long, se.gendut.klipp.engine.SpeedRamp) -> Unit)? by mutableStateOf(null)
+    var onBeatMarkers: ((Long) -> Unit)? by mutableStateOf(null)
     /** Linked selection (Premiere: Linked Selection): video and audio follow each other. */
     var linkedSelection by mutableStateOf(true)
     var onLinkedSelection: ((Boolean) -> Unit)? by mutableStateOf(null)
@@ -396,6 +397,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
      * picture, y down) goes to the callback; null = not drawing.
      */
     var boxPick by mutableStateOf<((cx: Float, cy: Float, rx: Float, ry: Float) -> Unit)?>(null)
+    /** The clip whose crop is edited on the picture (see CropOverlay); null = none. */
+    var cropEdit by mutableStateOf<Long?>(null)
     /** The title whose corner pin is being dragged on the picture (see PinOverlay); null = none. */
     var pinEdit by mutableStateOf<Long?>(null)
     /** Live values for the selected clip while a slider/gesture is dragged (previewed in the image). */

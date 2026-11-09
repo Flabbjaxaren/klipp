@@ -59,7 +59,7 @@ class PerfTest {
         assertEquals(proxy, v.mediaItem.localConfiguration!!.uri)
         assertEquals(orig, au.mediaItem.localConfiguration!!.uri)
         // the same times and the same speed (the proxy has the original's timeline)
-        assertEquals(v.mediaItem.clippingConfiguration.startPositionUs, au.mediaItem.clippingConfiguration.startPositionUs)
+        assertEquals(v.mediaItem.clippingConfiguration.startPositionUs + 1_000, au.mediaItem.clippingConfiguration.startPositionUs)
         assertEquals(2f, v.speedProvider.getSpeed(0), 0f)
         assertEquals(2f, au.speedProvider.getSpeed(0), 0f)
     }

@@ -70,6 +70,39 @@ data class TitleShadow(
 }
 
 /**
+ * The plate behind a title's text: [color] (RGB), [opacity] 0..1, [radius] and [padding] as fractions of the text size,
+ * and the [accent] colored edge or line of the templates that have one.
+ */
+data class TitlePlate(
+    val on: Boolean = false,
+    val color: Int = 0x000000,
+    val opacity: Float = 0.63f,
+    val radius: Float = 0.16f,
+    val padding: Float = 0.38f,
+    val accentOn: Boolean = false,
+    val accent: Int = 0xFFB77C,
+) {
+    fun encode() = "%d,%06x,%.3f,%.3f,%.3f,%d,%06x".format(java.util.Locale.ROOT, if (on) 1 else 0, color and 0xFFFFFF, opacity, radius, padding, if (accentOn) 1 else 0, accent and 0xFFFFFF)
+
+    companion object {
+        /** What the templates had before the plate could be set. */
+        fun default(t: TitleTemplate) = when (t) {
+            TitleTemplate.LOWER_THIRD -> TitlePlate(on = true, accentOn = true)
+            TitleTemplate.CHAPTER -> TitlePlate(on = true, opacity = 0.51f, accentOn = true)
+            else -> TitlePlate()
+        }
+
+        fun parse(s: String): TitlePlate? {
+            val p = s.split(',')
+            if (p.size < 7) return null
+            return runCatching {
+                TitlePlate(p[0] == "1", p[1].toInt(16), p[2].toFloat().coerceIn(0f, 1f), p[3].toFloat().coerceAtLeast(0f), p[4].toFloat().coerceAtLeast(0f), p[5] == "1", p[6].toInt(16))
+            }.getOrNull()
+        }
+    }
+}
+
+/**
  * Template + animation + type; stored as `klipp:mall=…;in=…` in the text layer's name in the engine. [bold] = the
  * main line in bold (the templates' look), [caps] = all capitals, [shadow] null = the template's own.
  */
@@ -81,12 +114,29 @@ data class TitleLook(
     val italic: Boolean = false,
     val caps: Boolean = false,
     val shadow: TitleShadow? = null,
+    /** Null = the template's own. */
+    val plate: TitlePlate? = null,
+    val opacity: Float = 1f,
+    /** The outline's width as a fraction of the text size; 0 = none. */
+    val stroke: Float = 0f,
+    val strokeColor: Int = 0x000000,
+    /** Extra letter spacing in em. */
+    val tracking: Float = 0f,
+    /** Line spacing relative to the template's. */
+    val leading: Float = 1f,
+    /** Free titles: "l", "c" or "r". */
+    val align: String = "c",
 ) {
     /** The shadow drawn: the one set, else the template's. */
     val shadowOrDefault: TitleShadow get() = shadow ?: TitleShadow.default(template)
+    val plateOrDefault: TitlePlate get() = plate ?: TitlePlate.default(template)
 
     fun encode() = "klipp:mall=${template.key};in=${anim.key}" + (if (font != "Inter") ";font=${font.replace(Regex("[;=]"), "_")}" else "") +
-        (if (!bold) ";b=0" else "") + (if (italic) ";i=1" else "") + (if (caps) ";caps=1" else "") + (shadow?.let { ";sh=${it.encode()}" } ?: "")
+        (if (!bold) ";b=0" else "") + (if (italic) ";i=1" else "") + (if (caps) ";caps=1" else "") + (shadow?.let { ";sh=${it.encode()}" } ?: "") +
+        (plate?.let { ";pl=${it.encode()}" } ?: "") + (if (opacity < 1f) ";op=%.3f".format(java.util.Locale.ROOT, opacity) else "") +
+        (if (stroke > 0f) ";st=%.4f,%06x".format(java.util.Locale.ROOT, stroke, strokeColor and 0xFFFFFF) else "") +
+        (if (tracking != 0f) ";tr=%.3f".format(java.util.Locale.ROOT, tracking) else "") +
+        (if (leading != 1f) ";le=%.3f".format(java.util.Locale.ROOT, leading) else "") + (if (align != "c") ";al=$align" else "")
 
     companion object {
         fun parse(name: String): TitleLook {
@@ -100,6 +150,13 @@ data class TitleLook(
                 italic = kv["i"] == "1",
                 caps = kv["caps"] == "1",
                 shadow = kv["sh"]?.let { TitleShadow.parse(it) },
+                plate = kv["pl"]?.let { TitlePlate.parse(it) },
+                opacity = kv["op"]?.toFloatOrNull()?.coerceIn(0f, 1f) ?: 1f,
+                stroke = kv["st"]?.substringBefore(',')?.toFloatOrNull()?.coerceAtLeast(0f) ?: 0f,
+                strokeColor = kv["st"]?.substringAfter(',', "")?.toIntOrNull(16) ?: 0x000000,
+                tracking = kv["tr"]?.toFloatOrNull() ?: 0f,
+                leading = kv["le"]?.toFloatOrNull()?.coerceIn(0.5f, 3f) ?: 1f,
+                align = kv["al"]?.takeIf { it == "l" || it == "r" } ?: "c",
             )
         }
     }
@@ -160,12 +217,10 @@ object TitleMotion {
 
 /** Draws titles per template. Lines: first = main text, the rest = subtitle/lines. */
 object TitleArt {
-    private const val ACCENT = 0xFFFFB77C.toInt()
-
     fun rollHeight(t: TextSnap, w: Int, h: Int): Int {
         val lines = t.text.split('\n').size
         val size = t.size.toFloat().coerceIn(8f, h * 0.2f)
-        return max(h, (lines * size * 1.5f + size).toInt())
+        return max(h, (lines * size * 1.5f * t.look.leading + size).toInt())
     }
 
     fun draw(t: TextSnap, w: Int, h: Int): Bitmap = draw(t, w, h, 1f, null)
@@ -193,9 +248,14 @@ object TitleArt {
             // the main line follows the bold setting; the other lines are regular as before
             typeface = Fonts.typeface(look.font, bold && look.bold, look.italic)
             textAlign = align
-            this.color = color
+            this.color = Color.argb((Color.alpha(color) * look.opacity).toInt().coerceIn(0, 255), Color.red(color), Color.green(color), Color.blue(color))
+            letterSpacing = look.tracking
         }
         val sh = look.shadowOrDefault
+        val plate = look.plateOrDefault
+        fun argb(rgb: Int, a: Float) = Color.argb((a * 255).toInt().coerceIn(0, 255), Color.red(rgb), Color.green(rgb), Color.blue(rgb))
+        val plateFill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = argb(plate.color, plate.opacity) }
+        val accent = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = argb(plate.accent, 1f) }
         // text with the title's shadow under it (the template's plates and lines get none)
         fun text(s: String, x: Float, y: Float, p: Paint) {
             val str = if (look.caps) s.uppercase() else s
@@ -212,6 +272,10 @@ object TitleArt {
                 }
                 cv.drawText(str, x + (cos(a) * d).toFloat(), y + (kotlin.math.sin(a) * d).toFloat(), sp)
             }
+            if (look.stroke > 0f) cv.drawText(str, x, y, Paint(p).apply {
+                clearShadowLayer(); style = Paint.Style.STROKE; strokeWidth = look.stroke * p.textSize * 2f; strokeJoin = Paint.Join.ROUND
+                color = Color.argb(Color.alpha(p.color), Color.red(look.strokeColor), Color.green(look.strokeColor), Color.blue(look.strokeColor))
+            })
             cv.drawText(str, x, y, Paint(p).apply { clearShadowLayer() })
         }
         when (look.template) {
@@ -219,34 +283,35 @@ object TitleArt {
                 // lower third: dark plate at bottom left with an accent edge, name + role
                 val pMain = paint(size, true, fill, Paint.Align.LEFT)
                 val pSub = paint(size * 0.58f, false, Color.argb(235, 226, 226, 233), Paint.Align.LEFT)
-                val pad = size * 0.38f
+                val pad = size * plate.padding
+                val edge = if (plate.accentOn) size * 0.18f else 0f
                 fun cs(s: String) = if (look.caps) s.uppercase() else s
                 val tw = max(pMain.measureText(cs(main)), rest.maxOfOrNull { pSub.measureText(cs(it)) } ?: 0f)
-                val th = size * 1.05f + rest.size * pSub.textSize * 1.3f
+                val th = size * 1.05f + rest.size * pSub.textSize * 1.3f * look.leading
                 val left = w * 0.06f
                 val bottom = h * 0.86f
-                val box = RectF(left, bottom - th - pad * 2, left + tw + pad * 2 + size * 0.18f, bottom)
-                cv.drawRoundRect(box, size * 0.16f, size * 0.16f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(160, 0, 0, 0) })
-                cv.drawRoundRect(RectF(box.left, box.top, box.left + size * 0.12f, box.bottom), size * 0.06f, size * 0.06f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = ACCENT })
-                val x = box.left + size * 0.18f + pad
+                val box = RectF(left, bottom - th - pad * 2, left + tw + pad * 2 + edge, bottom)
+                if (plate.on) cv.drawRoundRect(box, size * plate.radius, size * plate.radius, plateFill)
+                if (plate.accentOn) cv.drawRoundRect(RectF(box.left, box.top, box.left + size * 0.12f, box.bottom), size * 0.06f, size * 0.06f, accent)
+                val x = box.left + edge + pad
                 var y = box.top + pad + size * 0.85f
                 text(main, x, y, pMain)
-                for (r in rest) { y += pSub.textSize * 1.3f; text(r, x, y, pSub) }
+                for (r in rest) { y += pSub.textSize * 1.3f * look.leading; text(r, x, y, pSub) }
             }
             TitleTemplate.CHAPTER -> {
                 // chapter card: centered, soft dark shade behind, thin accent line between heading and subheading
                 val shade = Paint().apply {
-                    shader = LinearGradient(0f, h * 0.25f, 0f, h * 0.75f, intArrayOf(0, Color.argb(130, 0, 0, 0), 0), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
+                    shader = LinearGradient(0f, h * 0.25f, 0f, h * 0.75f, intArrayOf(argb(plate.color, 0f), argb(plate.color, plate.opacity), argb(plate.color, 0f)), floatArrayOf(0f, 0.5f, 1f), Shader.TileMode.CLAMP)
                 }
-                cv.drawRect(0f, h * 0.25f, w.toFloat(), h * 0.75f, shade)
-                val pMain = paint(size * 1.15f, true, fill, Paint.Align.CENTER).apply { letterSpacing = 0.04f }
-                val pSub = paint(size * 0.55f, false, Color.argb(235, 226, 226, 233), Paint.Align.CENTER).apply { letterSpacing = 0.2f }
+                if (plate.on) cv.drawRect(0f, h * 0.25f, w.toFloat(), h * 0.75f, shade)
+                val pMain = paint(size * 1.15f, true, fill, Paint.Align.CENTER).apply { letterSpacing += 0.04f }
+                val pSub = paint(size * 0.55f, false, Color.argb(235, 226, 226, 233), Paint.Align.CENTER).apply { letterSpacing += 0.2f }
                 val cy = h / 2f
                 text(main, w / 2f, cy - size * 0.1f, pMain)
                 val lw = min(pMain.measureText(if (look.caps) main.uppercase() else main) * 0.5f, w * 0.3f)
-                cv.drawRect(w / 2f - lw / 2, cy + size * 0.22f, w / 2f + lw / 2, cy + size * 0.27f, Paint().apply { color = ACCENT })
+                if (plate.accentOn) cv.drawRect(w / 2f - lw / 2, cy + size * 0.22f, w / 2f + lw / 2, cy + size * 0.27f, accent)
                 var y = cy + size * 0.95f
-                for (r in rest) { text(r.uppercase(), w / 2f, y, pSub); y += pSub.textSize * 1.4f }
+                for (r in rest) { text(r.uppercase(), w / 2f, y, pSub); y += pSub.textSize * 1.4f * look.leading }
             }
             TitleTemplate.ROLL -> {
                 // credits roll: centered lines; lines ending in ":" become small headings
@@ -255,16 +320,23 @@ object TitleArt {
                     val head = r.trimEnd().endsWith(":")
                     val p = if (head) paint(size * 0.6f, false, Color.argb(220, 255, 183, 124), Paint.Align.CENTER) else paint(size, true, fill, Paint.Align.CENTER)
                     text(r, w / 2f, y, p)
-                    y += size * 1.5f
+                    y += size * 1.5f * look.leading
                 }
             }
             TitleTemplate.FREE -> {
-                val p = paint(size, true, fill, Paint.Align.CENTER)
+                val p = paint(size, true, fill, when (look.align) { "l" -> Paint.Align.LEFT; "r" -> Paint.Align.RIGHT; else -> Paint.Align.CENTER })
                 val x = (t.x ?: (w / 2.0)).toFloat()
                 var y = (t.y ?: (h / 2.0)).toFloat()
+                val step = p.textSize * 1.2f * look.leading
+                if (plate.on) {
+                    val tw = lines.maxOf { p.measureText(if (look.caps) it.uppercase() else it) }
+                    val l = when (look.align) { "l" -> x; "r" -> x - tw; else -> x - tw / 2 }
+                    val pad = size * plate.padding
+                    cv.drawRoundRect(RectF(l - pad, y - size * 0.95f - pad * 0.5f, l + tw + pad, y + step * (lines.size - 1) + size * 0.3f + pad * 0.5f), size * plate.radius, size * plate.radius, plateFill)
+                }
                 for (line in lines) {
                     text(line, x, y, p)
-                    y += p.textSize * 1.2f
+                    y += step
                 }
             }
         }

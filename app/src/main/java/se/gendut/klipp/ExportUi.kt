@@ -1,5 +1,6 @@
 package se.gendut.klipp
 
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,6 +57,13 @@ fun ExportOptions(
     val auto = stringResource(R.string.exportui_auto)
     val projects = stringResource(R.string.exportui_project_setting)
 
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    ConnectedToggleGroup(
+        listOf(stringResource(R.string.exportui_tab_video), stringResource(R.string.exportui_quality), stringResource(R.string.exportui_color), stringResource(R.string.exportui_audio)),
+        tab, { tab = it }, Modifier.padding(vertical = 6.dp).fillMaxWidth(), tag = { "expTab:$it" },
+    )
+    when (tab) {
+        0 -> {
     DropField(stringResource(R.string.exportui_resolution), HEIGHTS.map { h ->
         val (w2, h2) = s.copy(height = h).outputSize(seqW, seqH)
         val ok = EncoderCaps.sizeSupported(s.codec, w2, h2)
@@ -94,6 +102,8 @@ fun ExportOptions(
         ), s.bitDepth, "exp:bits") { onChange(s.copy(bitDepth = it)) }
     }
 
+        }
+        1 -> {
     // quality: the encoder's choice, four levels by format and codec, or a custom bitrate
     val levels = ExportPresets.LABELS.indices.map { ExportPresets.mbps(it, ow, oh, outFps, s.codec) }
     val matched = levels.indexOfFirst { s.bitrateMbps > 0f && kotlin.math.abs(s.bitrateMbps - it) < 0.01 }
@@ -132,7 +142,8 @@ fun ExportOptions(
         }
     }
 
-    SectionLabel(stringResource(R.string.exportui_color))
+        }
+        2 -> {
     Chips {
         Choice("SDR · Rec.709", !s.hdr, true, "exp:sdr") { onChange(s.copy(hdr = false)) }
         Choice(stringResource(R.string.exportui_hdr_keep), s.hdr, hdrPossible && hdrBlocked == null, "exp:hdr") { onChange(s.copy(hdr = true, codec = MimeTypes.VIDEO_H265)) }
@@ -144,7 +155,8 @@ fun ExportOptions(
         else -> stringResource(R.string.exportui_note_sdr)
     })
 
-    SectionLabel(stringResource(R.string.exportui_audio))
+        }
+        else -> {
     Chips {
         Choice(stringResource(R.string.exportui_with_audio), s.audio, true, "exp:audio") { onChange(s.copy(audio = true)) }
         Choice(stringResource(R.string.exportui_without_audio), !s.audio, true, "exp:noaudio") { onChange(s.copy(audio = false)) }
@@ -163,6 +175,8 @@ fun ExportOptions(
         Chips {
             Choice(stringResource(R.string.exportui_stereo), !s.mono, true, "exp:stereo") { onChange(s.copy(mono = false)) }
             Choice(stringResource(R.string.exportui_mono), s.mono, true, "exp:mono") { onChange(s.copy(mono = true)) }
+        }
+    }
         }
     }
 }

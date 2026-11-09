@@ -85,7 +85,8 @@ fun srcOf(c: ClipSnap, offset: Double = 0.0): SegSrc =
 
 sealed interface Overlay {
     data class Title(val t: TextSnap) : Overlay
-    data class Caption(val text: String, val style: CaptionStyle = CaptionStyle()) : Overlay
+    /** [word]: the index of the word being spoken (among the text's words), -1 = none marked. */
+    data class Caption(val text: String, val style: CaptionStyle = CaptionStyle(), val word: Int = -1) : Overlay
 }
 
 /** Linear opacity ramp (transition): from [a0] at [t0] to [a1] at [t1]. */
@@ -268,7 +269,11 @@ object LayerPlanner {
         }
         for (c in q.captions.sortedBy { it.start }) {
             val style = q.captionTracks.firstOrNull { it.id == c.track }?.style ?: CaptionStyle()
-            if (c.duration > EPS && c.text.isNotBlank()) overlays += OverlayItem(c.start, c.end, Overlay.Caption(c.text, style))
+            if (c.duration <= EPS || c.text.isBlank()) continue
+            if (style.wordColor == null) overlays += OverlayItem(c.start, c.end, Overlay.Caption(c.text, style))
+            else for (s in CaptionWords.steps(c.text, c.start, c.end, q.words, style.wordCount)) {
+                if (s.end - s.start > EPS) overlays += OverlayItem(s.start, s.end, Overlay.Caption(s.text, style, s.word))
+            }
         }
         if (layers.isEmpty() && overlays.isEmpty()) return null
         // simple path: fades to black are done as an effect on the whole image
@@ -865,12 +870,28 @@ object OverlayRenderer {
         is Overlay.Title -> TitleArt.draw(o.t, w, h)
         is Overlay.Caption -> Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { bmp ->
             bmp.eraseColor(Color.TRANSPARENT)
-            drawCaption(Canvas(bmp), o.text, o.style, w, h)
+            drawCaption(Canvas(bmp), o.text, o.style, w, h, o.word)
         }
     }
 
-    /** A caption with the track's style (font, size, color, background box, outline, alignment, position). */
-    fun drawCaption(cv: Canvas, text: String, st: CaptionStyle, w: Int, h: Int) {
+    /** [line] broken at spaces so that it fits [max] px. */
+    private fun wrap(line: String, width: (String) -> Float, max: Float): List<String> {
+        if (width(line) <= max) return listOf(line)
+        val out = ArrayList<String>()
+        var cur = ""
+        for (word in line.trim().split(Regex("\\s+"))) {
+            val next = if (cur.isEmpty()) word else "$cur $word"
+            if (cur.isEmpty() || width(next) <= max) cur = next else { out += cur; cur = word }
+        }
+        if (cur.isNotEmpty()) out += cur
+        return out
+    }
+
+    /**
+     * A caption with the track's style (font, size, color, background box, outline, alignment, position). Lines too wide
+     * for the frame wrap. [word]: the word (index in the text) drawn in the style's word color.
+     */
+    fun drawCaption(cv: Canvas, text: String, st: CaptionStyle, w: Int, h: Int, word: Int = -1) {
         val scale = h / 1080f
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = st.size.coerceIn(8f, 300f) * scale
@@ -878,7 +899,13 @@ object OverlayRenderer {
             textAlign = when (st.align) { "left" -> Paint.Align.LEFT; "right" -> Paint.Align.RIGHT; else -> Paint.Align.CENTER }
             color = st.color
         }
-        val lines = text.split('\n').filter { it.isNotEmpty() }
+        val marked = st.wordColor?.takeIf { word >= 0 }?.let { c -> Paint(p).apply { color = c; textAlign = Paint.Align.LEFT } }
+        val zoom = if (marked != null) st.wordZoom.coerceIn(1f, 2f) else 1f
+        val gap = p.measureText(" ")
+        val tokens = { line: String -> line.trim().split(Regex("\\s+")) }
+        // for wrapping: room for the line's longest word enlarged, so a line breaks the same way whichever word is marked
+        val width = { line: String -> if (marked == null) p.measureText(line) else tokens(line).let { t -> p.measureText(line) + (zoom - 1f) * t.maxOf { p.measureText(it) } } }
+        val lines = text.split('\n').filter { it.isNotEmpty() }.flatMap { wrap(it, width, w * 0.9f) }
         if (lines.isEmpty()) return
         val lh = p.textSize * st.lineSpacing.coerceIn(0.8f, 3f)
         val margin = st.margin.coerceIn(0f, 0.45f) * h
@@ -893,15 +920,43 @@ object OverlayRenderer {
         val x = when (st.align) { "left" -> side; "right" -> w - side; else -> w / 2f }
         val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = st.backgroundColor }
         val stroke = if (st.outline > 0f) Paint(p).apply { style = Paint.Style.STROKE; strokeWidth = st.outline * scale * 2f; color = st.outlineColor; strokeJoin = Paint.Join.ROUND } else null
+        var seen = 0
         for (line in lines) {
-            val tw = p.measureText(line)
+            val words = if (marked != null) tokens(line) else emptyList()
+            val active = words.getOrNull(word - seen)
+            val tw = p.measureText(line) + (if (active != null) (zoom - 1f) * p.measureText(active) else 0f)
             val pad = p.textSize * 0.3f
+            val l = when (st.align) { "left" -> x; "right" -> x - tw; else -> x - tw / 2 }
             if (st.background) {
-                val l = when (st.align) { "left" -> x; "right" -> x - tw; else -> x - tw / 2 }
                 cv.drawRoundRect(RectF(l - pad, y - p.textSize, l + tw + pad, y + p.textSize * 0.3f), pad, pad, bg)
             }
-            stroke?.let { cv.drawText(line, x, y, it) }
-            cv.drawText(line, x, y, p)
+            if (marked == null) {
+                stroke?.let { cv.drawText(line, x, y, it) }
+                cv.drawText(line, x, y, p)
+            } else {
+                val plain = Paint(p).apply { textAlign = Paint.Align.LEFT }
+                val edge = stroke?.let { Paint(it).apply { textAlign = Paint.Align.LEFT } }
+                var left = l
+                // the outlines first: an enlarged word's outline must not cover its neighbors
+                for (pass in 0..1) {
+                    left = l
+                    for ((k, t) in words.withIndex()) {
+                        val on = seen + k == word
+                        val cell = p.measureText(t) * (if (on) zoom else 1f)
+                        val fill = if (pass == 0) edge else if (on) marked else plain
+                        if (fill != null) {
+                            val size = fill.textSize
+                            val strokeW = fill.strokeWidth
+                            if (on) { fill.textSize = size * zoom; fill.strokeWidth = strokeW * zoom }
+                            // grown around the middle of the letters rather than the baseline
+                            cv.drawText(t, left, if (on) y + size * 0.36f * (zoom - 1f) else y, fill)
+                            fill.textSize = size; fill.strokeWidth = strokeW
+                        }
+                        left += cell + gap
+                    }
+                }
+                seen += words.size
+            }
             y += lh
         }
     }

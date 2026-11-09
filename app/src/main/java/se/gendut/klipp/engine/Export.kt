@@ -176,27 +176,50 @@ class FrameRateEffect(val fps: Double) : androidx.media3.effect.GlEffect {
     /** Frames that aren't needed are released immediately; the others pass through unchanged (only the timestamp changes). */
     private class Program(fps: Double) : androidx.media3.effect.PassthroughShaderProgram() {
         private val stepUs = 1_000_000.0 / fps.coerceAtLeast(1.0)
-        private var lastSlot = Long.MIN_VALUE
-        private var lastInUs = Long.MIN_VALUE
+        private var slots = Slots(stepUs)
 
         override fun queueInputFrame(gl: androidx.media3.common.GlObjectsProvider, tex: androidx.media3.common.GlTextureInfo, presentationTimeUs: Long) {
-            // time went backwards (new stream): start over
-            if (presentationTimeUs < lastInUs) lastSlot = Long.MIN_VALUE
-            lastInUs = presentationTimeUs
-            val slot = Math.round(presentationTimeUs / stepUs)
-            if (slot <= lastSlot) {
+            val slot = slots.next(presentationTimeUs)
+            if (slot == null) {
                 inputListener.onInputFrameProcessed(tex)
                 inputListener.onReadyToAcceptInputFrame()
                 return
             }
-            lastSlot = slot
             super.queueInputFrame(gl, tex, Math.round(slot * stepUs))
         }
 
         override fun flush() {
-            lastSlot = Long.MIN_VALUE
-            lastInUs = Long.MIN_VALUE
+            slots = Slots(stepUs)
             super.flush()
+        }
+    }
+
+    /**
+     * The grid's slots, frame by frame. Each clip is a new stream: its first frame takes the slot of the cut (up to a
+     * source frame before it) and the rest are counted from that frame, so a clip that starts between two slots or has
+     * uneven times leaves no slot empty. A slower source has empty slots of its own.
+     */
+    private class Slots(private val step: Double) {
+        private var first = Long.MIN_VALUE
+        private var base = 0L
+        private var last = Long.MIN_VALUE
+        private var prev = Long.MIN_VALUE
+
+        /** The slot of the frame at [t] µs, null = the slot is taken (the frame is dropped). */
+        fun next(t: Long): Long? {
+            // time went backwards (new stream): start over
+            if (t < prev) first = Long.MIN_VALUE
+            prev = t
+            if (first == Long.MIN_VALUE) {
+                first = t
+                base = Math.floor((t + 1000) / step).toLong()
+                last = base
+                return base
+            }
+            val s = base + Math.round((t - first) / step)
+            if (s <= last) return null
+            last = s
+            return s
         }
     }
 
@@ -204,13 +227,8 @@ class FrameRateEffect(val fps: Double) : androidx.media3.effect.GlEffect {
         /** The times (µs) of [timesUs] that are kept – same rule as the effect, for tests. */
         fun keep(timesUs: List<Long>, fps: Double): List<Long> {
             val step = 1_000_000.0 / fps.coerceAtLeast(1.0)
-            var last = Long.MIN_VALUE
-            val out = ArrayList<Long>()
-            for (t in timesUs) {
-                val s = Math.round(t / step)
-                if (s > last) { last = s; out += Math.round(s * step) }
-            }
-            return out
+            val slots = Slots(step)
+            return timesUs.mapNotNull { t -> slots.next(t)?.let { Math.round(it * step) } }
         }
     }
 }

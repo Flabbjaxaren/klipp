@@ -315,6 +315,11 @@ impl Bridge {
             seq["videoTarget"] = json!(name_of(t.video_dest));
             seq["audioTarget"] = json!(name_of(t.audio_dest));
             seq["targeted"] = json!(t.targeted.iter().map(|i| i.0).collect::<Vec<_>>());
+            // the transcript's words on the timeline, only when a caption track marks the spoken word
+            if q.caption_tracks.iter().any(|t| t.name.contains(";klipp:word=")) {
+                seq["words"] = json!(filmcraft_engine::transcript::sequence_words(s).iter()
+                    .map(|w| json!({"text": w.text, "start": secs(w.start), "end": secs(w.end)})).collect::<Vec<_>>());
+            }
             // nested sequences that the clips point to (for playback, which flattens them)
             let mut nests = serde_json::Map::new();
             let mut todo: Vec<u64> = q.all_tracks().flat_map(|t| t.items.iter().map(|i| i.item.0)).collect();

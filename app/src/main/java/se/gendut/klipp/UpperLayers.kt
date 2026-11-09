@@ -77,10 +77,13 @@ fun UpperLayers(
         val uppers = plan.layers.dropLast(1).reversed()
         // edit points in the main player's layer: the next clip is already decoded in its own player and covers
         // the switch (see Handoff) – directly above the main player, below the other layers
-        val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision) {
+        val stabilized = plan.layers.lastOrNull()?.segs.orEmpty().mapNotNull { it.clip?.id }.filter { gradeOf(it)?.stab != null }
+        val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized) {
             plan.layers.lastOrNull()?.let { base ->
                 Handoff.layer(base) { s ->
                     val u = controller.uriOf(s.src.item) ?: return@layer false
+                    // a stabilized clip stays in the main player: in this one its first second was corrected wrongly
+                    if (s.clip?.id in stabilized) return@layer false
                     // HDR originals without a proxy are tone mapped differently in the two players – no handoff there
                     !(se.gendut.klipp.engine.Proxies.videoUri(u) == u && se.gendut.klipp.engine.Perf.cachedHdr(u) == true)
                 }
@@ -152,7 +155,7 @@ private fun LayerVideo(
                     MediaItem.ClippingConfiguration.Builder()
                         // start ≥ 0 and end after start (camera files can have a negative start time, see Playback.clipped)
                         .setStartPositionMs(((s.srcIn * 1000).roundToLong() - preMs[k]).coerceAtLeast(0L))
-                        .setEndPositionMs(((s.srcIn + (if (s.speed == 0.0) 0.1 else seg.dur * kotlin.math.abs(s.speed))) * 1000).roundToLong().coerceAtLeast((s.srcIn * 1000).roundToLong().coerceAtLeast(0L) + 1))
+                        .setEndPositionMs(((s.srcIn + (if (s.speed == 0.0) 0.1 else (seg.dur + (if (handoff) HANDOFF_ITEM_TAIL_S else 0.0)) * kotlin.math.abs(s.speed))) * 1000).roundToLong().coerceAtLeast((s.srcIn * 1000).roundToLong().coerceAtLeast(0L) + 1))
                         .build()
                 ).build()
         })
@@ -461,6 +464,11 @@ private const val HANDOFF_STARTING_S = 0.3
  * no other layer plays then (a dissolve already has two pictures going at that point) and where the file has material.
  */
 private const val HANDOFF_PREROLL_S = 0.25
+/**
+ * The edit point layer's items run this much (s) past their segment: a player that reached an item's end went on to the
+ * next one while the layer still showed, and one frame of the next edit point's clip flashed.
+ */
+private const val HANDOFF_ITEM_TAIL_S = 0.5
 
 /** Turned off for the session when the main player was late during a pre-roll (see HANDOFF_PREROLL_S). */
 internal object Preroll { @Volatile var off = false }

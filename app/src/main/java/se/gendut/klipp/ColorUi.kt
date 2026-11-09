@@ -152,7 +152,7 @@ fun ToolTabs(tabs: List<ToolTab>, selected: Int, onSelect: (Int) -> Unit, modifi
                     Spacer(Modifier.height(4.dp))
                     // a long name (e.g. Qualifier) shrinks to its cell on a narrow phone instead of running into the next one
                     androidx.compose.foundation.text.BasicText(
-                        t.label, color = { fg }, maxLines = 1, softWrap = false,
+                        t.label, color = { fg }, maxLines = 1,
                         style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium),
                         autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
                         modifier = Modifier.padding(horizontal = 2.dp),

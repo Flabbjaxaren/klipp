@@ -52,6 +52,12 @@ data class Look(
 /** Builds a Media3 composition from the engine's timeline: V1 for video, A1–A3 for audio. */
 @OptIn(UnstableApi::class)
 object CompositionBuilder {
+    /**
+     * A video clip is read this much before its start in the file: phones film with slightly uneven times, and a frame
+     * a fraction of a millisecond before the start would be dropped by the clipping.
+     */
+    private const val VIDEO_LEAD_US = 1_000L
+
     private fun us(sec: Double) = (sec * 1_000_000).roundToLong()
 
     /** Extra material after an upper layer's video clip (seconds; see layerSequence). */
@@ -149,15 +155,17 @@ object CompositionBuilder {
      * IllegalArgumentException without text); the engine's probed length can be a fraction shorter than the clip's end
      * (video and audio tracks of different lengths in the file, rounding to frames).
      */
-    private fun mediaUs(mediaDur: Double?, srcIn: Double, dur: Double, speed: Double): Long {
-        val start = us(srcIn).coerceAtLeast(0L)
-        val end = us(srcIn + dur * kotlin.math.abs(speed)).coerceAtLeast(start + 1)
+    private fun mediaUs(mediaDur: Double?, srcIn: Double, dur: Double, speed: Double, leadUs: Long = 0L): Long {
+        val lead = leadUs.coerceAtMost(us(srcIn)).coerceAtLeast(0L)
+        val start = (us(srcIn) - lead).coerceAtLeast(0L)
+        val end = (us(srcIn + dur * kotlin.math.abs(speed)) - lead).coerceAtLeast(start + 1)
         return maxOf(mediaDur?.let { us(it) } ?: 0L, end, 1L)
     }
 
-    private fun clipped(uri: Uri, srcIn: Double, dur: Double, speed: Double): MediaItem {
-        val start = us(srcIn).coerceAtLeast(0L)
-        val end = us(srcIn + dur * kotlin.math.abs(speed)).coerceAtLeast(start + 1)
+    private fun clipped(uri: Uri, srcIn: Double, dur: Double, speed: Double, leadUs: Long = 0L): MediaItem {
+        val lead = leadUs.coerceAtMost(us(srcIn)).coerceAtLeast(0L)
+        val start = (us(srcIn) - lead).coerceAtLeast(0L)
+        val end = (us(srcIn + dur * kotlin.math.abs(speed)) - lead).coerceAtLeast(start + 1)
         return MediaItem.Builder()
             .setUri(uri)
             .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionUs(start).setEndPositionUs(end).build())
@@ -301,9 +309,9 @@ object CompositionBuilder {
                     .setFrameRate(fps.takeIf { it.isFinite() && it >= 1.0 }?.let { Math.round(it).toInt() } ?: 25)
                     .setEffects(androidx.media3.transformer.Effects(emptyList(), effects))
                     .build()
-            } else EditedMediaItem.Builder(clipped(itemUri, itemIn, seg.dur + tail(index), src.speed))
+            } else EditedMediaItem.Builder(clipped(itemUri, itemIn, seg.dur + tail(index), src.speed, VIDEO_LEAD_US))
                 // CompositionPlayer requires the media's own length (before clipping) on every item
-                .setDurationUs(mediaUs(itemLen, itemIn, seg.dur + tail(index), src.speed))
+                .setDurationUs(mediaUs(itemLen, itemIn, seg.dur + tail(index), src.speed, VIDEO_LEAD_US))
                 .setRemoveAudio(true)
                 .setEffects(androidx.media3.transformer.Effects(emptyList(), effects))
                 .apply { if (speed != null) setSpeed(speed) }

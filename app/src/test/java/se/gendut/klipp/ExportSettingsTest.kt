@@ -85,4 +85,14 @@ class ExportSettingsTest {
         assertTrue(out.zipWithNext().all { (a, b) -> b - a == 40_000L })
         assertEquals(150, out.size)
     }
+
+    @Test
+    fun `a clip's first frame takes the slot of the cut`() {
+        // a 30 fps clip in 25 fps whose first frame comes 30 ms after the cut: no slot stays empty
+        val b = (0 until 30).map { 1_030_000L + it * 1_000_000L / 30 }
+        val out = FrameRateEffect.keep(b, 25.0).map { it / 40_000 }
+        assertEquals((25L until 25L + out.size).toList(), out)
+        // a slower source keeps its own empty slots
+        assertEquals(240, FrameRateEffect.keep((0 until 240).map { it * 1_000_000L / 24 }, 25.0).size)
+    }
 }

@@ -370,6 +370,7 @@ class EditToolsTest {
         st.onFxLive = { _, _, k, v -> lives += k to v }
         rule.setContent { KlippTheme { PropertiesPanel(st) {} } }
         rule.waitForIdle()
+        rule.onNodeWithTag("propTab:afx").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("eqCanvas").performScrollTo()
         rule.waitForIdle()
         val node = rule.onNodeWithTag("eqCanvas")

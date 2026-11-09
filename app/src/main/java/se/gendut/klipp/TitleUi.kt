@@ -75,6 +75,7 @@ import se.gendut.klipp.engine.TextSnap
 import se.gendut.klipp.engine.TitleAnim
 import se.gendut.klipp.engine.TitleArt
 import se.gendut.klipp.engine.TitleLook
+import se.gendut.klipp.engine.TitlePlate
 import se.gendut.klipp.engine.TitleShadow
 import se.gendut.klipp.engine.TitleTemplate
 import se.gendut.klipp.engine.placementOf
@@ -188,28 +189,24 @@ private val TitleTemplate.desc: Int get() = when (this) {
     TitleTemplate.FREE -> R.string.titleui_tpl_desc_free
 }
 
-/** A template in the list: a small still of it, its name and what it is for; selected = tonal with a bright edge. */
+/** A template as a tile: a still of it and its name; selected = tonal with a bright edge. */
 @Composable
-private fun TemplateRow(t: TitleTemplate, anim: TitleAnim, selected: Boolean, onClick: () -> Unit) {
+private fun TemplateRow(t: TitleTemplate, anim: TitleAnim, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
-    val bg by animateColorAsState(if (selected) K.Tonal else Color.Transparent, label = "tb")
+    val bg by animateColorAsState(if (selected) K.Tonal else K.Surface, label = "tb")
     val border by animateColorAsState(if (selected) K.Primary else Color.Transparent, label = "tbr")
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp).pressPop(src, 0.97f)
+    Column(
+        modifier.pressPop(src, 0.97f)
             .clip(RoundedCornerShape(16.dp)).background(bg)
             .border(1.5.dp, border, RoundedCornerShape(16.dp))
             .clickable(interactionSource = src, indication = null, onClick = onClick)
             .padding(6.dp)
             .testTag("mall:${t.key}"),
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         // a still – only the big preview above plays
-        TitlePreview(TitleLook(t, anim), "", Modifier.width(80.dp), playing = false)
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(t.label, color = if (selected) K.PrimarySoft else K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Text(stringResource(t.desc), color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1)
-        }
-        if (selected) androidx.compose.material3.Icon(Ic.Check, null, tint = K.Primary, modifier = Modifier.padding(end = 6.dp).size(20.dp))
+        TitlePreview(TitleLook(t, anim), "", Modifier.fillMaxWidth(), playing = false)
+        Text(t.label, color = if (selected) K.PrimarySoft else K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
+        Text(stringResource(t.desc), color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(start = 4.dp, bottom = 2.dp))
     }
 }
 
@@ -292,10 +289,12 @@ private fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> U
         TitlePreview(TitleLook(template, anim), lines.joinToString("\n"), Modifier.fillMaxWidth(), replayKey = replay)
     }
     SectionLabel(stringResource(R.string.titleui_template))
-    for (t in TitleTemplate.entries) TemplateRow(t, anim, template == t) {
-        haptics.confirm()
-        if (template != t) { template = t; lines = sampleText(t).split('\n') }
-        replay++
+    for (pair in TitleTemplate.entries.chunked(2)) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (t in pair) TemplateRow(t, anim, template == t, Modifier.weight(1f)) {
+            haptics.confirm()
+            if (template != t) { template = t; lines = sampleText(t).split('\n') }
+            replay++
+        }
     }
     if (template != TitleTemplate.ROLL) SectionLabel(stringResource(R.string.titleui_entrance))
     AnimChips(template, anim) { anim = it; replay++; haptics.tick() }
@@ -372,24 +371,11 @@ private fun AddAtPlayhead(state: EditorState, onClick: () -> Unit) {
 
 /** The title's part of Properties: template, animation, text, size and color – changes show in the picture immediately. */
 @Composable
-fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
+fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: Int) {
     val scope = rememberCoroutineScope()
     val look = TitleLook.parse(p.titleLook)
-    LocalGradeState.current?.let { gs -> PinSection(state, p, gs); FollowSection(state, p, gs) }
-    SectionLabel(stringResource(R.string.titleui_title))
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (t in TitleTemplate.entries) {
-            SpringChip(t.label, look.template == t, { backend.setTitle(p.id, look = look.copy(template = t).encode()) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
-        }
-    }
-    AnimChips(look.template, look.anim) { backend.setTitle(p.id, look = look.copy(anim = it).encode()) }
-    TitleFontRow(look.font) { backend.setTitle(p.id, look = look.copy(font = it).encode()) }
-    // bold, italic, all capitals
-    Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        SpringChip(stringResource(R.string.titleui_bold), look.bold, { backend.setTitle(p.id, look = look.copy(bold = !look.bold).encode()) }, Modifier.testTag("title:bold"), selectedColor = K.Primary, selectedText = K.OnPrimary)
-        SpringChip(stringResource(R.string.titleui_italic), look.italic, { backend.setTitle(p.id, look = look.copy(italic = !look.italic).encode()) }, Modifier.testTag("title:italic"), selectedColor = K.Primary, selectedText = K.OnPrimary)
-        SpringChip(stringResource(R.string.titleui_caps), look.caps, { backend.setTitle(p.id, look = look.copy(caps = !look.caps).encode()) }, Modifier.testTag("title:caps"), selectedColor = K.Primary, selectedText = K.OnPrimary)
-    }
+    fun live(l: TitleLook) = state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(titleLook = l.encode()))
+    fun commit(l: TitleLook) { backend.setTitle(p.id, look = l.encode()); scope.launch { state.endLive() } }
     var lines by remember(p.id) { mutableStateOf((p.title ?: "").split('\n')) }
     // text that has been typed but not yet sent to the engine
     val pending = remember(p.id) { mutableStateOf<String?>(null) }
@@ -414,22 +400,104 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
             if (state.live?.id == id) state.live = null
         }
     }
-    TitleFields(look.template, lines) {
-        lines = it
-        val text = it.joinToString("\n")
-        pending.value = if (text == p.title) null else text
-        state.setLive((state.live?.takeIf { l -> l.id == p.id } ?: p).copy(title = text))
-        if (pending.value == null) scope.launch { state.endLive() }
+    when (tab) {
+        0 -> {
+            PanelCard(Modifier.padding(top = 10.dp)) {
+            TitleFields(look.template, lines) {
+                lines = it
+                val text = it.joinToString("\n")
+                pending.value = if (text == p.title) null else text
+                state.setLive((state.live?.takeIf { l -> l.id == p.id } ?: p).copy(title = text))
+                if (pending.value == null) scope.launch { state.endLive() }
+            }
+            PropSlider(
+                stringResource(R.string.titleui_size), p.textSize, 8f, 400f, sizeFor(look.template, p.seqH).roundToInt().toFloat(), { "%.0f px".format(it) }, "size",
+                onLive = { v -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textSize = v)) },
+            ) { backend.setTitle(p.id, size = it); scope.launch { state.endLive() } }
+            SectionLabel(stringResource(R.string.titleui_text_color))
+            ColorPicker(p.textColor and 0xFFFFFF, "titleColor",
+                onLive = { c -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textColor = c)) },
+            ) { c -> backend.setTitle(p.id, color = c); scope.launch { state.endLive() } }
+            PropSlider(stringResource(R.string.titleui_opacity), look.opacity * 100f, 0f, 100f, 100f, { "%.0f %%".format(it) }, "titleOpacity", lane = false,
+                onLive = { live(look.copy(opacity = it / 100f)) }) { commit(look.copy(opacity = it / 100f)) }
+            TitleFontRow(look.font) { commit(look.copy(font = it)) }
+            // bold, italic, all capitals
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SpringChip(stringResource(R.string.titleui_bold), look.bold, { commit(look.copy(bold = !look.bold)) }, Modifier.testTag("title:bold"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+                SpringChip(stringResource(R.string.titleui_italic), look.italic, { commit(look.copy(italic = !look.italic)) }, Modifier.testTag("title:italic"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+                SpringChip(stringResource(R.string.titleui_caps), look.caps, { commit(look.copy(caps = !look.caps)) }, Modifier.testTag("title:caps"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+            }
+            PropSlider(stringResource(R.string.titleui_tracking), look.tracking * 100f, -10f, 60f, 0f, { "%.0f".format(it) }, "titleTracking", lane = false,
+                onLive = { live(look.copy(tracking = it / 100f)) }) { commit(look.copy(tracking = it / 100f)) }
+            PropSlider(stringResource(R.string.titleui_leading), look.leading * 100f, 50f, 300f, 100f, { "%.0f %%".format(it) }, "titleLeading", lane = false,
+                onLive = { live(look.copy(leading = it / 100f)) }) { commit(look.copy(leading = it / 100f)) }
+            if (look.template == TitleTemplate.FREE) Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for ((k, l) in listOf("l" to stringResource(R.string.captionui_left), "c" to stringResource(R.string.captionui_center), "r" to stringResource(R.string.captionui_right)))
+                    SpringChip(l, look.align == k, { commit(look.copy(align = k)) }, Modifier.testTag("title:align:$k"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+            }
+            }
+        }
+        1 -> {
+            PanelCard(Modifier.padding(top = 10.dp)) {
+            SectionLabel(stringResource(R.string.titleui_template))
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (t in TitleTemplate.entries) SpringChip(t.label, look.template == t, { backend.setTitle(p.id, look = look.copy(template = t).encode()) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+            }
+            }
+            if (look.template != TitleTemplate.ROLL) PanelCard(Modifier.padding(top = 10.dp)) { TitlePlateSection(look, ::live, ::commit) }
+            PanelCard(Modifier.padding(top = 10.dp)) {
+            Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.captionui_outline)) }
+                SpringChip(stringResource(if (look.stroke > 0f) R.string.titleui_on else R.string.titleui_off), look.stroke > 0f,
+                    { commit(look.copy(stroke = if (look.stroke > 0f) 0f else 0.04f)) }, Modifier.testTag("title:stroke"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+            }
+            if (look.stroke > 0f) {
+                PropSlider(stringResource(R.string.titleui_width), look.stroke * 100f, 0.5f, 20f, 4f, { "%.1f".format(it) }, "titleStroke", lane = false,
+                    onLive = { live(look.copy(stroke = it / 100f)) }) { commit(look.copy(stroke = it / 100f)) }
+                ColorPicker(look.strokeColor, "titleStrokeColor", onLive = { live(look.copy(strokeColor = it)) }) { commit(look.copy(strokeColor = it)) }
+            }
+            }
+            PanelCard(Modifier.padding(top = 10.dp)) { TitleShadowSection(state, p, look, backend) }
+        }
+        2 -> PanelCard(Modifier.padding(top = 10.dp)) {
+            SectionLabel(stringResource(R.string.titleui_entrance))
+            AnimChips(look.template, look.anim) { backend.setTitle(p.id, look = look.copy(anim = it).encode()) }
+            if (look.template == TitleTemplate.ROLL) Text(stringResource(R.string.titleui_roll_no_anim), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+        }
+        3 -> LocalGradeState.current?.let { gs -> PanelCard(Modifier.padding(top = 10.dp)) { FollowSection(state, p, gs) }; PanelCard(Modifier.padding(top = 10.dp)) { PinSection(state, p, gs) } }
+        else -> {}
     }
-    PropSlider(
-        stringResource(R.string.titleui_size), p.textSize, 8f, 400f, sizeFor(look.template, p.seqH).roundToInt().toFloat(), { "%.0f px".format(it) }, "size",
-        onLive = { v -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textSize = v)) },
-    ) { backend.setTitle(p.id, size = it); scope.launch { state.endLive() } }
-    SectionLabel(stringResource(R.string.titleui_text_color))
-    ColorPicker(p.textColor and 0xFFFFFF, "titleColor",
-        onLive = { c -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textColor = c)) },
-    ) { c -> backend.setTitle(p.id, color = c); scope.launch { state.endLive() } }
-    TitleShadowSection(state, p, look, backend)
+}
+
+/** The plate behind the text: on/off, color, opacity, corners, padding and the accent. */
+@Composable
+private fun TitlePlateSection(look: TitleLook, live: (TitleLook) -> Unit, commit: (TitleLook) -> Unit) {
+    val pl = look.plateOrDefault
+    fun l(n: TitlePlate) = live(look.copy(plate = n))
+    fun c(n: TitlePlate) = commit(look.copy(plate = n))
+    Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.titleui_plate)) }
+        SpringChip(stringResource(if (pl.on) R.string.titleui_on else R.string.titleui_off), pl.on, { c(pl.copy(on = !pl.on)) }, Modifier.testTag("title:plate"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+    }
+    if (pl.on) {
+        PropSlider(stringResource(R.string.titleui_opacity), pl.opacity * 100f, 0f, 100f, TitlePlate.default(look.template).opacity * 100f, { "%.0f %%".format(it) }, "plateOpacity", lane = false,
+            onLive = { l(pl.copy(opacity = it / 100f)) }) { c(pl.copy(opacity = it / 100f)) }
+        if (look.template != TitleTemplate.CHAPTER) {
+            PropSlider(stringResource(R.string.titleui_corners), pl.radius * 100f, 0f, 100f, 16f, { "%.0f".format(it) }, "plateRadius", lane = false,
+                onLive = { l(pl.copy(radius = it / 100f)) }) { c(pl.copy(radius = it / 100f)) }
+            PropSlider(stringResource(R.string.titleui_padding), pl.padding * 100f, 0f, 150f, 38f, { "%.0f".format(it) }, "platePadding", lane = false,
+                onLive = { l(pl.copy(padding = it / 100f)) }) { c(pl.copy(padding = it / 100f)) }
+        }
+        SectionLabel(stringResource(R.string.titleui_plate_color))
+        ColorPicker(pl.color, "plateColor", onLive = { l(pl.copy(color = it)) }) { c(pl.copy(color = it)) }
+    }
+    if (look.template == TitleTemplate.LOWER_THIRD || look.template == TitleTemplate.CHAPTER) {
+        Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.titleui_accent)) }
+            SpringChip(stringResource(if (pl.accentOn) R.string.titleui_on else R.string.titleui_off), pl.accentOn, { c(pl.copy(accentOn = !pl.accentOn)) }, Modifier.testTag("title:accent"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+        }
+        if (pl.accentOn) ColorPicker(pl.accent, "accentColor", onLive = { l(pl.copy(accent = it)) }) { c(pl.copy(accent = it)) }
+    }
 }
 
 /** The drop shadow: on/off, color, opacity, angle, distance, softness and size – live in the picture while dragging. */
@@ -558,6 +626,13 @@ private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
         }
     }
     val cur = gs.follows[p.id]
+    // a window that only exists to be tracked (it grades nothing) can go; a graded node stays
+    fun removable(f: se.gendut.klipp.engine.Follow) = gs.grades[f.clip]?.nodes?.firstOrNull { it.id == f.node }?.let { it.enabled && it.isNeutral } == true
+    fun removeTrack(f: se.gendut.klipp.engine.Follow) {
+        gs.follows.filter { it.value.clip == f.clip && it.value.node == f.node }.keys.toList().forEach { gs.setFollow(it, null) }
+        val g = gs.of(f.clip)
+        gs.set(f.clip, g.copy(nodes = g.nodes.filterNot { it.id == f.node }.ifEmpty { listOf(se.gendut.klipp.engine.GradeNode(1)) }))
+    }
     SectionLabel(stringResource(R.string.titleui_follow_object))
     val busy = TrackService.target?.let { (c, n) -> cur?.clip == c && cur.node == n } == true
     // the clip the box is drawn on: the topmost visible video under the title at the playhead (inside the title)
@@ -578,8 +653,11 @@ private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
                     // drawn on the finished picture: back through the clip's own zoom/move to what the tracker sees
                     val (cx, cy, rx, ry) = se.gendut.klipp.engine.TitleFollow.toClip(c.id, at.toDouble(), fx, fy, frx, fry)?.toList()
                         ?: listOf(fx, fy, frx, fry)
+                    // tracking anew replaces this title's old track
+                    val old = cur?.takeIf { removable(it) }
+                    if (old != null) removeTrack(old)
                     val g = gs.of(c.id)
-                    val id = (g.nodes.maxOfOrNull { it.id } ?: 0) + 1
+                    val id = (g.nodes.maxOfOrNull { it.id } ?: 0) + 1 + (old?.node ?: 0)
                     val node = se.gendut.klipp.engine.GradeNode(id, Str.t(R.string.titleui_follow_node_label, title.name),
                         win = se.gendut.klipp.engine.Window(shape = 2, cx = cx, cy = cy, rx = rx, ry = ry, soft = 0f))
                     gs.set(c.id, g.copy(nodes = g.nodes + node))
@@ -604,7 +682,12 @@ private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
         // the same window keeps the scale/turn choices when picked again
         for ((f, label) in options) {
             val on = cur?.clip == f.clip && cur.node == f.node
-            ToggleChip(label, on, { haptics.tick(); gs.setFollow(p.id, if (on) cur else f.copy(scale = cur?.scale == true, rotate = cur?.rotate == true)) }, Modifier.testTag("follow:${f.clip}:${f.node}"))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ToggleChip(label, on, { haptics.tick(); gs.setFollow(p.id, if (on) cur else f.copy(scale = cur?.scale == true, rotate = cur?.rotate == true)) }, Modifier.testTag("follow:${f.clip}:${f.node}"))
+                if (removable(f)) Box(Modifier.size(40.dp).clip(RoundedCornerShape(20.dp)).clickable { haptics.confirm(); removeTrack(f) }.testTag("follow:delete:${f.clip}:${f.node}"), contentAlignment = Alignment.Center) {
+                    androidx.compose.material3.Icon(Ic.Delete, stringResource(R.string.titleui_follow_delete), tint = K.OnSurfaceVar, modifier = Modifier.size(20.dp))
+                }
+            }
         }
     }
     // the title also grows/shrinks and turns as the object does

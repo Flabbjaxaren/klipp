@@ -1,5 +1,8 @@
 package se.gendut.klipp
 
+import se.gendut.klipp.engine.at
+import se.gendut.klipp.engine.fromFrame
+import se.gendut.klipp.engine.toFrame
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -208,7 +211,7 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxSize().background(K.Bg).verticalScroll(rememberScrollState()).testTag("properties")) {
-        PanelTitle(stringResource(R.string.properties_title)) { RoundIcon(Ic.Check, stringResource(R.string.properties_done)) { haptics.tick(); onClose() } }
+        PanelTitle(p?.name ?: stringResource(R.string.properties_title)) { RoundIcon(Ic.Check, stringResource(R.string.properties_done)) { haptics.tick(); onClose() } }
         if (p == null) {
             Text(stringResource(R.string.properties_select_clip), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
             return@Column
@@ -219,7 +222,7 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
         fun done() { scope.launch { state.endLive() } }
         // keyframes: stopwatch, lane and ◀ ◆ ▶ per property; one zoom for all the clip's lanes, its bar under the lowest
         val kfView = remember(p.id) { KfView() }
-        val lowest = (if (p.isAudio) listOf("level") else listOf("position", "scale", "rotation", "opacity")).lastOrNull { p.kf[it].orEmpty().isNotEmpty() }
+        val lowest = (if (p.isAudio) listOf("level") else listOf("position", "scale", "rotation")).lastOrNull { p.kf[it].orEmpty().isNotEmpty() }
         fun anim(key: String) = AnimUi(
             key, p.kf[key].orEmpty(), p.clipStart, p.clipEnd, { state.playhead },
             onToggle = { backend.toggleAnimation(p.id, key, state.playhead) },
@@ -227,7 +230,7 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
             onJump = { t -> state.playing = false; state.playhead = t.coerceIn(p.clipStart, lastFrame(p.clipStart, p.clipEnd)) },
             onMove = { k, t -> backend.moveKeyframe(p.id, key, k.mt, t) },
             onInterp = { k -> backend.setInterpolation(p.id, key, k.mt, nextInterp(k.interp)) },
-            view = kfView, zoomBar = key == lowest,
+            view = kfView, zoomBar = key == lowest || key == "opacity",
             onEase = { k, ease -> backend.setEase(p.id, key, k.mt, ease) },
             onInfluence = { k, i, o, interp -> backend.setInfluence(p.id, key, k.mt, i, o, interp) },
             onValue = { k, v -> backend.setKeyframeValue(p.id, key, k.mt, v) },
@@ -238,22 +241,40 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
                 else -> { v -> "%.0f".format(v) }
             },
         )
-        Text(
-            p.name, color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
-            modifier = Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(10.dp)).background(if (p.isTitle) ClipKind.TITLE.bg else if (p.isAudio) ClipKind.AUDIO.bg else ClipKind.VIDEO.bg)
-                .padding(horizontal = 12.dp, vertical = 6.dp),
-        )
-        if (p.isAudio) {
-            SectionLabel(stringResource(R.string.properties_audio))
-            PropSlider(stringResource(R.string.properties_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "volume", anim = anim("level"),
-                onLive = { v -> live { it.copy(levelDb = v) } }) { backend.setProps(p.id, levelDb = it); done() }
-            AudioFxSection(state, p, backend)
-        } else {
-            if (p.isTitle) TitleSection(state, p, backend)
-            Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.properties_motion)) }
-                SpringChip(stringResource(R.string.properties_reset), false, { haptics.confirm(); backend.resetMotion(p.id) })
-            }
+        // one bar for everything about the clip; a dot marks the tools that are in use
+        var tab by androidx.compose.runtime.saveable.rememberSaveable(p.isTitle, p.isAudio) { mutableStateOf(0) }
+        val gsNow = LocalGradeState.current
+        val layerFx = gsNow?.shown(p.id)?.layer
+        val moved = (p.x ?: (p.seqW / 2f)) != p.seqW / 2f || (p.y ?: (p.seqH / 2f)) != p.seqH / 2f || p.scale != 100f || p.rotation != 0f
+        val fades = p.fadeIn != null || p.fadeOut != null
+        val motionTab = ToolTab(stringResource(R.string.properties_motion), Ic.Center, "propTab:motion", moved)
+        val fadeTab = ToolTab(stringResource(R.string.properties_fade), Ic.Fade, "propTab:fade", fades)
+        val tabs = when {
+            p.isAudio -> listOf(
+                ToolTab(stringResource(R.string.properties_volume), Ic.Speaker, "propTab:volume", p.levelDb != 0f),
+                ToolTab(stringResource(R.string.audioui_effects), Ic.Audio, "propTab:afx", p.afx.isNotEmpty()),
+            )
+            p.isTitle -> listOf(
+                ToolTab(stringResource(R.string.titleui_tab_text), Ic.Text, "titleTab:0"),
+                ToolTab(stringResource(R.string.titleui_tab_style), Ic.Sliders, "titleTab:1"),
+                ToolTab(stringResource(R.string.titleui_tab_animate), Ic.Bolt, "titleTab:2"),
+                ToolTab(stringResource(R.string.titleui_tab_track), Ic.Target, "titleTab:3", gsNow?.let { p.id in it.follows || p.id in it.pins } == true),
+                motionTab, fadeTab,
+            )
+            else -> listOf(
+                motionTab,
+                ToolTab(stringResource(R.string.properties_crop), Ic.Crop, "propTab:crop", layerFx?.crop != null),
+                ToolTab(stringResource(R.string.properties_blend_tab), Ic.Layers, "propTab:blend", p.opacity != 100f || (layerFx?.blend ?: se.gendut.klipp.engine.BlendMode.NORMAL) != se.gendut.klipp.engine.BlendMode.NORMAL),
+                ToolTab(stringResource(R.string.properties_tab_key), Ic.Dropper, "propTab:key", layerFx?.key != null),
+                ToolTab(stringResource(R.string.properties_mask), Ic.Window, "propTab:mask", layerFx?.mask != null),
+                fadeTab,
+            )
+        }
+        val current = tab.coerceIn(0, tabs.lastIndex)
+        ToolTabs(tabs, current, { tab = it }, Modifier.padding(horizontal = 12.dp))
+        @Composable fun opacitySlider() = PropSlider(stringResource(R.string.properties_opacity), p.opacity, 0f, 100f, 100f, { fmtNum(it, " %") }, "opacity", anim = anim("opacity"),
+            onLive = { v -> live { it.copy(opacity = v) } }) { backend.setProps(p.id, opacity = it); done() }
+        @Composable fun motion() = PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_motion), trailing = { SpringChip(stringResource(R.string.properties_reset), false, { haptics.confirm(); backend.resetMotion(p.id) }) }) {
             val w = p.seqW.toFloat()
             val h = p.seqH.toFloat()
             PropSlider(stringResource(R.string.properties_position_x), p.x ?: w / 2, -w / 2, w * 1.5f, w / 2, { "%.0f".format(it) }, "x", anim = anim("position"), lane = false,
@@ -264,16 +285,32 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
                 onLive = { v -> live { it.copy(scale = v) } }) { backend.setProps(p.id, scale = it); done() }
             PropSlider(stringResource(R.string.properties_rotation), p.rotation, -180f, 180f, 0f, { fmtNum(it, "°") }, "rotation", anim = anim("rotation"),
                 onLive = { v -> live { it.copy(rotation = v) } }) { backend.setProps(p.id, rotation = it); done() }
-            PropSlider(stringResource(R.string.properties_opacity), p.opacity, 0f, 100f, 100f, { fmtNum(it, " %") }, "opacity", anim = anim("opacity"),
-                onLive = { v -> live { it.copy(opacity = v) } }) { backend.setProps(p.id, opacity = it); done() }
-            Text(
-                stringResource(R.string.properties_motion_hint),
-                color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-            )
-            SectionLabel(stringResource(R.string.properties_fade))
+            if (p.isTitle) opacitySlider()
+            Text(stringResource(R.string.properties_motion_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+        }
+        @Composable fun fade() = PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_fade)) {
             FadeRow(stringResource(R.string.properties_fade_in), "In", p.fadeIn) { haptics.confirm(); backend.setTransition(p.id, true, it) }
             FadeRow(stringResource(R.string.properties_fade_out), "Ut", p.fadeOut) { haptics.confirm(); backend.setTransition(p.id, false, it) }
-            if (!p.isTitle) LocalGradeState.current?.let { gs -> LayerSection(gs, p.id, state) }
+        }
+        when {
+            p.isAudio -> if (current == 0) PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_volume)) {
+                PropSlider(stringResource(R.string.properties_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "volume", anim = anim("level"),
+                    onLive = { v -> live { it.copy(levelDb = v) } }) { backend.setProps(p.id, levelDb = it); done() }
+            } else PanelCard(Modifier.padding(top = 10.dp)) { AudioFxSection(state, p, backend) }
+            p.isTitle -> {
+                TitleSection(state, p, backend, current)
+                if (current == 4) motion()
+                if (current == 5) fade()
+            }
+            else -> when (current) {
+                0 -> motion()
+                1 -> gsNow?.let { CropSection(it, p, state, backend) }
+                5 -> fade()
+                else -> PanelCard(Modifier.padding(top = 10.dp)) {
+                    if (current == 2) opacitySlider()
+                    gsNow?.let { LayerSection(it, p.id, state, current - 1) }
+                }
+            }
         }
         Spacer(Modifier.height(120.dp))
     }
@@ -284,7 +321,7 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
  * split). Sliders preview live; releasing one makes an undo step.
  */
 @Composable
-private fun LayerSection(gs: GradeState, clip: Long, state: EditorState) {
+private fun LayerSection(gs: GradeState, clip: Long, state: EditorState, part: Int) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     val shown = gs.shown(clip) ?: ClipGrade()
@@ -293,6 +330,7 @@ private fun LayerSection(gs: GradeState, clip: Long, state: EditorState) {
     fun live(f: se.gendut.klipp.engine.LayerFx) = gs.setLive(clip, gs.of(clip).copy(layer = f))
     fun done() { scope.launch { gs.endLive() } }
 
+    if (part == 2) {
     SectionLabel(stringResource(R.string.properties_green_screen))
     val key = fx.key
     Row(Modifier.padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -318,6 +356,8 @@ private fun LayerSection(gs: GradeState, clip: Long, state: EditorState) {
         )
     }
 
+    }
+    if (part == 1) {
     SectionLabel(stringResource(R.string.properties_blend))
     Row(Modifier.padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for (m in se.gendut.klipp.engine.BlendMode.entries) {
@@ -329,6 +369,8 @@ private fun LayerSection(gs: GradeState, clip: Long, state: EditorState) {
         color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
     )
 
+    }
+    if (part == 3) {
     SectionLabel(stringResource(R.string.properties_mask))
     val mask = fx.mask
     Row(Modifier.padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -342,7 +384,193 @@ private fun LayerSection(gs: GradeState, clip: Long, state: EditorState) {
         if (mask != null) SpringChip(stringResource(R.string.properties_mask_invert), mask.invert, { haptics.tick(); set(fx.copy(mask = mask.copy(invert = !mask.invert))) }, Modifier.testTag("mask:invert"))
     }
     if (mask != null) MaskControls(gs, clip, state, fx, mask, ::set, ::live, ::done)
+    }
 }
+
+/** The keyframe lane for a mask or crop rectangle [box] (keys in source time, shown in timeline time). */
+private fun boxAnim(
+    info: ColorClip, box: se.gendut.klipp.engine.LayerMask, tol: Double, state: EditorState, view: KfView,
+    srcOf: (Float) -> Double?, keySrc: () -> Double?, put: (se.gendut.klipp.engine.LayerMask) -> Unit,
+): AnimUi {
+    val lo = info.srcIn
+    val hi = info.srcIn + (info.end - info.start) * abs(info.speed)
+    return AnimUi(
+        "mask",
+        box.keys.filter { it.t >= lo - tol && it.t <= hi + tol }.map { k ->
+            UiKf(info.timelineAt(k.t), Math.round(k.t * 1e6), when (k.interp) {
+                se.gendut.klipp.engine.MaskKey.HOLD -> "Hold"; se.gendut.klipp.engine.MaskKey.SMOOTH -> "AutoBezier"; else -> "Linear"
+            })
+        },
+        info.start, info.end, { state.playhead },
+        onToggle = { srcOf(state.playhead)?.let { put(box.toggleAnimation(it)) } },
+        onKey = { keySrc()?.let { put(box.toggleKey(it, tol)) } },
+        onJump = { t -> state.playing = false; state.playhead = t.coerceIn(info.start, lastFrame(info.start, info.end)) },
+        onMove = { k, t ->
+            val mk = box.keys.firstOrNull { Math.round(it.t * 1e6) == k.mt }
+            val to = srcOf(t)
+            if (mk != null && to != null) put(box.moveKey(mk, to, tol))
+        },
+        onInterp = { k ->
+            box.keys.firstOrNull { Math.round(it.t * 1e6) == k.mt }?.let { mk ->
+                val next = when (mk.interp) {
+                    se.gendut.klipp.engine.MaskKey.LINEAR -> se.gendut.klipp.engine.MaskKey.SMOOTH
+                    se.gendut.klipp.engine.MaskKey.SMOOTH -> se.gendut.klipp.engine.MaskKey.HOLD
+                    else -> se.gendut.klipp.engine.MaskKey.LINEAR
+                }
+                put(box.setInterp(mk, next))
+            }
+        },
+        view = view,
+    )
+}
+
+private val FULL_FRAME = se.gendut.klipp.engine.LayerMask(w = 1f, h = 1f, feather = 0f)
+
+/** Keeps the crop only while it does something: the whole frame, unfeathered and without keyframes, is no crop. */
+private fun cropOrNull(c: se.gendut.klipp.engine.LayerMask) = c.takeUnless { !it.animated && it.feather <= 0f && it.w >= 0.999f && it.h >= 0.999f }
+
+/** The crop as edges, each a fraction of the picture in from its side. */
+private fun se.gendut.klipp.engine.LayerMask.withEdges(l: Float, t: Float, r: Float, b: Float): se.gendut.klipp.engine.LayerMask {
+    val ll = l.coerceIn(0f, 0.98f); val tt = t.coerceIn(0f, 0.98f)
+    val rr = r.coerceIn(0f, 0.98f - ll); val bb = b.coerceIn(0f, 0.98f - tt)
+    return copy(cx = (ll + 1f - rr) / 2f, cy = (tt + 1f - bb) / 2f, w = 1f - rr - ll, h = 1f - bb - tt)
+}
+
+/** Crop: formats, the four edges, feather, keyframes, and scaling the crop up to fill the frame. Handles on the picture while open. */
+@Composable
+private fun CropSection(gs: GradeState, p: ClipProps, state: EditorState, backend: PropsBackend) {
+    val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
+    val clip = p.id
+    val fx = (gs.shown(clip) ?: ClipGrade()).layer ?: se.gendut.klipp.engine.LayerFx()
+    val crop = fx.crop ?: FULL_FRAME
+    androidx.compose.runtime.DisposableEffect(clip) { state.cropEdit = clip; onDispose { state.cropEdit = null } }
+    fun set(c: se.gendut.klipp.engine.LayerMask?) = gs.set(clip, gs.of(clip).copy(layer = fx.copy(crop = c?.let(::cropOrNull)).takeUnless { it.isNone }))
+    fun live(c: se.gendut.klipp.engine.LayerMask) = gs.setLive(clip, gs.of(clip).copy(layer = fx.copy(crop = c)))
+    fun done() { scope.launch { gs.endLive() } }
+    val info = remember(clip, gs.clipInfo, state.clips.firstOrNull { it.id == clip }) { gs.clipInfo?.invoke(clip) }
+    fun srcOf(t: Float): Double? = info?.srcAt(t)
+    val tol = (FRAME / 2.0) * abs(info?.speed ?: 1.0).coerceAtLeast(1e-3)
+    val cur by remember(crop, info) { androidx.compose.runtime.derivedStateOf { if (crop.animated) crop.at(srcOf(state.playhead)) else crop } }
+    fun keySrc(): Double? = srcOf(state.playhead)
+    fun edit(l: Float? = null, t: Float? = null, r: Float? = null, b: Float? = null): se.gendut.klipp.engine.LayerMask {
+        val c = cur
+        return crop.withValues(c.withEdges(l ?: (c.cx - c.w / 2f), t ?: (c.cy - c.h / 2f), r ?: (1f - c.cx - c.w / 2f), b ?: (1f - c.cy - c.h / 2f)), keySrc(), tol)
+    }
+    val view = remember(clip) { KfView() }
+    val anim = info?.let { boxAnim(it, crop, tol, state, view, ::srcOf, ::keySrc) { m -> set(m) } }
+    fun pct(v: Float) = "%.0f %%".format(v * 100)
+    val frame = p.seqW.toFloat() / p.seqH.toFloat().coerceAtLeast(1f)
+    PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_crop_format), trailing = {
+        SpringChip(stringResource(R.string.properties_reset), false, { haptics.confirm(); set(null) }, Modifier.testTag("crop:reset"))
+    }) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            for ((label, a) in listOf("16:9" to 16f / 9f, "9:16" to 9f / 16f, "1:1" to 1f, "4:5" to 4f / 5f)) {
+                val ratio = a / frame
+                val w = if (ratio >= 1f) 1f else ratio
+                val h = if (ratio >= 1f) 1f / ratio else 1f
+                SpringChip(label, abs(cur.w - w) < 0.002f && abs(cur.h - h) < 0.002f && fx.crop != null, {
+                    haptics.confirm(); set(crop.withValues(cur.copy(cx = 0.5f, cy = 0.5f, w = w, h = h), keySrc(), tol))
+                }, Modifier.testTag("crop:$label"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+            }
+        }
+    }
+    PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_crop_edges)) {
+        PropSlider(stringResource(R.string.properties_crop_left), cur.cx - cur.w / 2f, 0f, 0.98f, 0f, ::pct, "cropL", anim = anim, lane = false,
+            onLive = { live(edit(l = it)) }) { set(edit(l = it)); done() }
+        PropSlider(stringResource(R.string.properties_crop_right), 1f - cur.cx - cur.w / 2f, 0f, 0.98f, 0f, ::pct, "cropR", anim = anim, lane = false,
+            onLive = { live(edit(r = it)) }) { set(edit(r = it)); done() }
+        PropSlider(stringResource(R.string.properties_crop_top), cur.cy - cur.h / 2f, 0f, 0.98f, 0f, ::pct, "cropT", anim = anim, lane = false,
+            onLive = { live(edit(t = it)) }) { set(edit(t = it)); done() }
+        PropSlider(stringResource(R.string.properties_crop_bottom), 1f - cur.cy - cur.h / 2f, 0f, 0.98f, 0f, ::pct, "cropB", anim = anim,
+            onLive = { live(edit(b = it)) }) { set(edit(b = it)); done() }
+        PropSlider(stringResource(R.string.properties_mask_feather), crop.feather, 0f, 0.5f, 0f, ::pct, "cropFeather", lane = false,
+            onLive = { live(crop.copy(feather = it)) }) { set(crop.copy(feather = it)); done() }
+    }
+    if (fx.crop != null) PillButton(stringResource(R.string.properties_crop_fill), {
+        haptics.confirm()
+        val k = maxOf(1f / cur.w.coerceAtLeast(0.02f), 1f / cur.h.coerceAtLeast(0.02f))
+        backend.setProps(p.id, x = p.seqW * (0.5f + (0.5f - cur.cx) * k), y = p.seqH * (0.5f + (0.5f - cur.cy) * k), scale = 100f * k)
+    }, Modifier.padding(horizontal = 16.dp, vertical = 10.dp).testTag("crop:fill"), icon = Ic.Center)
+}
+
+/** The crop's corners and edges on the picture: drag a handle, or inside the crop to move it. */
+@Composable
+fun CropOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier) {
+    val id = state.cropEdit ?: return
+    val controller = state.props as? se.gendut.klipp.engine.ProjectController ?: return
+    controller.revision
+    val snap = controller.snapshot.sequence?.video?.firstNotNullOfOrNull { t -> t.clips.firstOrNull { it.id == id } } ?: return
+    val seqW = controller.snapshot.sequence?.width ?: return
+    val seqH = controller.snapshot.sequence?.height ?: return
+    val haptics = rememberHaptics()
+    val info = remember(id, gs.clipInfo, state.clips.firstOrNull { it.id == id }) { gs.clipInfo?.invoke(id) }
+    fun box(): se.gendut.klipp.engine.LayerMask {
+        val c = gs.shown(id)?.layer?.crop ?: FULL_FRAME
+        return if (c.animated) c.at(info?.srcAt(state.playhead)) else c
+    }
+    val placed = { snap.at(state.playhead.toDouble()) }
+    Box(modifier.fillMaxSize().testTag("cropOverlay").pointerInput(id) {
+        awaitEachGesture {
+            val down = awaitFirstDown()
+            val w = size.width.toFloat(); val h = size.height.toFloat()
+            val start = box()
+            val c0 = placed()
+            val l = start.cx - start.w / 2f; val r = start.cx + start.w / 2f; val t = start.cy - start.h / 2f; val b = start.cy + start.h / 2f
+            // handles: which edges each one moves (-1 left/top, 1 right/bottom, 0 none)
+            val handles = listOf(Triple(l, t, -1 to -1), Triple(r, t, 1 to -1), Triple(r, b, 1 to 1), Triple(l, b, -1 to 1),
+                Triple(l, start.cy, -1 to 0), Triple(r, start.cy, 1 to 0), Triple(start.cx, t, 0 to -1), Triple(start.cx, b, 0 to 1))
+            fun screen(u: Float, v: Float) = c0.toFrame(u, v, seqW, seqH).let { Offset(it[0] * w, it[1] * h) }
+            val hit = handles.minByOrNull { (screen(it.first, it.second) - down.position).getDistance() }?.takeIf { (screen(it.first, it.second) - down.position).getDistance() < 44.dp.toPx() }
+            val p0 = c0.fromFrame(down.position.x / w, down.position.y / h, seqW, seqH)
+            val inside = p0[0] in l..r && p0[1] in t..b
+            if (hit == null && !inside) return@awaitEachGesture
+            down.consume()
+            haptics.tick()
+            val g0 = gs.of(id)
+            val fx0 = g0.layer ?: se.gendut.klipp.engine.LayerFx()
+            val all = fx0.crop ?: FULL_FRAME
+            val tol = (FRAME / 2.0) * abs(info?.speed ?: 1.0).coerceAtLeast(1e-3)
+            var result = all
+            while (true) {
+                val ev = awaitPointerEvent()
+                val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                if (!c.pressed) break
+                val q = c0.fromFrame(c.position.x / w, c.position.y / h, seqW, seqH)
+                var nl = l; var nt = t; var nr = 1f - r; var nb = 1f - b
+                if (hit != null) {
+                    val (ex, ey) = hit.third
+                    if (ex < 0) nl = q[0]; if (ex > 0) nr = 1f - q[0]
+                    if (ey < 0) nt = q[1]; if (ey > 0) nb = 1f - q[1]
+                } else {
+                    val dx = (q[0] - p0[0]).coerceIn(-l, 1f - r); val dy = (q[1] - p0[1]).coerceIn(-t, 1f - b)
+                    nl = l + dx; nr = 1f - r - dx; nt = t + dy; nb = 1f - b - dy
+                }
+                result = all.withValues(start.withEdges(nl, nt, nr, nb), info?.srcAt(state.playhead), tol)
+                gs.setLive(id, g0.copy(layer = fx0.copy(crop = result)))
+                c.consume()
+            }
+            haptics.confirm()
+            gs.set(id, g0.copy(layer = fx0.copy(crop = cropOrNull(result)).takeUnless { it.isNone }))
+            scope0(gs)
+        }
+    }) {
+        Canvas(Modifier.fillMaxSize()) {
+            val c = box(); val pl = placed()
+            fun pt(u: Float, v: Float) = pl.toFrame(u, v, seqW, seqH).let { Offset(it[0] * size.width, it[1] * size.height) }
+            val l = c.cx - c.w / 2f; val r = c.cx + c.w / 2f; val t = c.cy - c.h / 2f; val b = c.cy + c.h / 2f
+            val path = androidx.compose.ui.graphics.Path().apply { pt(l, t).let { moveTo(it.x, it.y) }; pt(r, t).let { lineTo(it.x, it.y) }; pt(r, b).let { lineTo(it.x, it.y) }; pt(l, b).let { lineTo(it.x, it.y) }; close() }
+            drawPath(path, Color.Black.copy(alpha = 0.5f), style = androidx.compose.ui.graphics.drawscope.Stroke(3.5.dp.toPx()))
+            drawPath(path, K.Primary, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+            for ((u, v) in listOf(l to t, r to t, r to b, l to b, l to c.cy, r to c.cy, c.cx to t, c.cx to b)) {
+                drawCircle(Color.Black.copy(alpha = 0.5f), 8.dp.toPx(), pt(u, v))
+                drawCircle(K.PrimarySoft, 6.5.dp.toPx(), pt(u, v))
+            }
+        }
+    }
+}
+
+private fun scope0(gs: GradeState) { kotlinx.coroutines.MainScope().launch { gs.endLive() } }
 
 /**
  * The mask's position and size, with keyframes (stopwatch, lane, ◀ ◆ ▶ – in source time, so they follow the clip) and
@@ -377,38 +605,7 @@ private fun MaskControls(
     fun edit(f: (se.gendut.klipp.engine.LayerMask) -> se.gendut.klipp.engine.LayerMask): se.gendut.klipp.engine.LayerFx =
         fx.copy(mask = mask.withValues(f(cur), keySrc(), tol))
     val maskView = remember(clip) { KfView() }
-    val anim = if (info == null) null else {
-        val lo = info.srcIn
-        val hi = info.srcIn + (info.end - info.start) * abs(info.speed)
-        AnimUi(
-            "mask",
-            mask.keys.filter { it.t >= lo - tol && it.t <= hi + tol }.map { k ->
-                UiKf(info.timelineAt(k.t), Math.round(k.t * 1e6), when (k.interp) {
-                    se.gendut.klipp.engine.MaskKey.HOLD -> "Hold"; se.gendut.klipp.engine.MaskKey.SMOOTH -> "AutoBezier"; else -> "Linear"
-                })
-            },
-            info.start, info.end, { state.playhead },
-            onToggle = { srcOf(state.playhead)?.let { set(fx.copy(mask = mask.toggleAnimation(it))) } },
-            onKey = { keySrc()?.let { set(fx.copy(mask = mask.toggleKey(it, tol))) } },
-            onJump = { t -> state.playing = false; state.playhead = t.coerceIn(info.start, lastFrame(info.start, info.end)) },
-            onMove = { k, t ->
-                val mk = mask.keys.firstOrNull { Math.round(it.t * 1e6) == k.mt }
-                val to = srcOf(t)
-                if (mk != null && to != null) set(fx.copy(mask = mask.moveKey(mk, to, tol)))
-            },
-            onInterp = { k ->
-                mask.keys.firstOrNull { Math.round(it.t * 1e6) == k.mt }?.let { mk ->
-                    val next = when (mk.interp) {
-                        se.gendut.klipp.engine.MaskKey.LINEAR -> se.gendut.klipp.engine.MaskKey.SMOOTH
-                        se.gendut.klipp.engine.MaskKey.SMOOTH -> se.gendut.klipp.engine.MaskKey.HOLD
-                        else -> se.gendut.klipp.engine.MaskKey.LINEAR
-                    }
-                    set(fx.copy(mask = mask.setInterp(mk, next)))
-                }
-            },
-            view = maskView,
-        )
-    }
+    val anim = info?.let { boxAnim(it, mask, tol, state, maskView, ::srcOf, ::keySrc) { m -> set(fx.copy(mask = m)) } }
     fun pct(v: Float) = "%.0f %%".format(v * 100)
     PropSlider(stringResource(R.string.properties_mask_center_x), cur.cx, 0f, 1f, 0.5f, ::pct, "maskX", anim = anim, lane = false,
         onLive = { v -> live(edit { it.copy(cx = v) }) }) { v -> set(edit { it.copy(cx = v) }); done() }

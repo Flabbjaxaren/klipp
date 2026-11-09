@@ -165,4 +165,25 @@
         <item quantity="one">Removed %1$d part (%2$.1f s)</item>
         <item quantity="other">Removed %1$d parts (%2$.1f s)</item>
     </plurals>
+    <string name="audiofxcatalog_pitch">Voice Pitch</string>
+    <string name="audiofxcatalog_pitch_hint">Makes the voice higher or lower without changing its speed.</string>
+    <string name="audiofxcatalog_semitones">Semitones</string>
+    <string name="audiofxcatalog_echo">Echo</string>
+    <string name="audiofxcatalog_echo_hint">Repeats the sound after a delay.</string>
+    <string name="audiofxcatalog_echo_time">Time</string>
+    <string name="audiofxcatalog_feedback">Repeats</string>
+    <string name="audiofxcatalog_chorus">Chorus</string>
+    <string name="audiofxcatalog_chorus_hint">A thicker, doubled sound.</string>
+    <string name="audiofxcatalog_chorus_rate">Rate</string>
+    <string name="audiofxcatalog_chorus_depth">Depth</string>
+    <string name="beats_added">%1$d beat markers added</string>
+    <string name="beats_none">No steady beat found in this clip</string>
+    <string name="beats_btn">Beats</string>
+    <string name="beats_undo">Beat markers</string>
+    <string name="tts_title">Text to Speech</string>
+    <string name="tts_hint">Type what the voice should say</string>
+    <string name="tts_add">Add at Playhead</string>
+    <string name="tts_busy">Creating…</string>
+    <string name="tts_failed">This phone has no voice for the language</string>
+    <string name="projectcontroller_undo_caption_style">Caption Style</string>
 </resources>
