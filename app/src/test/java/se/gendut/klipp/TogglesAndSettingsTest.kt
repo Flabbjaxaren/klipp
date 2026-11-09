@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -165,6 +166,7 @@ class TogglesAndSettingsTest {
         rule.onNodeWithTag("exp:fps:fps24.0").performClick()
         rule.waitForIdle()
         assertEquals(24.0, s.fps, 1e-9)
+        rule.onNodeWithTag("expTab:1").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("exp:q").performScrollTo().performClick()
         rule.onNodeWithTag("exp:q:custom").performClick()
         rule.waitForIdle()
@@ -174,6 +176,7 @@ class TogglesAndSettingsTest {
         rule.onNodeWithTag("exp:key:k2.0").performClick()
         rule.waitForIdle()
         assertEquals(2f, s.keyframeSec)
+        rule.onNodeWithTag("expTab:3").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("exp:sr").performScrollTo().performClick()
         rule.onNodeWithTag("exp:sr:sr44100").performClick()
         rule.waitForIdle()
@@ -188,6 +191,7 @@ class TogglesAndSettingsTest {
         rule.setContent { KlippTheme { SettingsScreen(onClose = {}, onCenterDefault = { center = it }) } }
         rule.waitForIdle()
         try {
+            rule.onNodeWithTag("set:cat:appearance").performClick(); rule.waitForIdle()
             rule.onNodeWithTag("accent:BLUE").performScrollTo().performClick()
             rule.waitForIdle()
             assertEquals(Accent.BLUE, K.accent)
@@ -197,6 +201,8 @@ class TogglesAndSettingsTest {
             rule.onNodeWithTag("base:BLACK").performClick()
             rule.waitForIdle()
             assertEquals(Base.BLACK, K.base)
+            rule.onNodeWithContentDescription("Tillbaka").performClick(); rule.waitForIdle()
+            rule.onNodeWithTag("set:cat:timeline").performClick(); rule.waitForIdle()
             rule.onNodeWithTag("set:center").performScrollTo().performClick()
             rule.waitForIdle()
             assertEquals(true, center)

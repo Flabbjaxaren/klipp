@@ -3,6 +3,7 @@ package se.gendut.klipp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import kotlin.math.roundToInt
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -157,6 +158,8 @@ private fun CaptionTextField(c: UiCaption, backend: PropsBackend) {
 }
 
 private val CAPTION_COLORS = listOf(0xFFFFFFFF, 0xFFFFE07A, 0xFFFFB77C, 0xFF9FE7D2, 0xFFFFD7F0, 0xFF111318)
+private const val WORDS_ALL = 11f
+private val WORD_COLORS = listOf(0xFFFFD400, 0xFF3DF58A, 0xFF4FD8FF, 0xFFFF5FA8, 0xFFFF8A1F)
 
 /** The style applies to the whole caption track (as in FilmCraft/Premiere): every line looks the same. */
 @Composable
@@ -173,19 +176,47 @@ fun CaptionStyleEditor(backend: PropsBackend, track: Long) {
                 .onFailure { android.widget.Toast.makeText(ctx, Str.t(R.string.captionui_font_error, it.message.toString()), android.widget.Toast.LENGTH_LONG).show() }
         }
     }
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    ToolTabs(listOf(
+        ToolTab(stringResource(R.string.captionui_spoken_word), Ic.Subs, "capTab:0", st.wordColor != null),
+        ToolTab(stringResource(R.string.titleui_tab_text), Ic.Text, "capTab:1"),
+        ToolTab(stringResource(R.string.captionui_tab_box), Ic.Window, "capTab:2", st.background),
+        ToolTab(stringResource(R.string.captionui_position), Ic.Center, "capTab:3"),
+    ), tab, { tab = it }, Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
+    when (tab) {
+        0 -> {
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        SpringChip(stringResource(R.string.captionui_social), false, { set("social" to true) }, Modifier.testTag("cap:social"))
+        SpringChip(stringResource(R.string.captionui_off), st.wordColor == null, { set("wordColor" to "") }, Modifier.testTag("cap:wordOff"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+    }
+    Swatches(st.wordColor ?: 0, WORD_COLORS) { set("wordColor" to CaptionStyle.hex(it)) }
+    if (st.wordColor != null) {
+        val all = stringResource(R.string.captionui_words_all)
+        // the far end of the slider = the whole caption
+        PropSlider(stringResource(R.string.captionui_words_on_screen), if (st.wordCount == 0) WORDS_ALL else st.wordCount.toFloat(), 1f, WORDS_ALL, WORDS_ALL,
+            { if (it.roundToInt() >= WORDS_ALL.toInt()) all else "${it.roundToInt()}" }, "capWords", lane = false) { v ->
+            set("wordCount" to v.roundToInt().let { if (it >= WORDS_ALL.toInt()) 0 else it })
+        }
+        PropSlider(stringResource(R.string.captionui_word_zoom), st.wordZoom * 100f, 100f, 200f, 100f, { "%.0f %%".format(it) }, "capZoom", lane = false) { set("wordZoom" to (it / 100f)) }
+    }
+        }
+        1 -> {
     FontGrid(st.font, { set("font" to it) }) { haptics.tick(); fontPicker.launch(arrayOf("font/*", "application/x-font-ttf", "application/x-font-otf", "application/octet-stream", "*/*")) }
     PropSlider(stringResource(R.string.captionui_size), st.size, 16f, 160f, 54f, { "%.0f px".format(it) }, "capSize", lane = false) { set("size" to it.toDouble()) }
     SectionLabel(stringResource(R.string.captionui_color))
-    Swatches(st.color) { set("color" to CaptionStyle.hex(it)) }
+    Swatches(st.color, CAPTION_COLORS) { set("color" to CaptionStyle.hex(it)) }
+    val off = stringResource(R.string.captionui_off)
+    PropSlider(stringResource(R.string.captionui_outline), st.outline, 0f, 12f, 0f, { if (it < 0.05f) off else "%.1f".format(it) }, "capOutline", lane = false) { set("outline" to it.toDouble()) }
+        }
+        2 -> {
     SectionLabel(stringResource(R.string.captionui_background))
     Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         SpringChip(stringResource(R.string.captionui_bg_none), !st.background, { set("background" to false) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
         SpringChip(stringResource(R.string.captionui_bg_semi), st.background && (st.backgroundColor ushr 24) < 250, { set("background" to true, "backgroundColor" to "#000000bf") }, selectedColor = K.Primary, selectedText = K.OnPrimary)
         SpringChip(stringResource(R.string.captionui_bg_solid), st.background && (st.backgroundColor ushr 24) >= 250, { set("background" to true, "backgroundColor" to "#000000ff") }, selectedColor = K.Primary, selectedText = K.OnPrimary)
     }
-    val off = stringResource(R.string.captionui_off)
-    PropSlider(stringResource(R.string.captionui_outline), st.outline, 0f, 12f, 0f, { if (it < 0.05f) off else "%.1f".format(it) }, "capOutline", lane = false) { set("outline" to it.toDouble()) }
-    SectionLabel(stringResource(R.string.captionui_position))
+        }
+        else -> {
     Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         for ((k, l) in listOf("top" to stringResource(R.string.captionui_top), "middle" to stringResource(R.string.captionui_middle), "bottom" to stringResource(R.string.captionui_bottom))) SpringChip(l, st.anchor == k, { set("anchor" to k) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
     }
@@ -193,16 +224,18 @@ fun CaptionStyleEditor(backend: PropsBackend, track: Long) {
         for ((k, l) in listOf("left" to stringResource(R.string.captionui_left), "center" to stringResource(R.string.captionui_center), "right" to stringResource(R.string.captionui_right))) SpringChip(l, st.align == k, { set("align" to k) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
     }
     PropSlider(stringResource(R.string.captionui_margin), st.margin * 100f, 0f, 45f, 8f, { "%.0f %%".format(it) }, "capMargin", lane = false) { set("margin" to (it / 100.0)) }
+        }
+    }
     Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         SpringChip(stringResource(R.string.captionui_reset_style), false, { set("reset" to true) })
     }
 }
 
 @Composable
-private fun Swatches(current: Int, onPick: (Int) -> Unit) {
+private fun Swatches(current: Int, colors: List<Long>, onPick: (Int) -> Unit) {
     Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        for (c in CAPTION_COLORS) {
-            val on = (current and 0xFFFFFF) == (c.toInt() and 0xFFFFFF)
+        for (c in colors) {
+            val on = (current ushr 24) != 0 && (current and 0xFFFFFF) == (c.toInt() and 0xFFFFFF)
             Box(
                 Modifier.size(40.dp).clip(RoundedCornerShape(if (on) 12.dp else 20.dp)).background(Color(c))
                     .border(if (on) 3.dp else 1.dp, if (on) K.Primary else K.OutlineVar, RoundedCornerShape(if (on) 12.dp else 20.dp))

@@ -35,6 +35,7 @@ import kotlin.math.abs
 private const val VERSION_EVERY_MS = 10 * 60_000L
 /** … and this many are kept per project. */
 private const val VERSIONS_KEPT = 20
+private const val MAX_BEAT_MARKERS = 500
 private val SCHEMA_BACKUP = Regex(""".* \(schema v\d+ backup\)\.fcproj""")
 
 class ProjectController(
@@ -1207,6 +1208,25 @@ class ProjectController(
         refresh()
     } }
 
+    /** Markers on the beat of the clip's sound, within the clip (one undo step). */
+    fun addBeatMarkers(clipId: Long) = scope.launch {
+        val (c, _, _) = find(clipId) ?: return@launch
+        val uri = uriOf(c.item) ?: return@launch
+        val peaks = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Peaks.load(context, uri) }
+        val speed = kotlin.math.abs(c.speed).coerceAtLeast(0.01)
+        val times = peaks?.let { Beats.detect(it) }.orEmpty()
+            .filter { !c.reverse && c.hold == null && it >= c.sourceIn && it < c.sourceIn + c.duration * speed }
+            .map { c.start + (it - c.sourceIn) / speed }
+        if (times.isEmpty()) { onMessage(Str.t(R.string.beats_none)); return@launch }
+        editLock.withLock {
+            group(Str.t(R.string.beats_undo)) {
+                for (t in times.take(MAX_BEAT_MARKERS)) engine.tryExec("markers.add", JSONObject().put("target", "program").put("time", frameTicks(t)))
+            }
+            refresh()
+        }
+        onMessage(Str.t(R.string.beats_added, minOf(times.size, MAX_BEAT_MARKERS)))
+    }
+
     /** Choose which track the source's video (V) or audio (A) goes on for insert/overwrite. */
     fun setTarget(uiTrack: Int) = scope.launch { editLock.withLock {
         engine.tryExec("timeline.setTargeting", JSONObject().put("track", engineTrack(uiTrack)).put("targeted", true).put("sourcePatch", true))
@@ -1788,11 +1808,32 @@ class ProjectController(
 
     override fun setCaptionStyle(track: Long, values: Map<String, Any>) {
         scope.launch { editLock.withLock {
-            val p = JSONObject().put("track", track)
-            values.forEach { (k, v) -> p.put(k, v) }
-            engine.tryExec("captions.setStyle", p).onFailure { onMessage(friendly(it.message)) }
+            if (values.keys.none { it in WORD_STYLE_KEYS || it == "reset" || it == "social" }) applyCaptionStyle(track, values)
+            else group(Str.t(R.string.projectcontroller_undo_caption_style)) { applyCaptionStyle(track, values) }
             refresh()
         } }
+    }
+
+    private val WORD_STYLE_KEYS = setOf("wordColor", "wordCount", "wordZoom")
+
+    /** "social" = large marked words; "wordColor" ("" = off) goes in the track's name, the rest to the engine's style. */
+    private suspend fun applyCaptionStyle(track: Long, values: Map<String, Any>) {
+        val tall = snapshot.sequence?.let { it.height > it.width } == true
+        val all = if (values["social"] == true) mapOf(
+            "font" to "Sans fet", "size" to (if (tall) 64.0 else 104.0), "color" to "#ffffffff", "background" to false,
+            "outline" to 6.0, "outlineColor" to "#000000ff", "anchor" to "bottom", "align" to "center", "margin" to 0.18, "wordColor" to "#ffd400ff",
+        ) else values
+        if (all["reset"] == true || all.keys.any { it in WORD_STYLE_KEYS }) snapshot.sequence?.captionTracks?.firstOrNull { it.id == track }?.let { t ->
+            val color = if (all["reset"] == true) "" else all["wordColor"] as? String ?: t.style.wordColor?.let { CaptionStyle.hex(it) } ?: ""
+            val name = t.name.substringBefore(CaptionStyle.WORD_TAG) +
+                if (color.isEmpty()) "" else CaptionStyle.wordTag(color, all["wordCount"] as? Int ?: t.style.wordCount, all["wordZoom"] as? Float ?: t.style.wordZoom)
+            engine.tryExec("captions.setTrack", JSONObject().put("track", track).put("name", name)).onFailure { onMessage(friendly(it.message)) }
+        }
+        val style = all - WORD_STYLE_KEYS
+        if (style.isEmpty()) return
+        val p = JSONObject().put("track", track)
+        style.forEach { (k, v) -> p.put(k, v) }
+        engine.tryExec("captions.setStyle", p).onFailure { onMessage(friendly(it.message)) }
     }
 
     override fun captionStyle(track: Long) = snapshot.sequence?.captionTracks?.firstOrNull { it.id == track }?.style
@@ -1827,7 +1868,7 @@ class ProjectController(
     suspend fun importCaptionFile(f: java.io.File, name: String) = editLock.withLock {
         group(Str.t(R.string.projectcontroller_undo_auto_captions)) {
             if (snapshot.sequence == null) engine.exec("file.newSequence", newSeqParams())
-            val old = snapshot.sequence?.captionTracks.orEmpty().filter { it.name == name }.flatMap { it.captionIds }
+            val old = snapshot.sequence?.captionTracks.orEmpty().filter { it.name.substringBefore(CaptionStyle.WORD_TAG) == name }.flatMap { it.captionIds }
             if (old.isNotEmpty()) engine.exec("captions.delete", JSONObject().put("captions", JSONArray().apply { old.forEach { put(it) } }))
             engine.exec("captions.import", JSONObject().put("path", f.absolutePath).put("name", name))
         }

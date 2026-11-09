@@ -129,7 +129,7 @@ fun PanelTitle(text: String, trailing: @Composable () -> Unit = {}) {
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text, color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+        Text(text, color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         trailing()
     }
 }
@@ -482,6 +482,42 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null) {
     var message by remember { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         PanelTitle(stringResource(R.string.panels_audio))
+        var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+        val tabs = listOf(
+            ToolTab(stringResource(R.string.panels_tab_mixer), Ic.Sliders, "audioTab:mixer"),
+            ToolTab(stringResource(R.string.panels_tab_loudness), Ic.Waveform, "audioTab:loudness", mix.normDb != 0f),
+        ) + if (tools == null) emptyList() else listOf(
+            ToolTab(stringResource(R.string.panels_tab_record), Ic.Mic, "audioTab:record"),
+            ToolTab(stringResource(R.string.panels_tab_sounds), Ic.Audio, "audioTab:sounds"),
+            ToolTab(stringResource(R.string.panels_tab_ducking), Ic.VolLine, "audioTab:ducking"),
+        )
+        ToolTabs(tabs, tab.coerceIn(0, tabs.lastIndex), { tab = it }, Modifier.padding(horizontal = 12.dp))
+        Spacer(Modifier.height(10.dp))
+        when (tab.coerceIn(0, tabs.lastIndex)) {
+            0 -> {
+        Row(
+            Modifier.padding(16.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            listOf("A1", "A2", "A3", "Mix").forEachIndexed { i, n ->
+                ChannelStrip(n, i, mix, scope, Modifier.weight(1f), auto = tracks.getOrNull(i)?.takeIf { i < 3 }?.volKf?.size ?: 0)
+            }
+        }
+                if (tools != null) PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.panels_volume_automation)) {
+            Text(stringResource(R.string.panels_automation_hint),
+                color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (i in 0..2) {
+                    val n = tracks.getOrNull(i)?.volKf?.size ?: 0
+                    SpringChip("◆ A${i + 1}" + if (n > 0) " ($n)" else "", n > 0, {
+                        haptics.tick(); tools.toggleKf(i, state.playhead.toDouble(), mix.db(i))
+                    }, Modifier.testTag("kf:A${i + 1}"))
+                    if (n > 0) SpringChip(stringResource(R.string.panels_clear_track, i + 1), false, { haptics.heavy(); tools.clearKf(i) }, Modifier.testTag("kfClear:A${i + 1}"))
+                }
+            }
+                }
+            }
+            1 -> {
         // loudness: measure the whole mix and normalize master toward a target
         Column(
             Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(K.Surface).padding(14.dp),
@@ -532,30 +568,9 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null) {
             }
             message?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
         }
-        Row(
-            Modifier.padding(16.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("A1", "A2", "A3", "Mix").forEachIndexed { i, n ->
-                ChannelStrip(n, i, mix, scope, Modifier.weight(1f), auto = tracks.getOrNull(i)?.takeIf { i < 3 }?.volKf?.size ?: 0)
             }
-        }
-        // automation: keyframes for the track volume at the playhead
-        if (tools != null) {
-            SectionLabel(stringResource(R.string.panels_volume_automation))
-            Text(stringResource(R.string.panels_automation_hint),
-                color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (i in 0..2) {
-                    val n = tracks.getOrNull(i)?.volKf?.size ?: 0
-                    SpringChip("◆ A${i + 1}" + if (n > 0) " ($n)" else "", n > 0, {
-                        haptics.tick(); tools.toggleKf(i, state.playhead.toDouble(), mix.db(i))
-                    }, Modifier.testTag("kf:A${i + 1}"))
-                    if (n > 0) SpringChip(stringResource(R.string.panels_clear_track, i + 1), false, { haptics.heavy(); tools.clearKf(i) }, Modifier.testTag("kfClear:A${i + 1}"))
-                }
-            }
+            2 -> if (tools != null) PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.panels_voice_over)) {
             // voice-over
-            SectionLabel(stringResource(R.string.panels_voice_over))
             val vo = tools.voiceOver
             Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 for (i in 0..2) SpringChip("A${i + 1}", vo.track == i, { if (vo.phase == 0) vo.track = i })
@@ -569,18 +584,47 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null) {
                 stringResource(if (vo.phase < 0) R.string.panels_recording_hint else R.string.panels_record_hint),
                 color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
             )
+            }
+            3 -> if (tools != null) {
+PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.sfx_title)) {
             // sound effects (CC0 packs and Freesound)
             tools.addSound?.let { add ->
-                SectionLabel(stringResource(R.string.sfx_title))
                 var sfxOpen by remember { mutableStateOf(false) }
                 Text(stringResource(R.string.sfx_section_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
                 PillButton(stringResource(R.string.sfx_browse), { haptics.tick(); sfxOpen = true }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp).testTag("sfxOpen"))
                 if (sfxOpen) SoundFxSheet(onDismiss = { sfxOpen = false }) { file, name, secs -> add(file, name, secs) }
             }
-            DuckingCard(tools)
+                }
+                PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.tts_title)) { tools.addSound?.let { add -> TextToSpeechCard(add) } }
+            }
+            else -> if (tools != null) PanelCard(Modifier.padding(top = 10.dp)) { DuckingCard(tools) }
         }
         Spacer(Modifier.height(120.dp))
     }
+}
+
+/** Text read aloud by the phone's own voice, placed at the playhead. */
+@Composable
+private fun TextToSpeechCard(add: (java.io.File, String, Double) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val haptics = rememberHaptics()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var text by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    androidx.compose.material3.OutlinedTextField(text, { text = it; failed = false }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).testTag("ttsText"),
+        placeholder = { Text(stringResource(R.string.tts_hint)) }, maxLines = 4)
+    if (failed) Text(stringResource(R.string.tts_failed), color = K.Error, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+    PillButton(stringResource(if (busy) R.string.tts_busy else R.string.tts_add), {
+        if (!busy && text.isNotBlank()) {
+            haptics.confirm(); busy = true; failed = false
+            scope.launch {
+                val r = runCatching { se.gendut.klipp.engine.SpeechFile.make(context, text.trim()) }.getOrNull()
+                if (r != null) { add(r.file, text.trim().take(40), r.seconds); text = "" } else failed = true
+                busy = false
+            }
+        }
+    }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp).testTag("ttsAdd"))
 }
 
 @Composable

@@ -1975,9 +1975,9 @@ private fun ClipView(
             .graphicsLayer {
                 val l = anim.lift.value
                 val ap = anim.appear.value
-                val s = (1f + 0.06f * l) * anim.pulse.value
-                scaleX = s * (0.85f + 0.15f * ap)
-                scaleY = s * (0.4f + 0.6f * ap)
+                // lifted, it grows in height only: its edges are where it will land (the snap line)
+                scaleX = anim.pulse.value * (0.85f + 0.15f * ap)
+                scaleY = (1f + 0.06f * l) * anim.pulse.value * (0.4f + 0.6f * ap)
                 alpha = ap.coerceIn(0f, 1f)
                 shadowElevation = 18.dp.toPx() * l.coerceAtLeast(0f)
                 this.shape = shape

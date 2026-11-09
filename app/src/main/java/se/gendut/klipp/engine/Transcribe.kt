@@ -323,15 +323,68 @@ object SpeechText {
         return out
     }
 
-    /** Sorted, without overlap (a line ends where the next begins), at least 0.7 s on screen when there is room. */
-    fun tidy(lines: List<SpeechLine>): List<SpeechLine> {
+    /**
+     * Sorted, without overlap (a line ends where the next begins), at least 0.7 s on screen when there is room. A gap
+     * shorter than [closeGap] is closed by holding the line: a caption blinking off and on reads as flicker.
+     */
+    fun tidy(lines: List<SpeechLine>, closeGap: Double = 0.4): List<SpeechLine> {
         val s = lines.sortedBy { it.start }
         return s.mapIndexed { i, l ->
             val next = s.getOrNull(i + 1)?.start ?: Double.MAX_VALUE
             val end = maxOf(l.end, minOf(l.start + 0.7, next)).coerceAtMost(next)
-            l.copy(end = end)
+            l.copy(end = if (next - end < closeGap) next else end)
         }.filter { it.end - it.start >= 0.05 }
     }
+
+    private val fillers = setOf("eh", "ehm", "öh", "öhm", "äh", "ähm", "hm", "hmm", "mm", "mmm", "uh", "um", "uhm")
+    private fun bare(s: String) = s.filter { it.isLetterOrDigit() }.lowercase()
+    private fun endsSentence(s: String) = s.last() in ".?!…"
+
+    /**
+     * Words for captions: sounds like "eh" and a word said twice in a row are left out (only from the captions – the
+     * transcript and the audio keep them). A filler that ended a sentence hands its full stop to the word before it.
+     */
+    fun clean(words: List<SpeechLine>): List<SpeechLine> {
+        val out = ArrayList<SpeechLine>()
+        for (w in words.sortedBy { it.start }) {
+            val prev = out.lastOrNull()
+            if (bare(w.text) in fillers) {
+                if (prev != null && endsSentence(w.text) && !endsSentence(prev.text)) out[out.lastIndex] = prev.copy(text = prev.text.trimEnd(',') + w.text.last())
+                continue
+            }
+            // "Jag jag gick" → "Jag gick": the first one's capital and start, the later one's punctuation
+            if (prev != null && prev.text.none { it in ".?!…" } && bare(prev.text) == bare(w.text) && bare(w.text).none { it.isDigit() } && w.start - prev.end < 0.7) {
+                out[out.lastIndex] = w.copy(start = prev.start, text = prev.text.first() + w.text.drop(1))
+                continue
+            }
+            out += w
+        }
+        return out
+    }
+
+    private val articles = setOf("en", "ett", "den", "det", "de", "denna", "detta", "dessa", "min", "mitt", "mina", "din", "ditt", "dina", "sin", "sitt", "sina", "vår", "vårt", "våra", "er", "ert", "era", "hans", "hennes", "deras", "alla", "några", "the", "a", "an", "my", "your", "our", "their")
+    private val prepositions = setOf("på", "i", "av", "för", "till", "med", "om", "från", "under", "över", "vid", "hos", "mot", "utan", "genom", "efter", "före", "mellan", "bakom", "framför", "of", "to", "in", "on", "at", "with", "from")
+    private val conjunctions = setOf("och", "men", "eller", "att", "som", "så", "eftersom", "när", "medan", "fast", "and", "but", "or", "that", "because", "when")
+    private val auxiliaries = setOf("har", "hade", "ska", "skulle", "kan", "kunde", "vill", "ville", "måste", "får", "fick", "är", "var", "blir", "blev", "is", "are", "was", "were", "have", "has", "will", "can")
+    private val subjects = setOf("jag", "du", "han", "hon", "vi", "ni", "man", "i", "you", "he", "she", "we", "they")
+    private val staysWithVerb = setOf("inte", "aldrig", "också", "bara", "mig", "dig", "sig", "oss", "not", "never")
+
+    /** What it costs to end a line between [a] and [b] (words of the same sentence). */
+    private fun breakCost(a: String, b: String): Double {
+        if (a.last() in ",;:") return 0.0
+        val x = bare(a); val y = bare(b)
+        val tied = x in articles || x in prepositions || x in conjunctions || x in auxiliaries || x in subjects || y in staysWithVerb ||
+            (x.isNotEmpty() && x.all { it.isDigit() }) || (a.first().isUpperCase() && b.first().isUpperCase())
+        return when {
+            tied -> 20.0
+            y in conjunctions -> 1.0
+            y in prepositions -> 2.0
+            else -> 4.0
+        }
+    }
+
+    /** Words (longer than they can have been spoken: whisper counts the silence before a line into its first word) cut to a plausible length. */
+    private fun plausible(w: SpeechLine) = 0.35 + 0.1 * w.text.count { it.isLetterOrDigit() }
 
     /**
      * A clip's words (media seconds, from its item's transcript) on the timeline: those whose middle lies in the part of
@@ -346,28 +399,60 @@ object SpeechText {
     }
 
     /**
-     * Words (timeline seconds) → caption lines. A new line after a sentence ends, at a pause longer than [maxGap], when
-     * the line would get longer than [maxChars] or last longer than [maxLen] s, and after a comma once it is half full.
+     * Words (timeline seconds) → caption lines. A sentence end and a pause longer than [maxGap] always end a line. A
+     * sentence too long for one line ([maxChars], [maxLen] s) is divided where it costs least: at punctuation, before a
+     * conjunction or preposition – not between words that belong together ("en | bil", "har | gjort", "jag | tycker") –
+     * and without fragments too short or too fast to read.
      */
     fun group(words: List<SpeechLine>, maxChars: Int = 42, maxGap: Double = 0.7, maxLen: Double = 6.0): List<SpeechLine> {
+        val sorted = words.sortedBy { it.start }
         val out = ArrayList<SpeechLine>()
-        val cur = ArrayList<SpeechLine>()
-        fun flush() {
-            if (cur.isEmpty()) return
-            out += SpeechLine(cur.first().start, cur.last().end, cur.joinToString(" ") { it.text })
-            cur.clear()
+        var from = 0
+        for (i in sorted.indices) {
+            val next = sorted.getOrNull(i + 1)
+            if (next != null && !endsSentence(sorted[i].text) && next.start - sorted[i].end <= maxGap) continue
+            divide(sorted, from, i + 1, maxChars, maxLen, out)
+            from = i + 1
         }
-        for (w in words.sortedBy { it.start }) {
-            if (cur.isNotEmpty()) {
-                val prev = cur.last().text
-                val len = cur.sumOf { it.text.length + 1 } - 1
-                if (prev.last() in ".?!…" || (prev.last() == ',' && len >= maxChars / 2) || w.start - cur.last().end > maxGap ||
-                    len + 1 + w.text.length > maxChars || w.end - cur.first().start > maxLen) flush()
-            }
-            cur += w
-        }
-        flush()
         return out
+    }
+
+    /** The cheapest division of the sentence [from] until [to] into lines (dynamic programming over the line ends). */
+    private fun divide(w: List<SpeechLine>, from: Int, to: Int, maxChars: Int, maxLen: Double, out: MutableList<SpeechLine>) {
+        val n = to - from
+        val best = DoubleArray(n + 1) { Double.MAX_VALUE }
+        val prev = IntArray(n + 1) { -1 }
+        best[0] = 0.0
+        for (a in 0 until n) {
+            if (best[a] == Double.MAX_VALUE) continue
+            var chars = -1
+            for (b in a + 1..n) {
+                chars += w[from + b - 1].text.length + 1
+                val dur = w[from + b - 1].end - w[from + a].start
+                // (a single word always fits)
+                if (b > a + 1 && (chars > maxChars || dur > maxLen)) break
+                var c = 1.0
+                if (b < n) c += breakCost(w[from + b - 1].text, w[from + b].text)
+                if (n > b - a) {
+                    if (b - a == 1) c += 6.0 else if (chars < 12) c += 3.0
+                }
+                val rate = chars / dur.coerceAtLeast(0.2)
+                if (rate > 17.0) c += (rate - 17.0) * 0.5
+                if (best[a] + c < best[b]) { best[b] = best[a] + c; prev[b] = a }
+            }
+        }
+        val ends = ArrayList<Int>()
+        var e = n
+        while (e > 0) { ends += e; e = prev[e] }
+        var a = 0
+        for (b in ends.reversed()) {
+            val first = w[from + a]; val last = w[from + b - 1]
+            val before = w.getOrNull(from + a - 1); val after = w.getOrNull(from + b)
+            val start = if (before == null || first.start - before.end >= 0.3) maxOf(first.start, first.end - plausible(first)) else first.start
+            val end = if (after == null || after.start - last.end >= 0.3) minOf(last.end, last.start + plausible(last)) else last.end
+            out += SpeechLine(start, end, w.subList(from + a, from + b).joinToString(" ") { it.text })
+            a = b
+        }
     }
 
     fun srt(lines: List<SpeechLine>): String = buildString {
@@ -458,7 +543,7 @@ object AutoCaptions {
     /** The clips' words on the timeline, grouped into lines, imported as the auto captions track (replacing the last one). */
     private suspend fun captionsFrom(context: Context, controller: ProjectController, clips: List<ClipSnap>, words: Map<Long, List<SpeechLine>>, run: Run): String {
         val onTimeline = clips.flatMap { c -> SpeechText.onTimeline(words[c.item].orEmpty(), c.start, c.sourceIn, c.duration, c.speed, c.reverse) }
-        val lines = SpeechText.tidy(SpeechText.group(onTimeline))
+        val lines = SpeechText.tidy(SpeechText.group(SpeechText.clean(onTimeline)))
         if (lines.isEmpty()) return Str.t(R.string.transcribe_no_speech)
         val f = File(File(context.cacheDir, "captions").apply { mkdirs() }, "auto_${System.currentTimeMillis()}.srt")
         withContext(Dispatchers.IO) { f.writeText(SpeechText.srt(lines)) }

@@ -44,6 +44,7 @@ class ColorPageLookTest {
         rule.waitForIdle()
         rule.mainClock.advanceTimeBy(1000)
         rule.onRoot().captureRoboImage("build/shots/40_farg_justera.png")
+        rule.onNodeWithTag("lower:grade").performScrollTo().performClick(); rule.waitForIdle()
         rule.onNodeWithTag("grade:reset").performScrollTo()
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("build/shots/41_farg_nederst.png")

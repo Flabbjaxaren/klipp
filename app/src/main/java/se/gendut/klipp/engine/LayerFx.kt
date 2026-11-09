@@ -29,14 +29,17 @@ data class LayerFx(
     val key: ChromaKey? = null,
     val mask: LayerMask? = null,
     val blend: BlendMode = BlendMode.NORMAL,
+    /** The crop: a rectangle with keyframes like the mask, its edges softened inward by the feather. */
+    val crop: LayerMask? = null,
 ) {
-    val isNone get() = key == null && mask == null && blend == BlendMode.NORMAL
-    /** The key or the mask (a separate shader pass). */
-    val hasAlpha get() = key != null || mask != null
+    val isNone get() = key == null && mask == null && crop == null && blend == BlendMode.NORMAL
+    /** The key, the mask or the crop (a separate shader pass). */
+    val hasAlpha get() = key != null || mask != null || crop != null
 
     fun toJson(): JSONObject = JSONObject().apply {
         key?.let { put("key", it.toJson()) }
         mask?.let { put("mask", it.toJson()) }
+        crop?.let { put("crop", it.toJson()) }
         if (blend != BlendMode.NORMAL) put("blend", blend.name)
     }
 
@@ -48,6 +51,7 @@ data class LayerFx(
         var a = 1f
         key?.let { k -> a *= k.apply(rgb) }
         mask?.let { m -> a *= m.at(src).coverage(x, y, aspect) }
+        crop?.let { m -> a *= m.at(src).cropDrawn(aspect).coverage(x, y, aspect) }
         return a
     }
 
@@ -57,6 +61,7 @@ data class LayerFx(
             val l = LayerFx(
                 ChromaKey.fromJson(o.optJSONObject("key")), LayerMask.fromJson(o.optJSONObject("mask")),
                 BlendMode.entries.firstOrNull { it.name == o.optString("blend") } ?: BlendMode.NORMAL,
+                LayerMask.fromJson(o.optJSONObject("crop")),
             )
             return l.takeUnless { it.isNone }
         }
@@ -182,6 +187,20 @@ data class LayerMask(
     fun replaceKeys(lo: Double, hi: Double, fresh: List<MaskKey>): LayerMask {
         val eps = 1e-6
         return copy(keys = (keys.filter { it.t < lo - eps || it.t > hi + eps } + fresh).sortedBy { it.t })
+    }
+
+    /**
+     * This rectangle as a crop to draw with [coverage]: the feather lies inside the cropped edges (nothing shows beyond
+     * them), and an edge left at the frame's stays hard.
+     */
+    fun cropDrawn(aspect: Float): LayerMask {
+        val f = feather * 0.5f
+        val l = cx - w * 0.5f; val r = cx + w * 0.5f; val t = cy - h * 0.5f; val b = cy + h * 0.5f
+        val nl = if (l <= 0.001f) -1f else l + f / aspect
+        val nr = if (r >= 0.999f) 2f else r - f / aspect
+        val nt = if (t <= 0.001f) -1f else t + f
+        val nb = if (b >= 0.999f) 2f else b - f
+        return copy(cx = (nl + nr) * 0.5f, cy = (nt + nb) * 0.5f, w = max(nr - nl, 1e-3f), h = max(nb - nt, 1e-3f), keys = emptyList())
     }
 
     /** How much of the point (x, y) is visible (0..1). Animated: call on [at]. */
@@ -355,6 +374,11 @@ class LayerFxEffect(private val fx: LayerFx, private val clip: Long?, private va
                 program.setFloatUniform("uFeather", m?.feather ?: 0f)
                 program.setFloatUniform("uInvert", if (m?.invert == true) 1f else 0f)
                 program.setFloatUniform("uAspect", aspect)
+                val cr = fx.crop?.takeIf { part == MASK }?.let { (if (it.animated) it.at(clock?.invoke(presentationTimeUs) ?: it.keys.first().t) else it).cropDrawn(aspect) }
+                program.setFloatUniform("uCropOn", if (cr != null) 1f else 0f)
+                program.setFloatsUniform("uCropC", floatArrayOf(cr?.cx ?: 0.5f, cr?.cy ?: 0.5f))
+                program.setFloatsUniform("uCropSize", floatArrayOf(cr?.w ?: 1f, cr?.h ?: 1f))
+                program.setFloatUniform("uCropF", cr?.feather ?: 0f)
                 program.setFloatUniform("uOut", out.toFloat())
                 program.bindAttributesAndUniforms()
                 GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
@@ -381,6 +405,10 @@ uniform float uTol;
 uniform float uSoft;
 uniform float uSpill;
 uniform float uDom;
+uniform float uCropOn;
+uniform vec2 uCropC;
+uniform vec2 uCropSize;
+uniform float uCropF;
 uniform float uMaskOn;
 uniform float uShape;
 uniform vec2 uC;
@@ -405,6 +433,13 @@ void main() {
     if (uDom > 1.5) rgb.b = mix(rgb.b, min(rgb.b, max(rgb.r, rgb.g)), uSpill);
     else if (uDom > 0.5) rgb.g = mix(rgb.g, min(rgb.g, max(rgb.r, rgb.b)), uSpill);
     else rgb.r = mix(rgb.r, min(rgb.r, max(rgb.g, rgb.b)), uSpill);
+  }
+  if (uCropOn > 0.5) {
+    vec2 q0 = vec2(vTexSamplingCoord.x, 1.0 - vTexSamplingCoord.y);
+    vec2 e0 = vec2((abs(q0.x - uCropC.x) - uCropSize.x * 0.5) * uAspect, abs(q0.y - uCropC.y) - uCropSize.y * 0.5);
+    float d0 = length(max(e0, 0.0)) + min(max(e0.x, e0.y), 0.0);
+    float f0 = max(uCropF * 0.5, 0.0001);
+    a *= 1.0 - smoothstep(-f0, f0, d0);
   }
   if (uMaskOn > 0.5) {
     vec2 q = vec2(vTexSamplingCoord.x, 1.0 - vTexSamplingCoord.y);

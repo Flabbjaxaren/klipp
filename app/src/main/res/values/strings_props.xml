@@ -37,6 +37,7 @@
     <string name="properties_key_spill">Spill Removal</string>
     <string name="properties_key_hint">Put the clip on a track above what should show through</string>
     <string name="properties_blend">Blend Mode</string>
+    <string name="properties_blend_tab">Blend</string>
     <string name="properties_blend_hint">Blends with the tracks below</string>
     <string name="properties_mask">Mask</string>
     <string name="properties_mask_rect">Rectangle</string>

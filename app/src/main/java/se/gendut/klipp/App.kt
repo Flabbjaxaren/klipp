@@ -426,6 +426,7 @@ fun KlippApp(
         state.onTargetTrack = { controller.setTarget(it) }
         state.onAddMarker = { controller.addMarker(it); toaster.show(Str.t(R.string.app_marker_at, formatTc(it))) }
         state.onSpeed = { id, p -> CrashReport.note("speed $p % on clip $id"); controller.setSpeed(id, p) }
+        state.onBeatMarkers = { controller.addBeatMarkers(it) }
         state.onSpeedRamp = { id, r -> CrashReport.note("speed ramp ${r.name} on clip $id"); controller.speedRamp(id, r) }
         state.onLinkedSelection = { controller.setLinkedSelection(it) }
         state.onCaptionsVisible = { controller.setCaptionsVisible(it) }
@@ -1208,6 +1209,7 @@ private fun ContextBar(state: EditorState, modifier: Modifier) {
                     }
                     if (state.props != null && !isTitle) ContextAction(Ic.Sliders, stringResource(R.string.app_properties)) { haptics.tick(); state.inspecting = true }
                     if (!isTitle) ContextAction(Ic.Speed, stringResource(R.string.app_speed)) { haptics.tick(); speedMode = true }
+                    if (!isTitle) state.onBeatMarkers?.let { beats -> ContextAction(Ic.Bolt, stringResource(R.string.beats_btn), tag = "ctx:beats") { state.selected?.let { haptics.confirm(); beats(it) } } }
                     if (state.clips.firstOrNull { it.id == state.selected }?.kind == ClipKind.VIDEO) {
                         ContextAction(Ic.Freeze, stringResource(R.string.app_freeze)) { haptics.tick(); freezeMode = true }
                     }

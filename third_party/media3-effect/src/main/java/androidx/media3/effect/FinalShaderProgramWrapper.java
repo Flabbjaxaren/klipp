@@ -480,6 +480,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       long presentationTimeUs,
       long renderTimeNs) {
     try {
+      // Klipp: a single late frame (a clip change) is shown late rather than dropped; under sustained load it is dropped
+      if (renderTimeNs == VideoFrameProcessor.DROP_OUTPUT_FRAME
+          && KlippPrecision.takeLateFrame(android.os.SystemClock.uptimeMillis())) {
+        renderTimeNs = VideoFrameProcessor.RENDER_OUTPUT_FRAME_IMMEDIATELY;
+      }
       if (renderTimeNs == VideoFrameProcessor.DROP_OUTPUT_FRAME
           || !ensureConfigured(glObjectsProvider, inputTexture.width, inputTexture.height)
           || (isWaitingForRedrawFrame() && presentationTimeUs != redrawFramePresentationTimeUs)) {

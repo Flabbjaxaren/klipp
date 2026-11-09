@@ -37,6 +37,7 @@
     <string name="properties_key_spill">Ta bort spill</string>
     <string name="properties_key_hint">Lägg klippet på ett spår ovanför det som ska synas igenom</string>
     <string name="properties_blend">Blandning</string>
+    <string name="properties_blend_tab">Blandning</string>
     <string name="properties_blend_hint">Blandas med spåren under</string>
     <string name="properties_mask">Mask</string>
     <string name="properties_mask_rect">Rektangel</string>

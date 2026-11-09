@@ -76,6 +76,8 @@ object Ic {
     val Marker = stroke("marker", "M6 3h12v13l-6 5-6-5z")
     val Magnet = shifted("magnet", 0f, 1.5f, "M5 3h4v8a3 3 0 006 0V3h4v8a7 7 0 01-14 0z", "M5 7h4", "M15 7h4")
     val Link = stroke("link", "M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1", "M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1")
+    val Crop = stroke("crop", "M6 2v16h16", "M2 6h16v16")
+    val Mic = stroke("mic", "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z", "M5 11a7 7 0 0 0 14 0", "M12 18v3", "M9 21h6")
     val Check = stroke("check", "M5 12l5 5 9-10")
     val Copy = stroke("copy", "M9 9h10a2 2 0 012 2v8a2 2 0 01-2 2H9a2 2 0 01-2-2v-8a2 2 0 012-2z", "M15 9V5a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h2")
     val NextEdit = stroke("nextedit", "M4 6l7 6-7 6", "M12 6l7 6-7 6", "M20 5v14")

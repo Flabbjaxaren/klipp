@@ -505,7 +505,7 @@ private fun ColorPageBody(
     // the node's tools
     Spacer(Modifier.height(12.dp))
     val tabs = listOf(
-        ToolTab(stringResource(R.string.colorpage_tool_wheels), Ic.Wheels, "editor:Hjul", marked = !(node.lift.isNeutral && node.gamma.isNeutral && node.gain.isNeutral && node.offset.isNeutral)),
+        ToolTab(stringResource(R.string.colorpage_tool_wheels), Ic.Wheels, "editor:Hjul", marked = node.hasLog || !(node.lift.isNeutral && node.gamma.isNeutral && node.gain.isNeutral && node.offset.isNeutral)),
         ToolTab(stringResource(R.string.colorpage_tool_curves), Ic.Curves, "editor:Kurvor", marked = node.hasCurves || node.hasHsl),
         ToolTab(stringResource(R.string.colorpage_tool_adjust), Ic.Sliders, "editor:Justera", marked = node.contrast != 1f || node.sat != 1f || node.density != 0f || node.hue != 0f || node.temp != 0f || node.tint != 0f || node.mix < 1f),
         ToolTab(stringResource(R.string.colorpage_tool_lut), Ic.Cube, "editor:LUT", marked = node.lut != null || node.drt != null),
@@ -566,14 +566,17 @@ private fun ColorPageBody(
                             }
                         }
                     }, Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("adj:wb"), icon = Ic.Dropper, filled = !wbOn)
-                    PropSlider(stringResource(R.string.colorpage_contrast), node.contrast, 0f, 2f, 1f, { "%.2f".format(it) }, "contrast", onLive = { live(node.copy(contrast = it)) }) { commit(node.copy(contrast = it)) }
-                    PropSlider(stringResource(R.string.colorpage_pivot), node.pivot, 0f, 1f, 0.435f, { "%.3f".format(it) }, "pivot", onLive = { live(node.copy(pivot = it)) }) { commit(node.copy(pivot = it)) }
-                    PropSlider(stringResource(R.string.colorpage_saturation), node.sat, 0f, 2f, 1f, { "%.0f".format(it * 50) }, "sat", onLive = { live(node.copy(sat = it)) }) { commit(node.copy(sat = it)) }
-                    PropSlider(stringResource(R.string.colorpage_film_density), node.density * 100f, 0f, 100f, 0f, { "%.0f".format(it) }, "density", onLive = { live(node.copy(density = it / 100f)) }) { commit(node.copy(density = it / 100f)) }
-                    PropSlider(stringResource(R.string.colorpage_hue), node.hue, -180f, 180f, 0f, { "%.0f°".format(it) }, "hue", onLive = { live(node.copy(hue = it)) }) { commit(node.copy(hue = it)) }
+                    SectionLabel(stringResource(R.string.colorpage_group_balance))
                     PropSlider(stringResource(R.string.colorpage_temperature), node.temp, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "temp", onLive = { live(node.copy(temp = it)) }) { commit(node.copy(temp = it)) }
                     PropSlider(stringResource(R.string.colorpage_tint), node.tint, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "tint", onLive = { live(node.copy(tint = it)) }) { commit(node.copy(tint = it)) }
-                    // edge-keeping noise reduction over the 5 × 5 neighbors (see Denoise)
+                    SectionLabel(stringResource(R.string.colorpage_group_tone))
+                    PropSlider(stringResource(R.string.colorpage_contrast), node.contrast, 0f, 2f, 1f, { "%.2f".format(it) }, "contrast", onLive = { live(node.copy(contrast = it)) }) { commit(node.copy(contrast = it)) }
+                    PropSlider(stringResource(R.string.colorpage_pivot), node.pivot, 0f, 1f, 0.435f, { "%.3f".format(it) }, "pivot", onLive = { live(node.copy(pivot = it)) }) { commit(node.copy(pivot = it)) }
+                    SectionLabel(stringResource(R.string.colorpage_group_color))
+                    PropSlider(stringResource(R.string.colorpage_saturation), node.sat, 0f, 2f, 1f, { "%.0f".format(it * 50) }, "sat", onLive = { live(node.copy(sat = it)) }) { commit(node.copy(sat = it)) }
+                    PropSlider(stringResource(R.string.colorpage_hue), node.hue, -180f, 180f, 0f, { "%.0f°".format(it) }, "hue", onLive = { live(node.copy(hue = it)) }) { commit(node.copy(hue = it)) }
+                    PropSlider(stringResource(R.string.colorpage_film_density), node.density * 100f, 0f, 100f, 0f, { "%.0f".format(it) }, "density", onLive = { live(node.copy(density = it / 100f)) }) { commit(node.copy(density = it / 100f)) }
+                    SectionLabel(stringResource(R.string.colorpage_group_finish))
                     PropSlider(stringResource(R.string.colorpage_noise_reduction), node.denoise * 100f, 0f, 100f, 0f, { "%.0f".format(it) }, "denoise", onLive = { live(node.copy(denoise = it / 100f)) }) { commit(node.copy(denoise = it / 100f)) }
                     PropSlider(stringResource(R.string.colorpage_node_mix), node.mix, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "mix", onLive = { live(node.copy(mix = it)) }) { commit(node.copy(mix = it)) }
                 }
@@ -581,6 +584,16 @@ private fun ColorPageBody(
         }
     }
 
+    // what else there is for the clip: one bar instead of a column of cards
+    Spacer(Modifier.height(12.dp))
+    var lower by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    ToolTabs(listOf(
+        ToolTab(stringResource(R.string.colorpage_gallery), Ic.Still, "lower:gallery"),
+        ToolTab(stringResource(R.string.colorpage_clip_grade), Ic.Copy, "lower:grade"),
+        ToolTab(stringResource(R.string.colortools_stabilization), Ic.Target, "lower:stab", gs.of(current.id).stab != null),
+    ), lower, { lower = it }, Modifier.padding(horizontal = 12.dp))
+    when (lower) {
+        0 -> {
     // the gallery: stills to compare against (split screen) and take grades from
     Spacer(Modifier.height(12.dp))
     PanelCard(title = stringResource(R.string.colorpage_gallery), trailing = { Text(stringResource(R.string.colorpage_gallery_hint), color = K.Outline, fontSize = 11.sp) }) {
@@ -594,6 +607,8 @@ private fun ColorPageBody(
         }, onMenu = onStillMenu)
     }
 
+        }
+        1 -> {
     // grade actions for the clip
     Spacer(Modifier.height(12.dp))
     PanelCard(title = stringResource(R.string.colorpage_clip_grade)) {
@@ -615,7 +630,9 @@ private fun ColorPageBody(
             ActionTile(stringResource(R.string.colorpage_reset), Ic.Reset, Modifier.weight(1f).testTag("grade:reset"), danger = true) { haptics.heavy(); gs.set(current.id, ClipGrade()); setNode(1) }
         }
     }
-    StabilizeCard(gs, current)
+        }
+        else -> StabilizeCard(gs, current)
+    }
 }
 
 /** Scope names (string resources, resolved at use) and icons. */
@@ -760,7 +777,7 @@ private fun Wire() = Box(Modifier.width(14.dp).height(2.dp).background(K.Outline
 
 /** The tools used in the node (the icons on the node card). */
 private fun GradeNode.toolIcons() = buildList {
-    if (!(lift.isNeutral && gamma.isNeutral && gain.isNeutral && offset.isNeutral)) add(Ic.Wheels)
+    if (hasLog || !(lift.isNeutral && gamma.isNeutral && gain.isNeutral && offset.isNeutral)) add(Ic.Wheels)
     if (hasCurves) add(Ic.Curves)
     if (contrast != 1f || sat != 1f || hue != 0f || temp != 0f || tint != 0f) add(Ic.Sliders)
     if (lut != null) add(Ic.Cube)
@@ -810,17 +827,35 @@ private fun NodeCard(n: GradeNode, upTo: ClipGrade, base: Bitmap?, selected: Boo
     }
 }
 
-/** Lift, Gamma, Gain, Offset – two by two. */
+/** Lift, Gamma, Gain, Offset or the log wheels (Shadow, Midtone, Highlight, Offset) – two by two. */
 @Composable
 private fun WheelsGrid(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit) {
+    var log by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     Column(Modifier.padding(horizontal = 6.dp)) {
-        Row {
-            ColorWheel("Lift", n.lift, Modifier.weight(1f), { onLive(n.copy(lift = it)) }) { onCommit(n.copy(lift = it)) }
-            ColorWheel("Gamma", n.gamma, Modifier.weight(1f), { onLive(n.copy(gamma = it)) }) { onCommit(n.copy(gamma = it)) }
-        }
-        Row {
-            ColorWheel("Gain", n.gain, Modifier.weight(1f), { onLive(n.copy(gain = it)) }) { onCommit(n.copy(gain = it)) }
-            ColorWheel("Offset", n.offset, Modifier.weight(1f), { onLive(n.copy(offset = it)) }) { onCommit(n.copy(offset = it)) }
+        ConnectedToggleGroup(listOf(stringResource(R.string.colorpage_wheels_primaries), stringResource(R.string.colorpage_wheels_log)), if (log) 1 else 0, { log = it == 1 },
+            Modifier.padding(horizontal = 10.dp, vertical = 4.dp).fillMaxWidth(), tag = { "wheels:$it" })
+        if (!log) {
+            Row {
+                ColorWheel("Lift", n.lift, Modifier.weight(1f), { onLive(n.copy(lift = it)) }) { onCommit(n.copy(lift = it)) }
+                ColorWheel("Gamma", n.gamma, Modifier.weight(1f), { onLive(n.copy(gamma = it)) }) { onCommit(n.copy(gamma = it)) }
+            }
+            Row {
+                ColorWheel("Gain", n.gain, Modifier.weight(1f), { onLive(n.copy(gain = it)) }) { onCommit(n.copy(gain = it)) }
+                ColorWheel("Offset", n.offset, Modifier.weight(1f), { onLive(n.copy(offset = it)) }) { onCommit(n.copy(offset = it)) }
+            }
+        } else {
+            Row {
+                ColorWheel(stringResource(R.string.colorpage_wheel_shadow), n.logShadow, Modifier.weight(1f), { onLive(n.copy(logShadow = it)) }) { onCommit(n.copy(logShadow = it)) }
+                ColorWheel(stringResource(R.string.colorpage_wheel_midtone), n.logMid, Modifier.weight(1f), { onLive(n.copy(logMid = it)) }) { onCommit(n.copy(logMid = it)) }
+            }
+            Row {
+                ColorWheel(stringResource(R.string.colorpage_wheel_highlight), n.logHi, Modifier.weight(1f), { onLive(n.copy(logHi = it)) }) { onCommit(n.copy(logHi = it)) }
+                ColorWheel("Offset", n.offset, Modifier.weight(1f), { onLive(n.copy(offset = it)) }) { onCommit(n.copy(offset = it)) }
+            }
+            PropSlider(stringResource(R.string.colorpage_log_low), n.logLow * 100f, 5f, n.logHigh * 100f - 5f, 33.3f, { "%.0f".format(it) }, "logLow", lane = false,
+                onLive = { onLive(n.copy(logLow = it / 100f)) }) { onCommit(n.copy(logLow = it / 100f)) }
+            PropSlider(stringResource(R.string.colorpage_log_high), n.logHigh * 100f, n.logLow * 100f + 5f, 95f, 55f, { "%.0f".format(it) }, "logHigh", lane = false,
+                onLive = { onLive(n.copy(logHigh = it / 100f)) }) { onCommit(n.copy(logHigh = it / 100f)) }
         }
     }
 }

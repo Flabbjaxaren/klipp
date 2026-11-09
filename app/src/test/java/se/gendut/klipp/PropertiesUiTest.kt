@@ -114,10 +114,12 @@ class PropertiesUiTest {
         rule.waitForIdle()
         assertTrue("${fake.p.scale}", fake.p.scale in 95f..99.9f)
         // a single tap changes nothing (you can brush it by accident while scrolling)
+        rule.onNodeWithTag("propTab:blend").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("prop:opacity").performTouchInput { click(Offset(width * 0.1f, height / 2f)) }
         rule.waitForIdle()
         assertEquals(2, fake.log.size)
         // double tap = exactly back to 100 %
+        rule.onNodeWithTag("propTab:motion").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("prop:scale").performTouchInput { doubleClick(Offset(width * 0.6f, height / 2f)) }
         rule.waitForIdle()
         assertEquals(100f, fake.p.scale, 0.001f)
@@ -128,6 +130,7 @@ class PropertiesUiTest {
         val fake = FakeProps()
         val st = state(fake)
         rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { PropertiesPanel(st) { } } } }
+        rule.onNodeWithTag("propTab:fade").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("fadeIn1.0").performClick()
         rule.waitForIdle()
         assertEquals(1f, fake.p.fadeIn)
@@ -206,7 +209,7 @@ class PropertiesUiTest {
         rule.onRoot().captureRoboImage("$dir/24_text.png")
         rule.onNodeWithText("Lägg till vid", substring = true).performScrollTo().performClick()
         // captions have their own tab
-        rule.onNodeWithTag("textTab:1").performClick()
+        rule.onNodeWithTag("textTab:1").performScrollTo().performClick()
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("$dir/24b_undertexter.png")
         rule.onNodeWithText("Importera SRT / VTT").performScrollTo().performClick()
@@ -252,9 +255,11 @@ class PropertiesUiTest {
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("$dir/31_nyckelrutor.png")
         // stopwatch on opacity = turn on animation at the playhead
+        rule.onNodeWithTag("propTab:blend").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("stopwatch:opacity").performClick()
         assertEquals("anim opacity @2.0", fake.log.last())
         // ◀ ▶ jump between keyframes
+        rule.onNodeWithTag("propTab:motion").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("kfnext:scale").performClick()
         assertEquals(4f, st.playhead, 0.001f)
         rule.onNodeWithTag("kfprev:scale").performClick()

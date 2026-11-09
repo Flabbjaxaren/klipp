@@ -165,4 +165,25 @@
         <item quantity="one">Tog bort %1$d del (%2$.1f s)</item>
         <item quantity="other">Tog bort %1$d delar (%2$.1f s)</item>
     </plurals>
+    <string name="audiofxcatalog_pitch">Röstläge</string>
+    <string name="audiofxcatalog_pitch_hint">Gör rösten ljusare eller mörkare utan att ändra tempot.</string>
+    <string name="audiofxcatalog_semitones">Halvtoner</string>
+    <string name="audiofxcatalog_echo">Eko</string>
+    <string name="audiofxcatalog_echo_hint">Upprepar ljudet efter en stund.</string>
+    <string name="audiofxcatalog_echo_time">Tid</string>
+    <string name="audiofxcatalog_feedback">Upprepningar</string>
+    <string name="audiofxcatalog_chorus">Kör</string>
+    <string name="audiofxcatalog_chorus_hint">Ett fylligare, dubblat ljud.</string>
+    <string name="audiofxcatalog_chorus_rate">Fart</string>
+    <string name="audiofxcatalog_chorus_depth">Djup</string>
+    <string name="beats_added">%1$d beat-markörer tillagda</string>
+    <string name="beats_none">Ingen jämn beat hittades i klippet</string>
+    <string name="beats_btn">Beats</string>
+    <string name="beats_undo">Beat-markörer</string>
+    <string name="tts_title">Text till tal</string>
+    <string name="tts_hint">Skriv vad rösten ska säga</string>
+    <string name="tts_add">Lägg till vid spelhuvudet</string>
+    <string name="tts_busy">Skapar …</string>
+    <string name="tts_failed">Telefonen har ingen röst för språket</string>
+    <string name="projectcontroller_undo_caption_style">Undertextstil</string>
 </resources>
