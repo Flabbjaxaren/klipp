@@ -160,6 +160,10 @@
     <string name="colortools_tripod">Tripod</string>
     <string name="colortools_softness_at_cap">Softness at limit</string>
     <string name="colortools_max_zoom">Max Zoom</string>
+    <string name="colortools_motion_blur">Motion Blur</string>
+    <string name="colortools_motion_blur_intro">Gives phone footage the look of a 180° shutter: the picture is smeared along the camera\'s movement. Things moving within the picture stay sharp.</string>
+    <string name="colortools_motion_blur_add">Add Motion Blur</string>
+    <string name="colortools_shutter_angle">Shutter Angle</string>
     <string name="colorui_drag_to_scrub">Drag to scrub</string>
     <string name="colorpage_history_color">Color</string>
     <string name="colorpage_pick_hint_color">Tap the color you want to select</string>

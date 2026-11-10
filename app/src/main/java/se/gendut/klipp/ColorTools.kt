@@ -972,7 +972,8 @@ object StabService {
     private val scope = kotlinx.coroutines.MainScope()
     private var job: kotlinx.coroutines.Job? = null
 
-    fun start(ctx: Context, gs: GradeState, c: ColorClip, strength: Float, mode: Int = 0, maxZoom: Float = 1.2f) {
+    /** [blurOnly]: only the camera's movement is analyzed, for motion blur. */
+    fun start(ctx: Context, gs: GradeState, c: ColorClip, strength: Float, mode: Int = 0, maxZoom: Float = 1.2f, blurOnly: Boolean = false) {
         val uri = c.uri ?: run { message = Str.t(R.string.colortools_clip_file_missing); return }
         cancel()
         val lo = c.srcIn
@@ -985,6 +986,7 @@ object StabService {
                 val t0 = System.nanoTime()
                 // whole-image motion frame by frame (new points in every frame, across the whole image)
                 val path = se.gendut.klipp.engine.WindowTracker.cameraPath(ctx, uri, lo, hi) { p -> scope.launch { progress = p } }
+                if (blurOnly) { gs.set(c.id, gs.of(c.id).copy(mblur = se.gendut.klipp.engine.MotionBlur(path.withSmooth(0f)))); return@launch }
                 val st = se.gendut.klipp.engine.Stabilization(path.withSmooth(0f), strength, mode, maxZoom)
                 // the path is solved (and the zoom computed) here, not when the first frame is drawn
                 val aspect = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { aspectOf(ctx, uri) } ?: (16f / 9f)
@@ -1065,6 +1067,24 @@ fun StabilizeCard(gs: GradeState, clip: ColorClip) {
                 onLive = {}) { apply(st.withMaxZoom(1f + it / 100)) }
         }
         StabService.message?.takeIf { !busy }?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp).testTag("stab:msg")) }
+    }
+    val mb = gs.of(clip.id).mblur
+    PanelCard(Modifier.padding(top = 12.dp), title = stringResource(R.string.colortools_motion_blur)) {
+        if (mb == null) {
+            Text(stringResource(R.string.colortools_motion_blur_intro),
+                color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))
+            if (!busy) PillButton(stringResource(R.string.colortools_motion_blur_add), {
+                haptics.tick()
+                // a stabilized clip's camera path is already known
+                if (st != null) gs.set(clip.id, gs.of(clip.id).copy(mblur = se.gendut.klipp.engine.MotionBlur(st.path)))
+                else StabService.start(ctx, gs, clip, 0f, blurOnly = true)
+            }, Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("mblur:add"), icon = Ic.Target)
+        } else {
+            PropSlider(stringResource(R.string.colortools_shutter_angle), mb.shutter, se.gendut.klipp.engine.MotionBlur.MIN_SHUTTER, se.gendut.klipp.engine.MotionBlur.MAX_SHUTTER, 180f, { "%.0f°".format(it) }, "mblurShutter", lane = false,
+                onLive = {}) { gs.set(clip.id, gs.of(clip.id).copy(mblur = mb.withShutter(it))) }
+            PillButton(stringResource(R.string.colortools_remove), { haptics.tick(); gs.set(clip.id, gs.of(clip.id).copy(mblur = null)) },
+                Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("mblur:remove"))
+        }
     }
 }
 

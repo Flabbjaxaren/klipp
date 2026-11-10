@@ -1,5 +1,6 @@
 package se.gendut.klipp
 
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.annotation.OptIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
@@ -77,12 +78,12 @@ fun UpperLayers(
         val uppers = plan.layers.dropLast(1).reversed()
         // edit points in the main player's layer: the next clip is already decoded in its own player and covers
         // the switch (see Handoff) – directly above the main player, below the other layers
-        val stabilized = plan.layers.lastOrNull()?.segs.orEmpty().mapNotNull { it.clip?.id }.filter { gradeOf(it)?.stab != null }
+        val stabilized = plan.layers.lastOrNull()?.segs.orEmpty().mapNotNull { it.clip?.id }.filter { id -> gradeOf(id)?.let { it.stab != null || it.mblur != null } == true }
         val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized) {
             plan.layers.lastOrNull()?.let { base ->
                 Handoff.layer(base) { s ->
                     val u = controller.uriOf(s.src.item) ?: return@layer false
-                    // a stabilized clip stays in the main player: in this one its first second was corrected wrongly
+                    // a stabilized clip stays in the main player: in this one its first second was corrected wrongly (motion blur follows the same path)
                     if (s.clip?.id in stabilized) return@layer false
                     // HDR originals without a proxy are tone mapped differently in the two players – no handoff there
                     !(se.gendut.klipp.engine.Proxies.videoUri(u) == u && se.gendut.klipp.engine.Perf.cachedHdr(u) == true)
@@ -404,6 +405,7 @@ private fun LayerVideo(
         repaint(player)
     }
     val density = LocalDensity.current
+    val blurShader = remember { if (android.os.Build.VERSION.SDK_INT >= 33) android.graphics.RuntimeShader(TRANSITION_BLUR) else null }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val boxW = constraints.maxWidth.toFloat()
         val boxH = constraints.maxHeight.toFloat()
@@ -431,13 +433,17 @@ private fun LayerVideo(
                         scaleX = k; scaleY = k
                         rotationZ = c.rotation.toFloat()
                     }
-                    // the transition (wipe, push, slide, zoom, iris): same geometry as the export's TransitionFxEffect
+                    // the transition (push, whip): same geometry as the export's TransitionFxEffect
                     val g = seg?.geomAt(state.playhead.toDouble())
                     if (g != null && !g.identity) {
-                        translationX += g.dx * boxW; translationY += g.dy * boxH
+                        // a mirrored picture is moved in the shader: it has to reach beyond its own edges
+                        val shaded = g.mirror && blurShader != null && android.os.Build.VERSION.SDK_INT >= 33
+                        translationX += (if (shaded) 0f else g.dx) * boxW; translationY += g.dy * boxH
                         scaleX *= g.scale; scaleY *= g.scale
                         val m = g.mask
                         if (m != null) { shape = TransitionMaskShape(m, boxW, boxH); clip = true } else clip = false
+                        if ((shaded || g.blurX > 0f || g.blurZoom > 0f) && blurShader != null && android.os.Build.VERSION.SDK_INT >= 33)
+                            renderEffect = transitionBlur(blurShader, size.width, size.height, g.blurX, g.blurZoom, if (shaded) g.dx else 0f, g.mirror, g.soft)
                     } else clip = false
                 }
         ) {
@@ -597,9 +603,10 @@ internal object Handoff {
     fun layer(base: Layer, usable: (Seg) -> Boolean): Layer? {
         val out = ArrayList<Seg>()
         for (s in base.segs) {
-            // the start of the timeline (no edit point), fades (the opacity follows the ramp in the main player) and
+            // the start of the timeline (no edit point), transitions (their geometry isn't drawn here, and with the overlap's
+            // player and the main one this would be a third video playing at once), fades (the opacity follows the ramp in the main player) and
             // transparent clips (would be doubled on top of the main player's image) are skipped
-            if (s.start <= 1e-6 || s.ramp != null || s.src !is SegSrc.Media || s.dur <= 1e-6) continue
+            if (s.start <= 1e-6 || s.ramp != null || s.hasFx || s.src !is SegSrc.Media || s.dur <= 1e-6) continue
             val c = s.clip
             if (c != null && ((c.at(s.start).opacity) < 99.95 || (c.at(minOf(s.end, s.start + SEC)).opacity) < 99.95)) continue
             if (!usable(s)) continue
@@ -790,4 +797,46 @@ private class TransitionMaskShape(private val m: se.gendut.klipp.engine.Mask, pr
         }
         return androidx.compose.ui.graphics.Outline.Generic(p)
     }
+}
+
+/** The transition's motion blur on the player's picture, the same samples as the export's TransitionFxEffect (Android 13+). */
+private const val TRANSITION_BLUR = """
+uniform shader content;
+uniform float2 uSize;
+uniform float uBlurX;
+uniform float uBlurZoom;
+uniform float uDx;
+uniform float uMirror;
+uniform float uSoft;
+float2 tap(float2 p) {
+  if (uMirror > 0.5) { float2 n = p / uSize; return (abs(mod(n + 1.0, 2.0) - 1.0)) * (uSize - float2(1.0)) + float2(0.5); }
+  return clamp(p, float2(0.5), uSize - float2(0.5));
+}
+half4 main(float2 p0) {
+  float2 p = p0 - float2(uDx * uSize.x, 0.0);
+  half4 sum = half4(0.0);
+  // each pixel's taps start a little apart (as in the export): a soft streak instead of 32 faint copies
+  float j = fract(52.9829189 * fract(dot(p0, float2(0.06711056, 0.00583715))));
+  for (int i = 0; i < 32; i++) {
+    float f = (float(i) + j) / 32.0 - 0.5;
+    sum += content.eval(tap(p + float2(uBlurX * uSize.x * f, 0.0) + (p - uSize * 0.5) * uBlurZoom * f));
+  }
+  sum /= 32.0;
+  if (uSoft > 0.0 && uDx != 0.0) {
+    float x = p.x / uSize.x;
+    sum *= smoothstep(-uSoft * 0.5, uSoft * 0.5, uDx < 0.0 ? 1.0 - x : x);
+  }
+  return sum;
+}
+"""
+
+@androidx.annotation.RequiresApi(33)
+private fun transitionBlur(shader: android.graphics.RuntimeShader, w: Float, h: Float, blurX: Float, blurZoom: Float, dx: Float, mirror: Boolean, soft: Float): androidx.compose.ui.graphics.RenderEffect {
+    shader.setFloatUniform("uSize", w, h)
+    shader.setFloatUniform("uBlurX", blurX)
+    shader.setFloatUniform("uBlurZoom", blurZoom)
+    shader.setFloatUniform("uDx", dx)
+    shader.setFloatUniform("uMirror", if (mirror) 1f else 0f)
+    shader.setFloatUniform("uSoft", soft)
+    return android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content").asComposeRenderEffect()
 }

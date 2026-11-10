@@ -32,4 +32,10 @@ class HandoffTest {
         assertNull(Handoff.layer(base) { false })
         assertNull(Handoff.layer(Layer("V1", listOf(seg(0.0, 5.0, 1)))) { true })
     }
+
+    @Test fun aClipWithATransitionIsLeftToTheMainPlayer() {
+        val fx = se.gendut.klipp.engine.SegFx(se.gendut.klipp.engine.TransitionType.WHIP, true, false, 4.5, 5.5, 5.0, false)
+        val base = Layer("V1", listOf(seg(0.0, 5.0, 1), seg(5.0, 3.0, 2).copy(windows = listOf(fx))))
+        assertNull(Handoff.layer(base) { true })
+    }
 }
