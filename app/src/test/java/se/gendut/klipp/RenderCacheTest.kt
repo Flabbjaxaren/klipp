@@ -2,6 +2,7 @@ package se.gendut.klipp
 
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.launch
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -48,7 +49,7 @@ class RenderCacheTest {
         assertEquals(c.map { it.hash }, RenderCache.chunks(LayerPlanner.plan(snap("wipe")) { 30.0 }!!, { null }, uriOf, 30.0, 1080).map { it.hash })
         // another preview size or another transition: other files
         assertNotEquals(c[1].hash, RenderCache.chunks(plan, { null }, uriOf, 30.0, 720)[1].hash)
-        assertNotEquals(c[1].hash, RenderCache.chunks(LayerPlanner.plan(snap("push")) { 30.0 }!!, { null }, uriOf, 30.0, 1080)[1].hash)
+        assertNotEquals(c[1].hash, RenderCache.chunks(LayerPlanner.plan(snap("whip")) { 30.0 }!!, { null }, uriOf, 30.0, 1080)[1].hash)
     }
 
     @Test fun readyChunksReplaceAllLayersThere() {
@@ -95,5 +96,56 @@ class RenderCacheTest {
         assertEquals(3.6, (base.first().src as SegSrc.Media).srcIn, 1e-9)
         // the transition's window remains in timeline time
         assertEquals(2.6, base.first().windows.single().t0, 1e-9)
+    }
+
+    @Test fun aTransitionAddedLaterKeepsTheRestOfTheRenderedClip() {
+        RenderCache.init(ApplicationProvider.getApplicationContext())
+        RenderCache.clear()
+        val o = JSONObject(javaClass.classLoader!!.getResource("snapshot_fx.json")!!.readText())
+        o.getJSONObject("sequence").getJSONArray("video").getJSONObject(0).put("transitions", org.json.JSONArray())
+        val bare = LayerPlanner.plan(Snapshot.parse(o)) { 30.0 }!!
+        val g = ClipGrade(listOf(GradeNode(1, "Primär", contrast = 1.2f)))
+        val grades = { id: Long -> if (id == 13L) g else null }
+        val rendered = RenderCache.chunks(bare, grades, uriOf, 30.0, 1080)
+        assertEquals(3.0, rendered.last().a, 1e-9)
+        // (the cache's folder is set once per process, the test's data folder differs per test)
+        val dir = RenderCache::class.java.getDeclaredField("dir").apply { isAccessible = true }.get(RenderCache) as File
+        File(dir, rendered.last().hash + ".mp4").writeBytes(ByteArray(10))
+        // B (3–6 s) was rendered as a whole; the transition 2.6–3.4 leaves 3.4–6 unchanged
+        val plan = LayerPlanner.plan(snap("whip")) { 30.0 }!!
+        val chunks = RenderCache.chunks(plan, grades, uriOf, 30.0, 1080)
+        assertTrue(RenderCache.isReady(chunks.last()))
+        assertFalse(chunks.dropLast(1).any { RenderCache.isReady(it) })
+        val tail = RenderCache.substitute(plan, chunks).layers.last().segs.last()
+        assertTrue(tail.clip == null)
+        assertEquals(0.4, (tail.src as SegSrc.Media).srcIn, 1e-6)
+        // another grade: another picture, not the old file
+        val other = ClipGrade(listOf(GradeNode(1, "Primär", contrast = 1.5f)))
+        assertFalse(RenderCache.isReady(RenderCache.chunks(plan, { id -> if (id == 13L) other else null }, uriOf, 30.0, 1080).last()))
+        RenderCache.clear()
+    }
+
+    @Test fun aRenderInProgressStopsWhenPlaybackStarts() {
+        kotlinx.coroutines.runBlocking {
+            // allowed all the way: the block's own answer
+            assertEquals(7, RenderCache.whileAllowed({ true }) { kotlinx.coroutines.delay(150); 7 })
+            // no longer allowed in the middle (playback started): the block is cancelled, and the answer says so
+            var allowed = true
+            var cancelled = false
+            val t = System.nanoTime()
+            val out = RenderCache.whileAllowed({ allowed }) {
+                try { kotlinx.coroutines.delay(250); allowed = false; kotlinx.coroutines.delay(60_000); 7 }
+                catch (e: kotlinx.coroutines.CancellationException) { cancelled = true; throw e }
+            }
+            assertEquals(null, out)
+            assertTrue(cancelled)
+            assertTrue((System.nanoTime() - t) / 1_000_000 < 5_000)
+            // cancelled from outside (the timeline changed): cancelled as usual, not taken for a pause
+            val outer = launch { RenderCache.whileAllowed({ true }) { kotlinx.coroutines.delay(60_000) }; org.junit.Assert.fail("went on") }
+            kotlinx.coroutines.delay(100)
+            outer.cancel()
+            outer.join()
+            assertTrue(outer.isCancelled)
+        }
     }
 }

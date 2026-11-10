@@ -180,9 +180,9 @@ class TimelineTransitionTest {
         rule.onRoot().captureRoboImage("$dir/28_klippning_markerad.png")
         // choose length and type: the transition is added and becomes selected
         rule.onNodeWithTag("cutlen:2.0").performClick()
-        rule.onNodeWithTag("cut:iris_round").performScrollTo().performClick()
+        rule.onNodeWithTag("cut:cross_zoom").performScrollTo().performClick()
         rule.waitForIdle()
-        assertEquals("addcut 2 iris_round 2.0", fake.log.last())
+        assertEquals("addcut 2 cross_zoom 2.0", fake.log.last())
         assertEquals(42L, st.selectedTransition)
         assertEquals(null, st.selectedCut)
         // an edit point that already has a transition: the transition is selected

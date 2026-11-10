@@ -20,6 +20,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -312,6 +315,14 @@ fun KlippApp(
             if (p != lastPins) { if (lastPins != null) controller?.requestSave(); lastPins = p }
         }
     }
+    // a transition's motion blur (kept by the app, not the engine): to playback and saved, once the finger rests
+    if (playback != null) LaunchedEffect(playback) {
+        var last: Map<String, Float>? = null
+        androidx.compose.runtime.snapshotFlow { se.gendut.klipp.engine.TransitionLooks.blur.toMap() }.debounce(250).collect { b ->
+            if (last != null && b != last) { playback.refresh(state.playhead.toDouble()); controller?.requestSave() }
+            last = b
+        }
+    }
     // node cache: clips with a cached node render in the background a while after changes; a finished file → the player is rebuilt
     LaunchedEffect(controller) {
         if (controller == null) return@LaunchedEffect
@@ -326,12 +337,16 @@ fun KlippApp(
         }
     }
     // pre-rendering: chunks are recomputed a while after each change; pre-rendered transitions (and the whole timeline when
-    // requested) render in the background – only while playback is stopped, and a finished chunk is swapped in only when paused
+    // requested) render in the background – only while playback is stopped, and a finished chunk is swapped in only when paused.
+    // The render runs beside the recomputing: a change lets the chunk under way finish if it is still wanted
     LaunchedEffect(controller) {
         if (controller == null) return@LaunchedEffect
+        var rendering: kotlinx.coroutines.Job? = null
+        // (the render belongs to this effect, not to one round of recomputing: closing the project ends it)
+        val renderScope = this
         androidx.compose.runtime.snapshotFlow {
             // (not the render's own revision: a finished chunk would then cancel rendering of the next)
-            listOf(controller.revision, gs.revision, se.gendut.klipp.engine.RenderCache.pinned.toList(), se.gendut.klipp.engine.RenderCache.renderAll,
+            listOf(controller.revision, gs.revision, se.gendut.klipp.engine.RenderCache.pinned.toList(), se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll,
                 se.gendut.klipp.engine.RenderCache.cleared, se.gendut.klipp.engine.RenderCache.halted, se.gendut.klipp.engine.RenderCache.auto,
                 se.gendut.klipp.engine.VideoPipeline.previewShort)
         }.debounce(1200).collectLatest {
@@ -352,6 +367,10 @@ fun KlippApp(
             val todo = chunks.filter { c ->
                 !se.gendut.klipp.engine.RenderCache.isReady(c) && (all || (auto && c.heavy) || windows.any { (a, b) -> c.a < b - 1e-6 && c.b > a + 1e-6 })
             }
+            se.gendut.klipp.engine.RenderCache.wanted = if (se.gendut.klipp.engine.RenderCache.halted) emptySet() else todo.map { it.hash }.toSet()
+            se.gendut.klipp.engine.RenderCache.generation++
+            // the render under way: its chunk finishes (or stops, if no longer wanted), then the new list takes over
+            rendering?.join()
             if (todo.isEmpty()) {
                 if (all) se.gendut.klipp.engine.RenderCache.renderAll = false
                 // finished chunks not yet joined (e.g. after a change in the middle of a rendered stretch)
@@ -364,28 +383,31 @@ fun KlippApp(
                 return@collectLatest
             }
             if (se.gendut.klipp.engine.RenderCache.halted) return@collectLatest
-            // not while anything is playing, scrubbing or dragging (rendering takes power from the picture and the UI)
-            val r = se.gendut.klipp.engine.RenderCache.render(context, snap, controller::uriOf, grades, todo,
-                canWork = { !state.playing && !state.scrubbing && state.live == null && gs.live == null }) {
-                se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy) }
-                // into playback only once it's stopped (a rebuild during playback stutters)
-                scope.launch { androidx.compose.runtime.snapshotFlow { state.playing }.first { !it }; se.gendut.klipp.engine.RenderCache.bump() }
+            // not while playing (rendering takes decoders and power from the picture); scrubbing, zooming and editing go on beside it
+            rendering = renderScope.launch {
+                val r = se.gendut.klipp.engine.RenderCache.render(context, snap, controller::uriOf, grades, todo, canWork = { !state.playing }) {
+                    se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy) }
+                    // into playback only once it's stopped (a rebuild during playback stutters)
+                    scope.launch { androidx.compose.runtime.snapshotFlow { state.playing }.first { !it }; se.gendut.klipp.engine.RenderCache.bump() }
+                }
+                r.onFailure { e ->
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    se.gendut.klipp.CrashReport.note("pre-render: ${e.message}")
+                    se.gendut.klipp.engine.RenderCache.renderAll = false
+                    toaster.show(Str.t(R.string.app_render_failed, e.message ?: e.javaClass.simpleName))
+                }
+                if (r.isSuccess) {
+                    // consecutive finished chunks are joined (one item in the player), into playback when paused
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.RenderCache.joinRuns(chunks) }
+                    scope.launch { androidx.compose.runtime.snapshotFlow { state.playing }.first { !it }; se.gendut.klipp.engine.RenderCache.bump() }
+                }
+                // (a render that left the rest to a newer timeline has not finished it)
+                if (r.isSuccess && all && todo.all { se.gendut.klipp.engine.RenderCache.isReady(it) }) {
+                    se.gendut.klipp.engine.RenderCache.renderAll = false
+                    toaster.show(Str.t(R.string.app_timeline_rendered))
+                }
             }
-            r.onFailure { e ->
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                se.gendut.klipp.CrashReport.note("pre-render: ${e.message}")
-                se.gendut.klipp.engine.RenderCache.renderAll = false
-                toaster.show(Str.t(R.string.app_render_failed, e.message ?: e.javaClass.simpleName))
-            }
-            if (r.isSuccess) {
-                // consecutive finished chunks are joined (one item in the player), into playback when paused
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.RenderCache.joinRuns(chunks) }
-                scope.launch { androidx.compose.runtime.snapshotFlow { state.playing }.first { !it }; se.gendut.klipp.engine.RenderCache.bump() }
-            }
-            if (r.isSuccess && all) {
-                se.gendut.klipp.engine.RenderCache.renderAll = false
-                toaster.show(Str.t(R.string.app_timeline_rendered))
-            }
+            rendering?.join()
         }
     }
     // titles that follow tracked windows: tracking data and timeline to the title layer (playback, export)
@@ -399,7 +421,8 @@ fun KlippApp(
         if (controller == null) return@LaunchedEffect
         se.gendut.klipp.engine.LutStore.init(context)
         controller.extraSave = { gradeToJson(grade, mix).put("linkedSelection", state.linkedSelection).put("grades", gs.toJson())
-            .put("renderPinned", org.json.JSONArray(se.gendut.klipp.engine.RenderCache.pinned.toList())) }
+            .put("renderPinned", org.json.JSONArray(se.gendut.klipp.engine.RenderCache.pinned.toList()))
+            .put("transitionBlur", se.gendut.klipp.engine.TransitionLooks.toJson()) }
         // the pieces get the clip's grade as part of the split (undone with it) – no separate color step
         controller.onSplit = { old, fresh -> gs.grades[old]?.let { g -> gs.setAll(fresh.associateWith { g }, record = false) } }
         controller.onNewClips = { ids -> ids.filter { gs.grades.containsKey(it) }.takeIf { it.isNotEmpty() }?.let { stale -> gs.setAll(stale.associateWith { se.gendut.klipp.engine.ClipGrade() }, record = false) } }
@@ -409,6 +432,7 @@ fun KlippApp(
             se.gendut.klipp.engine.RenderCache.halted = false
             se.gendut.klipp.engine.RenderCache.pinned.clear()
             o.optJSONArray("renderPinned")?.let { a -> for (i in 0 until a.length()) se.gendut.klipp.engine.RenderCache.pinned += a.optString(i) }
+            se.gendut.klipp.engine.TransitionLooks.load(o.optJSONObject("transitionBlur"))
             state.clearSideHistory()
             // playback gets the look, grades and master right away – otherwise it is rebuilt just after start
             playback?.grades = HashMap(gs.grades)
@@ -1428,6 +1452,8 @@ private fun TransitionBar(state: EditorState, modifier: Modifier) {
                         haptics.tick(); state.props?.setTransitionType(id, type.effect, !(tr.reverse))
                     }
                 }
+                val bFrom = tr?.from; val bTo = tr?.to
+                if (type.blurs && bFrom != null && bTo != null && tr.anchor == 0) TransitionBlur(bFrom, bTo)
                 for (sec in listOf(0.5f, 1f, 2f)) {
                     val on = abs(cur - sec) < 0.03f
                     Box(
@@ -1456,6 +1482,40 @@ private fun TransitionBar(state: EditorState, modifier: Modifier) {
                 haptics.heavy(); state.selectedTransition = null; state.props?.removeTransition(id)
             }
         }
+    }
+}
+
+/** A transition's motion blur: drag sideways (0–300 %), double tap = the default. */
+@Composable
+private fun TransitionBlur(from: Long, to: Long) {
+    val haptics = rememberHaptics()
+    val v = se.gendut.klipp.engine.TransitionLooks.blurOf(from, to)
+    val max = se.gendut.klipp.engine.TransitionLooks.MAX_BLUR
+    val desc = stringResource(R.string.transitions_blur_desc)
+    Box(
+        Modifier.padding(horizontal = 2.dp).size(132.dp, 40.dp).clip(RoundedCornerShape(10.dp)).background(K.SurfaceHigh)
+            .pointerInput(from, to) {
+                detectHorizontalDragGestures { ch, dx ->
+                    ch.consume()
+                    val now = se.gendut.klipp.engine.TransitionLooks.blurOf(from, to)
+                    val next = (now + dx / size.width * max).coerceIn(0f, max)
+                    // a tick when passing the default
+                    if ((now - 1f) * (next - 1f) < 0f) haptics.tick()
+                    se.gendut.klipp.engine.TransitionLooks.setBlur(from, to, next)
+                }
+            }
+            .pointerInput(from, to) { detectTapGestures(onDoubleTap = { haptics.confirm(); se.gendut.klipp.engine.TransitionLooks.setBlur(from, to, 1f) }) }
+            .semantics { contentDescription = desc }
+            .testTag("transition:blur"),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(Modifier.fillMaxHeight().fillMaxWidth(v / max).background(K.Tonal))
+        // the default's place
+        Box(Modifier.fillMaxHeight().width(2.dp).offset(x = 132.dp / max - 1.dp).background(K.OutlineVar))
+        Text(
+            stringResource(R.string.transitions_blur, (v * 100f).roundToInt()), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, softWrap = false, modifier = Modifier.align(Alignment.Center),
+        )
     }
 }
 

@@ -160,6 +160,10 @@
     <string name="colortools_tripod">Stativ</string>
     <string name="colortools_softness_at_cap">Mjukhet där taket nås</string>
     <string name="colortools_max_zoom">Max förstoring</string>
+    <string name="colortools_motion_blur">Rörelseoskärpa</string>
+    <string name="colortools_motion_blur_intro">Ger mobilfilm känslan av 180° slutare: bilden smetas ut längs kamerans rörelse. Det som rör sig inne i bilden förblir skarpt.</string>
+    <string name="colortools_motion_blur_add">Lägg till rörelseoskärpa</string>
+    <string name="colortools_shutter_angle">Slutarvinkel</string>
     <string name="colorui_drag_to_scrub">Dra för att spola</string>
     <string name="colorpage_history_color">Färg</string>
     <string name="colorpage_pick_hint_color">Tryck på färgen du vill välja ut</string>

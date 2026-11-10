@@ -145,7 +145,7 @@ class GradeState {
     fun setAll(changes0: Map<Long, ClipGrade>, record: Boolean = true) {
         val changes = LinkedHashMap(changes0)
         // (stabilization, tracking and the layer – key, mask – belong to each clip and are not carried over)
-        if (record) siblings?.let { sib -> for ((id, g) in changes0) for (o in sib(id)) if (o !in changes0) changes[o] = g.forOtherClip(of(o).stab, of(o).layer) }
+        if (record) siblings?.let { sib -> for ((id, g) in changes0) for (o in sib(id)) if (o !in changes0) changes[o] = g.forOtherClip(of(o).stab, of(o).layer, of(o).mblur) }
         val before = changes.keys.associateWith { grades[it] }
         for ((id, g) in changes) put(id, g)
         val after = changes.keys.associateWith { grades[it] }
@@ -373,7 +373,7 @@ fun ColorPage(
                 Column {
                     if (cid != null) NodeMenuRow(stringResource(R.string.colorpage_apply_still_grade)) {
                         // the still may come from another clip: the color carries over, not stabilization or tracking
-                        stillMenu = null; gs.set(cid, st.grade.forOtherClip(gs.of(cid).stab, gs.of(cid).layer)); nodeId = st.grade.nodes.first().id
+                        stillMenu = null; gs.set(cid, st.grade.forOtherClip(gs.of(cid).stab, gs.of(cid).layer, gs.of(cid).mblur)); nodeId = st.grade.nodes.first().id
                     }
                     NodeMenuRow(if (gs.compare?.id == st.id) stringResource(R.string.colorpage_stop_comparing) else stringResource(R.string.colorpage_compare_split)) {
                         stillMenu = null; gs.compare = if (gs.compare?.id == st.id) null else st
@@ -590,7 +590,7 @@ private fun ColorPageBody(
     ToolTabs(listOf(
         ToolTab(stringResource(R.string.colorpage_gallery), Ic.Still, "lower:gallery"),
         ToolTab(stringResource(R.string.colorpage_clip_grade), Ic.Copy, "lower:grade"),
-        ToolTab(stringResource(R.string.colortools_stabilization), Ic.Target, "lower:stab", gs.of(current.id).stab != null),
+        ToolTab(stringResource(R.string.colortools_stabilization), Ic.Target, "lower:stab", gs.of(current.id).stab != null || gs.of(current.id).mblur != null),
     ), lower, { lower = it }, Modifier.padding(horizontal = 12.dp))
     when (lower) {
         0 -> {
@@ -618,14 +618,14 @@ private fun ColorPageBody(
                 gs.clipboard?.let {
                     haptics.confirm()
                     // another clip gets the color – not the copied clip's stabilization and tracking
-                    val g = if (gs.clipboardFrom == current.id) it else it.forOtherClip(gs.of(current.id).stab, gs.of(current.id).layer)
+                    val g = if (gs.clipboardFrom == current.id) it else it.forOtherClip(gs.of(current.id).stab, gs.of(current.id).layer, gs.of(current.id).mblur)
                     gs.set(current.id, g); setNode(g.nodes.first().id)
                 }
             }
             ActionTile(stringResource(R.string.colorpage_all_clips), Ic.Layers, Modifier.weight(1f).testTag("grade:all")) {
                 haptics.confirm()
                 val cg = gs.of(current.id)
-                gs.setAll(clips.filter { it.id != current.id }.associate { it.id to cg.forOtherClip(gs.of(it.id).stab, gs.of(it.id).layer) })
+                gs.setAll(clips.filter { it.id != current.id }.associate { it.id to cg.forOtherClip(gs.of(it.id).stab, gs.of(it.id).layer, gs.of(it.id).mblur) })
             }
             ActionTile(stringResource(R.string.colorpage_reset), Ic.Reset, Modifier.weight(1f).testTag("grade:reset"), danger = true) { haptics.heavy(); gs.set(current.id, ClipGrade()); setNode(1) }
         }

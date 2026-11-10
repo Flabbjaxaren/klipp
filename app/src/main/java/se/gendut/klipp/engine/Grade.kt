@@ -691,26 +691,28 @@ data class ClipGrade(
     val nodes: List<GradeNode> = listOf(GradeNode(1, "Primär")), val stab: Stabilization? = null,
     /** The clip as a layer: green screen, mask, blend mode (after the grade; see [LayerFx]). */
     val layer: LayerFx? = null,
+    /** Motion blur from the camera's movement (after the stabilization; see [MotionBlur]). */
+    val mblur: MotionBlur? = null,
 ) {
-    /** Needs the frames' source time (tracked windows, stabilization, the mask's keyframes). */
-    val needsClock get() = hasTrack || stab != null || layer?.mask?.animated == true || layer?.crop?.animated == true
+    /** Needs the frames' source time (tracked windows, stabilization, motion blur, the mask's keyframes). */
+    val needsClock get() = hasTrack || stab != null || mblur != null || layer?.mask?.animated == true || layer?.crop?.animated == true
     /** The whole chain that is computed (the nodes in order). */
     val chain: List<GradeNode> get() = nodes
-    val isNeutral get() = chain.all { it.isNeutral } && stab == null
+    val isNeutral get() = chain.all { it.isNeutral } && stab == null && mblur == null
     val hasTrack get() = nodes.any { it.win.track != null }
 
     /**
      * The grade for another clip: the stabilization and the tracks belong to this clip's file (its camera and
      * objects, in its source time) and are not carried over – the windows stay where they are. [keepStab] = the recipient's own.
      */
-    fun forOtherClip(keepStab: Stabilization?, keepLayer: LayerFx? = null): ClipGrade =
-        copy(stab = keepStab, layer = keepLayer, nodes = nodes.map { n -> if (n.win.track == null) n else n.copy(win = n.win.copy(track = null)) })
+    fun forOtherClip(keepStab: Stabilization?, keepLayer: LayerFx? = null, keepBlur: MotionBlur? = null): ClipGrade =
+        copy(stab = keepStab, layer = keepLayer, mblur = keepBlur, nodes = nodes.map { n -> if (n.win.track == null) n else n.copy(win = n.win.copy(track = null)) })
 
     /** The grade at source time [src]: tracked windows moved there (stills, scopes, the CPU path). */
     fun at(src: Double?): ClipGrade = if (!hasTrack) this else copy(nodes = nodes.map { n -> if (n.win.track == null) n else n.copy(win = n.win.at(src)) })
 
     fun toJson(): JSONObject = JSONObject().put("nodes", JSONArray().also { a -> nodes.forEach { a.put(it.toJson()) } })
-        .apply { stab?.let { put("stab", it.toJson()) }; layer?.let { put("layer", it.toJson()) } }
+        .apply { stab?.let { put("stab", it.toJson()) }; layer?.let { put("layer", it.toJson()) }; mblur?.let { put("mblur", it.toJson()) } }
 
     /**
      * The whole chain on a bitmap (preview and scopes). With [keyOf] = a node id, that node's key is shown
@@ -775,7 +777,8 @@ data class ClipGrade(
             listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key, main) })
         } +
             // stabilization last (the windows are in the source image's coordinates)
-            listOfNotNull(stab?.takeIf { clock != null }?.let { StabMatrix(it, clock!!) })
+            listOfNotNull(stab?.takeIf { clock != null }?.let { StabMatrix(it, clock!!) }) +
+            listOfNotNull(mblur?.takeIf { clock != null }?.let { MotionBlurEffect(it, stab, clock!!) })
 
     /** The node cache point: the last enabled node with cache on (−1 = none). */
     val cachePoint: Int get() = nodes.indexOfLast { it.cache && it.enabled }
@@ -789,9 +792,10 @@ data class ClipGrade(
         fun fromJson(o: JSONObject?): ClipGrade {
             val stab = Stabilization.fromJson(o?.optJSONObject("stab"))
             val layer = LayerFx.fromJson(o?.optJSONObject("layer"))
-            val a = o?.optJSONArray("nodes") ?: return ClipGrade(stab = stab, layer = layer)
+            val mblur = MotionBlur.fromJson(o?.optJSONObject("mblur"))
+            val a = o?.optJSONArray("nodes") ?: return ClipGrade(stab = stab, layer = layer, mblur = mblur)
             val n = (0 until a.length()).map { GradeNode.fromJson(a.getJSONObject(it)) }
-            return if (n.isEmpty()) ClipGrade(stab = stab, layer = layer) else ClipGrade(n, stab, layer)
+            return if (n.isEmpty()) ClipGrade(stab = stab, layer = layer, mblur = mblur) else ClipGrade(n, stab, layer, mblur)
         }
     }
 }
@@ -919,6 +923,15 @@ class Stabilization(val path: WindowTrack, val strength: Float = 0.6f, val mode:
         return Affine(c.a * z, c.b * z, c.c * z, c.d * z, c.tx * z, c.ty * z)
     }
 
+    /** The camera's path after the correction at [src]: [x, y] as fractions of the image, zoom included. */
+    fun smoothAt(src: Double, aspect: Float): FloatArray {
+        val n = path.size
+        if (n == 0) return floatArrayOf(0f, 0f)
+        val sv = solved(aspect)
+        val f = ((src - path.t0) / path.dt).coerceIn(0.0, (n - 1).toDouble())
+        return floatArrayOf(lerp(sv.sx, f) / (1000f * aspect) * sv.zoom, lerp(sv.sy, f) / 1000f * sv.zoom)
+    }
+
     /** The zoom that keeps the edges out of frame (at most [maxZoom]). */
     fun zoom(aspect: Float): Float = solved(aspect).zoom
 
@@ -961,6 +974,97 @@ class StabMatrix(private val stab: Stabilization, private val clock: (Long) -> D
         val r = android.graphics.Matrix()
         r.setValues(floatArrayOf(t.a, -t.b, t.tx, -t.c, t.d, -t.ty, 0f, 0f, 1f))
         return android.graphics.Matrix(toPx).apply { postConcat(r); postConcat(fromPx) }
+    }
+}
+
+/**
+ * Motion blur as from a slower shutter: phone footage is exposed for a fraction of the frame, so a pan stays sharp and
+ * stutters. Each frame is smeared along the camera's movement ([path], see [WindowTracker.cameraPath]) for [shutter] degrees
+ * of the frame (180° = half the frame's time). With stabilization, only the movement left after it counts.
+ * The camera only: what moves within the picture stays sharp.
+ */
+class MotionBlur(val path: WindowTrack, val shutter: Float = 180f) {
+    /** The smear at source time [src] for an image of [aspect]: [x, y] as fractions of the image, y down. */
+    fun at(src: Double, stab: Stabilization?, aspect: Float): FloatArray {
+        val a: FloatArray; val b: FloatArray
+        if (stab != null) { a = stab.smoothAt(src - path.dt, aspect); b = stab.smoothAt(src + path.dt, aspect) }
+        else { a = path.at(src - path.dt); b = path.at(src + path.dt) }
+        val k = shutter / 360f / 2f
+        val x = (b[0] - a[0]) * k; val y = (b[1] - a[1]) * k
+        val len = kotlin.math.hypot(x, y)
+        val cut = if (len > MAX) MAX / len else 1f
+        return floatArrayOf(x * cut, y * cut)
+    }
+
+    fun withShutter(v: Float) = MotionBlur(path, v.coerceIn(MIN_SHUTTER, MAX_SHUTTER))
+    fun toJson(): JSONObject = JSONObject().put("path", path.toJson()).put("shutter", shutter.toDouble())
+    override fun equals(other: Any?) = other is MotionBlur && other.path == path && other.shutter == shutter
+    override fun hashCode() = path.hashCode() * 31 + shutter.hashCode()
+
+    companion object {
+        const val MIN_SHUTTER = 45f
+        const val MAX_SHUTTER = 360f
+        /** The longest smear (fraction of the image): a whip pan would otherwise wash the picture out and show the samples. */
+        const val MAX = 0.08f
+        fun fromJson(o: JSONObject?): MotionBlur? {
+            val p = WindowTrack.fromJson(o?.optJSONObject("path")) ?: return null
+            return MotionBlur(p, o!!.optDouble("shutter", 180.0).toFloat().coerceIn(MIN_SHUTTER, MAX_SHUTTER))
+        }
+    }
+}
+
+/** [MotionBlur] as a Media3 effect: [clock] = the frame's source time. */
+@OptIn(UnstableApi::class)
+class MotionBlurEffect(private val blur: MotionBlur, private val stab: Stabilization?, private val clock: (Long) -> Double?) : androidx.media3.effect.GlEffect {
+    override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram = Program(blur, stab, clock, useHdr)
+
+    private class Program(private val blur: MotionBlur, private val stab: Stabilization?, private val clock: (Long) -> Double?, useHdr: Boolean) : androidx.media3.effect.BaseGlShaderProgram(useHdr, 1) {
+        private val program = androidx.media3.common.util.GlProgram(TetraShaders.VERTEX, FRAGMENT).apply {
+            setBufferAttribute("aFramePosition", androidx.media3.common.util.GlUtil.getNormalizedCoordinateBounds(), androidx.media3.common.util.GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
+        }
+        private var aspect = 16f / 9f
+
+        override fun configure(inputWidth: Int, inputHeight: Int): androidx.media3.common.util.Size {
+            if (inputWidth > 0 && inputHeight > 0) aspect = inputWidth.toFloat() / inputHeight
+            return androidx.media3.common.util.Size(inputWidth, inputHeight)
+        }
+
+        override fun drawFrame(inputTexId: Int, presentationTimeUs: Long) {
+            try {
+                val v = clock(presentationTimeUs)?.let { blur.at(it, stab, aspect) } ?: floatArrayOf(0f, 0f)
+                program.use()
+                program.setSamplerTexIdUniform("uTexSampler", inputTexId, 0)
+                // texture coordinates have y up
+                program.setFloatsUniform("uBlur", floatArrayOf(v[0], -v[1]))
+                program.bindAttributesAndUniforms()
+                android.opengl.GLES20.glDrawArrays(android.opengl.GLES20.GL_TRIANGLE_STRIP, 0, 4)
+                androidx.media3.common.util.GlUtil.checkGlError()
+            } catch (e: Exception) {
+                throw androidx.media3.common.VideoFrameProcessingException(e, presentationTimeUs)
+            }
+        }
+
+        override fun release() {
+            super.release()
+            try { program.delete() } catch (e: Exception) { throw androidx.media3.common.VideoFrameProcessingException(e) }
+        }
+    }
+
+    private companion object {
+        const val FRAGMENT = """#version 100
+precision highp float;
+uniform sampler2D uTexSampler;
+uniform vec2 uBlur;
+varying vec2 vTexSamplingCoord;
+void main() {
+  vec4 sum = vec4(0.0);
+  for (int i = 0; i < 16; i++) {
+    float f = float(i) / 15.0 - 0.5;
+    sum += texture2D(uTexSampler, clamp(vTexSamplingCoord + uBlur * f, 0.0, 1.0));
+  }
+  gl_FragColor = sum / 16.0;
+}
+"""
     }
 }
 
@@ -1341,10 +1445,12 @@ object LiveGrades {
         // (the film's mode too: the fallback when the GPU can't run the film is fixed when built – colors or nothing)
         g.chain.filter { !it.isNeutral }.flatMap { n -> n.film?.let { f -> listOf(n.id, FILM_KEY, if (f.effectsOnly) 1 else 0) } ?: listOf(n.id) } +
             (g.stab?.let { listOf(STAB_KEY, it.hashCode()) } ?: emptyList()) +
+            (g.mblur?.let { listOf(BLUR_KEY, it.hashCode()) } ?: emptyList()) +
             // key/mask (values live) and the blend mode (a compositor setting)
             (g.layer?.let { l -> listOf(LAYER_KEY, if (l.hasAlpha) 1 else 0, l.blend.ordinal, if (l.mask?.animated == true || l.crop?.animated == true) 1 else 0) } ?: emptyList())
 
     private const val STAB_KEY = -2
+    private const val BLUR_KEY = -5
     private const val LAYER_KEY = -4
     /** A node with film has one more pass (the film reads its settings from [get] – only on/off changes the structure). */
     private const val FILM_KEY = -3

@@ -195,7 +195,7 @@ object LayerPlanner {
                 val cut = to.start
                 if (x.duration <= EPS) continue
                 val type = TransitionType.of(x.effect)
-                fun fx(incoming: Boolean, isOver: Boolean) = if (type == TransitionType.CROSS) null else SegFx(type, incoming, isOver, x.start, x.end, cut, x.reverse)
+                fun fx(incoming: Boolean, isOver: Boolean) = if (type == TransitionType.CROSS) null else SegFx(type, incoming, isOver, x.start, x.end, cut, x.reverse, TransitionLooks.blurOf(x.from, x.to))
                 val showOver = fx(true, true)?.visible ?: true
                 fun ramp(incoming: Boolean) = if (type != TransitionType.CROSS) null else if (incoming) Ramp(x.start, x.end, 0f, 1f) else Ramp(x.start, x.end, 1f, 0f)
                 // a freeze frame lies in the track for the whole transition and the moving clip above: Media3's compositor

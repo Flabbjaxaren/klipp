@@ -10,6 +10,8 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.LoadControl
+import androidx.media3.exoplayer.upstream.DefaultAllocator
+import androidx.media3.common.C
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
@@ -23,11 +25,34 @@ object Perf {
      * Editing: short buffer. The player starts showing after 250 ms instead of 2.5 s (fast start after
      * seeking and rebuilding), and doesn't decode far ahead (less memory and heat with several layers).
      */
-    fun editingLoadControl(): LoadControl = DefaultLoadControl.Builder()
-        .setBufferDurationsMs(/* min */ 500, /* max */ 8_000, /* for playback */ 250, /* after rebuffer */ 500)
-        .setTargetBufferBytes(MAX_BUFFER_BYTES)
-        .setPrioritizeTimeOverSizeThresholds(true)
-        .build()
+    fun editingLoadControl(): LoadControl = ReadAheadLoadControl()
+
+    /**
+     * Media3's load control for the players that show the timeline, with one change: under [READ_AHEAD_US] reading goes
+     * on although the minimum time (0.5 s) is held. Media3 counts the buffered time from the playback position to the last
+     * frame read from the file, but the decoder and the effect chain take frames ahead of the position – about 12 with
+     * 4K APV and a transition effect on the clip, all of the 0.5 s at 25 fps. Then there was no frame left to hand the
+     * decoder: the renderer was not ready, the player went to buffering, the position stood still, the count stayed at
+     * 0.5 s and nothing was read ("buffering without loading"; three stalls in 9 s on the vivo, none with 1 s).
+     */
+    private class ReadAheadLoadControl(private val queue: DefaultAllocator = DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE)) :
+        DefaultLoadControl(queue, /* min */ 500, 500, /* max */ 8_000, 8_000, /* for playback */ 250, 250, /* after rebuffer */ 500, 500, MAX_BUFFER_BYTES, true, true, 0, false) {
+        override fun shouldContinueLoading(parameters: LoadControl.Parameters): Boolean =
+            super.shouldContinueLoading(parameters) || Runtime.getRuntime().let { readAhead(parameters.bufferedDurationUs, queue.totalBytesAllocated, it.totalMemory() - it.freeMemory(), it.maxMemory()) }
+    }
+
+    /** The time the timeline's players keep read beyond the playback position: the frames the decoder and effects hold, and as much again. */
+    const val READ_AHEAD_US = 1_000_000L
+
+    /** Byte cap for [READ_AHEAD_US]: 4K APV at 50 fps is 145 MB a second, and 0.5 s of it is already 25 frames. */
+    const val READ_AHEAD_BYTES = 96 * 1024 * 1024
+
+    /**
+     * Whether a timeline player reads on although Media3 would wait: under [READ_AHEAD_US] and [READ_AHEAD_BYTES], and
+     * only while a quarter of the Java memory is free (several layers with APV each have a queue of their own).
+     */
+    internal fun readAhead(bufferedUs: Long, queuedBytes: Int, heapUsed: Long, heapMax: Long): Boolean =
+        bufferedUs < READ_AHEAD_US && queuedBytes < READ_AHEAD_BYTES && heapUsed < heapMax / 4 * 3
 
     /**
      * Buffer cap in bytes – but only beyond the minimum time (0.5 s, Media3's own lower bound), which is always filled.

@@ -22,34 +22,22 @@ import se.gendut.klipp.engine.TransitionType
 class TransitionsTest {
     private fun fx(type: TransitionType, incoming: Boolean, over: Boolean, reverse: Boolean = false) = SegFx(type, incoming, over, 2.0, 4.0, 3.0, reverse)
 
-    @Test fun wipeRevealsTheIncomingFromTheLeftAndTheOutgoingIsItsComplement() {
-        val inc = fx(TransitionType.WIPE, true, true).at(2.5) // 25 %
-        val out = fx(TransitionType.WIPE, false, true).at(2.5)
-        for (x in listOf(0.1f, 0.2f, 0.3f, 0.9f)) {
-            // exactly one of the two is visible at every point
-            assertTrue(SegFx.visibleAt(inc.mask, x, 0.5f, 1.78f) != SegFx.visibleAt(out.mask, x, 0.5f, 1.78f))
-        }
-        assertTrue(SegFx.visibleAt(inc.mask, 0.2f, 0.5f, 1.78f)); assertFalse(SegFx.visibleAt(inc.mask, 0.3f, 0.5f, 1.78f))
-        // reversed: from the right
-        val rev = fx(TransitionType.WIPE, true, true, reverse = true).at(2.5)
-        assertTrue(SegFx.visibleAt(rev.mask, 0.8f, 0.5f, 1.78f)); assertFalse(SegFx.visibleAt(rev.mask, 0.7f, 0.5f, 1.78f))
-    }
-
     @Test fun pushMovesBothClipsTogetherAndEndsInPlace() {
         assertEquals(1f, fx(TransitionType.PUSH, true, true).at(2.0).dx, 1e-6f)
-        assertEquals(0.5f, fx(TransitionType.PUSH, true, true).at(3.0).dx, 1e-6f)
-        assertEquals(-0.5f, fx(TransitionType.PUSH, false, false).at(3.0).dx, 1e-6f)
+        // at the edit point most of the way gone; the rest is a long soft landing
+        assertEquals(1f - SegFx.THROWN, fx(TransitionType.PUSH, true, true).at(3.0).dx, 1e-4f)
+        assertEquals(-SegFx.THROWN, fx(TransitionType.PUSH, false, false).at(3.0).dx, 1e-4f)
         assertEquals(0f, fx(TransitionType.PUSH, true, false).at(4.0).dx, 1e-6f)
-        assertEquals(-0.5f, fx(TransitionType.PUSH, true, true, reverse = true).at(3.0).dx, 1e-6f)
+        assertEquals(SegFx.THROWN - 1f, fx(TransitionType.PUSH, true, true, reverse = true).at(3.0).dx, 1e-4f)
     }
 
-    @Test fun irisGrowsAndDipsReachTheColourAtTheCut() {
-        val g = fx(TransitionType.IRIS, true, true).at(3.0)
-        assertTrue(SegFx.visibleAt(g.mask, 0.5f, 0.5f, 1.78f)); assertFalse(SegFx.visibleAt(g.mask, 0.02f, 0.02f, 1.78f))
-        assertTrue(SegFx.visibleAt(fx(TransitionType.IRIS, true, true).at(4.0).mask, 0.01f, 0.01f, 1.78f))
+    @Test fun dipsReachTheColourAtTheCutSlowlyAndLeaveItAtOnce() {
         val dip = fx(TransitionType.DIP_WHITE, false, false)
         assertEquals(0f, dip.at(2.0).tint, 1e-6f); assertEquals(1f, dip.at(3.0).tint, 1e-3f)
-        assertEquals(0.5f, fx(TransitionType.DIP_WHITE, true, false).at(3.5).tint, 1e-3f)
+        // halfway in: still mostly picture; halfway out: more than half the color already gone
+        assertTrue(dip.at(2.5).tint < 0.25f)
+        assertTrue(fx(TransitionType.DIP_WHITE, true, false).at(3.5).tint < 0.45f)
+        assertEquals(0f, fx(TransitionType.DIP_WHITE, true, false).at(4.0).tint, 1e-3f)
         assertTrue(dip.at(3.0).tintWhite)
         assertFalse(fx(TransitionType.DIP_BLACK, true, true).visible)
     }
@@ -57,8 +45,8 @@ class TransitionsTest {
     @Test fun zoomGoesInToTheCutAndOutAgain() {
         val out = fx(TransitionType.ZOOM, false, false); val inc = fx(TransitionType.ZOOM, true, false)
         assertEquals(1f, out.at(2.0).scale, 1e-6f)
-        assertEquals(1f + SegFx.ZOOM_MAX, out.at(2.999).scale, 0.02f)
-        assertEquals(1f + SegFx.ZOOM_MAX, inc.at(3.0).scale, 1e-4f)
+        assertEquals(kotlin.math.exp(SegFx.ZOOM_OUT), out.at(2.999).scale, 0.02f)
+        assertEquals(kotlin.math.exp(-SegFx.ZOOM_IN), inc.at(3.0).scale, 0.02f)
         assertEquals(1f, inc.at(4.0).scale, 1e-6f)
         assertTrue(out.at(2.5).scale < out.at(2.8).scale)
         assertFalse(fx(TransitionType.ZOOM, true, true).visible)
@@ -96,7 +84,8 @@ class TransitionsTest {
         // outside the window: unchanged image; inside: shifted
         val outgoing = base.first()
         assertNull(outgoing.geomAt(x.start - 0.5))
-        assertEquals(0.25f, outgoing.geomAt(x.start + x.duration / 4)!!.dx, 1e-4f)
+        // reversed: the outgoing clip leaves to the right, part of the way a quarter into the transition
+        assertTrue(outgoing.geomAt(x.start + x.duration / 4)!!.dx.let { it > 0.02f && it < SegFx.THROWN })
         assertNull(base.last().geomAt(x.end + 0.5))
         assertTrue(base.last().geomAt(x.end)!!.identity)
     }
@@ -113,7 +102,7 @@ class TransitionsTest {
     }
 
     @Test fun aFrozenClipStaysInTheTrackForTheWholeTransition() {
-        for (effect in listOf("push", "wipe", "slide", "iris_round", "cross_dissolve")) for (holdFrom in listOf(true, false)) {
+        for (effect in listOf("push", "whip", "cross_dissolve")) for (holdFrom in listOf(true, false)) {
             val s = holdSnap(effect, holdFrom)
             val x = s.sequence!!.video[0].transitions.single()
             val still = if (holdFrom) x.from else x.to
@@ -225,5 +214,116 @@ class TransitionsTest {
         // above: the incoming one sliding in
         val top = endPlan.layers.first().segs.single { it.start >= 3.0 - 1e-6 }
         assertEquals(13L, top.clip?.id); assertTrue(top.fx!!.incoming && top.fx!!.over)
+    }
+
+    @Test fun whipMovesBothClipsAndSmearsMostAtTheMiddle() {
+        val start = fx(TransitionType.WHIP, true, true).at(0.0)
+        assertEquals(1f, start.dx, 1e-4f)
+        assertEquals(0f, start.blurX, 1e-4f)
+        val mid = fx(TransitionType.WHIP, true, true).at(3.0)
+        assertEquals(SegFx.WHIP_BLUR, mid.blurX, 1e-3f)
+    }
+
+    @Test fun whipFadesTheUpperClipIntoTheLowerAndPushMovesTheSameWithoutBlur() {
+        val up = fx(TransitionType.WHIP, true, true).at(2.6)
+        val low = fx(TransitionType.WHIP, false, false).at(2.6)
+        assertEquals(SegFx.WHIP_SOFT, up.soft, 1e-4f)
+        assertEquals(0f, low.soft, 1e-4f)
+        assertTrue(up.mirror && low.mirror)
+        val push = fx(TransitionType.PUSH, true, true).at(2.6)
+        assertEquals(up.dx, push.dx, 1e-4f)
+        assertEquals(0f, push.blurX, 1e-4f)
+    }
+
+    @Test fun theZoomIsOneMoveInward() {
+        fun scale(t: Double) = (if (t < 3.0) fx(TransitionType.ZOOM, false, false) else fx(TransitionType.ZOOM, true, false)).at(t).scale
+        // outgoing: from normal size up to ×2.46; incoming: from ×0.65 up to normal size
+        assertEquals(1f, scale(2.0), 1e-3f)
+        assertEquals(2.46f, fx(TransitionType.ZOOM, false, false).at(3.0).scale, 2e-2f)
+        assertEquals(0.65f, fx(TransitionType.ZOOM, true, false).at(3.0).scale, 2e-2f)
+        assertEquals(1f, scale(4.0), 1e-3f)
+        // always growing on each side of the edit point
+        val before = (0..9).map { scale(2.0 + it * 0.1) }
+        val after = (0..10).map { scale(3.0 + it * 0.1) }
+        assertTrue(before.zipWithNext().all { (a, b) -> b >= a })
+        assertTrue(after.zipWithNext().all { (a, b) -> b >= a })
+    }
+
+    @Test fun theMovesAccelerateIntoTheCutAndSettleLonger() {
+        val out = fx(TransitionType.ZOOM, false, false); val inc = fx(TransitionType.ZOOM, true, false)
+        // the most smear at the edit point, none at the ends
+        assertTrue(out.at(2.99).blurZoom > out.at(2.7).blurZoom)
+        assertEquals(0f, out.at(2.0).blurZoom, 1e-3f); assertEquals(0f, inc.at(4.0).blurZoom, 1e-3f)
+        // halfway into the outgoing half it has come a fifth of the way; halfway into the incoming half it has nearly arrived
+        assertTrue(out.at(2.5).scale < 1.25f)
+        assertTrue(inc.at(3.5).scale > 0.97f)
+        // a twentieth into the incoming half, half its way is gone
+        assertEquals(0.41f, SegFx.settle(0.05f).first, 0.03f)
+    }
+
+    @Test fun theZoomIsSmearedAsBy360DegreeShutterAndKeepsItsSpeedThroughTheCut() {
+        val out = fx(TransitionType.ZOOM, false, false); val inc = fx(TransitionType.ZOOM, true, false)
+        // the zoom's speed in log scale per second on either side of the edit point: about the same
+        val before = SegFx.ZOOM_OUT * SegFx.GATHER_SPEED / 1f; val after = SegFx.ZOOM_IN * SegFx.SETTLE_SPEED / 1f
+        assertTrue("$before $after", after / before in 1f..1.6f)
+        assertEquals(before * SegFx.SHUTTER_S, out.at(2.9999).blurZoom, 1e-2f)
+        assertEquals(after * SegFx.SHUTTER_S, inc.at(3.0001).blurZoom, 1e-2f)
+        assertEquals(0f, out.at(2.0).blurZoom, 1e-4f); assertEquals(0f, inc.at(4.0).blurZoom, 1e-4f)
+        // speeds and progress of the two halves
+        assertEquals(1f, SegFx.gather(1f).first, 1e-5f); assertEquals(1f, SegFx.gather(1f).second, 1e-5f); assertEquals(0f, SegFx.gather(0f).second, 1e-5f)
+        assertEquals(1f, SegFx.settle(0f).second, 1e-5f); assertEquals(1f, SegFx.settle(1f).first, 1e-5f)
+        assertTrue(SegFx.settle(0.001f).second > 0.95f)
+        val us = (0..100).map { SegFx.settle(it / 100f).first }
+        assertTrue(us.zipWithNext().all { (a, b) -> b >= a })
+    }
+
+    @Test fun theNewMovesLandStillAndKeepToTheTrack() {
+        for (t in listOf(TransitionType.ROTATE, TransitionType.WHIP_VERTICAL, TransitionType.LIGHT_LEAK)) {
+            assertFalse(fx(t, true, true).visible)
+            val end = fx(t, true, false).at(4.0)
+            assertEquals(0f, end.dx, 1e-3f); assertEquals(0f, end.dy, 1e-3f); assertEquals(0f, end.turn, 1e-3f); assertEquals(0f, end.leak, 1e-3f)
+            assertEquals(t, TransitionType.of(t.effect))
+        }
+        assertEquals(1f, fx(TransitionType.LIGHT_LEAK, false, false).at(3.0).leak, 1e-3f)
+    }
+
+    @Test fun theMotionBlurCanBeSetPerTransition() {
+        val base = fx(TransitionType.WHIP, true, true).at(3.0)
+        val more = fx(TransitionType.WHIP, true, true).copy(blur = 2f).at(3.0)
+        assertEquals(base.blurX * 2f, more.blurX, 1e-4f)
+        assertEquals(base.dx, more.dx, 1e-6f)
+        assertEquals(0f, fx(TransitionType.ZOOM, false, false).copy(blur = 0f).at(2.9).blurZoom, 0f)
+        // kept by clip pair, the default not stored; saved and loaded
+        val looks = se.gendut.klipp.engine.TransitionLooks
+        looks.setBlur(5, 6, 1.5f)
+        looks.setBlur(7, 8, 1f)
+        assertEquals(1.5f, looks.blurOf(5, 6), 1e-6f)
+        assertEquals(setOf("5>6"), looks.blur.keys.toSet())
+        val j = looks.toJson()
+        looks.load(null)
+        assertEquals(1f, looks.blurOf(5, 6), 1e-6f)
+        looks.load(j)
+        assertEquals(1.5f, looks.blurOf(5, 6), 1e-6f)
+        looks.load(null)
+    }
+
+    @Test fun rotateTurnsWithoutZoomAndSettlesLevel() {
+        val out = fx(TransitionType.ROTATE, false, false); val inc = fx(TransitionType.ROTATE, true, false)
+        assertEquals(0f, out.at(2.0).turn, 1e-4f)
+        assertEquals(SegFx.ROTATE_OUT, out.at(2.9999).turn, 1e-2f)
+        assertEquals(-SegFx.ROTATE_IN, inc.at(3.0).turn, 1e-3f)
+        assertEquals(0f, inc.at(4.0).turn, 1e-4f)
+        assertEquals(1f, out.at(2.9).scale, 0f); assertEquals(1f, inc.at(3.2).scale, 0f)
+        assertTrue(out.at(2.99).blurTurn > 0.1f); assertTrue(inc.at(3.01).blurTurn > 0.1f); assertEquals(0f, inc.at(4.0).blurTurn, 1e-2f)
+        assertEquals(-SegFx.ROTATE_OUT, fx(TransitionType.ROTATE, false, false, reverse = true).at(2.9999).turn, 1e-2f)
+    }
+
+    @Test fun removedTransitionsOpenAsTheirNearestKin() {
+        assertEquals(TransitionType.ZOOM, TransitionType.of("zoom_blur"))
+        assertEquals(TransitionType.WHIP, TransitionType.of("spin_3d"))
+        assertEquals(TransitionType.PUSH, TransitionType.of("slide"))
+        assertEquals(TransitionType.PUSH, TransitionType.of("wipe"))
+        assertEquals(TransitionType.CROSS, TransitionType.of("iris_round"))
+        assertEquals(TransitionType.ROTATE, TransitionType.of("radial_blur"))
     }
 }

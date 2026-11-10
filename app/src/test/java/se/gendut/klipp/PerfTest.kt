@@ -64,6 +64,21 @@ class PerfTest {
         assertEquals(2f, au.speedProvider.getSpeed(0), 0f)
     }
 
+    @Test fun timelinePlayersReadAheadOfTheDecoder() {
+        val P = se.gendut.klipp.engine.Perf
+        val mb = 1024L * 1024
+        // 4K APV at 25 fps: Media3's half second is 12 frames, 36 MB – all of them taken by the decoder and the effects
+        assertTrue(P.readAhead(bufferedUs = 500_000, queuedBytes = (36 * mb).toInt(), heapUsed = 150 * mb, heapMax = 512 * mb))
+        // a second is enough
+        assertFalse(P.readAhead(P.READ_AHEAD_US, (72 * mb).toInt(), 150 * mb, 512 * mb))
+        // 50 fps APV reaches the byte cap first (0.66 s, 33 frames)
+        assertFalse(P.readAhead(660_000, P.READ_AHEAD_BYTES, 150 * mb, 512 * mb))
+        // with the Java memory three quarters full Media3's own rule holds alone
+        assertFalse(P.readAhead(500_000, (36 * mb).toInt(), 384 * mb, 512 * mb))
+        // the load controls can be built (minimum, start and maximum times in order)
+        P.editingLoadControl(); P.boundedLoadControl()
+    }
+
     @Test fun gpuBlackCheck() {
         val black = Bitmap.createBitmap(20, 10, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.BLACK) }
         val grey = Bitmap.createBitmap(20, 10, Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.rgb(90, 90, 90)) }
