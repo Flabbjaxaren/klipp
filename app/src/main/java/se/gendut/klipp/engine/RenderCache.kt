@@ -150,7 +150,7 @@ object RenderCache {
                 for (sg in segs) {
                     sb.append('[').append(r(sg.start)).append(',').append(r(sg.end)).append(',')
                     when (val s = sg.src) {
-                        is SegSrc.Media -> sb.append("M").append(uriOf(s.item)).append(',').append(r(s.srcIn)).append(',').append(s.speed)
+                        is SegSrc.Media -> sb.append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item))).append(',').append(r(s.srcIn)).append(',').append(s.speed)
                         is SegSrc.Still -> { sb.append("S").append(uriOf(s.item)).append(',').append(r(s.sec)); heavy = true }
                     }
                     // ramps and transition windows only where they apply in the chunk (a transition further on does not change this one)
@@ -162,8 +162,7 @@ object RenderCache {
                         sb.append(",C").append(videoKey(c))
                         if (c.hasMotion(plan.width, plan.height) || c.hasOpacity || kotlin.math.abs(c.speed - 1.0) > 1e-3 || c.reverse) heavy = true
                         gradeOf(c.id)?.let { g ->
-                            // (without the nodes' names: renaming a node doesn't change the image)
-                            sb.append(",G").append(g.copy(nodes = g.nodes.map { it.copy(label = "") }).toJson())
+                            sb.append(gradeKey(g))
                             if (!g.isNeutral || g.layer != null) heavy = true
                         }
                     }
@@ -192,8 +191,8 @@ object RenderCache {
             val sb = StringBuilder()
             sb.append("v").append(VERSION).append('|').append(plan.width).append('x').append(plan.height).append('@').append(fps).append('/').append(short)
                 .append('|').append(r(from)).append('-').append(r(to)).append("|L0[").append(r(c.start)).append(',').append(r(c.end)).append(',')
-                .append("M").append(uriOf(s.item)).append(',').append(r(c.sourceIn)).append(',').append(s.speed).append(",C").append(videoKey(c))
-            gradeOf(c.id)?.let { g -> sb.append(",G").append(g.copy(nodes = g.nodes.map { it.copy(label = "") }).toJson()) }
+                .append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item))).append(',').append(r(c.sourceIn)).append(',').append(s.speed).append(",C").append(videoKey(c))
+            gradeOf(c.id)?.let { g -> sb.append(gradeKey(g)) }
             sb.append(']')
             return sha1(sb.toString())
         }
@@ -201,6 +200,19 @@ object RenderCache {
             .filter { (from, to) -> from < a - 1e-6 || to > b + 1e-6 }
             .map { (from, to) -> key(from, to) to a - from }
     }
+
+    /**
+     * A clip's grade in the key: without the nodes' names (renaming a node doesn't change the image), with each LUT's
+     * contents (a new LUT under the same name must make the chunk again, as in the node cache).
+     */
+    private fun gradeKey(g: ClipGrade): String {
+        val sb = StringBuilder(",G").append(g.copy(nodes = g.nodes.map { it.copy(label = "") }).toJson())
+        for (n in g.nodes) n.lut?.let { name -> runCatching { LutStore.get(name) }.getOrNull()?.data?.contentHashCode()?.let { sb.append(",lut").append(it) } }
+        return sb.toString()
+    }
+
+    /** Chunks are made from the proxy when there is one: a chunk made from the original is made again once the proxy exists (and back). */
+    private fun proxyKey(u: Uri?): String = if (u != null && Proxies.videoUri(u) != u) "~p" else ""
 
     /** What in the clip affects the image (not the audio: volume, audio effects, name). */
     private fun videoKey(c: ClipSnap): String = listOf(

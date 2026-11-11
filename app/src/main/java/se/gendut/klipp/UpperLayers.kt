@@ -161,8 +161,12 @@ private fun LayerVideo(
         player.addListener(l)
         onDispose { player.removeListener(l) }
     }
-    // the image from the proxy when there is one (swapped when a proxy is ready)
-    val proxyRev = se.gendut.klipp.engine.Proxies.revision
+    // the image from the proxy when there is one (swapped when a proxy is ready – once playback has stopped: reloading
+    // the layer's items while it plays made it seek and wait mid-play)
+    var proxyRev by remember { mutableIntStateOf(se.gendut.klipp.engine.Proxies.revision) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { se.gendut.klipp.engine.Proxies.revision to state.playing }.collect { (r, playing) -> if (!playing) proxyRev = r }
+    }
     LaunchedEffect(segs, proxyRev, preMs) {
         player.setMediaItems(segs.mapIndexed { k, seg ->
             // freeze frame: just the frame (the player stays paused on it for the whole segment, see below)

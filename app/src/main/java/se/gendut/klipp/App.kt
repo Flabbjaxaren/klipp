@@ -373,7 +373,16 @@ fun KlippApp(
         }
     }
     if (playback != null) LaunchedEffect(playback) {
-        androidx.compose.runtime.snapshotFlow { listOf(se.gendut.klipp.engine.NodeCache.revision, se.gendut.klipp.engine.FrameHolds.revision, se.gendut.klipp.engine.Reversals.revision, se.gendut.klipp.engine.RenderCache.revision) }.collect {
+        // freeze frames and reversed files: the picture is wrong until they exist (a gap, forwards) – swapped in at once
+        androidx.compose.runtime.snapshotFlow { se.gendut.klipp.engine.FrameHolds.revision to se.gendut.klipp.engine.Reversals.revision }.collect {
+            playback.refresh(state.playhead.toDouble())
+        }
+    }
+    if (playback != null) LaunchedEffect(playback) {
+        // the node cache and pre-rendered chunks only make playback lighter: swapped in when playback stops (a new
+        // composition in the middle of playback was a seek and a stall)
+        androidx.compose.runtime.snapshotFlow { se.gendut.klipp.engine.NodeCache.revision to se.gendut.klipp.engine.RenderCache.revision }.collect {
+            androidx.compose.runtime.snapshotFlow { state.playing }.first { !it }
             playback.refresh(state.playhead.toDouble())
         }
     }
