@@ -123,4 +123,27 @@ class PreviewExportTimingTest {
             }
         }
     }
+
+    @Test fun aClipStartingOnAnUpperTrackDoesNotMoveTheBottomPicture() {
+        val s = snapshot()
+        val plan = LayerPlanner.plan(s) { 30.0 }!!
+        val cuts = se.gendut.klipp.engine.CutSeek.cutsOf(plan.layers.last())
+        // V1 is one clip: no cut of its own – a paused seek to 1.52 s (where V2 begins) is not moved to the next frame
+        assertEquals(1520L, se.gendut.klipp.engine.CutSeek.ms(1.52, cuts, fps, playing = false))
+        // (all tracks' starts would have moved it)
+        assertTrue(se.gendut.klipp.engine.CutSeek.ms(1.52, se.gendut.klipp.engine.CutSeek.cutsOf(s), fps, playing = false) > 1520L)
+    }
+
+    @Test fun aRepaintNeverStepsOntoTheNextFrame() {
+        val r = se.gendut.klipp.engine.Repaint
+        val p = Any()
+        // on a frame's own time (25 fps: 1000 ms): back 1 ms (the same frame), then back up – never forward past it
+        assertEquals(999L, r.next(p, 1000L))
+        assertEquals(1000L, r.next(p, 999L))
+        assertEquals(999L, r.next(p, 1000L))
+        // at 0 there is nothing before: 1 ms on and straight back
+        val seeks = ArrayList<Long>()
+        assertEquals(0L, r.next(Any(), 0L) { seeks += it })
+        assertEquals(listOf(1L), seeks)
+    }
 }

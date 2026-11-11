@@ -326,14 +326,31 @@ object CompositionBuilder {
                 .setEffects(androidx.media3.transformer.Effects(emptyList(), effects))
                 .apply { if (speed != null) setSpeed(speed) }
                 .build()
-            if (seg.start > t + 0.001) b.addGap(us(seg.start - t))
+            if (seg.start > t + 0.001) videoGap(b, seg.start - t, multi, fps)
             b.addItem(edited)
             t = seg.end + (if (still == null) tail(index) else 0.0)
             any = true
         }
         if (!any) return null
-        if (plan.total > t + 0.001) b.addGap(us(plan.total - t))
+        if (plan.total > t + 0.001) videoGap(b, plan.total - t, multi, fps)
         return b.build()
+    }
+
+    /**
+     * A stretch without a clip in a video layer. With the compositor: a blank image at the project's frame rate. Media3's
+     * own gap gives blank frames at a fixed 30 fps, and a layer above that is empty for a while then set the export's
+     * frame times – at 25 fps every fifth frame of the clips below was repeated and the next one skipped (measured with
+     * frame-coded clips). Without the compositor, or before [BlankFrame] is ready: Media3's gap.
+     */
+    private fun videoGap(b: EditedMediaItemSequence.Builder, sec: Double, multi: Boolean, fps: Double) {
+        val f = if (multi) BlankFrame.file() else null
+        if (f == null) { b.addGap(us(sec)); return }
+        b.addItem(
+            EditedMediaItem.Builder(MediaItem.Builder().setUri(Uri.fromFile(f)).setImageDurationMs(Math.round(sec * 1000).coerceAtLeast(1)).build())
+                .setDurationUs(us(sec).coerceAtLeast(1))
+                .setFrameRate(fps.takeIf { it.isFinite() && it >= 1.0 }?.let { Math.round(it).toInt() } ?: 25)
+                .build()
+        )
     }
 
     /** The composition, whether it needs the multi-layer compositor, and the time interpreters (for calibration against the player). */
@@ -490,6 +507,38 @@ object CompositionBuilder {
     }
 }
 
+/**
+ * Where a repaint seeks: one millisecond back, and the next time back up again. Media3 shows the first frame at or
+ * after the position, so a step forward from a frame's own time (a segment's start is one) showed the next frame –
+ * measured on the vivo: the upper layer showed its second frame at its start. At 0 (nothing before): 1 ms on and back.
+ */
+object Repaint {
+    private val down = java.util.WeakHashMap<Any, Long>()
+
+    fun next(player: Any, pos: Long, seek: ((Long) -> Unit)? = null): Long {
+        val from = down.remove(player)
+        if (from != null && from == pos) return pos + 1
+        if (pos <= 0L) { (seek ?: { p -> (player as? androidx.media3.common.Player)?.seekTo(p) })(1L); return 0L }
+        down[player] = pos - 1
+        return pos - 1
+    }
+}
+
+/** A small black image (PNG) for empty stretches of the compositor's layers, see CompositionBuilder.videoGap. */
+object BlankFrame {
+    @Volatile private var f: File? = null
+    fun init(context: Context) {
+        if (f != null) return
+        val file = File(context.cacheDir, "blank_16.png")
+        if (!file.exists() || file.length() == 0L) runCatching {
+            val bmp = android.graphics.Bitmap.createBitmap(16, 16, android.graphics.Bitmap.Config.ARGB_8888).apply { eraseColor(android.graphics.Color.BLACK) }
+            file.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        }
+        if (file.length() > 0L) f = file
+    }
+    fun file(): File? = f?.takeIf { it.exists() }
+}
+
 /** Playback of the whole timeline. Rebuilds the composition only when the timeline actually changed. */
 @OptIn(UnstableApi::class)
 /**
@@ -540,6 +589,14 @@ object CutSeek {
     /** Edit points in the video tracks (where a video clip starts). */
     fun cutsOf(s: Snapshot): DoubleArray =
         s.sequence?.video?.flatMap { t -> t.clips.filter { it.text == null && it.start > 0.0 }.map { it.start } }?.distinct()?.sorted()?.toDoubleArray() ?: DoubleArray(0)
+
+    /**
+     * The edit points of the main player's own pieces: the bottom layer as it plays (pre-rendered chunks swapped in).
+     * Only there does a paused seek need the frame after the cut – a clip starting on an upper track made the bottom
+     * clip, running on across that time, show its next frame (Media3 shows the first frame at or after the position).
+     */
+    fun cutsOf(bottom: Layer?): DoubleArray =
+        bottom?.segs?.map { it.start }?.filter { it > 0.0 }?.distinct()?.sorted()?.toDoubleArray() ?: DoubleArray(0)
 }
 
 class ProgramPlayback(private val context: Context) {
@@ -756,7 +813,6 @@ class ProgramPlayback(private val context: Context) {
 
     fun update(s: Snapshot, uriOf: (Long) -> Uri?, positionSec: Double, force: Boolean = false): String? {
         lastSnapshot = s
-        cuts = CutSeek.cutsOf(s)
         cutFps = s.fps
         endSec = s.playable().sequence?.duration ?: 0.0
         lastUriOf = uriOf
@@ -773,6 +829,7 @@ class ProgramPlayback(private val context: Context) {
             .getOrNull().orEmpty()
         renderChunks = chunks
         edges = CutSeek.edgesOf(s, chunks)
+        cuts = runCatching { CompositionBuilder.previewPlan(s, uriOf)?.let { CutSeek.cutsOf(RenderCache.substitute(it, chunks).layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
         val key = "#render" + RenderCache.usedFiles(chunks) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#holds" + FrameHolds.revision + "#rev" + Reversals.revision
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
         LiveGrades.publish(grades)
@@ -873,11 +930,12 @@ class ProgramPlayback(private val context: Context) {
      * the next time back – a seek to exactly the same position is ignored, and always forward would drift away from
      * the playhead after many changes.
      */
-    private var nudgeUp = true
     private fun nudge() {
         val pos = player.currentPosition
-        player.seekTo(if (nudgeUp || pos < 1) pos + 1 else pos - 1)
-        nudgeUp = !nudgeUp
+        // (just after an edit point on purpose, see CutSeek.ms: a step back would land on the boundary between the
+        // items – forward there, the next frame is a whole frame away)
+        val atCut = cuts.any { kotlin.math.ceil(it * 1000).toLong() + 1 == pos }
+        player.seekTo(if (atCut) pos + 1 else Repaint.next(player, pos))
     }
 
     /**

@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
         se.gendut.klipp.engine.NodeCache.init(applicationContext)
         Str.init(applicationContext)
         se.gendut.klipp.engine.FrameHolds.init(applicationContext)
+        se.gendut.klipp.engine.BlankFrame.init(applicationContext)
         se.gendut.klipp.engine.Reversals.init(applicationContext)
         se.gendut.klipp.engine.RenderCache.init(applicationContext)
         se.gendut.klipp.engine.Fonts.init(applicationContext)
