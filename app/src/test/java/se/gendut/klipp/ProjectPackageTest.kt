@@ -91,4 +91,59 @@ class ProjectPackageTest {
         assertEquals("Sommar_ 2026.klipp", ProjectPackageName.of("Sommar/ 2026"))
         assertEquals("Klipp.klipp", ProjectPackageName.of("  "))
     }
+
+    private fun pkg(media: List<ProjectPackage.Media>): ByteArray =
+        ByteArrayOutputStream().also { ProjectPackage.write(it, "PROJECT".toByteArray(), side, null, media, "0.18.52") }.toByteArray()
+
+    @Test fun aWholePackageChecksOut() {
+        val bytes = pkg(listOf(ProjectPackage.Media(3, "a.mp4") { ByteArrayInputStream(ByteArray(200_000) { it.toByte() }) }))
+        val v = ProjectPackage.verify(ByteArrayInputStream(bytes))
+        assertTrue(v.problem, v.ok)
+        assertTrue(v.complete)
+        assertEquals(ProjectPackage.FORMAT, v.format)
+    }
+
+    @Test fun aCutOffPackageDoesNotCheckOut() {
+        val bytes = pkg(listOf(ProjectPackage.Media(3, "a.mp4") { ByteArrayInputStream(ByteArray(200_000) { it.toByte() }) }))
+        for (keep in listOf(bytes.size / 2, bytes.size - 30, 100)) {
+            assertFalse("cut at $keep", ProjectPackage.verify(ByteArrayInputStream(bytes.copyOf(keep))).ok)
+        }
+        assertFalse(ProjectPackage.verify(ByteArrayInputStream("not a zip".toByteArray())).ok)
+    }
+
+    @Test fun missingMediaMakeThePackageIncomplete() {
+        val bytes = pkg(listOf(
+            ProjectPackage.Media(3, "a.mp4") { ByteArrayInputStream(ByteArray(1000)) },
+            ProjectPackage.Media(5, "gone.mp4") { null },
+        ))
+        val v = ProjectPackage.verify(ByteArrayInputStream(bytes))
+        assertTrue("whole as a file", v.ok)
+        assertFalse("but not complete", v.complete)
+    }
+
+    @Test fun aPackageFromANewerKlippIsRefused() {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { z ->
+            for ((n, b) in listOf("project.fcproj" to "P", "side.json" to "{}", "klipp.json" to "{\"format\":99,\"media\":[]}")) {
+                z.putNextEntry(ZipEntry(n)); z.write(b.toByteArray()); z.closeEntry()
+            }
+        }
+        val v = ProjectPackage.verify(ByteArrayInputStream(out.toByteArray()))
+        assertFalse(v.ok)
+        assertEquals(99, v.format)
+    }
+
+    @Test fun anOlderPackageWithoutSizesStillChecksOut() {
+        // format 1 from before 0.18.53: no "size" or "complete" in the manifest
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { z ->
+            for ((n, b) in listOf("project.fcproj" to "P", "side.json" to "{}", "media/3_a.mp4" to "VIDEO",
+                "klipp.json" to "{\"format\":1,\"media\":[{\"item\":3,\"name\":\"a.mp4\",\"file\":\"media/3_a.mp4\"}]}")) {
+                z.putNextEntry(ZipEntry(n)); z.write(b.toByteArray()); z.closeEntry()
+            }
+        }
+        val v = ProjectPackage.verify(ByteArrayInputStream(out.toByteArray()))
+        assertTrue(v.problem, v.ok)
+        assertTrue(v.complete)
+    }
 }
