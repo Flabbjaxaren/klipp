@@ -203,8 +203,17 @@ fun KlippApp(
     LaunchedEffect(state.selected) { if (state.selected == null) state.inspecting = false else state.selectedCaption = null }
     LaunchedEffect(state.selectedCaption) { if (state.selectedCaption == null) state.editingCaption = false }
     var exportAsk by remember { mutableStateOf(false) }
+    val notifyPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
+    // an export cut off with the process last time: said once, never shown as saved
+    LaunchedEffect(Unit) { se.gendut.klipp.engine.ExportGuard.notice?.let { se.gendut.klipp.engine.ExportGuard.notice = null; toaster.show(Str.t(R.string.app_export_interrupted, it)) } }
     fun export() {
         val c = controller ?: run { toaster.show(Str.t(R.string.app_export_needs_clips)); return }
+        // the export's notification (progress while the app is left): asked for once, the export runs without it too
+        if (android.os.Build.VERSION.SDK_INT >= 33 && !AppPrefs.notifyAsked(context) &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            AppPrefs.setNotifyAsked(context)
+            notifyPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
         if (c.snapshot.sequence?.video?.any { it.clips.isNotEmpty() } != true) { toaster.show(Str.t(R.string.app_timeline_empty)); return }
         state.playing = false
         exportAsk = true
@@ -216,8 +225,16 @@ fun KlippApp(
         val graded = gs.grades.values.any { !it.isNeutral } || !lookOf(grade).isNeutral
         val st = if (graded) settings.copy(hdr = false) else settings
         exportProgress = 0
+        // held in the foreground while it runs (and marked, so an export lost with the process is reported next time)
+        se.gendut.klipp.engine.ExportGuard.begin(context, name)
         scope.launch {
-            val r = se.gendut.klipp.engine.Exporter.export(context, c.snapshot, c::uriOf, name, lookOf(grade), mixMaster(mix), HashMap(gs.grades), st) { exportProgress = it }
+            val r = try {
+                se.gendut.klipp.engine.Exporter.export(context, c.snapshot, c::uriOf, name, lookOf(grade), mixMaster(mix), HashMap(gs.grades), st) {
+                    exportProgress = it; se.gendut.klipp.engine.ExportGuard.progress(context, name, it)
+                }
+            } finally {
+                se.gendut.klipp.engine.ExportGuard.end(context)
+            }
             exportProgress = null
             r.onSuccess { haptics.confirm(); toaster.show(Str.t(R.string.app_export_saved) + (se.gendut.klipp.engine.Exporter.lastResult?.let { " · $it" } ?: "")) }
                 .onFailure {

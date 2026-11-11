@@ -41,6 +41,7 @@
     <string name="app_timeline_empty">Tidslinjen är tom</string>
     <string name="app_export_saved">Sparad i Filmer/Klipp</string>
     <string name="app_export_failed">Export misslyckades: %1$s</string>
+    <string name="app_export_interrupted">Exporten av ”%1$s” avbröts när appen stängdes – den sparades inte</string>
     <string name="app_hdr_blocked">Klippen är färgkorrigerade – färgningen görs i SDR, så exporten blir SDR för rätt färger.</string>
     <string name="app_mic_failed">Mikrofonen kunde inte startas: %1$s</string>
     <string name="app_nothing_recorded">Inget spelades in</string>
