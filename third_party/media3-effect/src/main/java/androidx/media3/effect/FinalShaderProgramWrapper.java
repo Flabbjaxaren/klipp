@@ -492,6 +492,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
         if (renderTimeNs == VideoFrameProcessor.DROP_OUTPUT_FRAME) {
           KlippPrecision.framesLate++; // Klipp: diagnostics
           KlippPrecision.noteLate();
+          KlippPrecision.trace(System.identityHashCode(this), presentationTimeUs, -1, true); // Klipp: cut trace
           checkNotNull(listener).onFrameRendered(presentationTimeUs);
         }
         return; // Drop frames when requested, or there is no output surface and output texture.
@@ -538,6 +539,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     EGLExt.eglPresentationTimeANDROID(eglDisplay, outputEglSurface, eglPresentationTimeNs);
     EGL14.eglSwapBuffers(eglDisplay, outputEglSurface);
     KlippPrecision.framesShown++; // Klipp: diagnostics
+    KlippPrecision.trace(System.identityHashCode(this), presentationTimeUs, eglPresentationTimeNs, false); // Klipp: cut trace
     checkNotNull(listener).onFrameRendered(presentationTimeUs);
     DebugTraceUtil.logEvent(COMPONENT_VFP, EVENT_RENDERED_TO_OUTPUT_SURFACE, presentationTimeUs);
   }

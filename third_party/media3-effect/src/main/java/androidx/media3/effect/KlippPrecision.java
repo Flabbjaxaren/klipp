@@ -23,6 +23,20 @@ public final class KlippPrecision {
   /** Floating point (RGBA16F) in all texture pools when the context supports it. Default: on. */
   public static volatile boolean highPrecision = true;
 
+  /** Klipp: receives every frame the chain hands to an output surface, or drops as late (the app's cut trace). */
+  public interface FrameTrace {
+    /** [chain]: which chain (one per player), [ptsUs]: the frame's time, [presentNs]: when it is to be shown, -1 = dropped. */
+    void onFrame(int chain, long ptsUs, long presentNs, boolean dropped);
+  }
+
+  /** Set only while a trace runs (null otherwise: no cost). */
+  @androidx.annotation.Nullable public static volatile FrameTrace frameTrace;
+
+  static void trace(int chain, long ptsUs, long presentNs, boolean dropped) {
+    FrameTrace t = frameTrace;
+    if (t != null) t.onFrame(chain, ptsUs, presentNs, dropped);
+  }
+
   /** Number of pools that got floating point and 8 bits, respectively (diagnostics). */
   public static volatile int floatPools;
   public static volatile int bytePools;

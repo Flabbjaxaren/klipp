@@ -668,9 +668,17 @@ class ProgramPlayback(private val context: Context) {
             framesShown++
             main.removeCallbacks(assumeShown)
             firstFrameAt = android.os.SystemClock.elapsedRealtime()
+            CutTrace.log("firstFrame", "layer=main pos=${player.currentPosition}")
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) { CutTrace.log("isPlaying", "layer=main $isPlaying pos=${player.currentPosition}") }
+
+        override fun onPositionDiscontinuity(old: androidx.media3.common.Player.PositionInfo, new: androidx.media3.common.Player.PositionInfo, reason: Int) {
+            CutTrace.log("discontinuity", "layer=main reason=$reason ${old.positionMs} -> ${new.positionMs}")
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
+            CutTrace.log("state", "layer=main $playbackState pos=${player.currentPosition}")
             if (playbackState == androidx.media3.common.Player.STATE_READY) {
                 main.removeCallbacks(assumeShown)
                 main.postDelayed(assumeShown, 1500)
