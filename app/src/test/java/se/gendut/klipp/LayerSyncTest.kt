@@ -26,4 +26,16 @@ class LayerSyncTest {
     }
 
     @Test fun wrongPieceSeeks() { assertEquals(1000L + LayerSync.SEEK_LEAD_MS, d(0, 1000, idx = 3).seekMs) }
+
+    @Test fun thePrerollTargetGrowsBeforeTheSegment() {
+        val seg = se.gendut.klipp.engine.Seg(50.0, 1.0, se.gendut.klipp.engine.SegSrc.Media(1, 60.0, 1.0), null)
+        // 250 ms of pre-roll: the item begins at 49.75 s on the timeline
+        assertEquals(0L, LayerSync.targetMs(49.75, seg, 250))
+        assertEquals(11L, LayerSync.targetMs(49.761, seg, 250))
+        assertEquals(250L, LayerSync.targetMs(50.0, seg, 250))
+        // inside the segment: the shared mapping (Seg.sourceAt)
+        assertEquals(Math.round((seg.sourceAt(50.4)!! - 60.0) * 1000) + 250, LayerSync.targetMs(50.4, seg, 250))
+        // at the pre-roll's start a player waiting on its item's first frame is in step: no seek
+        assertNull(LayerSync.decide(0, 0, 0, LayerSync.targetMs(49.761, seg, 250), running = true, ready = true, msSinceSeek = 5000).seekMs)
+    }
 }

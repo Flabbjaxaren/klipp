@@ -64,6 +64,13 @@ fun UpperLayers(
     titles: Boolean = true,
 ) {
     val plan = rememberPreviewPlan(controller, gradeOf, gradesKey) ?: return
+    // diagnostics (CutTrace): the main player's reported position at every display frame while playing
+    if (TRACE.on && main != null) LaunchedEffect(main) {
+        while (true) {
+            withFrameNanos { }
+            if (state.playing) TRACE.log("mainpos", "pos=${main.currentPosition} playing=${main.isPlaying} state=${main.playbackState}")
+        }
+    }
     Box(modifier.fillMaxSize().testTag("upperLayers")) {
         // the bottom layer is played by the main player; the others from the bottom up
         val uppers = plan.layers.dropLast(1).reversed()
@@ -81,7 +88,8 @@ fun UpperLayers(
                 }
             }
         }
-        if (handoff != null) key("klippbyten") { LayerVideo(handoff, plan, controller, state, main, gradeOf, look, handoff = true) }
+        // (diagnostics mode 1: the main player alone, see CutTrace)
+        if (handoff != null && se.gendut.klipp.engine.CutTrace.mode != 1) key("klippbyten") { LayerVideo(handoff, plan, controller, state, main, gradeOf, look, handoff = true) }
         // back-to-back segments (a dissolve's two halves, clips next to each other in an upper track): two players
         // taking turns, see Alternate
         for (layer in uppers) for (part in Alternate.split(layer)) key(part.name) { LayerVideo(part, plan, controller, state, main, gradeOf, look, planName = layer.name) }
@@ -150,12 +158,19 @@ private fun LayerVideo(
     DisposableEffect(player) {
         val l = object : Player.Listener {
             override fun onVideoSizeChanged(v: VideoSize) { videoSize = v }
-            override fun onRenderedFirstFrame() { drawnIndex = player.currentMediaItemIndex }
+            override fun onRenderedFirstFrame() {
+                drawnIndex = player.currentMediaItemIndex
+                TRACE.log("firstFrame", "layer=${layer.name} idx=${player.currentMediaItemIndex} pos=${player.currentPosition}")
+            }
             // if it plays, it draws (safety net in case a first-frame event never arrives)
-            override fun onIsPlayingChanged(isPlaying: Boolean) { if (isPlaying) drawnIndex = player.currentMediaItemIndex }
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (isPlaying) drawnIndex = player.currentMediaItemIndex
+                TRACE.log("isPlaying", "layer=${layer.name} $isPlaying idx=${player.currentMediaItemIndex} pos=${player.currentPosition}")
+            }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 // played on into the next segment: its frame follows right away (pre-buffered); a seek waits for its frame
                 if (reason != Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) drawnIndex = player.currentMediaItemIndex else drawnIndex = -1
+                TRACE.log("itemTransition", "layer=${layer.name} reason=$reason idx=${player.currentMediaItemIndex} pos=${player.currentPosition}")
             }
         }
         player.addListener(l)
@@ -286,12 +301,13 @@ private fun LayerVideo(
                 val starting = uppers.any { l -> l.segs.any { it.start > t - HANDOFF_STARTING_S && it.start <= t + 0.05 } }
                 if (handReadyAt == 0L && id != null && se.gendut.klipp.engine.Occlusion.mainFrames(id) - handFrames >= HANDOFF_FRAMES && calm && !starting) {
                     handReadyAt = now; unhide(); handFilmBase = filmedOf(handHid)
+                    TRACE.log("handReady", "seg=$i t=$t")
                 }
                 if (handReadyAt != 0L) {
                     if (handHid.isNotEmpty() && handGradedAt == 0L && filmedOf(handHid) - handFilmBase >= HANDOFF_FILMED) handGradedAt = now
                     val ok = if (handHid.isEmpty()) now - handReadyAt >= HANDOFF_SETTLE_MS else handGradedAt != 0L && now - handGradedAt >= HANDOFF_GRADED_MS
                     // (forced: the layer needed a seek – it goes as soon as the main player's frames are graded)
-                    if (ok && (calm || handForced)) handDown = true
+                    if (ok && (calm || handForced) && !handDown) { handDown = true; TRACE.log("handDown", "seg=$i t=$t forced=$handForced") }
                 }
                 // once stood down it stays down for the rest of the segment: coming back (a late frame after the
                 // handover) meant a seek in the paused player – itself a hitch
@@ -318,10 +334,16 @@ private fun LayerVideo(
                 if (i != seenSeg) { seenSeg = i; stats.visible(ts, now) } else stats.frame(ts, now)
             } else seenSeg = -1
             active = i
+            if (TRACE.on && (state.playing || handoff)) {
+                val vis = i >= 0 && drawnIndex == i && !preRolling && (!handoff || state.playing || holding) && !(handoff && se.gendut.klipp.engine.CutTrace.mode == 2)
+                TRACE.log("loop", "layer=${layer.name} t=${"%.4f".format(t)} main=$mainMs i=$i drawn=$drawnIndex pre=$preRolling vis=$vis " +
+                    "idx=${player.currentMediaItemIndex} pos=${player.currentPosition} pwr=${player.playWhenReady} playing=${player.isPlaying} " +
+                    "state=${player.playbackState} tex=${view?.surfaceTexture?.timestamp ?: 0L} ready=$handReadyAt down=$handDown")
+            }
             // the edit point layer covering the whole frame, opaque, while playing: the main player's picture of the same
             // clip isn't seen – its film is skipped until the layer begins to stand down (and not in the last LEAD of the
             // layer's segment), see Occlusion.hideMain
-            if (handoff && i >= 0 && !preRolling && handReadyAt == 0L && state.playing && drawnIndex == i && player.isPlaying) {
+            if (handoff && se.gendut.klipp.engine.CutTrace.mode != 2 && i >= 0 && !preRolling && handReadyAt == 0L && state.playing && drawnIndex == i && player.isPlaying) {
                 val sg = segs[i]
                 val ahead = t + se.gendut.klipp.engine.Occlusion.LEAD_S
                 val full = se.gendut.klipp.engine.Occlusion.Box(0.0, 0.0, plan.width.toDouble(), plan.height.toDouble())
@@ -355,7 +377,7 @@ private fun LayerVideo(
                 // (also when it is in that segment but not at its start: a layer with a single segment, or one played
                 // before, still stood where it stopped – and had to seek from a keyframe as the segment began)
                 val sought = next >= 0 && (player.currentMediaItemIndex != next || abs(player.currentPosition - waitMs(next)) > PREPARED_MS)
-                if (sought) { player.seekTo(next, waitMs(next)); lastSeek = now }
+                if (sought) { player.seekTo(next, waitMs(next)); lastSeek = now; TRACE.log("seek", "layer=${layer.name} wait idx=$next ms=${waitMs(next)} t=$t") }
                 if (next >= 0) cue = next
                 if (!state.playing && !sought) idle()
                 continue
@@ -366,8 +388,12 @@ private fun LayerVideo(
             // freeze frame: stays on the frame (the segment's start) the whole time
             val speed = media?.speed?.toFloat() ?: 1f
             if (abs(player.playbackParameters.speed - speed) > 0.0001f) player.setPlaybackSpeed(speed)
-            // (the item starts at the segment's source time, less its pre-roll: the same mapping as the export, Seg.sourceAt)
-            val target = if (media == null) 0L else (((seg.sourceAt(t) ?: media.srcIn) - media.srcIn) * 1000).roundToLong() + preMs[i]
+            // (the item starts at the segment's source time, less its pre-roll; inside the segment this is Seg.sourceAt – the
+            // same mapping as the export – but it must hold before the segment's start too: during the edit point layer's
+            // pre-roll t is before it. Taking the segment's start there instead (Seg.sourceAt is null outside) made the
+            // target jump by the whole pre-roll – a sync seek with lead just before the cut put the layer two frames ahead,
+            // measured with CutTrace and frame-coded clips: at the cut a frame was skipped)
+            val target = if (media == null) 0L else LayerSync.targetMs(t, seg, preMs[i])
             clock.srcIn = media?.let { it.srcIn - preMs[i] / 1000.0 } ?: (seg.src as SegSrc.Still).sec; clock.posSec = target / 1000.0; clock.item = seg.src.item
             // (once going it keeps going while the main player plays: its reported position often stands still for a few
             // display frames although it plays on – the layer was paused, and often sought, at each of those)
@@ -381,7 +407,7 @@ private fun LayerVideo(
                 // show the main player's picture without film – it stands down instead, still showing, see above
                 if (handReadyAt == 0L) { handReadyAt = now; unhide(); handFilmBase = filmedOf(handHid) }
                 handForced = true
-            } else d.seekMs?.let { player.seekTo(i, it); lastSeek = now; stats.seeks++ }
+            } else d.seekMs?.let { player.seekTo(i, it); lastSeek = now; stats.seeks++; TRACE.log("seek", "layer=${layer.name} sync idx=$i ms=$it t=$t cur=${player.currentMediaItemIndex}/${player.currentPosition}") }
             if (player.playWhenReady != run) player.playWhenReady = run
             if (run && player.isPlaying && d.seekMs == null) stats.record(player.currentPosition - target)
             if (!state.playing && d.seekMs == null && player.playbackState != Player.STATE_BUFFERING) idle()
@@ -442,7 +468,8 @@ private fun LayerVideo(
                 .graphicsLayer {
                     // read in the layer's draw phase: follows the keyframes frame by frame without recomposition
                     val c = c?.at(state.playhead.toDouble())
-                    this.alpha = if (seg == null || drawnIndex != active || preRolling || (handoff && !state.playing && !holding)) 0f else seg.alpha(state.playhead.toDouble())
+                    this.alpha = if (seg == null || drawnIndex != active || preRolling || (handoff && !state.playing && !holding) ||
+                        (handoff && se.gendut.klipp.engine.CutTrace.mode == 2)) 0f else seg.alpha(state.playhead.toDouble())
                     // the blend mode (the program image is then drawn in a TextureView, see ProgramSurface): like the compositor's in the export
                     val bm = seg?.clip?.let { cl -> gradeOf(cl.id)?.layer?.blend }?.let(::composeBlend)
                     blendMode = bm ?: androidx.compose.ui.graphics.BlendMode.SrcOver
@@ -496,6 +523,8 @@ private const val HANDOFF_PREROLL_S = 0.25
  * next one while the layer still showed, and one frame of the next edit point's clip flashed.
  */
 private const val HANDOFF_ITEM_TAIL_S = 0.5
+
+private val TRACE = se.gendut.klipp.engine.CutTrace
 
 /**
  * An upper layer's items run this much (s) past their segment, hidden (the layer isn't shown after the segment's end),
@@ -664,6 +693,16 @@ internal object Alternate {
 /** How a layer's player is kept in step with the timeline (pure logic, testable). No time stretch. */
 object LayerSync {
     data class Decision(val seekMs: Long?)
+
+    /**
+     * Where in the layer's item (ms) timeline time [t] is, for segment [seg] whose item begins [preMs] before it (the
+     * pre-roll): also before the segment's start (then less than [preMs]). Inside the segment it equals
+     * (Seg.sourceAt(t) − srcIn) · 1000 + preMs.
+     */
+    fun targetMs(t: Double, seg: Seg, preMs: Long): Long {
+        val m = seg.src as? SegSrc.Media ?: return 0L
+        return ((t - seg.start) * m.speed * 1000).roundToLong() + preMs
+    }
 
     /** Above this much during playback it counts as a hiccup and is corrected with a seek (ms). */
     const val SEEK_MS = 200

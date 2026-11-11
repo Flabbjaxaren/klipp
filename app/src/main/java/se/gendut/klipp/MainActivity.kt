@@ -21,6 +21,17 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    /** Edit point diagnostics (PR 8.7), only from adb – see engine/CutTrace.kt. */
+    private fun cutDiagnostics(i: android.content.Intent?) {
+        if (i?.hasExtra("klipp_cuttrace") == true || i?.hasExtra("klipp_cutdiag") == true)
+            se.gendut.klipp.engine.CutTrace.configure(i.getBooleanExtra("klipp_cuttrace", false), i.getIntExtra("klipp_cutdiag", 0))
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        cutDiagnostics(intent)
+    }
+
     override fun onStop() {
         super.onStop()
         // save changes now – the process may be killed in the background before a delayed save has run
@@ -43,6 +54,7 @@ class MainActivity : ComponentActivity() {
         Str.init(applicationContext)
         se.gendut.klipp.engine.FrameHolds.init(applicationContext)
         se.gendut.klipp.engine.BlankFrame.init(applicationContext)
+        cutDiagnostics(intent)
         se.gendut.klipp.engine.Reversals.init(applicationContext)
         se.gendut.klipp.engine.RenderCache.init(applicationContext)
         se.gendut.klipp.engine.Fonts.init(applicationContext)
