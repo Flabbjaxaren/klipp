@@ -405,6 +405,39 @@ vid klippbyten och bör stå med i listan över ändringar som görs om vid uppg
   som syns vid spelhuvudet (förrenderat eller live, antal lager, proxy eller original per lager). Kraschspåret sparar
   filnamn (`lastPathSegment`), aldrig hela sökvägar; ett felmeddelande från systemet kan innehålla en sökväg.
 
-**Inte gjort:** systematisk bildjämförelse förhandsvisning–export med syntetiska klipp på telefon (8.3, utöver Look-
-mätningen), fem minuters driftmätning (testprojektet är 5,7 s), HDR-material, svagare telefoner. Hypoteserna om
-skarvlagrets klocka (risk 6) och det svarta blinket före ett klipp är inte prövade.
+## Bildruta för bildruta med kodade klipp (2026-11-11, vivo X300 Ultra, testversion 19–23)
+
+**Metod.** `tools/framecode/make_clips.sh` gör två 5-minutersklipp (A blått, B rött) där varje bildruta bär sitt
+nummer som 13 svartvita block; `tools/framecode/framecode.py` läser numret ur en skärmbild, ur skärminspelning
+(`adb shell screenrecord`, ungefär 55 bilder/s) eller ur varje bildruta i en export. Projekt 1920×1080, 25 fps: A på V1
+från 0 s; B på V2 från 1,0 s med början 3,0 s in i filen, i halv storlek nere till höger (förväntat: A = t·25,
+B = (t+2)·25). Senare ett snitt i V1 vid 50 s med källan förskjuten 10 s. Avläsning: blocken för 2048 och 4096 ligger
+under nivåmätaren i förhandsvisningens högerkant och läses som 0 – det syns som hopp i koden, inte i bilden.
+
+**Hittat och rättat.**
+1. *Pausat vid en tid där ett klipp börjar på ett övre spår visade huvudbilden nästa bildruta.* `CutSeek.ms` flyttar en
+   pausad sökning 1 ms efter ett snitt, och Media3 visar första bildrutan vid eller efter positionen; snitten togs från
+   alla spår. Nu bara huvudspelarens eget lager (`CutSeek.cutsOf(bottom)`). Test: `PreviewExportTimingTest`.
+2. *Ett övre lagers sista bildruta visade bildrutan före.* Objektet slutade exakt vid segmentets slut; nu en dold svans på
+   0,2 s som exporten (`UPPER_ITEM_TAIL_S`).
+3. *Ett övre lagers första bildruta (och huvudbilden efter en omritning) kunde visa nästa bildruta.* Omritningen knuffade
+   1 ms framåt från en bildrutas egen tid. Nu 1 ms bakåt och tillbaka (`Repaint`); vid 0 en knuff fram och direkt
+   tillbaka; huvudspelaren knuffar framåt bara när den står medvetet efter ett snitt. Test: `PreviewExportTimingTest`.
+4. *Exporten upprepade var femte bildruta (och hoppade över nästa) så länge ett övre lager var tomt.* Media3 fyller
+   luckor med tomma bildrutor i fast 30 fps (`SequenceAssetLoader.BLANK_IMAGE_FRAME_RATE`), och ett tomt översta lager
+   satte exportens bildtider. Nu fylls luckor i kompositorns lager med en svart bild i projektets bildfrekvens
+   (`CompositionBuilder.videoGap`, `BlankFrame`). Efter rättningen: **alla 6000 bildrutor i båda lagren rätt**.
+
+**Mätt utan fel.** Pausat vid 0,52–230,96 s (kanter, tider som Float inte håller exakt, långt in): A och B på exakt rätt
+bildruta, även vid V1-snittet. Under 230 s uppspelning (23 mätpunkter): B − A = 49–50 hela vägen, ingen växande drift
+mellan lagren (−1 när skärmbilden tas mitt i ett byte). Övre lagret i skärminspelning: inga tappade bildrutor.
+
+**Kvar (reproducerbart, inte rättat).** *Vid ett snitt i huvudlagret under uppspelning* visas sista bildrutan före snittet
+ungefär två bildrutors tid (80–100 ms), nästa klipps första bildruta bara ett ögonblick (15–35 ms), och dess andra saknas
+– i alla tre inspelningarna. Skarvlagret ("klippbyten") visar 24 av 25 bildrutor sin sekund. Ett försök att föra lagrens
+klocka framåt mellan huvudspelarens positionsuppdateringar (den står still 30–45 ms) gjorde det inte bättre – huvudspelaren
+och skarvlagret turades om – och togs bort. Mätmetoden ovan ger ett direkt test för en framtida rättning. Det tidigare
+rapporterade *svarta* blinket syntes inte i någon inspelning (inga svarta bildrutor).
+
+**Inte gjort:** HDR-material, svagare telefoner, skarvlagrets klocka för stabiliserade klipp (risk 6), att pausa
+kodningen av proxy och nodcache under uppspelning.
