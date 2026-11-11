@@ -52,6 +52,25 @@ class RenderCacheTest {
         assertNotEquals(c[1].hash, RenderCache.chunks(LayerPlanner.plan(snap("whip")) { 30.0 }!!, { null }, uriOf, 30.0, 1080)[1].hash)
     }
 
+    @Test fun aNewLutUnderTheSameNameMakesTheChunksAgain() {
+        val ctx = org.robolectric.RuntimeEnvironment.getApplication()
+        se.gendut.klipp.engine.LutStore.init(ctx)
+        fun cube(v: Float) = "LUT_3D_SIZE 2\n" + (0 until 8).joinToString("\n") { "$v $v $v" }
+        fun import(v: Float): String {
+            val f = File(ctx.cacheDir, "LUT.cube").apply { writeText(cube(v)) }
+            return se.gendut.klipp.engine.LutStore.import(ctx, Uri.fromFile(f))
+        }
+        val name = import(0.2f)
+        val plan = LayerPlanner.plan(snap("wipe")) { 30.0 }!!
+        val g = ClipGrade(listOf(GradeNode(1, "Primär", lut = name)))
+        val before = RenderCache.chunks(plan, { id -> if (id == 13L) g else null }, uriOf, 30.0, 1080)
+        import(0.8f)
+        val after = RenderCache.chunks(plan, { id -> if (id == 13L) g else null }, uriOf, 30.0, 1080)
+        // where B (with the LUT) is seen, the keys change; the part with only A stays
+        assertEquals(before[0].hash, after[0].hash)
+        assertNotEquals(before[3].hash, after[3].hash)
+    }
+
     @Test fun readyChunksReplaceAllLayersThere() {
         RenderCache.init(ApplicationProvider.getApplicationContext())
         RenderCache.clear()

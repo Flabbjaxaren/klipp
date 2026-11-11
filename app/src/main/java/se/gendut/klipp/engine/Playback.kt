@@ -675,8 +675,15 @@ class ProgramPlayback(private val context: Context) {
     private var buildProblem: String? = null
 
     /** Diagnostics for the program view (long-press "Program"). */
+    /** The parts of the timeline the main player plays from pre-rendered files (diagnostics: which path is seen). */
+    @Volatile var renderedRanges: List<ClosedFloatingPointRange<Double>> = emptyList()
+        private set
+
     fun diagnostics(): String = buildString {
         append("path: bottom layer in the player; upper layers, titles and captions drawn by the app\n")
+        append("look: ").append(when { look.isNeutral -> "none"; lookOnScreen -> "on the whole picture (screen effect, as the export)"; else -> "in each player" }).append('\n')
+        append("frames on screen: %d shown, %d dropped late, %d shown late instead\n".format(
+            androidx.media3.effect.KlippPrecision.framesShown, androidx.media3.effect.KlippPrecision.framesLate, androidx.media3.effect.KlippPrecision.framesRescued))
         append("player: ").append(when (player.playbackState) { 1 -> "idle"; 2 -> "buffering"; 3 -> "ready"; else -> "ended" })
             .append(if (player.isPlaying) ", playing" else "").append('\n')
         append("hdr: ").append(when (hdrMode) { 1 -> "tone-mapped in the decoder"; 2 -> "tone-mapped with OpenGL"; else -> "no (SDR)" }).append('\n')
@@ -812,6 +819,7 @@ class ProgramPlayback(private val context: Context) {
         return try {
             val wasPlaying = player.playWhenReady
             if (dead) replacePlayer()
+            renderedRanges = built.plan?.rendered.orEmpty()
             times = built.times
             preparedAt = android.os.SystemClock.elapsedRealtime()
             renderedFirstFrame = false
