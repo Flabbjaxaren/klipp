@@ -496,6 +496,36 @@ object CutSeek {
         return ms
     }
 
+    /**
+     * Where playback starts. Media3's composition player never gets going when it starts a few frames before the end of
+     * one of its pieces (measured on the vivo: 1–4 frames before the piece where a transition began, ready and "playing"
+     * with all of it loaded, the position stood still; 5 frames before or on the edge itself played). So a start less than
+     * [STALL_WINDOW] before an edge begins [PRE_ROLL] before that edge instead – the moment that follows is seen whole.
+     */
+    fun startSec(sec: Double, edges: DoubleArray): Double {
+        var p = sec
+        // (a step back can land just before an earlier edge: a few rounds at most)
+        repeat(3) {
+            val e = edges.firstOrNull { it - p > 1e-6 && it - p <= STALL_WINDOW } ?: return p
+            p = (e - PRE_ROLL).coerceAtLeast(0.0)
+        }
+        return p
+    }
+    const val STALL_WINDOW = 0.2
+    const val PRE_ROLL = 0.3
+
+    /** Every place a piece of the composition ends: clips and sound clips, transitions and the pre-rendered chunks. */
+    fun edgesOf(s: Snapshot, chunks: List<RenderCache.Chunk>): DoubleArray {
+        val q = s.sequence ?: return DoubleArray(0)
+        val e = ArrayList<Double>()
+        for (t in q.video + q.audio) {
+            for (c in t.clips) { e += c.start; e += c.start + c.duration }
+            for (x in t.transitions) { e += x.start; e += x.end }
+        }
+        for (c in chunks) { e += c.a; e += c.b }
+        return e.filter { it > 0.0 }.distinct().sorted().toDoubleArray()
+    }
+
     /** Edit points in the video tracks (where a video clip starts). */
     fun cutsOf(s: Snapshot): DoubleArray =
         s.sequence?.video?.flatMap { t -> t.clips.filter { it.text == null && it.start > 0.0 }.map { it.start } }?.distinct()?.sorted()?.toDoubleArray() ?: DoubleArray(0)
@@ -717,6 +747,7 @@ class ProgramPlayback(private val context: Context) {
         val chunks = runCatching { CompositionBuilder.previewPlan(s, uriOf)?.let { RenderCache.chunks(it, { id -> grades[id] }, uriOf, s.fps, VideoPipeline.previewShort) } }
             .getOrNull().orEmpty()
         renderChunks = chunks
+        edges = CutSeek.edgesOf(s, chunks)
         val key = "#render" + RenderCache.usedFiles(chunks) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#holds" + FrameHolds.revision + "#rev" + Reversals.revision
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
         LiveGrades.publish(grades)
@@ -840,12 +871,16 @@ class ProgramPlayback(private val context: Context) {
         }
         if (!hasContent) return buildProblem?.let { Str.t(R.string.playback_could_not_start, it) } ?: Str.t(R.string.playback_nothing_to_play)
         val ended = player.playbackState == androidx.media3.common.Player.STATE_ENDED
-        if (ended || kotlin.math.abs(positionSec - positionSec()) > 0.05) seek(positionSec)
+        // not a few frames before the end of a piece: there the composition player never starts (see CutSeek.startSec)
+        val from = CutSeek.startSec(positionSec, edges)
+        if (from != positionSec) se.gendut.klipp.CrashReport.note("start: %.3f s is just before an edge – from %.3f s".format(java.util.Locale.ROOT, positionSec, from))
+        if (ended || from != positionSec || kotlin.math.abs(from - positionSec()) > 0.05) seek(from)
         player.play()
         return null
     }
 
     private var cuts = DoubleArray(0)
+    private var edges = DoubleArray(0)
     private var cutFps = 25.0
     private fun seekMs(sec: Double) = CutSeek.ms(inside(sec), cuts, cutFps, player.playWhenReady)
 

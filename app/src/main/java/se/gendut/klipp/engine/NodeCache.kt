@@ -50,7 +50,7 @@ object NodeCache {
     /** What a cache file should contain. */
     class Req(val clip: Long, val uri: Uri, val start: Double, val end: Double, val point: Int, val nodes: List<GradeNode>, val key: String)
 
-    private const val VERSION = 3
+    private const val VERSION = 4
     private const val HANDLE = 2.0
 
     private val ready = java.util.concurrent.ConcurrentHashMap<String, Entry>()
