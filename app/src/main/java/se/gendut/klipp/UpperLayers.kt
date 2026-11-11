@@ -219,7 +219,7 @@ private fun LayerVideo(
             val mainMs = main?.currentPosition
             val advancing = mainMs != null && lastMainMs >= 0 && mainMs != lastMainMs && main.isPlaying
             lastMainMs = mainMs ?: -1L
-            val t = if (mainMs != null && state.playing) mainMs / 1000.0 else state.playhead.toDouble()
+            val t = if (mainMs != null && state.playing) mainMs / 1000.0 else se.gendut.klipp.playheadSec(state.playhead)
             var i = if (handoff && !state.playing) -1 else segs.indices.indexOfFirst { k -> t >= segs[k].start - preS(k) && t < segs[k].end }
             if (handoff && !state.playing && handSeg >= 0 && handHid.isNotEmpty() && !handDown) {
                 // paused during the handover: the main player draws its frame again (a seek one millisecond away, as
@@ -346,7 +346,8 @@ private fun LayerVideo(
             // freeze frame: stays on the frame (the segment's start) the whole time
             val speed = media?.speed?.toFloat() ?: 1f
             if (abs(player.playbackParameters.speed - speed) > 0.0001f) player.setPlaybackSpeed(speed)
-            val target = if (media == null) 0L else ((t - seg.start) * speed * 1000).roundToLong() + preMs[i]
+            // (the item starts at the segment's source time, less its pre-roll: the same mapping as the export, Seg.sourceAt)
+            val target = if (media == null) 0L else (((seg.sourceAt(t) ?: media.srcIn) - media.srcIn) * 1000).roundToLong() + preMs[i]
             clock.srcIn = media?.let { it.srcIn - preMs[i] / 1000.0 } ?: (seg.src as SegSrc.Still).sec; clock.posSec = target / 1000.0; clock.item = seg.src.item
             // (once going it keeps going while the main player plays: its reported position often stands still for a few
             // display frames although it plays on – the layer was paused, and often sought, at each of those)

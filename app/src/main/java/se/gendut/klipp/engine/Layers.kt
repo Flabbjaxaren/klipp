@@ -114,6 +114,16 @@ data class Seg(
     fun geomAt(t: Double): Geom? = windows.firstOrNull { t >= it.t0 - 1e-6 && t <= it.t1 + 1e-6 }?.at(t) ?: fx?.at(t)
     val hasFx get() = fx != null || windows.isNotEmpty()
     fun alpha(t: Double): Float = ((clip?.at(t)?.opacity ?: 100.0) / 100.0).toFloat().coerceIn(0f, 1f) * (ramp?.at(t) ?: 1f)
+
+    /**
+     * The second in the file shown at timeline time [t] – the one mapping the preview's layers and the export share
+     * (a freeze frame shows its frame throughout; outside the segment: null).
+     */
+    fun sourceAt(t: Double): Double? = when (val s = src) {
+        is SegSrc.Still -> s.sec
+        // (the same bounds as Layer.at: a segment found there always has a source time)
+        is SegSrc.Media -> if (t < start || t >= end) null else s.srcIn + (t - start) * s.speed
+    }
 }
 
 /**
