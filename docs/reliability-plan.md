@@ -426,3 +426,20 @@ Kartläggningen är gjord (ovan). **[Ändrat]** Börja med **PR 3:s första punk
 befintlig fil) som en liten separat rättning, sedan **PR 1** och **PR 2**, därefter resten av PR 3, PR 7:s
 foreground-export, **PR 4 och PR 8 ihop** (8.1 kartläggningen kan göras direkt; 8.2–8.4 använder PR 4:s testprojekt
 och harness; 8.5 samordnas med foreground-exporten), och sist PR 5–6.
+
+---
+
+## Status 2026-11-11 (genomfört på `design-test`)
+
+| Del | Status | Tester |
+|---|---|---|
+| Säker projektexport (PR 3 punkt 1) | Klar: befintlig fil ersätts bara av ett färdigt, kontrollerat paket; varje paket läses tillbaka (`ProjectPackage.verify`, zip-slutpost, storlekar). | `ProjectPackageTest` |
+| PR 1 Exportplan | Klar: `ExportPlan.resolve` delas av dialog och export; Ja/Nej/Vet ej; spärrad knapp; "Använd HEVC"; sammanfattningen visar det som görs. | `ExportPlanTest`, `ExportDialogTest` |
+| PR 2 Projektåtgärder | Klar: ⋮ på senast öppnat-kortet, egna menyrader, text om att versioner inte är säkerhetskopior. Hittat och rättat: sidan öppnades förbi det stora kortet. | `ProjectsTest` |
+| PR 3 Säkerhetskopior | Klar: mapp via SAF, ny fil per kopia, verifiering, status på kortet, tappad mapp, ofullständigt paket vid import. | `BackupsTest`, `ProjectsTest`, `ProjectPackageTest`; på vivo X300 Ultra: kopia 1,3 GB, återställd identisk tidslinje, borttagen mapp ger rätt fel |
+| PR 7 Export i förgrunden | Klar: foreground service (mediaProcessing/dataSync), avisering, avbruten export visas i dialog vid nästa start, temporärfiler rensas. | `ExportGuardTest`; på vivo: 4K 10-bit HEVC klar i bakgrunden, force-stop → dialog, ingen fil |
+| PR 4a / 8.2 (dator) | Klar: gemensam `Seg.sourceAt`, bildruta för bildruta på trelagersprojekt. Hittat och rättat: Float-spelhuvudet gjorde att ett övre lager började en bildruta för sent i förhandsvisningen. | `PreviewExportTimingTest` (fångar avsiktligt fel) |
+| PR 8.1 Kartläggning | Klar: `docs/media3-rendering.md` (13 verifierade risker). | – |
+| PR 5 Projektstart och förval | Klar. | `ProjectsTest`, `ExportPlanTest` |
+| PR 6 Gester | Klar: Hjälp i Inställningar med knappalternativ, "Visa tipsen igen". Raderingsgesten hade redan skylt och haptik. | `SettingsHelpTest` |
+| PR 4b/4c, 8.3–8.6 på telefon | **Inte gjort**: bildjämförelse förhandsvisning–export på telefon, färgkedjan, resurscykler, utbyggd diagnostik. | – |
