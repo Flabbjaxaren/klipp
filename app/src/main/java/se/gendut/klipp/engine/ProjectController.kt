@@ -1120,8 +1120,13 @@ class ProjectController(
         if (packProgress != null) return@launch
         if (id == currentId) save()
         packProgress = 0f
+        // a file that was there before (the user chose to replace it) is never cut off or removed: the package is made
+        // and checked beside it first, and only a whole package replaces it
+        var replacing = false
+        var ours = false
         try {
             val w = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                replacing = sizeOf(to) > 0
                 val pf = File(projectDir, "$id.fcproj")
                 val side = readSide(File(projectDir, "$id.media.json")).first
                 side.put("exportSettings", ExportSettings.load(context, id).toJson())
@@ -1129,10 +1134,30 @@ class ProjectController(
                 val links = (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { o -> runCatching { o.getLong("item") to Uri.parse(o.getString("uri")) }.getOrNull() } }
                 val media = if (!withMedia) emptyList() else links.map { (item, u) -> ProjectPackage.Media(item, displayName(u)) { context.contentResolver.openInputStream(u) } }
                 val size = pf.length() + (if (withMedia) links.sumOf { sizeOf(it.second) } else 0L)
-                val out = context.contentResolver.openOutputStream(to, "wt") ?: throw java.io.IOException(Str.t(R.string.projectcontroller_package_write_failed))
-                out.use { o ->
+                fun pack(o: java.io.OutputStream) =
                     ProjectPackage.write(o, pf.readBytes(), side, thumbFile(id).takeIf { it.exists() }?.readBytes(), media, se.gendut.klipp.BuildConfigShim.version, progressOf(size))
+                val written = if (replacing) {
+                    val tmp = File(context.cacheDir, "package_${System.currentTimeMillis()}.klipp")
+                    try {
+                        if (context.cacheDir.usableSpace < size + size / 20 + 50_000_000L) throw java.io.IOException(Str.t(R.string.projectcontroller_package_no_space))
+                        val r = tmp.outputStream().use { pack(it) }
+                        val v = tmp.inputStream().use { ProjectPackage.verify(it) }
+                        if (!v.ok) throw java.io.IOException(Str.t(R.string.projectcontroller_package_verify_failed, v.problem.orEmpty()))
+                        val out = context.contentResolver.openOutputStream(to, "wt") ?: throw java.io.IOException(Str.t(R.string.projectcontroller_package_write_failed))
+                        out.use { o -> tmp.inputStream().use { it.copyTo(o, 1 shl 16) } }
+                        r
+                    } finally {
+                        tmp.delete()
+                    }
+                } else {
+                    val out = context.contentResolver.openOutputStream(to, "wt") ?: throw java.io.IOException(Str.t(R.string.projectcontroller_package_write_failed))
+                    ours = true
+                    out.use { pack(it) }
                 }
+                // read back what landed in the chosen place: only a whole package counts as saved
+                val v = context.contentResolver.openInputStream(to)?.use { ProjectPackage.verify(it) } ?: ProjectPackage.Verified(false, "cannot be read back")
+                if (!v.ok) throw java.io.IOException(Str.t(R.string.projectcontroller_package_verify_failed, v.problem.orEmpty()))
+                written
             }
             onMessage(when {
                 !withMedia -> Str.t(R.string.projectcontroller_exported)
@@ -1140,10 +1165,11 @@ class ProjectController(
                 else -> Str.p(R.plurals.projectcontroller_exported_missing, w.unreadable.size, w.unreadable.size)
             })
         } catch (e: CancellationException) {
+            if (ours) runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, to) }
             throw e
         } catch (e: Exception) {
-            // a half-written file is no use: removed
-            runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, to) }
+            // a half-written file that this export created is no use: removed (a file that was there before is left)
+            if (ours) runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, to) }
             onMessage(Str.t(R.string.projectcontroller_export_project_failed, e.message.orEmpty()))
         } finally {
             packProgress = null

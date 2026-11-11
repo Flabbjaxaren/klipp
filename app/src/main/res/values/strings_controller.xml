@@ -49,6 +49,8 @@
     <string name="projectcontroller_copy_name">%1$s (copy)</string>
     <string name="projectcontroller_project_fallback_name">Project</string>
     <string name="projectcontroller_package_write_failed">Couldn\'t write the file</string>
+    <string name="projectcontroller_package_no_space">Not enough free space to make the package safely before it replaces the old file</string>
+    <string name="projectcontroller_package_verify_failed">The package did not check out: %1$s</string>
     <string name="projectcontroller_package_read_failed">Couldn\'t read the file</string>
     <string name="projectcontroller_exported">Project exported</string>
     <plurals name="projectcontroller_exported_media">
