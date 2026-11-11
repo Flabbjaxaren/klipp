@@ -81,7 +81,9 @@ object ProjectPackage {
     }
 
     /** A read package: the project, the side file, the thumbnail, and the unpacked media files per item. */
-    class Unpacked(val project: ByteArray, val side: JSONObject, val thumb: ByteArray?, val media: Map<Long, File>)
+    class Unpacked(val project: ByteArray, val side: JSONObject, val thumb: ByteArray?, val media: Map<Long, File>,
+        /** Media files that couldn't be read when the package was made (they are offline in the project). */
+        val missing: Int = 0)
 
     class NotAPackage(msg: String) : Exception(msg)
 
@@ -134,7 +136,7 @@ object ProjectPackage {
                 media[o.optLong("item", -1L).takeIf { it >= 0 } ?: continue] = f
             }
         }
-        return Unpacked(p, s, thumb, media)
+        return Unpacked(p, s, thumb, media, manifest?.optJSONArray("missing")?.length() ?: 0)
     }
 
     /** What [verify] found: [ok], or the first [problem]; [complete] = no media file was missing when it was written. */

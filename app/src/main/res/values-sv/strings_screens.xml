@@ -134,7 +134,16 @@
     <string name="projectsscreen_import">Importera</string>
     <string name="projectsscreen_export_with_media_hint">Allt i en fil: öppnas på en annan telefon eller efter en ominstallation av Klipp. Lika stor som videorna.</string>
     <string name="projectsscreen_export_only_hint">Liten: klippningen, graderingen och namnen. Medierna ligger kvar där de är på den här telefonen.</string>
-    <string name="projectsscreen_backup_with_media">Säkerhetskopiera med media…</string>
+    <string name="projectsscreen_backup_now">Säkerhetskopiera nu</string>
+    <string name="projectsscreen_backup_now_hint">Till ”%1$s”, med media. En ny fil varje gång – tidigare kopior ligger kvar som de är.</string>
+    <string name="projectsscreen_backup_choose">Säkerhetskopiera till en mapp…</string>
+    <string name="projectsscreen_backup_choose_hint">Välj en mapp en gång – på ett minneskort, ett USB-minne eller i Filer. Varje säkerhetskopia blir en ny fil där, med media.</string>
+    <string name="projectsscreen_backup_change">Byt mapp för säkerhetskopior…</string>
+    <string name="projectsscreen_backup_never">Aldrig säkerhetskopierad</string>
+    <string name="projectsscreen_backup_at">Säkerhetskopierad %1$s</string>
+    <string name="projectsscreen_backup_changed">Ändrad sedan säkerhetskopian %1$s</string>
+    <string name="projectsscreen_backup_incomplete">Säkerhetskopierad %1$s – media saknades</string>
+    <string name="projectsscreen_backup_with_media">Exportera med media till en fil…</string>
     <string name="projectsscreen_export_file_only">Exportera bara projektfilen…</string>
     <string name="projectsscreen_safety_note">Projekt och deras tidigare versioner sparas inne i Klipp: avinstalleras appen eller rensas dess data försvinner de. En säkerhetskopia med media är en egen fil som du behåller.</string>
     <string name="projectsscreen_versions_not_backup">Tidigare versioner sparas inne i Klipp och är ingen säkerhetskopia: de försvinner med appen om den avinstalleras.</string>

@@ -21,6 +21,7 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import org.junit.Assert.assertTrue
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextContains
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -41,6 +42,11 @@ class FakeProjects : ProjectsBackend {
     override fun rename(id: String, name: String) { log += "rename $id $name" }
     override fun duplicate(id: String) { log += "dup $id" }
     override fun delete(id: String) { log += "delete $id" }
+    var folder: String? = null
+    var info = BackupInfo(null, false, true)
+    override fun backupFolder() = folder
+    override fun backup(id: String, name: String) { log += "backup $id" }
+    override fun backupInfo(id: String) = info
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -113,7 +119,7 @@ class ProjectsTest {
         rule.waitForIdle()
         assertTrue("nothing opened", fake.log.isEmpty())
         assertEquals(0, closed)
-        rule.onNodeWithText("Säkerhetskopiera med media…").assertExists()
+        rule.onNodeWithText("Exportera med media till en fil…").assertExists()
         rule.onNodeWithText("Exportera bara projektfilen…").assertExists()
         rule.onNodeWithTag("safetyNote").assertExists()
         rule.onRoot().captureRoboImage("build/shots/35_projekt_meny.png")
@@ -125,8 +131,33 @@ class ProjectsTest {
         // the long press still opens the same menu
         rule.onNodeWithTag("project:p1").performTouchInput { longClick() }
         rule.waitForIdle()
-        rule.onNodeWithText("Säkerhetskopiera med media…").assertExists()
+        rule.onNodeWithText("Exportera med media till en fil…").assertExists()
         assertTrue(fake.log.isEmpty())
+    }
+
+    @Test fun backupsGoToTheChosenFolderAndTheCardTellsHowItStands() {
+        val fake = FakeProjects().apply { folder = "Klipp-kopior"; info = BackupInfo(java.util.GregorianCalendar(2026, 10, 11, 14, 20).timeInMillis, changed = true, complete = true) }
+        rule.setContent { KlippTheme { ProjectsScreen(fake) {} } }
+        rule.waitForIdle()
+        // the hero card says the project changed since the backup
+        rule.onNodeWithTag("heroBackup").assertTextContains("Ändrad sedan säkerhetskopian", substring = true)
+        rule.onNodeWithTag("projectMenu:p1").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("backupStatus").assertExists()
+        rule.onNodeWithText("Till ”Klipp-kopior”", substring = true).assertExists()
+        rule.onNodeWithTag("backupNow").performScrollTo().performClick()
+        assertEquals("backup p1", fake.log.last())
+    }
+
+    @Test fun withoutAFolderTheMenuOffersToChooseOne() {
+        val fake = FakeProjects()
+        rule.setContent { KlippTheme { ProjectsScreen(fake) {} } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("heroBackup").assertTextContains("Aldrig säkerhetskopierad")
+        rule.onNodeWithTag("projectMenu:p1").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("backupChoose").assertExists()
+        rule.onNodeWithTag("backupNow").assertDoesNotExist()
     }
 
     @Test fun eachBackupGetsANameOfItsOwn() {
