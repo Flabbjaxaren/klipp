@@ -52,11 +52,11 @@ class OpenDrtTest {
     }
 
     /**
-     * vivo Log has no published spec: the decode and the gamut were measured from DaVinci Resolve 21.1.1 (input
+     * vivo Log has no published spec: the decode and the gamut were measured from reference renders (input
      * "Vivo Wide Gamut/Vivo Log" → DaVinci WG/Intermediate, 16-bit TIFF render). Rows: vivo Log code values, then
-     * Resolve's DaVinci Intermediate output.
+     * the reference DaVinci Intermediate output.
      */
-    @Test fun vivoLogMatchesResolve() {
+    @Test fun vivoLogMatchesTheReference() {
         val ref = listOf(
             doubleArrayOf(0.097752, 0.097752, 0.097752, 0.008927, 0.008927, 0.008927),
             doubleArrayOf(0.127077, 0.127077, 0.127077, 0.057298, 0.057298, 0.057298),
@@ -86,7 +86,12 @@ class OpenDrtTest {
         val vivo = OpenDrt.Input.of("vivo")
         assertEquals(OpenDrt.Input.VIVO, vivo)
         val toDwg = inv3(OpenDrt.M.DWG_TO_XYZ.map { it.toDouble() })
-        val g = vivo.gamut.map { it.toDouble() }
+        // the log curve against the reference transform, with the reference gamut (Klipp's own gamut follows vivo's LUT instead)
+        val referenceGamut = listOf(0.6481493972540809, 0.1575487681456304, 0.14475776165196025, 0.27135463226395545, 0.7925205414874028, -0.06387517375135825, -0.0018353373842675902, -0.126500213210501, 1.217393301354647)
+        val g = referenceGamut
+        // Klipp's vivo colors keep white white
+        val kg = vivo.gamut.map { it.toDouble() }
+        for (r in 0..2) assertEquals(listOf(0.3127 / 0.329, 1.0, (1 - 0.3127 - 0.329) / 0.329)[r], kg[r * 3] + kg[r * 3 + 1] + kg[r * 3 + 2], 1e-4)
         // white stays white (D65 from x 0.3127, y 0.3290)
         for (r in 0..2) assertEquals(listOf(0.3127 / 0.329, 1.0, (1 - 0.3127 - 0.329) / 0.329)[r], g[r * 3] + g[r * 3 + 1] + g[r * 3 + 2], 1e-4)
         fun di(x: Double) = if (x <= 0.00262409) x * 10.44426855 else (kotlin.math.log2(x + 0.0075) + 7.0) * 0.07329248
@@ -100,7 +105,7 @@ class OpenDrtTest {
                 assertTrue("${row.toList()} channel $r off by $d", d < 5e-4)
             }
         }
-        println("vivo Log largest deviation from Resolve (DaVinci Intermediate code values): $worst")
+        println("vivo Log largest deviation from the reference (DaVinci Intermediate code values): $worst")
     }
 
     private fun inv3(m: List<Double>): DoubleArray {

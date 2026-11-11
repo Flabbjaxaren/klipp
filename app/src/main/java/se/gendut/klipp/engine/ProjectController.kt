@@ -143,7 +143,7 @@ class ProjectController(
                         val first = snap.media.firstOrNull { it.hasVideo }
                         val p = newSeqParams()
                         if (first != null && first.width > 0) {
-                            p.put("width", first.width).put("height", first.height).put("fps", normalizeFps(first.fps))
+                            p.put("width", first.width).put("height", first.height).put("fps", firstFps(first.fps, uris[first.id]))
                         }
                         engine.exec("file.newSequence", p)
                     }
@@ -160,6 +160,28 @@ class ProjectController(
             opened.forEachIndexed { k, (_, pfd, _) -> if (k in used) fds += pfd else runCatching { pfd.close() } }
             busy = false
         }
+    }
+
+    /**
+     * The new sequence's frame rate from the first clip's. Some files report none to the engine (0): then Android's
+     * reading of the file, and failing that 30 – the engine refuses a sequence without a frame rate, and the import with it.
+     */
+    private fun firstFps(engineFps: Double, uri: Uri?): Double {
+        fun ok(f: Double?) = f != null && f.isFinite() && f > 0.5 && f <= 1000.0
+        if (ok(engineFps)) return normalizeFps(engineFps)
+        val probed = uri?.let { u ->
+            runCatching {
+                val x = android.media.MediaExtractor()
+                try {
+                    x.setDataSource(context, u, null)
+                    (0 until x.trackCount).map { x.getTrackFormat(it) }
+                        .firstOrNull { it.getString(android.media.MediaFormat.KEY_MIME)?.startsWith("video/") == true && it.containsKey(android.media.MediaFormat.KEY_FRAME_RATE) }
+                        ?.let { f -> runCatching { f.getInteger(android.media.MediaFormat.KEY_FRAME_RATE).toDouble() }.getOrElse { f.getFloat(android.media.MediaFormat.KEY_FRAME_RATE).toDouble() } }
+                } finally { x.release() }
+            }.getOrNull()
+        }
+        se.gendut.klipp.CrashReport.note("import: the engine read no frame rate ($engineFps), Android read $probed")
+        return if (ok(probed)) normalizeFps(probed!!) else 30.0
     }
 
     private fun normalizeFps(f: Double): Double {
