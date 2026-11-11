@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -18,6 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
@@ -47,8 +49,14 @@ private val KEYFRAMES = listOf(0f, 0.5f, 1f, 2f, 5f)
 fun ExportOptions(
     s: ExportSettings, seqW: Int, seqH: Int, projectFps: Double,
     hdrPossible: Boolean, hdrBlocked: String?,
+    /** Some clip is 10-bit (null = not known). */
+    anyTenBit: Boolean? = null,
+    caps: se.gendut.klipp.engine.EncoderInfo = se.gendut.klipp.engine.PhoneEncoders,
     onChange: (ExportSettings) -> Unit,
 ) {
+    // the same plan the export itself follows: what is made, what is refused, what to know
+    fun planOf(x: ExportSettings) = se.gendut.klipp.engine.ExportPlan.resolve(x, seqW, seqH, projectFps, hdrPossible, anyTenBit, hdrBlocked != null, caps)
+    val plan = planOf(s)
     val (ow, oh) = s.outputSize(seqW, seqH)
     val outFps = s.outputFps(projectFps)
     val auto = stringResource(R.string.exportui_auto)
@@ -59,19 +67,20 @@ fun ExportOptions(
         listOf(stringResource(R.string.exportui_tab_video), stringResource(R.string.exportui_tab_quality), stringResource(R.string.exportui_color), stringResource(R.string.exportui_audio)),
         tab, { tab = it }, Modifier.padding(vertical = 6.dp).fillMaxWidth(), tag = { "expTab:$it" },
     )
+    ExportIssues(plan, onChange)
     when (tab) {
         0 -> {
     DropField(stringResource(R.string.exportui_resolution), HEIGHTS.map { h ->
         val (w2, h2) = s.copy(height = h).outputSize(seqW, seqH)
-        val ok = EncoderCaps.sizeSupported(s.codec, w2, h2)
+        // only a size no encoder can make is closed (one the chosen codec can't make is made in another)
+        val p2 = planOf(s.copy(height = h))
         Opt(h, if (h == 0) projects else if (h == 2160) "4K" else "${h}p",
-            if (!ok) stringResource(R.string.exportui_res_hint_unsupported, w2, h2)
+            if (!p2.ok) stringResource(R.string.exportui_res_hint_unsupported, w2, h2)
             else if (h > 0 && minOf(w2, h2) > minOf(seqW, seqH)) stringResource(R.string.exportui_res_hint_upscaled, w2, h2)
+            else if (p2.effective.codec != s.codec && !p2.tenBit) "${w2}×$h2 · ${codecName(p2.effective.codec)}"
             else "${w2}×$h2",
-            enabled = ok || h == s.height, key = "h$h")
+            enabled = p2.ok || h == s.height, key = "h$h")
     }, s.height, "exp:res") { onChange(s.copy(height = it)) }
-    if (minOf(ow, oh) > minOf(seqW, seqH)) Note(stringResource(R.string.exportui_note_upscaled))
-    if (!EncoderCaps.sizeSupported(s.codec, ow, oh)) Note(stringResource(R.string.exportui_note_size_unsupported, ow, oh))
 
     // higher than the project isn't possible (frames aren't invented); same as the project = "Project"
     val fpsOpts = listOf(Opt(0.0, projects, stringResource(R.string.exportui_fps_value, fpsLabel(projectFps)), key = "fps0")) +
@@ -86,7 +95,8 @@ fun ExportOptions(
 
     // bit depth (SDR): Auto follows the sources – 10-bit is encoded as HEVC/AV1 Main10 (H.264 is then swapped for HEVC)
     if (!s.hdr) {
-        val tenCodec = remember { se.gendut.klipp.engine.VideoPipeline.tenBitCodec(s.codec) }
+        // (follows the codec: not remembered)
+        val tenCodec = se.gendut.klipp.engine.ExportPlan.tenBitCodec(s.codec, caps)
         val tenHint = when {
             tenCodec == null -> stringResource(R.string.exportui_bits_no_ten)
             s.codec == MimeTypes.VIDEO_H264 -> stringResource(R.string.exportui_bits_h264_hevc)
@@ -185,12 +195,17 @@ private const val CUSTOM_Q = 99
 fun ExportDialog(
     initial: ExportSettings, defaultName: String, seqW: Int, seqH: Int, projectFps: Double, seconds: Double,
     hdrPossible: Boolean, hdrBlocked: String?,
+    anyTenBit: Boolean? = null,
+    caps: se.gendut.klipp.engine.EncoderInfo = se.gendut.klipp.engine.PhoneEncoders,
     onDismiss: () -> Unit, onExport: (ExportSettings, String) -> Unit,
 ) {
     var s by remember { mutableStateOf(initial) }
     var name by remember { mutableStateOf(defaultName) }
-    val (ow, oh) = s.outputSize(seqW, seqH)
-    val mb = s.estimateMb(seqW, seqH, projectFps, seconds)
+    val plan = se.gendut.klipp.engine.ExportPlan.resolve(s, seqW, seqH, projectFps, hdrPossible, anyTenBit, hdrBlocked != null, caps)
+    val ow = plan.width
+    val oh = plan.height
+    // the estimate and the summary are for what is actually made (the codec may have been swapped)
+    val mb = plan.effective.estimateMb(seqW, seqH, projectFps, seconds)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.exportui_title)) },
@@ -199,20 +214,70 @@ fun ExportDialog(
                 // the same height on every tab, so the dialog stays where it is when the tab changes; the summary is always in view
                 Column(Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
                     TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
-                    ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked) { s = it }
+                    ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps) { s = it }
                 }
                 Text(
-                    "${ow}×$oh · ${stringResource(R.string.exportui_fps_value, fpsLabel(s.outputFps(projectFps)))} · ${EncoderCaps.codecs.firstOrNull { it.mime == s.codec }?.label?.substringBefore(" ·") ?: "H.264"} · " +
+                    "${ow}×$oh · ${stringResource(R.string.exportui_fps_value, fpsLabel(plan.fps))} · ${codecName(plan.effective.codec)}" +
+                        (if (plan.hdr) " HDR" else if (plan.tenBit) " 10-bit" else "") + " · " +
                         (if (s.bitrateMbps > 0f) mbpsLabel(s.bitrateMbps.toDouble()) else stringResource(R.string.exportui_auto_lower)) + " · ≈ ${sizeLabel(mb)}",
                     color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).testTag("exp:summary"),
                 )
             }
         },
-        confirmButton = { FlatTextButton(onClick = { onExport(s, name.ifBlank { defaultName }) }, modifier = Modifier.testTag("exp:go")) { Text(stringResource(R.string.exportui_go)) } },
+        // a plan that can't be made can't be started (the reason is shown above the options)
+        confirmButton = {
+            FlatTextButton(onClick = { if (plan.ok) onExport(s, name.ifBlank { defaultName }) }, enabled = plan.ok, modifier = Modifier.testTag("exp:go")) {
+                Text(stringResource(R.string.exportui_go))
+            }
+        },
         dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.exportui_cancel)) } },
         containerColor = K.SurfaceHigh,
     )
+}
+
+/** The codec's short name ("H.264", "HEVC", "AV1"). */
+fun codecName(mime: String): String = EncoderCaps.codecs.firstOrNull { it.mime == mime }?.label?.substringBefore(" ·") ?: when (mime) {
+    MimeTypes.VIDEO_H265 -> "HEVC"
+    MimeTypes.VIDEO_AV1 -> "AV1"
+    else -> "H.264"
+}
+
+/** What an issue of an export plan means, in words (also the export's error message). */
+fun exportIssueText(i: se.gendut.klipp.engine.ExportPlan.Issue, plan: se.gendut.klipp.engine.ExportPlan): String {
+    val w = plan.width
+    val h = plan.height
+    val c = i.codec?.let(::codecName).orEmpty()
+    return when (i.kind) {
+        se.gendut.klipp.engine.ExportPlan.Kind.SIZE_NONE -> Str.t(R.string.exportplan_size_none, w, h)
+        se.gendut.klipp.engine.ExportPlan.Kind.SIZE_OTHER_CODEC -> Str.t(R.string.exportplan_size_other, c, w, h, i.other?.let(::codecName).orEmpty())
+        se.gendut.klipp.engine.ExportPlan.Kind.SIZE_UNKNOWN -> Str.t(R.string.exportplan_size_unknown, c, w, h)
+        se.gendut.klipp.engine.ExportPlan.Kind.UPSCALED -> Str.t(R.string.exportui_note_upscaled)
+        se.gendut.klipp.engine.ExportPlan.Kind.RATE_UNLISTED -> Str.t(R.string.exportplan_rate_unlisted, c, fpsLabel(plan.fps))
+        se.gendut.klipp.engine.ExportPlan.Kind.TEN_BIT_NONE -> Str.t(R.string.exportplan_ten_none)
+        se.gendut.klipp.engine.ExportPlan.Kind.HDR_TO_SDR -> Str.t(R.string.exportplan_hdr_sdr)
+        se.gendut.klipp.engine.ExportPlan.Kind.HDR_GRADED -> Str.t(R.string.app_hdr_blocked)
+    }
+}
+
+/** The plan's errors (red, with a way out when there is one) and what to know (muted), above the options. */
+@Composable
+private fun ExportIssues(plan: se.gendut.klipp.engine.ExportPlan, onFix: (ExportSettings) -> Unit) {
+    if (plan.errors.isEmpty() && plan.warnings.isEmpty()) return
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp).testTag("exp:issues"), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        for (i in plan.errors + plan.warnings) {
+            val error = i in plan.errors
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(exportIssueText(i, plan), color = if (error) K.Error else K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp,
+                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp).testTag("exp:issue:${i.kind.name}"))
+                i.fix?.let { f ->
+                    FlatTextButton(onClick = { onFix(f) }, modifier = Modifier.testTag("exp:fix")) {
+                        Text(stringResource(R.string.exportplan_fix, codecName(f.codec)), fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+    }
 }
 
 /** 44100 → "44.1 kHz" ("44,1 kHz" in Swedish), 48000 → "48 kHz". */

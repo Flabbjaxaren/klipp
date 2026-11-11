@@ -52,7 +52,6 @@
     <string name="exportui_res_hint_unsupported">%1$d×%2$d · kodaren klarar inte</string>
     <string name="exportui_res_hint_upscaled">%1$d×%2$d · uppskalad</string>
     <string name="exportui_note_upscaled">Större än projektet: bilden skalas upp (ingen ny skärpa).</string>
-    <string name="exportui_note_size_unsupported">Telefonens kodare klarar inte %1$d×%2$d med den här kodeken – närmaste möjliga används.</string>
     <string name="exportui_fps_value">%1$s bilder/s</string>
     <string name="exportui_frame_rate">Bildfrekvens</string>
     <string name="exportui_codec">Kodek</string>
@@ -252,4 +251,12 @@
         <item quantity="one">De används %1$d gånger i tidslinjen – de klippen tas också bort.</item>
         <item quantity="other">De används %1$d gånger i tidslinjen – de klippen tas också bort.</item>
     </plurals>
+    <!-- ExportPlan (ExportUi.kt) -->
+    <string name="exportplan_size_none">Ingen kodare i telefonen klarar %1$d×%2$d – välj en lägre upplösning</string>
+    <string name="exportplan_size_other">%1$s klarar inte %2$d×%3$d i telefonen, så filen görs i %4$s</string>
+    <string name="exportplan_size_unknown">Telefonen säger inte om %1$s klarar %2$d×%3$d – exporten försöker</string>
+    <string name="exportplan_rate_unlisted">%1$s-kodaren anger inte %2$s fps i den här storleken – den kan välja en annan</string>
+    <string name="exportplan_ten_none">Ingen kodare i telefonen gör 10-bit – filen blir 8-bit</string>
+    <string name="exportplan_hdr_sdr">Telefonen kan inte koda HDR – filen blir SDR</string>
+    <string name="exportplan_fix">Använd %1$s</string>
 </resources>

@@ -982,19 +982,17 @@ object Exporter {
         // the reversed clips' files likewise (otherwise they played forwards in the file)
         runCatching { Reversals.await(context, s, uriOf) }.onFailure { return Result.failure(it) }
         val anyHdr = withContext(Dispatchers.IO) { CompositionBuilder.anyHdr(context, s, probe = true, uriOf = uriOf) }
-        // HDR is kept only when possible: HDR sources, an encoder for HDR (HEVC, 10-bit) – otherwise tone-mapped to SDR
-        val keepHdr = settings.hdr && anyHdr && EncoderCaps.hdrSupported
-        if (keepHdr) {
-            val st = settings.copy(codec = MimeTypes.VIDEO_H265)
-            return exportOnce(context, s, uriOf, name, look, master, grades, fx, androidx.media3.transformer.Composition.HDR_MODE_KEEP_HDR, st, false, onProgress)
-        }
-        // SDR: 10-bit when selected, or (Auto) when some video clip is 10-bit – in HEVC/AV1 Main10
         val anyTen = withContext(Dispatchers.IO) { CompositionBuilder.anyTenBit(context, s, uriOf) }
-        val wantTen = settings.bitDepth == 10 || (settings.bitDepth == 0 && anyTen)
-        val tenCodec = if (wantTen) VideoPipeline.tenBitCodec(settings.codec) else null
-        val tenBit = tenCodec != null
-        if (wantTen && !tenBit) se.gendut.klipp.CrashReport.note("export: 10-bit requested but no encoder supports Main10 – 8-bit")
-        val st = settings.copy(hdr = false, codec = tenCodec ?: settings.codec)
+        // what is made: the same plan the export dialog showed (HDR or SDR, 8 or 10 bits, the codec for the size)
+        val q0 = s.sequence
+        val plan = ExportPlan.resolve(settings, q0?.width ?: 1920, q0?.height ?: 1080, s.fps, anyHdr, anyTen, graded = false, caps = PhoneEncoders)
+        plan.errors.firstOrNull()?.let { return Result.failure(IllegalStateException(se.gendut.klipp.exportIssueText(it, plan))) }
+        if (plan.warnings.isNotEmpty()) se.gendut.klipp.CrashReport.note("export plan: ${plan.warnings.joinToString { it.kind.name }} → ${plan.effective.codec}${if (plan.tenBit) " 10-bit" else ""}")
+        if (plan.hdr) {
+            return exportOnce(context, s, uriOf, name, look, master, grades, fx, androidx.media3.transformer.Composition.HDR_MODE_KEEP_HDR, plan.effective, false, onProgress)
+        }
+        val tenBit = plan.tenBit
+        val st = plan.effective
         var r = exportOnce(context, s, uriOf, name, look, master, grades, fx, VideoPipeline.toneMapMode(anyHdr, false), st, tenBit, onProgress)
         // the HDR tone mapping did not work on the phone: the other path
         if (r.isFailure && anyHdr && r.exceptionOrNull() !is kotlinx.coroutines.CancellationException) {
@@ -1022,10 +1020,10 @@ object Exporter {
         // a size the chosen codec's encoders can't make: another codec that can (8-bit SDR – HDR and 10-bit need theirs).
         // Otherwise the encoder falls back to a size it can do, which may be far smaller.
         if (expect != null && !tenBit && hdrMode != androidx.media3.transformer.Composition.HDR_MODE_KEEP_HDR &&
-            !EncoderCaps.sizeSupported(st.codec, expect.first, expect.second)) {
-            EncoderCaps.codecs.firstOrNull { it.mime != st.codec && EncoderCaps.sizeSupported(it.mime, expect.first, expect.second) }?.let { c ->
-                se.gendut.klipp.CrashReport.note("export: ${st.codec} can't make ${expect.first}×${expect.second} – ${c.mime}")
-                st = st.copy(codec = c.mime)
+            PhoneEncoders.size(st.codec, expect.first, expect.second) == Support.NO) {
+            ExportPlan.sizeCodec(st.codec, expect.first, expect.second, PhoneEncoders)?.let { c ->
+                se.gendut.klipp.CrashReport.note("export: ${st.codec} can't make ${expect.first}×${expect.second} – $c")
+                st = st.copy(codec = c)
             }
         }
         val out = File(context.cacheDir, "export_${System.currentTimeMillis()}.mp4")
