@@ -17,6 +17,10 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertContentDescriptionEquals
+import org.junit.Assert.assertTrue
+import androidx.compose.ui.test.assertIsDisplayed
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -60,9 +64,9 @@ class ProjectsTest {
         rule.onRoot().captureRoboImage("build/shots/36_nytt_projekt.png")
         rule.onNodeWithTag("create").performClick()
         assertEquals("create  1080x1920 25.0", fake.log.last())
-        rule.onNodeWithTag("project:p2").performClick()
+        rule.onNodeWithTag("project:p2").performScrollTo().performClick()
         assertEquals("open p2", fake.log.last())
-        rule.onNodeWithTag("project:p2").performTouchInput { longClick() }
+        rule.onNodeWithTag("project:p2").performScrollTo().performTouchInput { longClick() }
         rule.onNodeWithText("Duplicera").performClick()
         assertEquals("dup p2", fake.log.last())
         rule.onRoot().captureRoboImage("build/shots/35_projekt.png")
@@ -75,7 +79,7 @@ class ProjectsTest {
         rule.setContent { KlippTheme { ProjectsScreen(fake) { closed++ } } }
         rule.waitForIdle()
         // the dots open the same menu as a long press
-        rule.onNodeWithTag("projectMenu:p2").performClick()
+        rule.onNodeWithTag("projectMenu:p2").performScrollTo().performClick()
         rule.onNodeWithText("Byt namn").assertExists()
         rule.onNodeWithText("Stäng").performClick()
         rule.onNodeWithTag("searchProjects").performClick()
@@ -95,6 +99,39 @@ class ProjectsTest {
         rule.onNodeWithTag("continue").performClick()
         assertEquals("open p1", fake.log.last())
         assertEquals(1, closed)
+    }
+
+    @Test fun theLastOpenedProjectHasItsMenuInSight() {
+        val fake = FakeProjects()
+        var closed = 0
+        rule.setContent { KlippTheme { ProjectsScreen(fake) { closed++ } } }
+        rule.waitForIdle()
+        // the hero card's dots: the menu, not the project
+        // the page starts at the top: the last opened project first (the list arrives after the first frame)
+        rule.onNodeWithTag("continue").assertIsDisplayed()
+        rule.onNodeWithTag("projectMenu:p1").assertHasClickAction().assertContentDescriptionEquals("Mer för Smögen – dokumentär").performClick()
+        rule.waitForIdle()
+        assertTrue("nothing opened", fake.log.isEmpty())
+        assertEquals(0, closed)
+        rule.onNodeWithText("Säkerhetskopiera med media…").assertExists()
+        rule.onNodeWithText("Exportera bara projektfilen…").assertExists()
+        rule.onNodeWithTag("safetyNote").assertExists()
+        rule.onRoot().captureRoboImage("build/shots/35_projekt_meny.png")
+        // earlier versions: said plainly that they are no backup
+        rule.onNodeWithText("Tidigare versioner…").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("versionsNotBackup").assertExists()
+        rule.onNodeWithText("Stäng").performClick()
+        // the long press still opens the same menu
+        rule.onNodeWithTag("project:p1").performTouchInput { longClick() }
+        rule.waitForIdle()
+        rule.onNodeWithText("Säkerhetskopiera med media…").assertExists()
+        assertTrue(fake.log.isEmpty())
+    }
+
+    @Test fun eachBackupGetsANameOfItsOwn() {
+        val at = java.util.GregorianCalendar(2026, 10, 11, 14, 20).timeInMillis
+        assertEquals("Sommar_1 2026-11-11 1420.klipp", ProjectPackageName.of("Sommar/1", at))
     }
 
     // the page at the size of a phone (no dialogs here, see the note on the class)

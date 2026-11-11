@@ -38,7 +38,7 @@ byggs. Prioritera:
 | Spara vid bakgrund | `MainActivity.onStop()` → `controller.saveNow()` | Sparar direkt när appen lämnas. |
 | Versionshistorik | `ProjectController.keepVersion()` (≈ rad 1048), `versions()`, `restoreVersion()` | En kopia högst var `VERSION_EVERY_MS` under redigering, de 20 senaste (`VERSIONS_KEPT`). Ligger i appens interna lagring. |
 | Projektpaket | `engine/ProjectPackage.kt` (`write`, `read`, `relinked`), `ProjectController.exportProject()` / `importProject()` | Zip med manifest (`format`), projekt, sidfil, tumnagel och valfritt media. Import skapar alltid ett **nytt** projekt med media uppackat i appen. |
-| UI | `ProjectsScreen.kt` | Långtryck på en projektbild öppnar meny: Öppna, Byt namn, Duplicera, Exportera projekt (med/utan media), Versioner, Radera. Ingen synlig ⋮-knapp. |
+| UI | `ProjectsScreen.kt` | Långtryck på en projektbild öppnar meny: Öppna, Byt namn, Duplicera, Exportera projekt (med/utan media), Versioner, Radera. Rutnätets kort har en ⋮-knapp; det stora kortet (senast öppnat) saknar den. |
 
 ### Export
 
@@ -71,8 +71,9 @@ byggs. Prioritera:
    Huvudproblemet är snarare att exporten **byter codec, bitdjup och HDR tyst** och att sammanfattningen visar det
    valda, inte det som faktiskt exporteras.
 2. `EncoderCaps.sizeSupported` behandlar okänt stöd som "nej" – precis det planen varnar för.
-3. "Återställning till nytt projekt" finns redan för import av paket; versionshistorikens återställning skriver
-   däremot över det aktuella projektet.
+3. "Återställning till nytt projekt" finns redan, både för import av paket och för versionshistoriken
+   (`restoreVersion` skapar ett nytt projekt). *(Rättat efter genomläsning av koden: version 2 påstod först att
+   versionshistoriken skrev över projektet.)*
 4. Exportera projekt öppnar med `"wt"` på en fil användaren valt. Väljs en befintlig säkerhetskopia skrivs den
    över direkt, och vid fel raderas filen (`deleteDocument`) – **en tidigare fungerande kopia kan förstöras**. Det
    är ett skarpt fel och flyttas in i PR 3.
@@ -148,8 +149,7 @@ Skriv alltid till ett **nytt** dokument; radera bara det dokument som just skapa
 6. Projektkortet visar: *Säkerhetskopierat 11 nov 13:20* / *Ändrat sedan senaste kopian* / *Aldrig
    säkerhetskopierat*.
 7. Indragen mappbehörighet → begripligt fel + knapp "Välj mapp igen".
-8. Återställning = befintlig import (alltid nytt projekt). Versionshistorikens återställning får också valet
-   **Återställ som nytt projekt**.
+8. Återställning = befintlig import (alltid nytt projekt), liksom versionshistorikens återställning.
 
 **Tester:** paketrundtur (finns) + skadat paket, trunkerat paket, saknade media (`missing` i manifest), skrivfel mitt i,
 verifiering som upptäcker fel storlek, import av äldre `format`. På telefon: SAF-flödet mot intern lagring och mot ett

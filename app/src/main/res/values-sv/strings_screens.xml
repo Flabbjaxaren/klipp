@@ -131,13 +131,13 @@
     <string name="projectsscreen_duplicate">Duplicera</string>
     <string name="projectsscreen_delete">Ta bort</string>
     <string name="projectsscreen_close">Stäng</string>
-    <string name="projectsscreen_export_project">Exportera…</string>
     <string name="projectsscreen_import">Importera</string>
-    <string name="projectsscreen_export_title">Exportera ”%1$s”</string>
-    <string name="projectsscreen_export_with_media">Med mediefilerna</string>
     <string name="projectsscreen_export_with_media_hint">Allt i en fil: öppnas på en annan telefon eller efter en ominstallation av Klipp. Lika stor som videorna.</string>
-    <string name="projectsscreen_export_only">Bara projektet</string>
     <string name="projectsscreen_export_only_hint">Liten: klippningen, graderingen och namnen. Medierna ligger kvar där de är på den här telefonen.</string>
+    <string name="projectsscreen_backup_with_media">Säkerhetskopiera med media…</string>
+    <string name="projectsscreen_export_file_only">Exportera bara projektfilen…</string>
+    <string name="projectsscreen_safety_note">Projekt och deras tidigare versioner sparas inne i Klipp: avinstalleras appen eller rensas dess data försvinner de. En säkerhetskopia med media är en egen fil som du behåller.</string>
+    <string name="projectsscreen_versions_not_backup">Tidigare versioner sparas inne i Klipp och är ingen säkerhetskopia: de försvinner med appen om den avinstalleras.</string>
     <string name="projectsscreen_copying">Kopierar… %1$d %%</string>
     <string name="projectsscreen_versions">Tidigare versioner…</string>
     <string name="projectsscreen_versions_title">Tidigare versioner av ”%1$s”</string>

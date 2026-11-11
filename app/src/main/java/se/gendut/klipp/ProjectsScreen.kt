@@ -185,7 +185,6 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
     var menuFor by remember { mutableStateOf<ProjectCard?>(null) }
     var renaming by remember { mutableStateOf<ProjectCard?>(null) }
     var deleting by remember { mutableStateOf<ProjectCard?>(null) }
-    var exporting by remember { mutableStateOf<ProjectCard?>(null) }
     var versionsOf by remember { mutableStateOf<ProjectCard?>(null) }
     // the project and choice waiting for the file picker (kept if the activity is recreated meanwhile)
     var pendingExport by rememberSaveable { mutableStateOf<String?>(null) }
@@ -199,6 +198,10 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
     // what is typed in the search field; null = not searching
     var query by rememberSaveable { mutableStateOf<String?>(null) }
     val hero = projects.firstOrNull { it.current } ?: projects.firstOrNull()
+    // the list arrives after the first frame: the hero is then put in above "All projects", and the grid would keep
+    // "All projects" at the top (it holds on to the first item it showed) – it starts at the top instead
+    val grid = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+    LaunchedEffect(hero?.id) { if (hero != null && query == null && grid.firstVisibleItemIndex <= 1) grid.scrollToItem(0) }
     val shown = query?.trim().let { q ->
         when {
             q == null -> projects.filter { it.id != hero?.id }
@@ -233,7 +236,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                 }
             }
             LazyVerticalGrid(
-                GridCells.Adaptive(160.dp), Modifier.weight(1f).testTag("projectGrid"),
+                GridCells.Adaptive(160.dp), Modifier.weight(1f).testTag("projectGrid"), state = grid,
                 // (room for New project under the last row)
                 contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 96.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -269,13 +272,23 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
             onDismissRequest = { menuFor = null },
             title = { Text(p.name) },
             text = {
-                Column {
+                // (scrolls on a small screen: the backup rows have hints)
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     MenuRow(stringResource(R.string.projectsscreen_open)) { menuFor = null; backend.open(p.id); onClose() }
                     MenuRow(stringResource(R.string.projectsscreen_rename)) { menuFor = null; renaming = p }
                     MenuRow(stringResource(R.string.projectsscreen_duplicate)) { menuFor = null; backend.duplicate(p.id) }
-                    MenuRow(stringResource(R.string.projectsscreen_export_project)) { menuFor = null; exporting = p }
+                    // keeping the project safe: a file of its own (with or without the media) and the versions kept in the app
+                    fun export(withMedia: Boolean) {
+                        menuFor = null
+                        pendingExport = (if (withMedia) "m:" else "p:") + p.id
+                        createDoc.launch(ProjectPackageName.of(p.name, System.currentTimeMillis()))
+                    }
+                    ExportChoice(stringResource(R.string.projectsscreen_backup_with_media), stringResource(R.string.projectsscreen_export_with_media_hint), "exportWithMedia") { export(true) }
+                    ExportChoice(stringResource(R.string.projectsscreen_export_file_only), stringResource(R.string.projectsscreen_export_only_hint), "exportProjectOnly") { export(false) }
                     MenuRow(stringResource(R.string.projectsscreen_versions)) { menuFor = null; versionsOf = p }
                     if (!p.current) MenuRow(stringResource(R.string.projectsscreen_delete), danger = true) { menuFor = null; deleting = p }
+                    Text(stringResource(R.string.projectsscreen_safety_note), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp,
+                        modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 10.dp).testTag("safetyNote"))
                 }
             },
             confirmButton = { FlatTextButton(onClick = { menuFor = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
@@ -289,6 +302,8 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
             title = { Text(stringResource(R.string.projectsscreen_versions_title, p.name)) },
             text = {
                 Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                    Text(stringResource(R.string.projectsscreen_versions_not_backup), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp,
+                        modifier = Modifier.padding(bottom = 8.dp).testTag("versionsNotBackup"))
                     val l = list
                     when {
                         l == null -> Unit
@@ -305,25 +320,6 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                 }
             },
             confirmButton = { FlatTextButton(onClick = { versionsOf = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
-            containerColor = K.SurfaceHigh,
-        )
-    }
-    exporting?.let { p ->
-        fun go(withMedia: Boolean) {
-            exporting = null
-            pendingExport = (if (withMedia) "m:" else "p:") + p.id
-            createDoc.launch(ProjectPackageName.of(p.name))
-        }
-        AlertDialog(
-            onDismissRequest = { exporting = null },
-            title = { Text(stringResource(R.string.projectsscreen_export_title, p.name)) },
-            text = {
-                Column {
-                    ExportChoice(stringResource(R.string.projectsscreen_export_with_media), stringResource(R.string.projectsscreen_export_with_media_hint), "exportWithMedia") { go(true) }
-                    ExportChoice(stringResource(R.string.projectsscreen_export_only), stringResource(R.string.projectsscreen_export_only_hint), "exportProjectOnly") { go(false) }
-                }
-            },
-            confirmButton = { FlatTextButton(onClick = { exporting = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -353,6 +349,11 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
 /** The package's file name: the project's name (without characters file systems refuse) + .klipp. */
 object ProjectPackageName {
     fun of(name: String): String = name.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim().ifBlank { "Klipp" } + "." + se.gendut.klipp.engine.ProjectPackage.EXT
+
+    /** With the date and time ("Sommar 2026-11-11 1420.klipp"): each backup gets a name of its own, so none is replaced by mistake. */
+    fun of(name: String, at: Long): String =
+        of(name).removeSuffix("." + se.gendut.klipp.engine.ProjectPackage.EXT) + " " +
+            java.text.SimpleDateFormat("yyyy-MM-dd HHmm", java.util.Locale.ROOT).format(java.util.Date(at)) + "." + se.gendut.klipp.engine.ProjectPackage.EXT
 }
 
 @Composable
@@ -472,6 +473,11 @@ private fun HeroCard(p: ProjectCard, onOpen: () -> Unit, onMenu: () -> Unit) {
                 Icon(Ic.Play, null, tint = K.OnPrimary, modifier = Modifier.size(20.dp))
                 Text(stringResource(R.string.projectsscreen_continue), color = K.OnPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
+            // the same menu as a long press on the picture (back up, versions …), for those who don't know the long press
+            Box(
+                Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onMenu).testTag("projectMenu:${p.id}"),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Ic.MoreVert, stringResource(R.string.projectsscreen_more_for, p.name), tint = K.OnSurface, modifier = Modifier.size(22.dp)) }
         }
     }
 }
