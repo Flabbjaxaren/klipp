@@ -41,7 +41,9 @@
     <string name="app_timeline_empty">The timeline is empty</string>
     <string name="app_export_saved">Saved to Movies/Klipp</string>
     <string name="app_export_failed">Export failed: %1$s</string>
-    <string name="app_export_interrupted">The export of “%1$s” was interrupted when the app was closed – it was not saved</string>
+    <string name="app_export_interrupted">The export of “%1$s” stopped when the app was closed. No file was saved – export it again.</string>
+    <string name="app_ok">OK</string>
+    <string name="app_export_interrupted_title">Export interrupted</string>
     <string name="app_hdr_blocked">The clips are color graded – grading happens in SDR, so the export will be SDR for correct colors.</string>
     <string name="app_mic_failed">Couldn\'t start the microphone: %1$s</string>
     <string name="app_nothing_recorded">Nothing was recorded</string>

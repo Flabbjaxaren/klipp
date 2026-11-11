@@ -11,7 +11,6 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
-import androidx.core.app.ServiceCompat
 import se.gendut.klipp.R
 import se.gendut.klipp.Str
 import java.io.File
@@ -28,9 +27,9 @@ class ExportService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val n = notification(this, intent?.getStringExtra(EXTRA_NAME).orEmpty(), -1)
-        val type = if (Build.VERSION.SDK_INT >= 35) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING
-            else if (Build.VERSION.SDK_INT >= 29) ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC else 0
-        runCatching { ServiceCompat.startForeground(this, ID, n, type) }.onFailure {
+        // (the type must be named on Android 14+; media processing exists from Android 15, data sync before it)
+        val type = if (Build.VERSION.SDK_INT >= 35) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        runCatching { startForeground(ID, n, type) }.onFailure {
             // (not allowed to start in the foreground now: the export still runs, only without the protection)
             se.gendut.klipp.CrashReport.note("export service: ${it.javaClass.simpleName} ${it.message}")
             stopSelf()
@@ -94,6 +93,15 @@ object ExportGuard {
     var notice: String? = null
 
     private fun prefs(c: Context) = c.getSharedPreferences("export_guard", Context.MODE_PRIVATE)
+
+    private var checked = false
+
+    /** Once per process: [interrupted] into [notice]. */
+    fun checkOnce(c: Context) {
+        if (checked) return
+        checked = true
+        interrupted(c)?.let { notice = it }
+    }
 
     fun begin(c: Context, name: String) {
         prefs(c).edit().putString("running", name).putLong("since", System.currentTimeMillis()).commit()

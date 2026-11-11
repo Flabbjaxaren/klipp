@@ -204,8 +204,23 @@ fun KlippApp(
     LaunchedEffect(state.selectedCaption) { if (state.selectedCaption == null) state.editingCaption = false }
     var exportAsk by remember { mutableStateOf(false) }
     val notifyPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
-    // an export cut off with the process last time: said once, never shown as saved
-    LaunchedEffect(Unit) { se.gendut.klipp.engine.ExportGuard.notice?.let { se.gendut.klipp.engine.ExportGuard.notice = null; toaster.show(Str.t(R.string.app_export_interrupted, it)) } }
+    // an export cut off with the process last time: a dialog that stays until read (a toast would be gone, or pushed
+    // aside by "Project restored"), never shown as saved
+    var interruptedExport by remember { mutableStateOf(se.gendut.klipp.engine.ExportGuard.notice) }
+    interruptedExport?.let { n ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { interruptedExport = null; se.gendut.klipp.engine.ExportGuard.notice = null },
+            title = { Text(stringResource(R.string.app_export_interrupted_title)) },
+            text = { Text(stringResource(R.string.app_export_interrupted, n)) },
+            confirmButton = {
+                FlatTextButton(onClick = { interruptedExport = null; se.gendut.klipp.engine.ExportGuard.notice = null }, modifier = Modifier.testTag("exportInterruptedOk")) {
+                    Text(stringResource(R.string.app_ok))
+                }
+            },
+            containerColor = K.SurfaceHigh,
+            modifier = Modifier.testTag("exportInterrupted"),
+        )
+    }
     fun export() {
         val c = controller ?: run { toaster.show(Str.t(R.string.app_export_needs_clips)); return }
         // the export's notification (progress while the app is left): asked for once, the export runs without it too
