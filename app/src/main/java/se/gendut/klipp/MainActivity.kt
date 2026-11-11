@@ -32,6 +32,8 @@ class MainActivity : ComponentActivity() {
         se.gendut.klipp.engine.Perf.init(applicationContext)
         BuildConfigShim.version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
         CrashReport.install(applicationContext)
+        // a new process: an export marked as running was cut off with the old one
+        if (savedInstanceState == null) se.gendut.klipp.engine.ExportGuard.interrupted(applicationContext)?.let { se.gendut.klipp.engine.ExportGuard.notice = it }
         CrashReport.note("start ${BuildConfigShim.version}")
         // video pipeline settings (float, 10-bit surface) before the player
         se.gendut.klipp.engine.VideoPipeline.init(applicationContext)

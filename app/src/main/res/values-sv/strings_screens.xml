@@ -268,4 +268,7 @@
     <string name="exportplan_ten_none">Ingen kodare i telefonen gör 10-bit – filen blir 8-bit</string>
     <string name="exportplan_hdr_sdr">Telefonen kan inte koda HDR – filen blir SDR</string>
     <string name="exportplan_fix">Använd %1$s</string>
+    <!-- ExportService.kt -->
+    <string name="exportservice_channel">Exporter</string>
+    <string name="exportservice_title">Exporterar video</string>
 </resources>

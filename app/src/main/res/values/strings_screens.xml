@@ -268,4 +268,7 @@
     <string name="exportplan_ten_none">No encoder on this phone makes 10-bit – the file will be 8-bit</string>
     <string name="exportplan_hdr_sdr">This phone can’t encode HDR – the file will be SDR</string>
     <string name="exportplan_fix">Use %1$s</string>
+    <!-- ExportService.kt -->
+    <string name="exportservice_channel">Exports</string>
+    <string name="exportservice_title">Exporting video</string>
 </resources>

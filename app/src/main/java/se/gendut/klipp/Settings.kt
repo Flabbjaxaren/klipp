@@ -86,6 +86,9 @@ object AppPrefs {
     /** Tips already shown (first-run hints), by key. */
     fun tipSeen(c: Context, key: String): Boolean = p(c).getBoolean("tip_$key", false)
     fun setTipSeen(c: Context, key: String) { p(c).edit().putBoolean("tip_$key", true).apply() }
+    /** The notification permission (export progress) was asked for once. */
+    fun notifyAsked(c: Context): Boolean = p(c).getBoolean("notify_asked", false)
+    fun setNotifyAsked(c: Context) { p(c).edit().putBoolean("notify_asked", true).apply() }
 
     fun accent(c: Context): Accent = runCatching { Accent.valueOf(p(c).getString("accent", null) ?: "") }.getOrDefault(Accent.LIME)
     fun setAccent(c: Context, a: Accent) { p(c).edit().putString("accent", a.name).apply(); K.accent = a }
