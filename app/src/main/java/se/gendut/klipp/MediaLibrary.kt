@@ -13,7 +13,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,11 +31,9 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -175,16 +172,16 @@ fun MediaSheet(visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen
                 }
                 // where we are: Media › B-roll › Drone
                 if (folder != null) {
-                    Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp).padding(bottom = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         RoundIcon(Ic.Back, stringResource(R.string.medialibrary_up), modifier = Modifier.testTag("binUp")) { folder = lib.bins.firstOrNull { it.id == folder }?.parent }
                         val chain = generateSequence(lib.bins.firstOrNull { it.id == folder }) { b -> b.parent?.let { p -> lib.bins.firstOrNull { it.id == p } } }.toList().reversed()
-                        SpringChip(stringResource(R.string.medialibrary_title), false, { folder = null })
-                        for (b in chain) {
-                            Text("›", color = K.Outline, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 2.dp))
-                            SpringChip(b.name, b.id == folder, { folder = b.id })
+                        // (up stays in place; a long path scrolls under a fade, the folder we are in kept in view)
+                        Row(Modifier.weight(1f).sideScroll(), verticalAlignment = Alignment.CenterVertically) {
+                            SpringChip(stringResource(R.string.medialibrary_title), false, { folder = null })
+                            for (b in chain) {
+                                Text("›", color = K.Outline, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 2.dp))
+                                SpringChip(b.name, b.id == folder, { folder = b.id }, Modifier.inViewWhen(b.id == folder))
+                            }
                         }
                     }
                 }
@@ -265,8 +262,8 @@ fun MediaSheet(visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen
                 )
                 Spacer(Modifier.height(10.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton({ close() }) { Text(stringResource(R.string.medialibrary_cancel), color = K.OnSurfaceVar) }
-                    TextButton({ val t = text.trim(); if (t.isNotEmpty()) a.done(t); close(); clearPick() }, Modifier.testTag("nameOk")) { Text(stringResource(R.string.medialibrary_ok), color = K.Primary) }
+                    FlatTextButton({ close() }) { Text(stringResource(R.string.medialibrary_cancel)) }
+                    FlatTextButton({ val t = text.trim(); if (t.isNotEmpty()) a.done(t); close(); clearPick() }, Modifier.testTag("nameOk")) { Text(stringResource(R.string.medialibrary_ok)) }
                 }
             }
         }
@@ -295,9 +292,9 @@ fun MediaSheet(visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen
                 )
             },
             confirmButton = {
-                TextButton({ haptics.heavy(); lib.delete(items, binList); confirmDelete = false; clearPick() }, Modifier.testTag("deleteOk")) { Text(stringResource(R.string.medialibrary_delete), color = K.Error) }
+                FlatTextButton({ haptics.heavy(); lib.delete(items, binList); confirmDelete = false; clearPick() }, Modifier.testTag("deleteOk")) { Text(stringResource(R.string.medialibrary_delete), color = K.Error) }
             },
-            dismissButton = { TextButton({ confirmDelete = false }) { Text(stringResource(R.string.medialibrary_cancel), color = K.OnSurfaceVar) } },
+            dismissButton = { FlatTextButton({ confirmDelete = false }) { Text(stringResource(R.string.medialibrary_cancel)) } },
         )
     }
 }
@@ -315,8 +312,8 @@ private fun FolderCard(b: BinSnap, count: Int, picked: Boolean, onClick: () -> U
             .combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onLongClick = onLongClick, onClick = onClick)
             .testTag("bin:${b.name}")
     ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(K.Tonal), contentAlignment = Alignment.Center) {
-            androidx.compose.material3.Icon(Ic.Folder, null, tint = K.PrimarySoft, modifier = Modifier.size(40.dp))
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(K.SurfaceHigh), contentAlignment = Alignment.Center) {
+            androidx.compose.material3.Icon(Ic.Folder, null, tint = K.OnSurfaceVar, modifier = Modifier.size(40.dp))
             Text(
                 "$count", color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xAA000000)).padding(horizontal = 6.dp, vertical = 2.dp)
@@ -358,8 +355,8 @@ private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, onCli
             }
             // used in the timeline
             if (used > 0) Text(
-                stringResource(R.string.medialibrary_in_timeline), color = K.OnPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(K.Primary.copy(alpha = 0.9f)).padding(horizontal = 6.dp, vertical = 2.dp)
+                stringResource(R.string.medialibrary_in_timeline), color = K.PrimarySoft, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(K.PrimaryContainer).padding(horizontal = 6.dp, vertical = 2.dp)
             )
             if (picked) Box(
                 Modifier.align(Alignment.Center).size(30.dp).clip(RoundedCornerShape(15.dp)).background(K.Primary),

@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -190,14 +188,14 @@ fun EqGraph(
             }
         }
         // bands to select + low/high cut
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.sideScroll().padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (k in listOf("hp", "lp")) {
                 val on = v("${k}_on") > 0.5
                 SpringChip(stringResource(if (k == "hp") R.string.audiographs_low_cut else R.string.audiographs_high_cut), on, {
                     haptics.tick()
                     val nv = if (on) 0.0 else 1.0
                     live["${k}_on"] = nv; onLive("${k}_on", nv); onCommit(mapOf("${k}_on" to nv)); sel = k
-                }, Modifier.testTag("eq:$k"), selectedColor = K.Teal, selectedText = K.Bg)
+                }, Modifier.testTag("eq:$k"))
             }
             for (b in FxCurves.BANDS) SpringChip(b.label, sel == b.key, { haptics.tick(); sel = b.key }, Modifier.testTag("eqBand:${b.key}"))
         }

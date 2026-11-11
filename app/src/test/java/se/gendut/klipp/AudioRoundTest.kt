@@ -2,6 +2,7 @@ package se.gendut.klipp
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -305,10 +306,19 @@ class AudioRoundTest {
         rule.waitUntil(3000) { commits > 0 }
         assertEquals(5.9f, mix.normDb, 0.01f)
         assertEquals(1, commits)
-        rule.onNodeWithTag("audioTab:record").performClick(); rule.waitForIdle()
-        rule.onNodeWithTag("voStart").performScrollTo().performClick()
-        assertTrue(log.contains("vo start"))
+        // recording and new sound are added from the edit page now: the sound page keeps mixer, loudness and ducking
+        rule.onNodeWithTag("audioTab:record").assertDoesNotExist()
+        rule.onNodeWithTag("audioTab:sounds").assertDoesNotExist()
         rule.onRoot().captureRoboImage("$dir/41_mixer.png")
         assertNotEquals(0, log.size)
+    }
+
+    @Test fun theVoiceOverCardStartsARecording() {
+        val log = mutableListOf<String>()
+        val vo = VoiceOverUi().apply { onStart = { log += "vo start" } }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { Column { VoiceOverCard(vo) } } } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("voStart").performClick()
+        assertTrue(log.contains("vo start"))
     }
 }

@@ -14,23 +14,28 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -45,6 +50,8 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -70,7 +77,7 @@ fun ConnectedToggleGroup(
     selected: Int,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    height: Dp = 40.dp,
+    height: Dp = 44.dp,
     tag: (Int) -> String? = { null },
 ) {
     Row(modifier.height(height), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -98,17 +105,24 @@ private fun ConnectedItem(label: String, selected: Boolean, first: Boolean, last
     val bs by animateDpAsState(target(first), cornerSpring(), label = "bs")
     val te by animateDpAsState(target(last), cornerSpring(), label = "te")
     val be by animateDpAsState(target(last), cornerSpring(), label = "be")
-    val bg by animateColorAsState(if (selected) K.Primary else K.SurfaceHigh, label = "cbg")
-    val fg by animateColorAsState(if (selected) K.OnPrimary else K.OnSurface, label = "cfg")
+    // the chosen segment is the light one (a choice between views, not something switched on: no accent)
+    val bg by animateColorAsState(if (selected) K.OnSurface else K.SurfaceHigh, label = "cbg")
+    val fg by animateColorAsState(if (selected) K.OnMark else K.OnSurface, label = "cfg")
     Box(
         modifier.height(height)
             .clip(RoundedCornerShape(topStart = ts, topEnd = te, bottomEnd = be, bottomStart = bs))
             .background(bg)
-            .clickable(interactionSource = src, indication = null, role = Role.Tab) { haptics.tick(); onClick() },
+            .clickable(interactionSource = src, indication = null, role = Role.Tab) { haptics.tick(); onClick() }
+            .semantics { this.selected = selected },
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = fg, fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 6.dp))
+        // a long name shrinks to its segment on a narrow phone before it is cut
+        androidx.compose.foundation.text.BasicText(
+            label, color = { fg }, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium),
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+            modifier = Modifier.padding(horizontal = 6.dp),
+        )
     }
 }
 
@@ -131,7 +145,7 @@ fun ToolTabs(tabs: List<ToolTab>, selected: Int, onSelect: (Int) -> Unit, modifi
         val w = ind + (kotlin.math.abs(pos.velocity) * 5f).coerceAtMost(22f).dp
         Box(
             Modifier.offset(x = cell * pos.value + (cell - w) / 2).width(w).height(32.dp)
-                .clip(CircleShape).background(K.Tonal)
+                .clip(CircleShape).background(K.PrimaryContainer)
         )
         Row(Modifier.fillMaxWidth()) {
             for ((i, t) in tabs.withIndex()) {
@@ -173,7 +187,7 @@ fun PanelCard(
 ) {
     Column(modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(RoundedCornerShape(28.dp)).background(K.Surface).padding(vertical = 10.dp)) {
         if (title != null || trailing != null) {
-            Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, bottom = 4.dp).height(36.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, bottom = 4.dp).heightIn(min = 36.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(title.orEmpty(), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 trailing?.invoke()
             }
@@ -183,8 +197,8 @@ fun PanelCard(
 }
 
 /**
- * Action button: icon in a tonal square "squircle" with text below. A press makes it round and slightly smaller
- * (the shape responds to the finger).
+ * Action button: icon in a neutral square "squircle" with text below (an action is never accent colored: that is for
+ * what is switched on). A press makes it round and slightly smaller (the shape responds to the finger).
  */
 @Composable
 fun ActionTile(label: String, icon: ImageVector, modifier: Modifier = Modifier, enabled: Boolean = true, danger: Boolean = false, onClick: () -> Unit) {
@@ -192,7 +206,7 @@ fun ActionTile(label: String, icon: ImageVector, modifier: Modifier = Modifier, 
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val r by animateDpAsState(if (pressed) 28.dp else 16.dp, cornerSpring(), label = "ar")
-    val tint = when { !enabled -> K.Outline; danger -> K.Error; else -> K.PrimarySoft }
+    val tint = when { !enabled -> K.Outline; danger -> K.Error; else -> K.OnSurface }
     Column(
         modifier.clickable(interactionSource = src, indication = null, enabled = enabled, role = Role.Button) {
             haptics.tick()
@@ -203,7 +217,7 @@ fun ActionTile(label: String, icon: ImageVector, modifier: Modifier = Modifier, 
         Box(
             Modifier.pressPop(src, 0.9f)
                 .size(width = 64.dp, height = 48.dp).clip(RoundedCornerShape(r))
-                .background(if (danger) Color(0x33FFB4AB) else if (enabled) K.Tonal else K.SurfaceHigh),
+                .background(if (danger) Color(0x33FFB4AB) else K.SurfaceHigh),
             contentAlignment = Alignment.Center,
         ) { Icon(icon, label, tint = tint, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.height(6.dp))
@@ -212,19 +226,19 @@ fun ActionTile(label: String, icon: ImageVector, modifier: Modifier = Modifier, 
 }
 
 /**
- * On/off chip: off = filled neutral surface with soft corners, on = tonal, fully round and with a check mark (shape and
- * color show the state, no outline).
+ * On/off chip: off = filled neutral surface with soft corners, on = the accent container, fully round and with a check
+ * mark (shape and color show the state, no outline).
  */
 @Composable
 fun ToggleChip(label: String, on: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null) {
     val haptics = rememberHaptics()
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
-    val r by animateDpAsState(if (pressed) 6.dp else if (on) 18.dp else 10.dp, cornerSpring(), label = "tc")
-    val bg by animateColorAsState(if (on) K.Tonal else K.SurfaceHigh, label = "tcb")
+    val r by animateDpAsState(if (pressed) 6.dp else if (on) 22.dp else 12.dp, cornerSpring(), label = "tc")
+    val bg by animateColorAsState(if (on) K.PrimaryContainer else K.SurfaceHigh, label = "tcb")
     val fg by animateColorAsState(if (on) K.PrimarySoft else K.OnSurface, label = "tcf")
     Row(
-        modifier.height(36.dp).clip(RoundedCornerShape(r)).background(bg)
+        modifier.height(44.dp).clip(RoundedCornerShape(r)).background(bg)
             .clickable(interactionSource = src, indication = null, role = Role.Checkbox) { haptics.tick(); onClick() }
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -238,28 +252,42 @@ fun ToggleChip(label: String, on: Boolean, onClick: () -> Unit, modifier: Modifi
     }
 }
 
-/** Primary button (filled, round) or tonal; a press makes the corners smaller. */
+/**
+ * A button for an action (round; a press makes the corners smaller). Actions are neutral – the accent is kept for Play
+ * and for what is switched on: [filled] is the main action where it stands (one tone lighter, bold), the rest are
+ * quieter. [on] = the action is a mode that is active right now (the dropper while it waits for a tap).
+ */
 @Composable
-fun PillButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, filled: Boolean = true) {
+fun PillButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, filled: Boolean = true, on: Boolean = false) {
     val haptics = rememberHaptics()
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val r by animateDpAsState(if (pressed) 10.dp else 22.dp, cornerSpring(), label = "pb")
-    val bg = if (filled) K.Primary else K.Tonal
-    val fg = if (filled) K.OnPrimary else K.PrimarySoft
+    val bg by animateColorAsState(if (on) K.PrimaryContainer else if (filled) K.SurfaceHighest else K.SurfaceHigh, label = "pbb")
+    val fg by animateColorAsState(if (on) K.PrimarySoft else K.OnSurface, label = "pbf")
     Row(
         modifier.height(44.dp).clip(RoundedCornerShape(r)).background(bg)
             .clickable(interactionSource = src, indication = null, role = Role.Button) { haptics.tick(); onClick() }
-            .padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = if (icon != null) 16.dp else 20.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
     ) {
         if (icon != null) {
             Icon(icon, null, tint = fg, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
         }
-        Text(label, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        // a long label shrinks to the room it has on a narrow phone before it is cut
+        androidx.compose.foundation.text.BasicText(
+            label, color = { fg }, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = if (filled || on) FontWeight.Bold else FontWeight.SemiBold),
+            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+        )
     }
 }
+
+/** A dialog's text button: light text – the accent is kept for Play and for what is switched on. */
+@Composable
+fun FlatTextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) =
+    TextButton(onClick, modifier, enabled, colors = ButtonDefaults.textButtonColors(contentColor = K.OnSurface, disabledContentColor = K.Outline), content = content)
 
 /**
  * Playhead for the clip being graded: a filmstrip over the whole clip to drag (or tap) – the image above
@@ -277,10 +305,12 @@ fun ClipScrubber(state: EditorState, clip: ColorClip, track: ClosedFloatingPoint
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
             ScrubTc(state, clip.start, len)
             Text(" / " + formatTc(len), color = K.Outline, fontSize = 13.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
-            // one line at the right, shortened when narrow (it wrapped into three lines beside the timecode)
-            Text(stringResource(R.string.colorui_drag_to_scrub), color = K.Outline, fontSize = 11.sp, maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.End,
-                modifier = Modifier.weight(1f).padding(start = 8.dp))
+            // one line at the right; left out when it has no room (beside the rail on a narrow phone it was cut to "Drag…")
+            var fits by remember { androidx.compose.runtime.mutableStateOf(true) }
+            Text(stringResource(R.string.colorui_drag_to_scrub), color = K.Outline, fontSize = 11.sp, maxLines = 1, softWrap = false,
+                overflow = TextOverflow.Clip, textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                onTextLayout = { fits = !it.hasVisualOverflow },
+                modifier = Modifier.weight(1f).padding(start = 8.dp).graphicsLayer { alpha = if (fits) 1f else 0f })
         }
         BoxWithConstraints(
             Modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh).testTag("scrub")
@@ -323,12 +353,13 @@ fun ClipScrubber(state: EditorState, clip: ColorClip, track: ClosedFloatingPoint
             Box(Modifier.matchParentSize().drawBehind {
                 val x = size.width * frac()
                 val line = 3.dp.toPx()
-                drawRect(K.Primary, androidx.compose.ui.geometry.Offset((x - line / 2).coerceIn(0f, size.width - line), 0f), androidx.compose.ui.geometry.Size(line, size.height))
+                // (the playhead looks as it does on the timeline: the same whatever the accent)
+                drawRect(K.Mark, androidx.compose.ui.geometry.Offset((x - line / 2).coerceIn(0f, size.width - line), 0f), androidx.compose.ui.geometry.Size(line, size.height))
                 val kw = 14.dp.toPx(); val kh = 8.dp.toPx(); val r = 7.dp.toPx()
                 val kx = (x - kw / 2).coerceIn(0f, size.width - kw)
                 val knob = androidx.compose.ui.geometry.RoundRect(kx, 0f, kx + kw, kh,
                     bottomLeftCornerRadius = androidx.compose.ui.geometry.CornerRadius(r), bottomRightCornerRadius = androidx.compose.ui.geometry.CornerRadius(r))
-                drawPath(androidx.compose.ui.graphics.Path().apply { addRoundRect(knob) }, K.Primary)
+                drawPath(androidx.compose.ui.graphics.Path().apply { addRoundRect(knob) }, K.Mark)
             })
         }
     }
@@ -337,7 +368,7 @@ fun ClipScrubber(state: EditorState, clip: ColorClip, track: ClosedFloatingPoint
 /** Time within the clip – its own function so only this text redraws when the playhead moves. */
 @Composable
 private fun ScrubTc(state: EditorState, start: Float, len: Float) {
-    Text(formatTc((state.playhead - start).coerceIn(0f, len)), color = K.Primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+    Text(formatTc((state.playhead - start).coerceIn(0f, len)), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.testTag("scrub:tc"))
 }
 

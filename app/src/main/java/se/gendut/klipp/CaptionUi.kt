@@ -12,7 +12,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,56 +58,30 @@ import kotlinx.coroutines.withContext
 import se.gendut.klipp.engine.CaptionStyle
 import se.gendut.klipp.engine.Fonts
 
-/** Selected caption in the timeline: edit, split at the playhead, new, delete. Drag in the lane to move/trim. */
+/** Selected caption in the timeline (the dock's row): delete, edit, split at the playhead, new. Drag in the lane to move/trim. */
 @Composable
-fun CaptionBar(state: EditorState, modifier: Modifier) {
-    val haptics = rememberHaptics()
+internal fun CaptionDock(state: EditorState) {
     val c = state.selectedCaption?.let { id -> state.captions.firstOrNull { it.id == id } }
-    AnimatedVisibility(
-        visible = c != null && state.props != null && !state.editingCaption,
-        enter = slideInVertically(spring(0.6f, 500f)) { it } + fadeIn(),
-        exit = slideOutVertically { it } + fadeOut(),
-        modifier = modifier.testTag("captionBar"),
-    ) {
-        Row(
-            Modifier.shadow(8.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(K.SurfaceHighest)
-                .horizontalScroll(rememberScrollState()).padding(horizontal = 6.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(Ic.Subs, null, tint = K.Teal, modifier = Modifier.padding(start = 8.dp, end = 4.dp).size(20.dp))
-            Text(
-                c?.text?.replace('\n', ' ').orEmpty(), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 120.dp).padding(end = 4.dp),
-            )
-            CaptionAction(Ic.Edit, stringResource(R.string.captionui_edit), "Redigera") { haptics.tick(); state.editingCaption = true }
-            CaptionAction(Ic.Split, stringResource(R.string.captionui_split), "Dela") {
-                val cap = c ?: return@CaptionAction
-                if (state.playhead <= cap.start + 0.04f || state.playhead >= cap.end - 0.04f) { state.onNotice?.invoke(Str.t(R.string.captionui_playhead_inside)); return@CaptionAction }
-                haptics.confirm(); state.props?.splitCaption(cap.id, state.playhead)
-            }
-            CaptionAction(Ic.Plus, stringResource(R.string.captionui_new), "Ny") {
-                haptics.confirm()
+    // the tags ("cap:…") stay the same whatever the UI language
+    DockItems(
+        listOf(
+            // (delete first, as in a clip's row)
+            DockItem(Ic.Delete, stringResource(R.string.captionui_delete), "cap:Ta bort", tint = K.Error, strong = true) {
+                val id = c?.id ?: return@DockItem
+                state.selectedCaption = null; state.props?.deleteCaption(id)
+            },
+            DockItem(Ic.Edit, stringResource(R.string.captionui_edit), "cap:Redigera") { state.editingCaption = true },
+            DockItem(Ic.Split, stringResource(R.string.captionui_split), "cap:Dela") {
+                val cap = c ?: return@DockItem
+                if (state.playhead <= cap.start + 0.04f || state.playhead >= cap.end - 0.04f) { state.onNotice?.invoke(Str.t(R.string.captionui_playhead_inside)); return@DockItem }
+                state.props?.splitCaption(cap.id, state.playhead)
+            },
+            DockItem(Ic.Plus, stringResource(R.string.captionui_new), "cap:Ny") {
                 state.props?.addCaption(state.playhead) { id -> state.selectedCaption = id; state.editingCaption = true }
-            }
-            CaptionAction(Ic.Delete, stringResource(R.string.captionui_delete), "Ta bort") {
-                val id = c?.id ?: return@CaptionAction
-                haptics.heavy(); state.selectedCaption = null; state.props?.deleteCaption(id)
-            }
-            CaptionAction(Ic.Close, stringResource(R.string.captionui_deselect), "Avmarkera") { haptics.tick(); state.selectedCaption = null }
-        }
-    }
-}
-
-/** [tag] = the stable test tag ("cap:$tag"); it stays the same whatever the UI language. */
-@Composable
-private fun CaptionAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tag: String, onClick: () -> Unit) {
-    Column(
-        Modifier.clip(RoundedCornerShape(18.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 6.dp).testTag("cap:$tag"),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(icon, null, tint = K.OnSurface, modifier = Modifier.size(22.dp))
-        Text(label, color = K.OnSurfaceVar, fontSize = 11.sp, style = IconLabel)
-    }
+            },
+        ),
+        Modifier.testTag("captionBar"),
+    )
 }
 
 /** Edit the selected caption: the text and the track's style (font, size, color, box, outline, position). */
@@ -117,19 +90,23 @@ fun CaptionInspector(state: EditorState) {
     val backend = state.props ?: return
     val haptics = rememberHaptics()
     val c = state.selectedCaption?.let { id -> state.captions.firstOrNull { it.id == id } }
-    Column(Modifier.fillMaxSize().background(K.Bg).verticalScroll(rememberScrollState()).testTag("captionInspector")) {
-        PanelTitle(stringResource(R.string.captionui_caption)) { RoundIcon(Ic.Check, stringResource(R.string.captionui_done)) { haptics.tick(); state.editingCaption = false } }
+    Column(Modifier.fillMaxSize().background(K.Bg).testTag("captionInspector")) {
+        // the header (with Done) stays in place; what is under it scrolls
+        SheetHeader(stringResource(R.string.captionui_caption)) { haptics.tick(); state.editingCaption = false }
         if (c == null) {
             Text(stringResource(R.string.captionui_select_caption), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
             return@Column
         }
-        CaptionTextField(c, backend)
-        Text(
-            stringResource(R.string.captionui_time_hint, formatTc(c.start), formatTc(c.end)),
-            color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-        )
-        CaptionStyleEditor(backend, c.track)
-        Spacer(Modifier.height(120.dp))
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            CaptionTextField(c, backend)
+            Text(
+                stringResource(R.string.captionui_time_hint, formatTc(c.start), formatTc(c.end)),
+                color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+            )
+            CaptionStyleEditor(backend, c.track)
+            // (the page ends clear of undo and redo, which lie over its corner)
+            Spacer(Modifier.height(LocalBarSpace.current + 36.dp))
+        }
     }
 }
 
@@ -187,7 +164,7 @@ fun CaptionStyleEditor(backend: PropsBackend, track: Long) {
         0 -> {
     Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         SpringChip(stringResource(R.string.captionui_social), false, { set("social" to true) }, Modifier.testTag("cap:social"))
-        SpringChip(stringResource(R.string.captionui_off), st.wordColor == null, { set("wordColor" to "") }, Modifier.testTag("cap:wordOff"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+        SpringChip(stringResource(R.string.captionui_off), st.wordColor == null, { set("wordColor" to "") }, Modifier.testTag("cap:wordOff"))
     }
     Swatches(st.wordColor ?: 0, WORD_COLORS) { set("wordColor" to CaptionStyle.hex(it)) }
     if (st.wordColor != null) {
@@ -211,17 +188,17 @@ fun CaptionStyleEditor(backend: PropsBackend, track: Long) {
         2 -> {
     SectionLabel(stringResource(R.string.captionui_background))
     Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        SpringChip(stringResource(R.string.captionui_bg_none), !st.background, { set("background" to false) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
-        SpringChip(stringResource(R.string.captionui_bg_semi), st.background && (st.backgroundColor ushr 24) < 250, { set("background" to true, "backgroundColor" to "#000000bf") }, selectedColor = K.Primary, selectedText = K.OnPrimary)
-        SpringChip(stringResource(R.string.captionui_bg_solid), st.background && (st.backgroundColor ushr 24) >= 250, { set("background" to true, "backgroundColor" to "#000000ff") }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+        SpringChip(stringResource(R.string.captionui_bg_none), !st.background, { set("background" to false) })
+        SpringChip(stringResource(R.string.captionui_bg_semi), st.background && (st.backgroundColor ushr 24) < 250, { set("background" to true, "backgroundColor" to "#000000bf") })
+        SpringChip(stringResource(R.string.captionui_bg_solid), st.background && (st.backgroundColor ushr 24) >= 250, { set("background" to true, "backgroundColor" to "#000000ff") })
     }
         }
         else -> {
     Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((k, l) in listOf("top" to stringResource(R.string.captionui_top), "middle" to stringResource(R.string.captionui_middle), "bottom" to stringResource(R.string.captionui_bottom))) SpringChip(l, st.anchor == k, { set("anchor" to k) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+        for ((k, l) in listOf("top" to stringResource(R.string.captionui_top), "middle" to stringResource(R.string.captionui_middle), "bottom" to stringResource(R.string.captionui_bottom))) SpringChip(l, st.anchor == k, { set("anchor" to k) })
     }
     Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((k, l) in listOf("left" to stringResource(R.string.captionui_left), "center" to stringResource(R.string.captionui_center), "right" to stringResource(R.string.captionui_right))) SpringChip(l, st.align == k, { set("align" to k) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+        for ((k, l) in listOf("left" to stringResource(R.string.captionui_left), "center" to stringResource(R.string.captionui_center), "right" to stringResource(R.string.captionui_right))) SpringChip(l, st.align == k, { set("align" to k) })
     }
     PropSlider(stringResource(R.string.captionui_margin), st.margin * 100f, 0f, 45f, 8f, { "%.0f %%".format(it) }, "capMargin", lane = false) { set("margin" to (it / 100.0)) }
         }
@@ -237,8 +214,8 @@ private fun Swatches(current: Int, colors: List<Long>, onPick: (Int) -> Unit) {
         for (c in colors) {
             val on = (current ushr 24) != 0 && (current and 0xFFFFFF) == (c.toInt() and 0xFFFFFF)
             Box(
-                Modifier.size(40.dp).clip(RoundedCornerShape(if (on) 12.dp else 20.dp)).background(Color(c))
-                    .border(if (on) 3.dp else 1.dp, if (on) K.Primary else K.OutlineVar, RoundedCornerShape(if (on) 12.dp else 20.dp))
+                Modifier.size(44.dp).clip(RoundedCornerShape(if (on) 14.dp else 22.dp)).background(Color(c))
+                    .border(if (on) 3.dp else 1.dp, if (on) K.Primary else K.OutlineVar, RoundedCornerShape(if (on) 14.dp else 22.dp))
                     .clickable { onPick(c.toInt()) }
             )
         }
@@ -272,11 +249,13 @@ fun FontGrid(current: String, onPick: (String) -> Unit, onImport: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.captionui_font)) }
         SpringChip(stringResource(if (open) R.string.captionui_fonts_fewer else R.string.captionui_fonts_all, all.size), open, { open = !open },
-            Modifier.testTag("font:all"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+            Modifier.testTag("font:all"))
     }
     if (!open) {
         val scroll = rememberScrollState()
-        Row(Modifier.horizontalScroll(scroll).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // (a new choice moves to the front: the row follows it there)
+        LaunchedEffect(current) { scroll.animateScrollTo(0) }
+        Row(Modifier.sideScroll(scroll).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // the chosen font first, then the rest in order
             for (name in listOf(current) + all.filter { it != current }) FontName(name, current == name) { onPick(name) }
         }
@@ -288,7 +267,7 @@ fun FontGrid(current: String, onPick: (String) -> Unit, onImport: () -> Unit) {
                 Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh)
                     .clickable { onImport() }.padding(horizontal = 14.dp).testTag("font:import"),
                 contentAlignment = Alignment.Center,
-            ) { Text(stringResource(R.string.captionui_import), color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+            ) { Text(stringResource(R.string.captionui_import), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
         }
     }
 }
@@ -298,8 +277,8 @@ private fun FontName(name: String, selected: Boolean, onClick: () -> Unit) {
     val tf = remember(name) { androidx.compose.ui.text.font.FontFamily(Fonts.typeface(name)) }
     Box(
         Modifier.height(44.dp).clip(RoundedCornerShape(if (selected) 18.dp else 12.dp))
-            .background(if (selected) K.Primary else K.SurfaceHigh).clickable(onClick = onClick)
+            .background(if (selected) K.PrimaryContainer else K.SurfaceHigh).clickable(onClick = onClick)
             .padding(horizontal = 14.dp).testTag("font:$name"),
         contentAlignment = Alignment.Center,
-    ) { Text(Str.name(name), fontFamily = tf, fontSize = 17.sp, color = if (selected) K.OnPrimary else K.OnSurface, maxLines = 1) }
+    ) { Text(Str.name(name), fontFamily = tf, fontSize = 17.sp, color = if (selected) K.PrimarySoft else K.OnSurface, maxLines = 1) }
 }

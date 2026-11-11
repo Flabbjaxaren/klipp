@@ -776,7 +776,7 @@ private class LayerClock {
 
 /**
  * The transition's mask in the layer's box (the video's box, centered in the sequence frame [frameW]×[frameH]): the
- * visible area, in sequence coordinates like [se.gendut.klipp.engine.SegFx.visibleAt].
+ * visible area, in sequence coordinates (left of / right of a line, inside / outside a circle).
  */
 private class TransitionMaskShape(private val m: se.gendut.klipp.engine.Mask, private val frameW: Float, private val frameH: Float) : androidx.compose.ui.graphics.Shape {
     override fun createOutline(size: androidx.compose.ui.geometry.Size, layoutDirection: androidx.compose.ui.unit.LayoutDirection, density: androidx.compose.ui.unit.Density): androidx.compose.ui.graphics.Outline {

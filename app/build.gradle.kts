@@ -32,6 +32,7 @@ android {
         // speech recognition is always built optimized (the debug build's -O0 would be tens of times slower)
         externalNativeBuild { cmake { arguments += listOf("-DCMAKE_BUILD_TYPE=Release", "-DANDROID_STL=c++_shared") } }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["appLabel"] = "Klipp"
     }
     // the GPU tests on a phone (src/androidTest): their own app id beside the installed Klipp, so running them never
     // replaces it or touches its projects (`./gradlew connectedGpuTestAndroidTest`)
@@ -74,6 +75,15 @@ android {
             initWith(getByName("debug"))
             applicationIdSuffix = ".gputest"
             matchingFallbacks += "debug"
+        }
+        // a trial of the new menu design: the release build under its own id and name, installed beside Klipp
+        // (`./gradlew assembleDesignTest`)
+        create("designTest") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".designtest"
+            versionNameSuffix = "-designtest.10"
+            manifestPlaceholders["appLabel"] = "Klipp test"
+            matchingFallbacks += "release"
         }
     }
     compileOptions {

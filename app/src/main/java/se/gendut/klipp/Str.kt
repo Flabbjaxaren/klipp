@@ -37,4 +37,15 @@ object Str {
         "Avslappnad" -> t(R.string.names_font_casual)
         else -> stored
     }
+
+    /** What to say when something over the network failed: without a connection, that – not the system's "Unable to resolve host …". */
+    fun netError(e: Throwable): String {
+        var c: Throwable? = e
+        while (c != null) {
+            if (c is java.net.UnknownHostException || c is java.net.ConnectException || c is java.net.NoRouteToHostException) return t(R.string.app_no_internet)
+            if (c is java.net.SocketTimeoutException) return t(R.string.app_net_timeout)
+            c = c.cause.takeIf { it !== c }
+        }
+        return e.message ?: e.javaClass.simpleName
+    }
 }

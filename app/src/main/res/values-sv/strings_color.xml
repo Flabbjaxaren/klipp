@@ -169,9 +169,7 @@
     <string name="colorpage_pick_hint_color">Tryck på färgen du vill välja ut</string>
     <string name="colorpage_history_follow">Följ</string>
     <string name="colorpage_history_pin">Hörnfästning</string>
-    <string name="colorpage_title">Färg</string>
     <string name="colorpage_original">Original</string>
-    <string name="colorpage_tab_clip">Klipp</string>
     <string name="colorpage_tab_timeline">Tidslinje</string>
     <string name="colorpage_no_clip">Lägg ett videoklipp på tidslinjen för att färga det.</string>
     <string name="colorpage_still_title">Stillbild · %1$s</string>
@@ -192,8 +190,6 @@
     <string name="colorpage_node_cache">Cacha noden (till och med den här)</string>
     <string name="colorpage_node_reset">Återställ noden</string>
     <string name="colorpage_node_delete">Ta bort noden</string>
-    <string name="colorpage_nodes">Noder</string>
-    <string name="colorpage_node_hold_hint">Håll in en nod för fler val</string>
     <string name="colorpage_tool_wheels">Hjul</string>
     <string name="colorpage_tool_curves">Kurvor</string>
     <string name="colorpage_tool_adjust">Justera</string>
@@ -201,14 +197,6 @@
     <string name="colorpage_tool_qualifier">Urval</string>
     <string name="colorpage_tool_window">Fönster</string>
     <string name="colorpage_tool_film">Film</string>
-    <string name="colorpage_editor_title">%1$s · nod %2$02d</string>
-    <string name="colorpage_editor_wheels">Färghjul</string>
-    <string name="colorpage_editor_curves">Kurvor</string>
-    <string name="colorpage_editor_adjust">Justera</string>
-    <string name="colorpage_editor_lut">LUT &amp; OpenDRT</string>
-    <string name="colorpage_editor_qualifier">Kvalificerare</string>
-    <string name="colorpage_editor_window">Fönster</string>
-    <string name="colorpage_editor_film">Film</string>
     <string name="colorpage_wb_tap">Tryck på något vitt eller grått …</string>
     <string name="colorpage_wb_dropper">Vitbalans med pipett</string>
     <string name="colorpage_pick_hint_white">Tryck på något som ska vara vitt eller grått</string>
@@ -232,10 +220,8 @@
     <string name="colorpage_scope_waveform">Vågform</string>
     <string name="colorpage_scope_parade">RGB-parad</string>
     <string name="colorpage_scope_vectorscope">Vektorskop</string>
-    <string name="colorpage_scopes">Scopes</string>
     <string name="colorpage_cache">cache</string>
     <string name="colorpage_new_node">Ny nod</string>
-    <string name="colorpage_node_off_badge">AV</string>
     <string name="colorpage_node_neutral">Neutral</string>
     <string name="colorpage_node_default_label">Nod</string>
     <string name="colorpage_live">LIVE</string>

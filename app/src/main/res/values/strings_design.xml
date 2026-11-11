@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="design_picture">Picture</string>
+    <string name="design_more">More</string>
+    <string name="design_stabilize">Stabilize</string>
+    <string name="design_motion_blur">Motion blur</string>
+    <string name="design_position">Position</string>
+    <string name="design_add_media">Media</string>
+    <string name="design_add_sound">Sound</string>
+    <string name="design_add_title">Title</string>
+    <string name="design_add_captions">Captions</string>
+    <string name="design_add_voice">Voice</string>
+    <string name="design_timeline_modes">Timeline modes</string>
+    <string name="design_tool">Tool</string>
+    <string name="design_sound_fx">Effects</string>
+    <string name="theme_accent_lime">Lime</string>
+    <string name="theme_accent_custom">Custom</string>
+    <string name="theme_tone_button">Play</string>
+    <string name="theme_tone_selected">Selected</string>
+    <string name="design_prev_edit">Previous edit</string>
+    <string name="design_of_total">of %1$s</string>
+    <string name="design_project_settings">Project settings</string>
+    <string name="design_workspaces">Workspaces</string>
+    <string name="design_transition">Transition</string>
+    <string name="design_transition_blur">Motion blur</string>
+    <string name="design_seconds_decimal">%1$.1f s</string>
+    <string name="design_selection">%1$s · %2$.1f s</string>
+    <string name="design_color_compare">Compare</string>
+    <string name="design_color_scope">Scope</string>
+    <string name="design_color_fullscreen">Full screen</string>
+    <string name="design_color_luma">Luminance · %1$s</string>
+    <string name="design_color_copy_grade">Copy grade</string>
+    <string name="design_color_paste_grade">Paste grade</string>
+    <string name="design_color_reset_wheels">Reset the wheels</string>
+    <string name="design_color_more">Gallery, grade and timeline</string>
+    <string name="design_color_cancel_pick">Cancel</string>
+    <!-- Short names for the dock, where six actions share the width (the whole names are read out) -->
+    <string name="design_ripple_short">Ripple</string>
+    <string name="design_sync_short">Sync</string>
+    <string name="design_edit_short">Edit</string>
+</resources>

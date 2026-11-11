@@ -5,6 +5,8 @@ import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,11 +19,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -36,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -84,14 +87,19 @@ object AppPrefs {
     fun tipSeen(c: Context, key: String): Boolean = p(c).getBoolean("tip_$key", false)
     fun setTipSeen(c: Context, key: String) { p(c).edit().putBoolean("tip_$key", true).apply() }
 
-    fun accent(c: Context): Accent = runCatching { Accent.valueOf(p(c).getString("accent", null) ?: "") }.getOrDefault(Accent.ORANGE)
+    fun accent(c: Context): Accent = runCatching { Accent.valueOf(p(c).getString("accent", null) ?: "") }.getOrDefault(Accent.LIME)
     fun setAccent(c: Context, a: Accent) { p(c).edit().putString("accent", a.name).apply(); K.accent = a }
+
+    /** The seed color of the custom accent (ARGB). */
+    fun customSeed(c: Context): Int = p(c).getInt("accentSeed", 0xFFD5F15E.toInt()) or (0xFF shl 24)
+    fun setCustomSeed(c: Context, argb: Int) { p(c).edit().putInt("accentSeed", argb).apply(); K.customSeed = argb or (0xFF shl 24) }
 
     fun base(c: Context): Base = runCatching { Base.valueOf(p(c).getString("base", null) ?: "") }.getOrDefault(Base.DARK)
     fun setBase(c: Context, b: Base) { p(c).edit().putString("base", b.name).apply(); K.base = b }
 
     /** Loads what applies to the whole app (theme, haptics) – when the app starts. */
     fun apply(c: Context) {
+        K.customSeed = customSeed(c)
         K.accent = accent(c)
         K.base = base(c)
         Haptics.enabled = haptics(c)
@@ -115,7 +123,8 @@ private fun secLabel(s: Float) = (if (s % 1f == 0f) s.toInt().toString() else "%
 fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {}, onMagnetDefault: (Boolean) -> Unit = {}) {
     val ctx = LocalContext.current
     val haptics = rememberHaptics()
-    Column(Modifier.fillMaxSize().background(K.Bg).windowInsetsPadding(WindowInsets.safeDrawing).testTag("settings")) {
+    // (the empty parts take the touches too: the editor lies under the page)
+    Column(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.windowInsetsPadding(WindowInsets.safeDrawing).testTag("settings")) {
         var page by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(-1) }
         val pageTitles = listOf(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_group_playback), stringResource(R.string.settings_group_export), stringResource(R.string.settings_group_developer))
         if (page >= 0) androidx.activity.compose.BackHandler { page = -1 }
@@ -135,13 +144,14 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                 }
                 0 -> PanelCard(Modifier.padding(top = 8.dp)) {
             Text(stringResource(R.string.settings_accent_color), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
-            Row(
-                Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            // (five to a row: all ten show on a phone)
+            androidx.compose.foundation.layout.FlowRow(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp), maxItemsInEachRow = 5,
             ) {
                 for (a in Accent.entries) {
                     val on = K.accent == a
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.width(52.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(
                             Modifier.size(44.dp).clip(CircleShape).background(Color(a.primary))
                                 .border(if (on) 3.dp else 1.dp, if (on) K.OnSurface else K.OutlineVar, CircleShape)
@@ -149,10 +159,16 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                                 .testTag("accent:${a.name}"),
                             contentAlignment = Alignment.Center,
                         ) { if (on) Icon(Ic.Check, null, tint = Color(a.onPrimary), modifier = Modifier.size(20.dp)) }
-                        Text(a.label, color = if (on) K.OnSurface else K.OnSurfaceVar, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                        Text(a.label, color = if (on) K.OnSurface else K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
             }
+            if (K.accent == Accent.CUSTOM) HueStrip(Tones.hct(K.customSeed)[0].toFloat()) { hue, done ->
+                // the seed is the hue at its most colorful light tone: the roles then take the tones they need from it
+                val seed = TonalPalette(hue.toDouble(), 120.0).let { it.tone(it.vividTone(80, 90)) }
+                if (done) AppPrefs.setCustomSeed(ctx, seed) else K.customSeed = seed
+            }
+            AccentTones()
             DropField(stringResource(R.string.settings_background), Base.entries.map { Opt(it, it.label, it.hint, key = it.name) }, K.base, "base") { AppPrefs.setBase(ctx, it) }
 
                 }
@@ -218,7 +234,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                     Text(stringResource(R.string.settings_node_cache_hint, cacheSize / 1e9),
                         color = K.OnSurfaceVar, fontSize = 12.sp)
                 }
-                androidx.compose.material3.TextButton(onClick = { se.gendut.klipp.engine.NodeCache.clear(ctx); cacheSize = 0 }, modifier = Modifier.testTag("set:clearNodeCache")) { Text(stringResource(R.string.settings_clear)) }
+                FlatTextButton(onClick = { se.gendut.klipp.engine.NodeCache.clear(ctx); cacheSize = 0 }, modifier = Modifier.testTag("set:clearNodeCache")) { Text(stringResource(R.string.settings_clear)) }
             }
             var renderSize by remember { mutableStateOf(0L) }
             androidx.compose.runtime.LaunchedEffect(se.gendut.klipp.engine.RenderCache.revision) {
@@ -229,7 +245,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                     Text(stringResource(R.string.app_delete_renders), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Text(stringResource(R.string.app_megabytes, renderSize / 1e6), color = K.OnSurfaceVar, fontSize = 12.sp)
                 }
-                androidx.compose.material3.TextButton(onClick = { se.gendut.klipp.engine.RenderCache.clear(); renderSize = 0 }, modifier = Modifier.testTag("set:clearRenders")) { Text(stringResource(R.string.settings_clear)) }
+                FlatTextButton(onClick = { se.gendut.klipp.engine.RenderCache.clear(); renderSize = 0 }, modifier = Modifier.testTag("set:clearRenders")) { Text(stringResource(R.string.settings_clear)) }
             }
 
                 }
@@ -261,7 +277,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
 @Composable
 private fun CategoryRow(title: String, hint: String, icon: androidx.compose.ui.graphics.vector.ImageVector, tag: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clickable(onClickLabel = title, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp).testTag(tag), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(40.dp).clip(CircleShape).background(K.Tonal), contentAlignment = Alignment.Center) { Icon(icon, null, tint = K.PrimarySoft, modifier = Modifier.size(20.dp)) }
+        Box(Modifier.size(40.dp).clip(CircleShape).background(K.SurfaceHigh), contentAlignment = Alignment.Center) { Icon(icon, null, tint = K.OnSurface, modifier = Modifier.size(20.dp)) }
         Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
             Text(title, color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Text(hint, color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1)
@@ -281,6 +297,55 @@ private fun SwitchRow(title: String, hint: String, on: Boolean, tag: String, onC
             Text(hint, color = K.OnSurfaceVar, fontSize = 12.sp)
         }
         Spacer(Modifier.size(12.dp))
-        Switch(on, onChange, colors = SwitchDefaults.colors(checkedThumbColor = K.OnPrimary, checkedTrackColor = K.Primary))
+        Switch(on, onChange, colors = SwitchDefaults.colors(checkedThumbColor = K.PrimarySoft, checkedTrackColor = K.PrimaryContainer))
+    }
+}
+
+/** The hue of the custom accent: drag along the strip. [onHue] gets the hue and whether the finger has lifted. */
+@Composable
+private fun HueStrip(hue: Float, onHue: (Float, Boolean) -> Unit) {
+    val set by androidx.compose.runtime.rememberUpdatedState(onHue)
+    val colors = remember { (0..12).map { Color(Tones.color(it * 30.0, 120.0, 80.0)) } }
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).height(44.dp).testTag("accent:hue")
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    down.consume()
+                    var h = (down.position.x / size.width).coerceIn(0f, 1f) * 360f
+                    set(h, false)
+                    while (true) {
+                        val ev = awaitPointerEvent()
+                        val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!c.pressed) break
+                        h = (c.position.x / size.width).coerceIn(0f, 1f) * 360f
+                        set(h, false)
+                        c.consume()
+                    }
+                    set(h, true)
+                }
+            },
+    ) {
+        androidx.compose.foundation.Canvas(Modifier.matchParentSize()) {
+            val th = 16.dp.toPx()
+            val top = (size.height - th) / 2
+            drawRoundRect(androidx.compose.ui.graphics.Brush.horizontalGradient(colors), androidx.compose.ui.geometry.Offset(0f, top), androidx.compose.ui.geometry.Size(size.width, th), androidx.compose.ui.geometry.CornerRadius(th / 2))
+            val x = (hue / 360f).coerceIn(0f, 1f) * size.width
+            val gap = 5.dp.toPx()
+            drawRect(K.Surface, androidx.compose.ui.geometry.Offset(x - gap, top), androidx.compose.ui.geometry.Size(gap * 2, th))
+            drawRoundRect(K.OnSurface, androidx.compose.ui.geometry.Offset(x - 2.dp.toPx(), (size.height - 36.dp.toPx()) / 2), androidx.compose.ui.geometry.Size(4.dp.toPx(), 36.dp.toPx()), androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()))
+        }
+    }
+}
+
+/** What the chosen accent becomes in the interface: Play (the one filled button) and what is selected or on. */
+@Composable
+private fun AccentTones() {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("accent:tones"), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        @Composable fun tone(label: String, bg: Color, fg: Color, shape: androidx.compose.ui.graphics.Shape) = Box(
+            Modifier.weight(1f).height(44.dp).clip(shape).background(bg), contentAlignment = Alignment.Center,
+        ) { Text(label, color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+        tone(stringResource(R.string.theme_tone_button), K.Primary, K.OnPrimary, RoundedCornerShape(topStart = 22.dp, bottomStart = 22.dp, topEnd = 8.dp, bottomEnd = 8.dp))
+        tone(stringResource(R.string.theme_tone_selected), K.PrimaryContainer, K.PrimarySoft, RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 22.dp, bottomEnd = 22.dp))
     }
 }

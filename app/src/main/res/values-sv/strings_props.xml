@@ -14,7 +14,6 @@
     <string name="properties_title">Egenskaper</string>
     <string name="properties_done">Klar</string>
     <string name="properties_select_clip">Markera ett klipp i tidslinjen</string>
-    <string name="properties_audio">Ljud</string>
     <string name="properties_volume">Volym</string>
     <string name="properties_motion">Rörelse</string>
     <string name="properties_reset">Återställ</string>
@@ -83,7 +82,6 @@
     <string name="panels_tint">Nyans</string>
     <string name="panels_creative">Kreativ</string>
     <string name="panels_saturation">Mättnad</string>
-    <string name="panels_color_placeholder">Kurvor · färghjul · HSL · vinjett · scopes kommer</string>
     <string name="panels_duck_title">Ducka musiken</string>
     <string name="panels_duck_desc">Musiken sänks automatiskt när någon pratar på de andra spåren</string>
     <string name="panels_duck_music_on">Musik på</string>
@@ -114,6 +112,8 @@
     <string name="panels_normalize">Normalisera mixen</string>
     <string name="panels_normalize_limited">Toppen begränsar: mixen hamnar på %1$.1f LUFS (sann topp −1 dBTP). Lägg en limiter på klippen för att nå ända fram.</string>
     <string name="panels_normalize_done">Normalisering %1$+.1f dB → %2$.1f LUFS</string>
+    <string name="panels_normalize_remove">Ta bort normaliseringen</string>
+    <string name="panels_target">Mål</string>
     <string name="panels_volume_automation">Volymautomation</string>
     <string name="panels_automation_hint">◆ lägger en nyckelruta vid spelhuvudet med faderns värde (eller tar bort den som ligger där). Med nyckelrutor följer fadern dem, och när du drar i den skrivs en ny ruta.</string>
     <string name="panels_clear_track">Rensa A%1$d</string>
@@ -132,7 +132,6 @@
     <string name="panels_role">Roll</string>
     <string name="panels_animation_in">Animation in</string>
     <string name="panels_play">Spela</string>
-    <string name="panels_text_placeholder">Undertexter · transkribera · SRT / VTT · bränn in</string>
 
     <!-- MaskTrack.kt -->
     <string name="masktrack_file_missing">Klippets fil saknas</string>

@@ -180,7 +180,6 @@
     <string name="beats_none">Ingen jämn beat hittades i klippet</string>
     <string name="beats_btn">Beats</string>
     <string name="beats_undo">Beat-markörer</string>
-    <string name="tts_title">Text till tal</string>
     <string name="tts_hint">Skriv vad rösten ska säga</string>
     <string name="tts_add">Lägg till vid spelhuvudet</string>
     <string name="tts_busy">Skapar …</string>

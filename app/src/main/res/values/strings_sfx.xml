@@ -3,6 +3,12 @@
     <string name="sfx_title">Sound effects</string>
     <string name="sfx_license_note">All sounds are CC0 – free to use in any film, no credit required.</string>
     <string name="sfx_tab_packs">Packs</string>
+    <string name="sfx_tab_speech">Speech</string>
+    <string name="sfx_tab_files">Files</string>
+    <string name="sfx_files_hint">Music or a sound from your phone. It is copied into Klipp and placed at the playhead.</string>
+    <string name="sfx_file_choose">Choose an audio file</string>
+    <string name="sfx_file_busy">Copying…</string>
+    <string name="sfx_file_failed">The file could not be read as audio</string>
     <string name="sfx_size_mb">%1$.1f MB</string>
     <string name="sfx_download">Download</string>
     <string name="sfx_download_failed">Download failed: %1$s</string>
@@ -18,8 +24,6 @@
     <string name="sfx_forget_key">Forget the API key</string>
     <string name="sfx_seconds">%1$.1f s</string>
     <string name="sfx_add">Add</string>
-    <string name="sfx_browse">Browse sound effects</string>
-    <string name="sfx_section_hint">Free sound effects (CC0) – they are placed at the playhead on the first free audio track.</string>
     <string name="sfx_pack_impact">footsteps, hits, thuds, glass, metal</string>
     <string name="sfx_pack_interface">clicks, confirmations, errors, switches</string>
     <string name="sfx_pack_ui">soft UI clicks and switches</string>

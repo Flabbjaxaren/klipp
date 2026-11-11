@@ -22,7 +22,7 @@
     <string name="projectcontroller_generic_failed">That didn\'t work</string>
     <string name="projectcontroller_sync_lock_blocks_ripple">A sync-locked track prevents the ripple – unlock the track</string>
     <string name="projectcontroller_track_locked">The track is locked</string>
-    <string name="projectcontroller_freeze_failed">Freeze Frame failed: %1$s</string>
+    <string name="projectcontroller_freeze_failed">Freeze frame failed: %1$s</string>
     <string name="projectcontroller_read_project_failed">Couldn\'t read the project: %1$s</string>
     <plurals name="projectcontroller_media_count">
         <item quantity="one">%1$d clip</item>
@@ -34,7 +34,7 @@
     <string name="projectcontroller_side_broken">the media file is damaged – the clips couldn\'t be linked</string>
     <string name="projectcontroller_default_project_name">Project %1$s</string>
     <string name="projectcontroller_restore_last_failed">Couldn\'t open the last project: %1$s. Nothing is saved until you open or create a project.</string>
-    <string name="projectcontroller_my_project">My Project</string>
+    <string name="projectcontroller_my_project">My project</string>
     <string name="projectcontroller_restored">Project restored</string>
     <plurals name="projectcontroller_restored_missing">
         <item quantity="one">Project restored – %1$d clip missing</item>
@@ -107,7 +107,7 @@
 
     <!-- ProjectController: undo steps -->
     <string name="projectcontroller_undo_import">Import</string>
-    <string name="projectcontroller_undo_remove_media">Remove Media</string>
+    <string name="projectcontroller_undo_remove_media">Remove media</string>
     <string name="projectcontroller_undo_overwrite">Overwrite</string>
     <string name="projectcontroller_undo_insert">Insert</string>
     <string name="projectcontroller_undo_move">Move</string>
@@ -118,25 +118,25 @@
     <string name="projectcontroller_undo_ungroup">Ungroup</string>
     <string name="projectcontroller_undo_razor">Razor</string>
     <string name="projectcontroller_undo_roll">Roll</string>
-    <string name="projectcontroller_undo_clean_slivers">Clean Up Slivers</string>
-    <string name="projectcontroller_undo_speed_ramp">Speed Ramp</string>
-    <string name="projectcontroller_undo_duck_music">Duck Music</string>
-    <string name="projectcontroller_undo_remove_ducking">Remove Ducking</string>
+    <string name="projectcontroller_undo_clean_slivers">Clean up slivers</string>
+    <string name="projectcontroller_undo_speed_ramp">Speed ramp</string>
+    <string name="projectcontroller_undo_duck_music">Duck music</string>
+    <string name="projectcontroller_undo_remove_ducking">Remove ducking</string>
     <string name="projectcontroller_undo_voiceover">Voice-over</string>
     <string name="projectcontroller_undo_transition">Transition</string>
-    <string name="projectcontroller_undo_auto_captions">Auto Captions</string>
+    <string name="projectcontroller_undo_auto_captions">Auto captions</string>
 
     <!-- ProjectController: speed ramp presets -->
-    <string name="projectcontroller_ramp_slow_mid">Slow-mo in the Middle</string>
-    <string name="projectcontroller_ramp_into_slow">Into Slow-mo</string>
-    <string name="projectcontroller_ramp_from_slow">Out of Slow-mo</string>
-    <string name="projectcontroller_ramp_fast_mid">Fast in the Middle</string>
+    <string name="projectcontroller_ramp_slow_mid">Slow-mo in the middle</string>
+    <string name="projectcontroller_ramp_into_slow">Into slow-mo</string>
+    <string name="projectcontroller_ramp_from_slow">Out of slow-mo</string>
+    <string name="projectcontroller_ramp_fast_mid">Fast in the middle</string>
 
     <!-- AudioFxCatalog -->
-    <string name="audiofxcatalog_denoise">Noise Reduction</string>
+    <string name="audiofxcatalog_denoise">Noise reduction</string>
     <string name="audiofxcatalog_denoise_hint">Removes steady noise (fans, hiss, wind).</string>
     <string name="audiofxcatalog_amount">Amount</string>
-    <string name="audiofxcatalog_speech_enhance">Speech Enhance</string>
+    <string name="audiofxcatalog_speech_enhance">Speech enhance</string>
     <string name="audiofxcatalog_speech_enhance_hint">Clearer speech: tames the room and lifts the voice.</string>
     <string name="audiofxcatalog_mix">Mix</string>
     <string name="audiofxcatalog_eq">EQ</string>
@@ -148,9 +148,9 @@
     <string name="audiofxcatalog_ratio">Ratio</string>
     <string name="audiofxcatalog_attack">Attack</string>
     <string name="audiofxcatalog_release">Release</string>
-    <string name="audiofxcatalog_makeup">Makeup Gain</string>
-    <string name="audiofxcatalog_limiter_after">Limiter After</string>
-    <string name="audiofxcatalog_limiter_ceiling">Limiter Ceiling</string>
+    <string name="audiofxcatalog_makeup">Makeup gain</string>
+    <string name="audiofxcatalog_limiter_after">Limiter after</string>
+    <string name="audiofxcatalog_limiter_ceiling">Limiter ceiling</string>
     <string name="audiofxcatalog_limiter">Limiter</string>
     <string name="audiofxcatalog_limiter_hint">A ceiling for the level – nothing clips.</string>
     <string name="audiofxcatalog_ceiling">Ceiling</string>
@@ -165,7 +165,7 @@
         <item quantity="one">Removed %1$d part (%2$.1f s)</item>
         <item quantity="other">Removed %1$d parts (%2$.1f s)</item>
     </plurals>
-    <string name="audiofxcatalog_pitch">Voice Pitch</string>
+    <string name="audiofxcatalog_pitch">Voice pitch</string>
     <string name="audiofxcatalog_pitch_hint">Makes the voice higher or lower without changing its speed.</string>
     <string name="audiofxcatalog_semitones">Semitones</string>
     <string name="audiofxcatalog_echo">Echo</string>
@@ -180,10 +180,9 @@
     <string name="beats_none">No steady beat found in this clip</string>
     <string name="beats_btn">Beats</string>
     <string name="beats_undo">Beat markers</string>
-    <string name="tts_title">Text to Speech</string>
     <string name="tts_hint">Type what the voice should say</string>
-    <string name="tts_add">Add at Playhead</string>
+    <string name="tts_add">Add at playhead</string>
     <string name="tts_busy">Creating…</string>
     <string name="tts_failed">This phone has no voice for the language</string>
-    <string name="projectcontroller_undo_caption_style">Caption Style</string>
+    <string name="projectcontroller_undo_caption_style">Caption style</string>
 </resources>

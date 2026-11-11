@@ -7,10 +7,10 @@
     <string name="export_codec_h264">H.264 · works everywhere</string>
     <string name="export_codec_hevc">HEVC (H.265) · half the size</string>
     <string name="export_codec_av1">AV1 · smallest, newer devices</string>
-    <string name="titles_template_lower_third">Lower Third</string>
-    <string name="titles_template_chapter">Chapter Card</string>
-    <string name="titles_template_roll">Credits Roll</string>
-    <string name="titles_template_free">Free Text</string>
+    <string name="titles_template_lower_third">Lower third</string>
+    <string name="titles_template_chapter">Chapter card</string>
+    <string name="titles_template_roll">Credits roll</string>
+    <string name="titles_template_free">Free text</string>
     <string name="titles_anim_slide">Slide</string>
     <string name="titles_anim_bounce">Bounce</string>
     <string name="titles_anim_scale">Scale</string>
@@ -20,7 +20,7 @@
     <string name="layerfx_blend_multiply">Multiply</string>
     <string name="layerfx_blend_screen">Screen</string>
     <string name="layerfx_blend_overlay">Overlay</string>
-    <string name="layerfx_blend_soft_light">Soft Light</string>
+    <string name="layerfx_blend_soft_light">Soft light</string>
     <string name="layerfx_blend_add">Add</string>
     <string name="layerfx_blend_darken">Darken</string>
     <string name="layerfx_blend_lighten">Lighten</string>
@@ -34,7 +34,7 @@
     <string name="proxies_quality_normal">Normal</string>
     <string name="proxies_quality_high">High</string>
     <string name="proxies_quality_very_high">Very high</string>
-    <string name="fxcurves_band_low_shelf">Low Shelf</string>
-    <string name="fxcurves_band_high_shelf">High Shelf</string>
+    <string name="fxcurves_band_low_shelf">Low shelf</string>
+    <string name="fxcurves_band_high_shelf">High shelf</string>
     <string name="fxcurves_band_n">Band %1$d</string>
 </resources>

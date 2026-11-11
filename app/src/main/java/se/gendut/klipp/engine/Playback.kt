@@ -95,6 +95,16 @@ object CompositionBuilder {
 
     fun dbToGain(db: Double): Float = Math.pow(10.0, db / 20.0).toFloat()
 
+    /**
+     * Mono sound out as stereo (the one channel at full level on both sides, as in the engine's mixer); other channel
+     * counts pass unchanged. Last on every audio item: Media3's mix takes the format of the input it meets first, so a
+     * mono clip first would otherwise make the whole mix – preview and export – mono.
+     */
+    fun stereoUpmix(): androidx.media3.common.audio.AudioProcessor = androidx.media3.common.audio.ChannelMixingAudioProcessor().apply {
+        putChannelMixingMatrix(androidx.media3.common.audio.ChannelMixingMatrix.createForConstantGain(1, 2))
+        for (n in 2..8) putChannelMixingMatrix(androidx.media3.common.audio.ChannelMixingMatrix(n, n, FloatArray(n * n) { if (it % (n + 1) == 0) 1f else 0f }))
+    }
+
     fun constantSpeed(speed: Float) = object : androidx.media3.common.audio.SpeedProvider {
         override fun getSpeed(timeUs: Long): Float = speed
         override fun getNextSpeedChangeTimeUs(timeUs: Long): Long = C.TIME_UNSET
@@ -133,7 +143,7 @@ object CompositionBuilder {
                 EditedMediaItem.Builder(clipped(uri, p.srcIn, p.dur, p.speed))
                     .setDurationUs(mediaUs(mediaDur(p.item), p.srcIn, p.dur, p.speed))
                     .setRemoveVideo(true)
-                    .setEffects(androidx.media3.transformer.Effects(procs, emptyList()))
+                    .setEffects(androidx.media3.transformer.Effects(procs + stereoUpmix(), emptyList()))
                     .apply { if (speed != null) setSpeed(speed) }
                     .build()
             )
@@ -464,7 +474,7 @@ object CompositionBuilder {
             }
             if (fx.isNotEmpty()) videoFx = fx
         }
-        // the export's audio: sample rate and mono
+        // the export's audio: sample rate (the project's unless the export sets one) and mono
         val audioFx = ArrayList<androidx.media3.common.audio.AudioProcessor>()
         if (output != null && output.audio) {
             // mono: the mean of all channels (for every channel count – Media3's own matrices exist only for some, and a
@@ -472,7 +482,8 @@ object CompositionBuilder {
             if (output.mono) audioFx += androidx.media3.common.audio.ChannelMixingAudioProcessor().apply {
                 for (n in 1..8) putChannelMixingMatrix(androidx.media3.common.audio.ChannelMixingMatrix(n, 1, FloatArray(n) { 1f / n }))
             }
-            if (output.sampleRate > 0) audioFx += androidx.media3.common.audio.SonicAudioProcessor().apply { setOutputSampleRateHz(output.sampleRate) }
+            val rate = if (output.sampleRate > 0) output.sampleRate else q.sampleRate
+            if (rate > 0) audioFx += androidx.media3.common.audio.SonicAudioProcessor().apply { setOutputSampleRateHz(rate) }
         }
         if (videoFx.isNotEmpty() || audioFx.isNotEmpty()) b.setEffects(androidx.media3.transformer.Effects(audioFx, videoFx))
         return Built(b.build(), multi, plan, times)

@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.floor
@@ -113,6 +114,8 @@ class Haptics(private val view: View) {
         )
     }
     fun heavy() { if (enabled) view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS) }
+    /** A button pressed: the key click (a tick is too faint on many phones to be felt under a finger lifting off). */
+    fun press() { if (enabled) view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY) }
 }
 
 @Composable
@@ -220,8 +223,10 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     /** Preview while a transition is dragged: (id, start, end, anchor, edit point); id −1 = new. */
     var transPreview by remember { mutableStateOf<UiTransition?>(null) }
 
-    var pps by remember { mutableFloatStateOf(with(density) { 16.dp.toPx() }) } // pixels per second
-    var freeScroll by remember { mutableFloatStateOf(0f) }
+    // zoom and scroll are kept in the editor's state (the timeline leaves the screen, they stay)
+    val zoom = remember(state) { state.timelineZoom.also { if (it.floatValue <= 0f) it.floatValue = with(density) { 16.dp.toPx() } } }
+    var pps by zoom // pixels per second
+    var freeScroll by state.timelineScroll
     var laneWidth by remember { mutableFloatStateOf(1f) }
     var laneHeight by remember { mutableFloatStateOf(1f) }
     // vertical scrolling (to reach the audio tracks when the source panel takes up space)
@@ -253,6 +258,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     val snapGlow = remember { Animatable(0f) }
     var flingJob by remember { mutableStateOf<Job?>(null) }
     var followJob by remember { mutableStateOf<Job?>(null) }
+    /** A finger is on the lanes (the timeline doesn't go after the playhead under it). */
+    val touching = remember { booleanArrayOf(false) }
 
     val anims = remember { mutableStateMapOf<Long, ClipAnim>() }
     var initialized by remember { mutableStateOf(false) }
@@ -354,15 +361,38 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
         } else snapGlow.animateTo(0f, tween(160))
     }
 
-    // Follow the playhead during playback. The glide is its own job: a touch on the timeline stops it (otherwise
-    // it overwrote the finger's scrolling), and a fling is stopped when playback starts.
+    // Follow the playhead. During playback the timeline glides on when the playhead nears the right edge. Paused, a
+    // jump that takes the playhead out of view (an edit point, a frame step, a typed time, the bar under the picture)
+    // brings the timeline to it. The glide is its own job: a touch on the timeline stops it (otherwise it overwrote
+    // the finger's scrolling), and a fling is stopped when playback starts.
     LaunchedEffect(Unit) {
+        // (the lanes have a width once they are laid out)
+        snapshotFlow { laneWidth }.first { it > 1f }
+        var arrived = true
+        var glideTo = freeScroll
         snapshotFlow { state.playhead }.collect { ph ->
-            if (!state.playing || state.centerPlayhead || followJob?.isActive == true) return@collect
-            val x = ph * pps - freeScroll
-            if (x > laneWidth * 0.82f) {
-                val target = ph * pps - laneWidth * 0.25f
-                followJob = scope.launch { animate(freeScroll, target, animationSpec = Springs.settle()) { v, _ -> freeScroll = v } }
+            val first = arrived
+            arrived = false
+            // back on screen (from another page, the full-screen viewer): only a playhead that has moved meanwhile
+            // (the very first time the timeline is shown, it starts where it is)
+            val moved = !state.timelineSeen.isNaN() && ph != state.timelineSeen
+            state.timelineSeen = ph
+            if (!moved || state.centerPlayhead) return@collect
+            // (while a glide runs, where it is going is what counts)
+            val x = ph * pps - if (followJob?.isActive == true) glideTo else freeScroll
+            val out = x < 0f || x > laneWidth - edgePx
+            when {
+                first -> if (out) freeScroll = (ph * pps - laneWidth * 0.25f).coerceAtLeast(0f)
+                state.playing -> if (followJob?.isActive != true && x > laneWidth * 0.82f) {
+                    glideTo = ph * pps - laneWidth * 0.25f
+                    followJob = scope.launch { animate(freeScroll, glideTo, animationSpec = Springs.settle()) { v, _ -> freeScroll = v } }
+                }
+                out && !touching[0] -> {
+                    // more of the timeline in the direction the playhead went
+                    glideTo = (ph * pps - laneWidth * if (x < 0f) 0.75f else 0.25f).coerceAtLeast(0f)
+                    followJob?.cancel()
+                    followJob = scope.launch { animate(freeScroll, glideTo, animationSpec = Springs.settle()) { v, _ -> freeScroll = v } }
+                }
             }
         }
     }
@@ -437,15 +467,15 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     drawRect(c.kind.fg.copy(alpha = 0.7f), Offset(x(c.start), c.track * rowH + rowH * 0.2f), Size((x(c.end) - x(c.start)).coerceAtLeast(1f), rowH * 0.6f))
                 }
                 val v0 = x(sx() / pps); val v1 = x((sx() + laneWidth) / pps)
-                drawRoundRect(K.PrimarySoft, Offset(v0, 0f), Size((v1 - v0).coerceAtLeast(3f), size.height), CornerRadius(3.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
-                drawRect(K.Primary, Offset(x(state.playhead) - 0.75.dp.toPx(), 0f), Size(1.5.dp.toPx(), size.height))
+                drawRoundRect(K.Mark, Offset(v0, 0f), Size((v1 - v0).coerceAtLeast(3f), size.height), CornerRadius(3.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
+                drawRect(K.Mark, Offset(x(state.playhead) - 0.75.dp.toPx(), 0f), Size(1.5.dp.toPx(), size.height))
             }
             if (state.hasCaptionLane) Row(Modifier.height(capH).fillMaxWidth().padding(start = 8.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("TXT", color = if (state.captionsOn) K.Teal else K.Outline, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 // show/hide the captions (like the eye on a video track)
                 HeaderToggle(if (state.captionsOn) Ic.Eye else Ic.EyeOff, if (state.captionsOn) stringResource(R.string.timeline_hide_captions) else stringResource(R.string.timeline_show_captions), !state.captionsOn, "capToggle") {
-                    haptics.tick(); state.onCaptionsVisible?.invoke(!state.captionsOn)
+                    haptics.press(); state.onCaptionsVisible?.invoke(!state.captionsOn)
                 }
             }
             Box(
@@ -465,7 +495,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 val ts = state.trackStates.getOrNull(i) ?: TrackState()
                 var menu by remember { mutableStateOf(false) }
                 val targeted = i == state.targetVideo || i == state.targetAudio
-                val lamp by androidx.compose.animation.animateColorAsState(if (targeted) K.Primary else K.OutlineVar, label = "lamp$i")
+                val lamp by androidx.compose.animation.animateColorAsState(if (targeted) K.Mark else K.OutlineVar, label = "lamp$i")
                 val lampH by androidx.compose.animation.core.animateDpAsState(if (targeted) 24.dp else 16.dp, androidx.compose.animation.core.spring(0.35f, 500f), label = "lh$i")
                 val slim = trackH[i].value < fullPx[i] * 0.7f
                 Row(
@@ -495,7 +525,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         Text(t.name, color = if (ts.enabled && !ts.muted) K.OnSurfaceVar else K.Outline, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
                         // the states as small badges under the name
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                            if (ts.locked) androidx.compose.material3.Icon(Ic.Lock, stringResource(R.string.timeline_locked), tint = K.Primary, modifier = Modifier.size(11.dp))
+                            if (ts.locked) androidx.compose.material3.Icon(Ic.Lock, stringResource(R.string.timeline_locked), tint = K.Mark, modifier = Modifier.size(11.dp))
                             if (ts.solo) Text("S", color = K.Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         }
                         // the audio track's level while it plays
@@ -504,9 +534,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     Spacer(Modifier.weight(1f))
                     // hide the video track / mute the audio track directly (hold the header for lock, solo and sync lock)
                     if (t.kind == TrackKind.VIDEO) HeaderToggle(if (ts.enabled) Ic.Eye else Ic.EyeOff, if (ts.enabled) stringResource(R.string.timeline_hide_track) else stringResource(R.string.timeline_show_track), !ts.enabled, "trackToggle:${t.name}") {
-                        haptics.tick(); state.setTrackFlag(i, "enabled", !ts.enabled)
+                        haptics.press(); state.setTrackFlag(i, "enabled", !ts.enabled)
                     } else HeaderToggle(if (ts.muted) Ic.SpeakerOff else Ic.Speaker, if (ts.muted) stringResource(R.string.timeline_unmute) else stringResource(R.string.timeline_mute_track), ts.muted, "trackToggle:${t.name}") {
-                        haptics.tick(); state.setTrackFlag(i, "muted", !ts.muted)
+                        haptics.press(); state.setTrackFlag(i, "muted", !ts.muted)
                     }
                 }
             }
@@ -541,6 +571,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     awaitEachGesture {
                       try {
                         val down = awaitFirstDown(requireUnconsumed = false)
+                        touching[0] = true
                         flingJob?.cancel()
                         followJob?.cancel()
                         val start = down.position
@@ -593,13 +624,13 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 if (cx > x1 - inside && cx < x1 + outside && tr.anchor != 1) return@run Hit.TransEdge(tr.id, false)
                                 if (cx > x0 && cx < x1) return@run Hit.TransBody(tr.id)
                             }
-                            // trim tool: the edit point between two adjacent clips = roll
+                            // trim tool: the edit point between two adjacent clips = roll. The nearest one on the track under
+                            // the finger: with short clips several are within reach, and the first found was not always it
                             if (tool == Tool.TRIM) {
-                                for ((l, r) in state.cutPairs()) {
-                                    val ty = yOf(l.track.toFloat())
-                                    if (y < ty || y > ty + hOf(l.track.toFloat())) continue
-                                    if (abs(cx - r.start * pps) < handlePx) return@run Hit.Roll(l.id, r.id)
-                                }
+                                val near = state.cutPairs()
+                                    .filter { (l, _) -> val ty = yOf(l.track.toFloat()); y >= ty && y <= ty + hOf(l.track.toFloat()) }
+                                    .minByOrNull { (_, r) -> abs(cx - r.start * pps) }
+                                if (near != null && abs(cx - near.second.start * pps) < handlePx) return@run Hit.Roll(near.first.id, near.second.id)
                             }
                             if (sel != null && tool != Tool.RAZOR) {
                                 val a = anims[sel]
@@ -901,11 +932,11 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         val candidates = if (groupDrag) {
                             val inGroup = state.multi
                             listOf(0f, state.playhead) + state.markers + state.clips.filter { it.id !in inGroup && it.id !in state.removing }.flatMap { listOf(it.start, it.end) }
-                        } else state.snapCandidates(orig?.id)
+                        } else state.snapCandidates(setOfNotNull(orig?.id) + partners.map { it.first.id })
                         val scroll0 = sx()
                         val scrollY0 = scrollY
                         var vertical = false
-                        val centerCands = state.snapCandidates(null).filter { abs(it - state.playhead) > 0.001f }
+                        val centerCands = state.snapCandidates().filter { abs(it - state.playhead) > 0.001f }
                         val vt = VelocityTracker()
                         vt.addPosition(down.uptimeMillis, down.position)
                         var moved = false
@@ -922,7 +953,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         val scrubT = ScrubTiers(28.dp.toPx(), 44.dp.toPx())
                         scrubT.start(start.x, start.y, if (state.centerPlayhead) state.playhead.toDouble() else ((start.x + sx()) / pps).toDouble())
                         // clip edges and markers: a tick when the playhead passes one while scrubbing
-                        val scrubEdges = state.snapCandidates(null).filter { abs(it - state.playhead) > 0.001f }.sorted()
+                        val scrubEdges = state.snapCandidates().filter { abs(it - state.playhead) > 0.001f }.sorted()
                         var lastScrubPh = state.playhead
                         fun scrubTo(t: Float) {
                             val lo = min(lastScrubPh, t); val hi = max(lastScrubPh, t)
@@ -1472,7 +1503,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         val flungOut = hit is Hit.Body && dragId == orig?.id && fling.y < -FLING_OUT_DP * density.density && (lastPos.y + fling.y * 0.12f) < rulerPx - outPx
                         val dropDelete = (deleteArmed || flungOut) && hit is Hit.Body && orig != null && dragId == orig.id
                         deleteArmed = false
-                        if (dropDelete && orig != null && a != null) {
+                        if (dropDelete && a != null) {
                             dragId = null
                             haptics.heavy()
                             capGroupDt = null
@@ -1573,6 +1604,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         // the gesture was cancelled (tool changed, view disappeared): no temporary state may remain
                         abandonGesture()
                         throw e
+                      } finally {
+                        touching[0] = false
                       }
                     }
                 }
@@ -1663,6 +1696,12 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             delay(1500)
                             wasRemoved[0] = false
                             launch { a.lift.animateTo(0f, Springs.lift()) }
+                            // (dragged out of the timeline it was drawn where it was dropped: back to its place)
+                            if (dragId != c.id) {
+                                launch { a.start.animateTo(c.start, Springs.settle()) }
+                                launch { a.len.animateTo(c.length, Springs.settle()) }
+                                launch { a.track.animateTo(c.track.toFloat(), Springs.track()) }
+                            }
                         }
                         if (a.appear.value < 1f) a.appear.animateTo(1f, Springs.pop())
                     }
@@ -1728,9 +1767,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             else -> { moveTo(x0, top); lineTo(x1, top + h); lineTo(x1, top); lineTo(x0, top + h); close() }
                         }
                     }
-                    drawRoundRect(Color(0xCC1D2026), Offset(x0, top), Size(x1 - x0, h), CornerRadius(6.dp.toPx()))
-                    drawPath(shape, (if (sel) K.Primary else K.PrimarySoft).copy(alpha = if (sel) 0.75f else 0.55f))
-                    drawRoundRect(if (sel) K.Primary else K.PrimarySoft, Offset(x0, top), Size(x1 - x0, h), CornerRadius(6.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke((if (sel) 2.5f else 1.5f).dp.toPx()))
+                    drawRoundRect(K.Surface.copy(alpha = 0.8f), Offset(x0, top), Size(x1 - x0, h), CornerRadius(6.dp.toPx()))
+                    drawPath(shape, (if (sel) K.Mark else K.Mark).copy(alpha = if (sel) 0.75f else 0.55f))
+                    drawRoundRect(if (sel) K.Mark else K.Mark, Offset(x0, top), Size(x1 - x0, h), CornerRadius(6.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke((if (sel) 2.5f else 1.5f).dp.toPx()))
                     // draggable edges
                     val gw = 3.dp.toPx()
                     if (tr.anchor != -1) drawRoundRect(K.OnSurface.copy(alpha = 0.8f), Offset(x0 + 2.dp.toPx(), top + h * 0.3f), Size(gw, h * 0.4f), CornerRadius(gw / 2))
@@ -1743,9 +1782,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     val h = hOf(cut.track.toFloat())
                     if (x > -20f && x < size.width + 20f && top + h > rulerPx) {
                         val w = 10.dp.toPx()
-                        drawRoundRect(Color(0xCC1D2026), Offset(x - w / 2 - 2.dp.toPx(), top + 1.dp.toPx()), Size(w + 4.dp.toPx(), h - 2.dp.toPx()), CornerRadius(6.dp.toPx()))
-                        drawRoundRect(K.Primary, Offset(x - w / 2, top + 3.dp.toPx()), Size(w, h - 6.dp.toPx()), CornerRadius(5.dp.toPx()))
-                        drawLine(K.OnPrimary, Offset(x, top + h * 0.3f), Offset(x, top + h * 0.7f), 2.dp.toPx())
+                        drawRoundRect(K.Surface.copy(alpha = 0.8f), Offset(x - w / 2 - 2.dp.toPx(), top + 1.dp.toPx()), Size(w + 4.dp.toPx(), h - 2.dp.toPx()), CornerRadius(6.dp.toPx()))
+                        drawRoundRect(K.Mark, Offset(x - w / 2, top + 3.dp.toPx()), Size(w, h - 6.dp.toPx()), CornerRadius(5.dp.toPx()))
+                        drawLine(K.OnMark, Offset(x, top + h * 0.3f), Offset(x, top + h * 0.7f), 2.dp.toPx())
                     }
                 }
                 // fade handles on the selected video clip
@@ -1758,8 +1797,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     if (x1 - x0 > fadeZonePx * 2 && top + 8.dp.toPx() > rulerPx) {
                         val r = 7.dp.toPx()
                         for (cxp in listOf(x0 + r + 3.dp.toPx(), x1 - r - 3.dp.toPx())) {
-                            drawCircle(Color(0xFF1D2026), r + 2.dp.toPx(), Offset(cxp, top + r + 3.dp.toPx()))
-                            drawCircle(K.PrimarySoft, r, Offset(cxp, top + r + 3.dp.toPx()))
+                            drawCircle(K.Surface, r + 2.dp.toPx(), Offset(cxp, top + r + 3.dp.toPx()))
+                            drawCircle(K.Mark, r, Offset(cxp, top + r + 3.dp.toPx()))
                         }
                     }
                 }
@@ -1835,8 +1874,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             for (i in 1 until pts.size) lineTo(pts[i].x - sx(), pts[i].y + rulerPx - scrollY)
                             close()
                         }
-                        drawPath(path, K.Primary.copy(alpha = 0.14f))
-                        drawPath(path, K.PrimarySoft, style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        drawPath(path, K.Mark.copy(alpha = 0.14f))
+                        drawPath(path, K.Mark, style = androidx.compose.ui.graphics.drawscope.Stroke(
                             2.dp.toPx(), pathEffect = lassoDash,
                         ))
                     }
@@ -1853,7 +1892,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     // mark where the cuts will land
                     for (c in TimelineTools.razorCuts(state.clips.filter { it.id !in state.removing }, t, lo..hi)) {
                         val cy = rulerPx + yOf(c.track.toFloat()) + hOf(c.track.toFloat()) / 2f - scrollY
-                        drawCircle(Color(0xFF1D2026), 7.dp.toPx(), Offset(x, cy))
+                        drawCircle(K.Surface, 7.dp.toPx(), Offset(x, cy))
                         drawCircle(red, 5.dp.toPx(), Offset(x, cy))
                     }
                 }
@@ -1864,19 +1903,19 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     val pad = 8.dp.toPx()
                     val bx = (at.x - tw / 2 - pad).coerceIn(4.dp.toPx(), size.width - tw - pad * 2 - 4.dp.toPx())
                     val by = (at.y - 40.dp.toPx()).coerceAtLeast(rulerBasePx + 2.dp.toPx())
-                    drawRoundRect(Color(0xEE1D2026), Offset(bx, by), Size(tw + pad * 2, 26.dp.toPx()), CornerRadius(13.dp.toPx()))
+                    drawRoundRect(K.Surface.copy(alpha = 0.93f), Offset(bx, by), Size(tw + pad * 2, 26.dp.toPx()), CornerRadius(13.dp.toPx()))
                     drawContext.canvas.nativeCanvas.drawText(text, bx + pad, by + 13.dp.toPx() + paint.textSize * 0.36f, paint)
                 }
                 snapLine?.let { s ->
                     val x = s * pps - sx()
                     val g = snapGlow.value
-                    drawRect(K.Primary.copy(alpha = 0.18f * g), Offset(x - 6.dp.toPx() * g, 0f), Size(12.dp.toPx() * g, size.height))
-                    drawRect(K.PrimarySoft.copy(alpha = min(1f, g)), Offset(x - 1.dp.toPx(), 0f), Size(2.dp.toPx(), size.height))
+                    drawRect(K.Mark.copy(alpha = 0.18f * g), Offset(x - 6.dp.toPx() * g, 0f), Size(12.dp.toPx() * g, size.height))
+                    drawRect(K.Mark.copy(alpha = min(1f, g)), Offset(x - 1.dp.toPx(), 0f), Size(2.dp.toPx(), size.height))
                 }
                 val px = state.playhead * pps - sx()
-                drawRect(K.Primary, Offset(px - 1.dp.toPx(), rulerBasePx - 4.dp.toPx()), Size(2.dp.toPx(), size.height))
+                drawRect(K.Mark, Offset(px - 1.dp.toPx(), rulerBasePx - 4.dp.toPx()), Size(2.dp.toPx(), size.height))
                 drawRoundRect(
-                    K.Primary, Offset(px - 7.dp.toPx(), 4.dp.toPx()), Size(14.dp.toPx(), 18.dp.toPx()),
+                    K.Mark, Offset(px - 7.dp.toPx(), 4.dp.toPx()), Size(14.dp.toPx(), 18.dp.toPx()),
                     cornerRadius = CornerRadius(7.dp.toPx())
                 )
                 val my = maxScrollY()
@@ -1985,7 +2024,7 @@ private fun ClipView(
                 // disabled clip: the grayscale is drawn in its own layer (saturation is removed only from the clip)
                 compositingStrategy = if (clip.enabled) androidx.compose.ui.graphics.CompositingStrategy.Auto else androidx.compose.ui.graphics.CompositingStrategy.Offscreen
             }
-            .then(if (selected) Modifier.border(2.dp, K.Primary, shape) else Modifier)
+            .then(if (selected) Modifier.border(2.dp, K.Mark, shape) else Modifier)
             .then(if (clip.enabled) Modifier else Modifier.testTag("clipOff:${clip.id}").drawWithContent {
                 drawContent()
                 drawRect(Color(0xFF808080), blendMode = androidx.compose.ui.graphics.BlendMode.Saturation)
@@ -2020,14 +2059,14 @@ private fun ClipView(
         if (selected) {
             Box(
                 Modifier.align(Alignment.CenterStart).width(10.dp).fillMaxHeight()
-                    .background(K.Primary, RoundedCornerShape(topStart = 9.dp, bottomStart = 9.dp)),
+                    .background(K.Mark, RoundedCornerShape(topStart = 9.dp, bottomStart = 9.dp)),
                 contentAlignment = Alignment.Center
-            ) { Box(Modifier.size(2.dp, 14.dp).background(K.OnPrimary)) }
+            ) { Box(Modifier.size(2.dp, 14.dp).background(K.OnMark)) }
             Box(
                 Modifier.align(Alignment.CenterEnd).width(10.dp).fillMaxHeight()
-                    .background(K.Primary, RoundedCornerShape(topEnd = 9.dp, bottomEnd = 9.dp)),
+                    .background(K.Mark, RoundedCornerShape(topEnd = 9.dp, bottomEnd = 9.dp)),
                 contentAlignment = Alignment.Center
-            ) { Box(Modifier.size(2.dp, 14.dp).background(K.OnPrimary)) }
+            ) { Box(Modifier.size(2.dp, 14.dp).background(K.OnMark)) }
         }
     }
 }

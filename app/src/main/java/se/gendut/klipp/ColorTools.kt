@@ -16,7 +16,6 @@ import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.text.font.FontWeight
@@ -28,7 +27,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -143,15 +141,15 @@ private fun DrtEditor(n: GradeNode, onCommit: (GradeNode) -> Unit) {
         for (inp in se.gendut.klipp.engine.OpenDrt.Input.entries) ToggleChip(inp.label, d.input == inp.key, { set(d.copy(input = inp.key)) }, Modifier.testTag("drtIn:${inp.key}"))
     }
     SubLabel(stringResource(R.string.colortools_look))
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         se.gendut.klipp.engine.OpenDrt.LOOKS.forEachIndexed { i, l -> ToggleChip(l, d.look == i, { set(d.copy(look = i)) }, Modifier.testTag("drtLook:$i")) }
     }
     SubLabel(stringResource(R.string.colortools_tonescale))
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         se.gendut.klipp.engine.OpenDrt.TONESCALES.forEachIndexed { i, l -> ToggleChip(l, d.tonescale == i, { set(d.copy(tonescale = i)) }, Modifier.testTag("drtTs:$i")) }
     }
     SubLabel(stringResource(R.string.colortools_creative_white))
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         se.gendut.klipp.engine.OpenDrt.WHITES.forEachIndexed { i, l -> ToggleChip(l, d.cwp == i, { set(d.copy(cwp = i)) }, Modifier.testTag("drtCwp:$i")) }
     }
     if (d.cwp != 0) PropSlider(stringResource(R.string.colortools_white_limit), d.cwpLimit, 0f, 1f, 0.25f, { "%.2f".format(it) }, "drtCwpLm", lane = false) { set(d.copy(cwpLimit = it)) }
@@ -399,7 +397,7 @@ private fun FilmSection(key: String, title: String, changed: Boolean, summary: S
                 .testTag("filmsec:$key"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(title, color = K.Primary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text(title, color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             if (changed) Box(Modifier.padding(start = 8.dp).size(6.dp).clip(RoundedCornerShape(3.dp)).background(K.Primary).testTag("filmsec:$key:changed"))
             Box(Modifier.weight(1f))
             if (summary != null) Text(summary, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(end = 8.dp))
@@ -426,7 +424,7 @@ private fun hint(text: String) = Text(text, color = K.OnSurfaceVar, fontSize = 1
 private fun strengthLabel(v: Float) = when (v) { 0.125f -> "1/8"; 0.25f -> "1/4"; 0.5f -> "1/2"; 1f -> "1"; 2f -> "2"; else -> v.toString() }
 
 @Composable
-private fun SectionTitle(text: String) = Text(text, color = K.Primary, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = Modifier.padding(start = 14.dp, top = 14.dp, bottom = 2.dp))
+private fun SectionTitle(text: String) = Text(text, color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, modifier = Modifier.padding(start = 14.dp, top = 14.dp, bottom = 2.dp))
 
 @Composable
 private fun SubLabel(text: String) = Text(text, color = K.OnSurfaceVar, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, modifier = Modifier.padding(start = 14.dp, top = 8.dp))
@@ -440,7 +438,7 @@ fun QualifierEditor(clip: Long, n: GradeNode, gs: GradeState, onLive: (GradeNode
     val keyShown = gs.showKey == (clip to n.id)
     Column {
         PillButton(if (gs.pick != null) stringResource(R.string.colortools_tap_image) else stringResource(R.string.colortools_pick_with_dropper), onPick,
-            Modifier.padding(horizontal = 14.dp, vertical = 4.dp).testTag("qual:pick"), icon = Ic.Dropper, filled = gs.pick == null)
+            Modifier.padding(horizontal = 14.dp, vertical = 4.dp).testTag("qual:pick"), icon = Ic.Dropper, on = gs.pick != null)
         androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ToggleChip(stringResource(R.string.colortools_on), q.on, { set(q.copy(on = !q.on)) }, Modifier.testTag("qual:on"))
             ToggleChip(stringResource(R.string.colortools_show_key), keyShown, { gs.showKey = if (keyShown) null else clip to n.id }, Modifier.testTag("qual:key"))
@@ -646,7 +644,7 @@ fun WindowEditor(clip: Long, n: GradeNode, gs: GradeState, onLive: (GradeNode) -
             val busy = TrackService.target == (clip to n.id)
             val progress = TrackService.progress
             if (!busy) TrackDensityRow()
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (busy) {
                     PillButton(stringResource(R.string.colortools_cancel), { TrackService.cancel() }, Modifier.testTag("win:trackCancel"), icon = Ic.Close, filled = false)
                 } else {
@@ -690,7 +688,9 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
     if (!gs.active) return
     val cmp = gs.compare
     if (cmp != null) {
-        val img by produceState<ImageBitmap?>(null, cmp.id) { value = withContext(Dispatchers.IO) { StillStore.image(cmp) } }
+        val original = cmp.id == Still.ORIGINAL
+        val stored by produceState<ImageBitmap?>(null, cmp.id) { value = if (original) null else withContext(Dispatchers.IO) { StillStore.image(cmp) } }
+        val img = if (original) gs.compareImage else stored
         Box(
             modifier.fillMaxSize().clipToBounds().testTag("compare")
                 .pointerInput(cmp.id) {
@@ -719,8 +719,8 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
                 drawLine(Color.White, Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
                 drawCircle(Color.White, 10.dp.toPx(), Offset(x, size.height / 2))
             }
-            Text(stringResource(R.string.colortools_still), color = Color.White, fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp))
-            Text(stringResource(R.string.colortools_now), color = Color.White, fontSize = 10.sp, modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp))
+            Text(stringResource(if (original) R.string.colorpage_original else R.string.colortools_still), color = Color.White, fontSize = 10.sp, modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp))
+            Text(stringResource(R.string.colortools_now), color = Color.White, fontSize = 10.sp, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp))
         }
     }
     val pick = gs.pick
@@ -845,7 +845,12 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
 // ------------------------------------------------------------------ stills gallery
 
 /** A saved still: the graded image and the grade that produced it (like Resolve's gallery). */
-data class Still(val id: String, val label: String, val time: Long, val grade: ClipGrade)
+data class Still(val id: String, val label: String, val time: Long, val grade: ClipGrade) {
+    companion object {
+        /** Not a still in the gallery: the clip itself without its grade ([GradeState.compareImage]). */
+        const val ORIGINAL = "original"
+    }
+}
 
 /** The gallery, saved in the app's files (shared by all projects). */
 object StillStore {
@@ -902,13 +907,13 @@ object StillStore {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun StillsRow(gs: GradeState, onGrab: () -> Unit, onMenu: (Still) -> Unit) {
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.sideScroll().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(
-            Modifier.width(96.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp)).background(K.Tonal).combinedClickable(onClick = onGrab).testTag("grabStill"),
+            Modifier.width(96.dp).aspectRatio(16f / 9f).clip(RoundedCornerShape(16.dp)).background(K.SurfaceHigh).combinedClickable(onClick = onGrab).testTag("grabStill"),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
         ) {
-            androidx.compose.material3.Icon(Ic.Still, null, tint = K.PrimarySoft, modifier = Modifier.size(20.dp))
-            Text(stringResource(R.string.colortools_grab_still), color = K.PrimarySoft, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+            androidx.compose.material3.Icon(Ic.Still, null, tint = K.OnSurface, modifier = Modifier.size(20.dp))
+            Text(stringResource(R.string.colortools_grab_still), color = K.OnSurface, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
         }
         for (s in StillStore.stills) {
             val img by produceState<ImageBitmap?>(null, s.id) { value = withContext(Dispatchers.IO) { StillStore.image(s) } }
@@ -1021,14 +1026,14 @@ object StabService {
     }.getOrNull()
 }
 
-/** The card on the color page: stabilize the clip, strength, remove. */
+/** Stabilize the clip, strength, remove; and the motion blur card ([blurOnly]: only that, [stabOnly]: only the stabilization). */
 @Composable
-fun StabilizeCard(gs: GradeState, clip: ColorClip) {
+fun StabilizeCard(gs: GradeState, clip: ColorClip, blurOnly: Boolean = false, stabOnly: Boolean = !blurOnly) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val haptics = rememberHaptics()
     val st = gs.of(clip.id).stab
     val busy = StabService.target == clip.id
-    PanelCard(Modifier.padding(top = 12.dp), title = stringResource(R.string.colortools_stabilization)) {
+    if (!blurOnly) PanelCard(Modifier.padding(top = 12.dp), title = stringResource(R.string.colortools_stabilization)) {
         if (st == null && !busy) {
             Text(stringResource(R.string.colortools_stab_intro),
                 color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))
@@ -1038,7 +1043,7 @@ fun StabilizeCard(gs: GradeState, clip: ColorClip) {
             androidx.compose.material3.LinearProgressIndicator(progress = { p }, Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp), color = K.Primary)
             PillButton(stringResource(R.string.colortools_cancel), { StabService.cancel() }, Modifier.padding(horizontal = 14.dp, vertical = 4.dp).testTag("stab:cancel"), icon = Ic.Close, filled = false)
         } else {
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PillButton(if (st == null) stringResource(R.string.colortools_stabilize_clip) else stringResource(R.string.colortools_restabilize), { haptics.confirm(); StabService.start(ctx, gs, clip, st?.strength ?: 0.6f, st?.mode ?: 0, st?.maxZoom ?: 1.2f) },
                     Modifier.testTag("stab:start"), icon = Ic.Target)
                 if (st != null) PillButton(stringResource(R.string.colortools_remove), { haptics.tick(); gs.set(clip.id, gs.of(clip.id).copy(stab = null)) }, Modifier.testTag("stab:clear"), icon = Ic.Delete, filled = false)
@@ -1069,7 +1074,7 @@ fun StabilizeCard(gs: GradeState, clip: ColorClip) {
         StabService.message?.takeIf { !busy }?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp).testTag("stab:msg")) }
     }
     val mb = gs.of(clip.id).mblur
-    PanelCard(Modifier.padding(top = 12.dp), title = stringResource(R.string.colortools_motion_blur)) {
+    if (!stabOnly) PanelCard(Modifier.padding(top = 12.dp), title = stringResource(R.string.colortools_motion_blur)) {
         if (mb == null) {
             Text(stringResource(R.string.colortools_motion_blur_intro),
                 color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))

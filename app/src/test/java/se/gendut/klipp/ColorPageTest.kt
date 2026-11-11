@@ -13,7 +13,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
@@ -54,7 +53,10 @@ class ColorPageTest {
             KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { ColorPage(st, gs, clips) { ColorPanel(ColorGrade(), { imported++ }, scroll = false) } } }
         }
         rule.waitForIdle()
-        rule.onNodeWithText("Tidslinje").performClick()
+        // the timeline's look is behind the grid button at the end of the node row
+        rule.onNodeWithTag("colorMore").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("colorTab:timeline").performClick()
         rule.waitForIdle()
         rule.onNodeWithText("+ Importera .cube").performScrollTo().performClick()
         rule.waitForIdle()
@@ -95,7 +97,7 @@ class ColorPageTest {
         rule.onNodeWithTag("editor:Hjul").performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals("window editing off outside the tab", null, gs.windowEdit)
-        rule.onNodeWithText("Tidslinje").performClick()
+        rule.onNodeWithTag("colorMore").performClick()
         rule.waitForIdle()
         assertEquals(null, gs.windowEdit)
     }
@@ -103,6 +105,9 @@ class ColorPageTest {
     @Test fun wheelDragIsLiveThenCommitted() {
         val (_, gs) = setUp()
         rule.onRoot().captureRoboImage("$dir/32_farg.png")
+        // one large wheel: the range beside it chooses whose
+        rule.onNodeWithTag("range:Gain").performScrollTo().performClick()
+        rule.waitForIdle()
         rule.onNodeWithTag("wheel:Gain").performScrollTo().performTouchInput {
             down(center)
             for (i in 1..10) moveTo(Offset(center.x + width * 0.04f * i, center.y))
@@ -119,6 +124,8 @@ class ColorPageTest {
     /** No snapping to the center: a tiny nudge of the puck stays; a double tap resets it. */
     @Test fun wheelNudgeNearCenterStays() {
         val (_, gs) = setUp()
+        rule.onNodeWithTag("range:Gain").performScrollTo().performClick()
+        rule.waitForIdle()
         rule.onNodeWithTag("wheel:Gain").performScrollTo().performTouchInput {
             down(center)
             for (i in 1..6) moveTo(Offset(center.x + width * 0.003f * i, center.y))
@@ -153,11 +160,21 @@ class ColorPageTest {
         assertTrue(node.curveY.table()[128] > 0.6f)
         rule.onRoot().captureRoboImage("$dir/34_kurvor.png")
         rule.onNodeWithTag("node:1").performScrollTo().performClick()
-        // copy to the next clip (the page scrolled up to the clip row)
-        rule.onNodeWithTag("colorScroll").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy) { it(0f, -10_000f) }
+        // copy the grade under the wheels, and paste it on the next clip: the button offers it there once
+        rule.onNodeWithTag("editor:Hjul").performScrollTo().performClick()
         rule.waitForIdle()
-        rule.onNodeWithTag("colorClip:1").performClick()
+        rule.onNodeWithTag("wheels:copy").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(gs.of(1), gs.clipboard)
         rule.onNodeWithTag("colorClip:2").performClick()
+        rule.waitForIdle()
         assertEquals(2L, st.selected)
+        rule.onNodeWithText("Klistra in grade").assertExists()
+        rule.onNodeWithTag("wheels:copy").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals("the other clip got both nodes", 2, gs.of(2).nodes.size)
+        assertTrue(gs.of(2).nodes.last().curveY.table()[128] > 0.6f)
+        rule.onNodeWithText("Kopiera grade").assertExists()
+        rule.onRoot().captureRoboImage("$dir/35_farg_klistrat.png")
     }
 }

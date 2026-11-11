@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,13 +57,13 @@ fun TipCard(visible: Boolean, modifier: Modifier = Modifier) {
                 .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp).testTag("tip:$key"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Ic.Bulb, null, tint = K.Primary, modifier = Modifier.size(20.dp))
+            Icon(Ic.Bulb, null, tint = K.OnSurfaceVar, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Text(stringResource(text), color = K.OnSurface, fontSize = 13.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = {
+            FlatTextButton(onClick = {
                 AppPrefs.setTipSeen(ctx, key)
                 current = TIPS.indexOfFirst { !AppPrefs.tipSeen(ctx, it.first) }
-            }) { Text(stringResource(if (current < TIPS.lastIndex) R.string.tip_next else R.string.tip_done), color = K.Primary, fontWeight = FontWeight.Bold) }
+            }) { Text(stringResource(if (current < TIPS.lastIndex) R.string.tip_next else R.string.tip_done), fontWeight = FontWeight.Bold) }
             RoundIcon(Ic.Close, stringResource(R.string.tip_hide_all), modifier = Modifier.size(40.dp)) {
                 TIPS.forEach { AppPrefs.setTipSeen(ctx, it.first) }
                 current = -1

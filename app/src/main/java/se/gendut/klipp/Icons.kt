@@ -43,7 +43,7 @@ object Ic {
     val Lock = stroke("lock", "M6 11h12v9H6z", "M8.5 11V8a3.5 3.5 0 017 0v3")
     /** Film strip (spektrafilm). */
     val Film = stroke("film", "M5 3h14v18H5z", "M9 3v18", "M15 3v18", "M5 7.5h4", "M5 12h4", "M5 16.5h4", "M15 7.5h4", "M15 12h4", "M15 16.5h4")
-    val Eye = stroke("eye", "M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z", "M12 9a3 3 0 110 6 3 3 0 010-6z")
+    val Eye = stroke("eye", "M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z", "M12 9a3 3 0 1 1 0 6a3 3 0 1 1 0 -6z")
     /** On/off (disabled clip). */
     val Tag = stroke("tag", "M3 12V4a1 1 0 011-1h8l9 9-9 9z", "M7.5 7.5h.01")
     val Power = shifted("power", 0f, 1.3f, "M12 3v8", "M7 6.5a7 7 0 1010 0")
@@ -51,7 +51,7 @@ object Ic {
     val SpeakerOff = shifted("speakeroff", -0.5f, 0f, "M4 9h4l5-4v14l-5-4H4z", "M16 9.5l5 5", "M21 9.5l-5 5")
     val Gear = stroke("gear",
         "M18.97 10.21L21.49 10.56L21.49 13.44L18.97 13.79L18.20 15.67L19.73 17.69L17.69 19.73L15.67 18.20L13.79 18.97L13.44 21.49L10.56 21.49L10.21 18.97L8.33 18.20L6.31 19.73L4.27 17.69L5.80 15.67L5.03 13.79L2.51 13.44L2.51 10.56L5.03 10.21L5.80 8.33L4.27 6.31L6.31 4.27L8.33 5.80L10.21 5.03L10.56 2.51L13.44 2.51L13.79 5.03L15.67 5.80L17.69 4.27L19.73 6.31L18.20 8.33z",
-        "M12 9a3 3 0 110 6 3 3 0 010-6z")
+        "M12 9a3 3 0 1 1 0 6a3 3 0 1 1 0 -6z")
     val EyeOff = stroke("eyeoff", "M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z", "M4 4l16 16")
     val Trim = stroke("trim", "M8 4v16", "M16 4v16", "M4 9l4 3-4 3", "M20 9l-4 3 4 3")
     val Undo = shifted("undo", 0f, 0.5f, "M9 14L4 9l5-5", "M4 9h11a5 5 0 010 10h-3")
@@ -81,6 +81,13 @@ object Ic {
     val Check = stroke("check", "M5 12l5 5 9-10")
     val Copy = stroke("copy", "M9 9h10a2 2 0 012 2v8a2 2 0 01-2 2H9a2 2 0 01-2-2v-8a2 2 0 012-2z", "M15 9V5a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2h2")
     val NextEdit = stroke("nextedit", "M4 6l7 6-7 6", "M12 6l7 6-7 6", "M20 5v14")
+    val PrevEdit = stroke("prevedit", "M20 6l-7 6 7 6", "M12 6l-7 6 7 6", "M4 5v14")
+    /** More (a menu of the rest). */
+    val More = stroke("more", "M5 12h.01", "M12 12h.01", "M19 12h.01")
+    /** More for one item in a list (the dots stand on each other). */
+    val MoreVert = stroke("morevert", "M12 5h.01", "M12 12h.01", "M12 19h.01")
+    /** Export: out of the box, upwards. */
+    val Export = shifted("export", 0f, 0.5f, "M12 15V4", "M7 9l5-5 5 5", "M5 19h14")
     val Speed = stroke("speed", "M12 5a8 8 0 1 0 0.01 0", "M12 13l4-4", "M10 3h4")
     val Sliders = stroke("sliders", "M4 7h10", "M18 7h2", "M16 5v4", "M4 17h4", "M12 17h8", "M10 15v4")
     val Fade = stroke("fade", "M3 19L12 5l9 14", "M7.5 12h9")
@@ -122,4 +129,14 @@ object Ic {
     /** A tip (light bulb). */
     val Bulb = stroke("bulb", "M9 18h6", "M10 21h4", "M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z")
     val Still = stroke("still", "M4 7h3l2-2h6l2 2h3v12H4z", "M12 10a3 3 0 1 0 0.01 0")
+    val Fullscreen = stroke("fullscreen", "M4 9V4h5", "M20 9V4h-5", "M4 15v5h5", "M20 15v5h-5")
+    /** Four tiles: the gallery. */
+    val Grid = stroke(
+        "grid", "M5 3h4a2 2 0 012 2v4a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z", "M15 3h4a2 2 0 012 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2V5a2 2 0 012-2z",
+        "M5 13h4a2 2 0 012 2v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4a2 2 0 012-2z", "M15 13h4a2 2 0 012 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2v-4a2 2 0 012-2z",
+    )
+    /** A picture split in two: compare. */
+    val Compare = stroke("compare", "M5 5h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2z", "M12 3v18")
+    /** A wave: the scopes. */
+    val Scope = shifted("scope", 0f, -1f, "M3 18c3 0 3-10 6-10s3 7 6 7 3-4 6-4")
 }

@@ -72,11 +72,14 @@
     <string name="app_app_settings">Appinställningar</string>
     <string name="app_app_settings_hint">tema, tidslinje, proxy, exportens standard …</string>
     <string name="app_projects">Projekt</string>
-    <string name="app_settings">Inställningar</string>
     <string name="app_undo">Ångra</string>
     <string name="app_redo">Gör om</string>
     <string name="app_export">Exportera</string>
     <string name="app_add_marker">Lägg till markör</string>
+    <string name="app_remove_marker">Ta bort markören</string>
+    <string name="app_marker_removed">Markören borttagen</string>
+    <string name="app_remove_all_markers">Ta bort alla markörer</string>
+    <string name="app_markers_removed">Alla markörer borttagna</string>
     <string name="app_prev_frame">Föregående bildruta</string>
     <string name="app_pause">Pausa</string>
     <string name="app_play">Spela</string>
@@ -90,14 +93,10 @@
     <string name="app_linked_on">Länkad markering på – bild och ljud följer varandra</string>
     <string name="app_linked_off">Länkad markering av – bild och ljud var för sig</string>
     <string name="app_locked_playhead">Låst spelhuvud</string>
-    <string name="app_playhead_locked">Spelhuvudet låst i mitten – dra tidslinjen</string>
-    <string name="app_playhead_free">Fri tidslinje – dra spelhuvudet</string>
     <string name="app_magnetic_snapping">Magnetisk fästning</string>
     <string name="app_snapping_on">Magnetisk fästning på</string>
     <string name="app_snapping_off">Magnetisk fästning av</string>
     <string name="app_volume_lines">Volymlinjer</string>
-    <string name="app_volume_lines_on">Volymlinjer: tryck på en linje för en keyframe, dra i den för att ändra nivån, dubbeltryck på en keyframe för att ta bort den</string>
-    <string name="app_volume_lines_off">Volymlinjer av</string>
     <string name="app_back">Tillbaka</string>
     <string name="app_ramp">Ramp</string>
     <string name="app_freeze">Frys</string>
@@ -115,7 +114,6 @@
     <string name="app_half_second">0,5 s</string>
     <string name="app_copy">Kopiera</string>
     <string name="app_split">Dela</string>
-    <string name="app_properties">Egenskaper</string>
     <string name="app_speed">Hastighet</string>
     <string name="app_forward">Framlänges</string>
     <string name="app_reverse">Baklänges</string>
@@ -151,16 +149,13 @@
     <string name="app_rendered">Renderad</string>
     <string name="app_rendering">Renderar…</string>
     <string name="app_remove">Ta bort</string>
-    <string name="app_add_clip">Lägg till klipp</string>
-    <string name="app_short_link">Länk</string>
-    <string name="app_short_center">Lås</string>
-    <string name="app_short_snap">Fäst</string>
-    <string name="app_short_volume">Volym</string>
     <string name="app_sync_audio">Synka ljud</string>
     <string name="app_edit_text">Redigera text</string>
     <string name="app_volume">Volym</string>
-    <string name="app_fade">Tona</string>
     <string name="app_go_to_time">Gå till tid</string>
     <string name="app_go">Gå</string>
     <string name="app_timecode_hint">Siffror fylls från höger: 1512 = 15 s 12 bildrutor. +200 = 2 s framåt.</string>
+    <!-- Str.kt -->
+    <string name="app_no_internet">Ingen internetanslutning</string>
+    <string name="app_net_timeout">Anslutningen tog för lång tid</string>
 </resources>

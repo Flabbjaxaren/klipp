@@ -34,11 +34,11 @@ val TRACKS = listOf(
 )
 
 enum class ClipKind(val bg: Color, val fg: Color, val track: TrackKind) {
-    VIDEO(Color(0xFF3A4688), Color(0xFFDDE1FF), TrackKind.VIDEO),
-    TITLE(Color(0xFF5E2C55), Color(0xFFFFD7F0), TrackKind.VIDEO),
-    ADJUST(Color(0xFF4A4E5A), Color(0xFFE2E2E9), TrackKind.VIDEO),
-    AUDIO(Color(0xFF1D5236), Color(0xFFB5F5CC), TrackKind.AUDIO),
-    MUSIC(Color(0xFF2E4A5E), Color(0xFFC6E7FF), TrackKind.AUDIO),
+    VIDEO(Color(0xFF4F6B82), Color(0xFFFFFFFF), TrackKind.VIDEO),
+    TITLE(Color(0xFF2F2850), Color(0xFFD2C6FF), TrackKind.VIDEO),
+    ADJUST(Color(0xFF3A3018), Color(0xFFE6C877), TrackKind.VIDEO),
+    AUDIO(Color(0xFF1B2E4A), Color(0xFF93BFFF), TrackKind.AUDIO),
+    MUSIC(Color(0xFF16332F), Color(0xFF7AD3C2), TrackKind.AUDIO),
 }
 
 /**
@@ -373,6 +373,9 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var targetAudio by mutableIntStateOf(3)
     var onTargetTrack: ((Int) -> Unit)? by mutableStateOf(null)
     var onAddMarker: ((Float) -> Unit)? by mutableStateOf(null)
+    /** Remove the marker at this time, and all of them (set when the engine is attached). */
+    var onRemoveMarker: ((Float) -> Unit)? by mutableStateOf(null)
+    var onClearMarkers: (() -> Unit)? by mutableStateOf(null)
     var onSpeed: ((Long, Int) -> Unit)? by mutableStateOf(null)
     /** Speed ramp on a clip (set when the engine is attached). */
     var onSpeedRamp: ((Long, se.gendut.klipp.engine.SpeedRamp) -> Unit)? by mutableStateOf(null)
@@ -392,6 +395,15 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var props: PropsBackend? by mutableStateOf(null)
     /** The properties panel is open for the selected clip. */
     var inspecting by mutableStateOf(false)
+    /** Which of the clip's tool groups the properties panel shows: 0 = all, [GROUP_PICTURE]. */
+    var inspectGroup by mutableStateOf(0)
+    /** The row shown when nothing is selected: add media, sound, a title, captions or a voice-over (set by the app). */
+    var onAddAction: ((AddAction) -> Unit)? by mutableStateOf(null)
+    /** A tab a page should open at once (its tag, e.g. "audioTab:sounds"); the page clears it when it has. */
+    var openTab by mutableStateOf<String?>(null)
+    /** The audio and text pages' current tab (the dock at the bottom shows and changes it). */
+    var audioTab by mutableStateOf(0)
+    var textTab by mutableStateOf(0)
     /**
      * Draw a box on the picture (what a title should follow): the box as center and half sides (fractions of the
      * picture, y down) goes to the callback; null = not drawing.
@@ -519,6 +531,14 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var magnet by mutableStateOf(true)
     /** Playhead locked to the center; the timeline is dragged under it. */
     var centerPlayhead by mutableStateOf(false)
+    /**
+     * The timeline's zoom (pixels per second; 0 = not set yet) and how far it is scrolled. Kept here, not in the
+     * timeline, which leaves the screen (another page, the full-screen viewer, the phone turned) and came back reset.
+     */
+    val timelineZoom = mutableFloatStateOf(0f)
+    val timelineScroll = mutableFloatStateOf(0f)
+    /** The playhead as the timeline last showed it: back on screen, it goes to the playhead only if that has moved. */
+    var timelineSeen = Float.NaN
 
     /** The clip and its linked partners (if linked selection is on). */
     fun withPartners(ids: Collection<Long>): Set<Long> {
@@ -1063,12 +1083,17 @@ class EditorState(initial: List<Clip> = initialClips()) {
         selected = c.id
     }
 
-    fun snapCandidates(excludeId: Long?): List<Float> {
+    /**
+     * What an edge can snap to: the start, the playhead, the markers and the other clips' edges. [exclude]: the clip
+     * being moved or trimmed and the linked partners that follow it – their edges are where its own were, so
+     * snapping to them undid a short trim.
+     */
+    fun snapCandidates(exclude: Set<Long> = emptySet()): List<Float> {
         val out = ArrayList<Float>()
         out += 0f
         out += playhead
         out += markers
-        for (c in clips) if (c.id != excludeId && c.id !in removing) { out += c.start; out += c.end }
+        for (c in clips) if (c.id !in exclude && c.id !in removing) { out += c.start; out += c.end }
         return out
     }
 
@@ -1104,3 +1129,9 @@ class EditorState(initial: List<Clip> = initialClips()) {
         }
     }
 }
+
+/** The properties panel's tool group for a clip's picture (see [EditorState.inspectGroup]). */
+const val GROUP_PICTURE = 1
+
+/** What the row for an empty selection adds. */
+enum class AddAction { MEDIA, SOUND, TITLE, CAPTIONS, VOICE }

@@ -19,13 +19,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -35,14 +35,26 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -77,6 +89,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -187,6 +200,12 @@ class GradeState {
     /** The still being compared against (split screen) and where the split line is. */
     var compare by mutableStateOf<Still?>(null)
     var wipe by mutableStateOf(0.5f)
+    /** The picture compared against when [compare] is [Still.ORIGINAL]: the clip at the playhead without its grade. */
+    var compareImage by mutableStateOf<ImageBitmap?>(null)
+    /** The scope over the picture: 0 off, 1 waveform, 2 parade, 3 vectorscope. */
+    var scopeKind by mutableStateOf(0)
+    /** The clips the copied grade has been pasted to (the wheels' button offers pasting once per clip). */
+    val pasted = androidx.compose.runtime.mutableStateListOf<Long>()
     /** The program image as displayed (PixelCopy) – for scopes during playback. */
     var capture: (suspend () -> Bitmap?)? = null
 
@@ -293,10 +312,17 @@ data class ColorClip(
     val reverse: Boolean = false,
 )
 
+/** The clip the color page works on: the selected one, else the topmost under the playhead, else the first. */
+internal fun currentColorClip(clips: List<ColorClip>, state: EditorState): ColorClip? =
+    clips.firstOrNull { it.id == state.selected }
+        ?: clips.filter { state.playhead >= it.start && state.playhead < it.end }.minByOrNull { it.track }
+        ?: clips.firstOrNull()
+
 /**
- * The color page (Resolve style): pick a clip, build a node chain, drag the Lift/Gamma/Gain/Offset wheels,
- * curves and adjustments – the image above follows while dragging. Scopes on the graded image.
- * "Timeline" is the shared look (exposure, LUT etc.) applied after the clips' grades.
+ * The color page: the clips in a strip, the clip's nodes in a row, and under them the selected node's tools – a rail
+ * of tools on the left and the tool itself beside it. The picture above follows while dragging. The grid button at
+ * the end of the node row opens the gallery, the grade actions for the clip and the timeline's look (the shared look
+ * applied after the clips' grades). Compare, scopes and full screen lie over the picture ([ColorViewerTools]).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -310,22 +336,14 @@ fun ColorPage(
     timeline: @Composable () -> Unit,
 ) {
     val haptics = rememberHaptics()
-    val scope = rememberCoroutineScope()
-    var tab by remember { mutableStateOf(0) } // 0 = clip, 1 = timeline
-    // the clip under the playhead (topmost video track), or the selected one
     // derived: the page recomposes only when the clip changes, not every frame during playback
-    val current = remember(clips) {
-        derivedStateOf {
-            clips.firstOrNull { it.id == state.selected }
-                ?: clips.filter { state.playhead >= it.start && state.playhead < it.end }.minByOrNull { it.track }
-                ?: clips.firstOrNull()
-        }
-    }.value
+    val current = remember(clips) { derivedStateOf { currentColorClip(clips, state) } }.value
     var nodeId by remember(current?.id) { mutableStateOf(gs.of(current?.id ?: -1).nodes.first().id) }
     // the tool (0 wheels, 1 curves, 2 adjust, 3 LUT, 4 qualifier, 5 window, 6 film) lives in GradeState: it stays
     // when the page is left and when the neighboring pages are composed in during a swipe
     var editor by gs::editor
-    var scopeKind by remember { mutableStateOf(0) } // 0 off, 1 waveform, 2 parade, 3 vector
+    // the grid button: the gallery, the clip's grade and the timeline's look instead of the node's tools
+    var more by rememberSaveable { mutableStateOf(false) }
     var nodeMenu by remember { mutableStateOf<GradeNode?>(null) }
     var stillMenu by remember { mutableStateOf<Still?>(null) }
     var renaming by remember { mutableStateOf<GradeNode?>(null) }
@@ -333,34 +351,38 @@ fun ColorPage(
     LaunchedEffect(Unit) { runCatching { StillStore.init(ctx) } }
     // when leaving the color page: no color tools left on top of the program image
     androidx.compose.runtime.DisposableEffect(gs) {
-        onDispose { gs.compare = null; gs.showKey = null; gs.pick = null; gs.windowEdit = null }
+        onDispose { gs.compare = null; gs.compareImage = null; gs.showKey = null; gs.pick = null; gs.windowEdit = null }
     }
+    val g = current?.let { gs.shown(it.id) ?: ClipGrade() }
+    val node = g?.let { cg -> cg.nodes.firstOrNull { it.id == nodeId } ?: cg.nodes.first() }
 
     Column(Modifier.fillMaxSize().testTag("colorPage")) {
-        // the header stays put – the rest scrolls beneath it
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.colorpage_title), color = K.OnSurface, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
-            // grade on the original files instead of the proxy (full resolution, no transcoding) – applies app-wide
-            val px = se.gendut.klipp.engine.Proxies
-            ToggleChip(stringResource(R.string.colorpage_original), !px.enabled, { haptics.tick(); px.switch(!px.enabled) }, Modifier.padding(end = 8.dp).testTag("colorOriginal"))
-            ConnectedToggleGroup(listOf(stringResource(R.string.colorpage_tab_clip), stringResource(R.string.colorpage_tab_timeline)), tab, { tab = it }, Modifier.width(176.dp), tag = { if (it == 0) "colorTab:clip" else "colorTab:timeline" })
+        ClipStrip(clips, current?.id, gs) { c ->
+            haptics.tick()
+            state.selected = c.id
+            state.playing = false
+            if (state.playhead < c.start || state.playhead >= c.end) state.playhead = (c.start + c.end) / 2
         }
-        // the playhead for the clip being graded – stays put with the header, so you can scrub while grading
-        if (tab == 0 && current != null) {
-            val tr = gs.shown(current.id)?.nodes?.firstOrNull { it.id == nodeId }?.win?.takeIf { it.on }?.track
-            ClipScrubber(state, current, tr?.let { it.t0..it.end }, Modifier.padding(bottom = 6.dp))
-        }
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).testTag("colorScroll")) {
-            if (tab == 1) { timeline(); Spacer(Modifier.height(120.dp)); return@Column }
-            if (current == null) {
-                PanelCard(Modifier.padding(top = 8.dp)) {
-                    Text(stringResource(R.string.colorpage_no_clip), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
-                }
-                return@Column
+        NodeRow(
+            current, g, node?.id, more,
+            onPick = { haptics.tick(); nodeId = it; more = false },
+            onMenu = { haptics.heavy(); nodeMenu = it },
+            onAdd = {
+                val id = current?.id ?: return@NodeRow
+                haptics.confirm()
+                val cg = gs.of(id)
+                val nid = (cg.nodes.maxOf { it.id }) + 1
+                gs.set(id, cg.copy(nodes = cg.nodes + GradeNode(nid, "")))
+                nodeId = nid; more = false
+            },
+            onMore = { haptics.tick(); more = !more },
+        )
+        Box(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(K.Surface).padding(top = 10.dp)) {
+            when {
+                more -> ColorMore(state, gs, clips, current, look, setNode = { nodeId = it }, onStillMenu = { haptics.heavy(); stillMenu = it }, onDone = { more = false }, timeline = timeline)
+                current == null || node == null -> NoClip()
+                else -> NodeTools(state, gs, current, node, editor, { editor = it }, onImportLut, setNode = { nodeId = it })
             }
-            ColorPageBody(state, gs, clips, current, look, onImportLut, nodeId, { nodeId = it }, editor, { editor = it },
-                scopeKind, { scopeKind = it }, onNodeMenu = { haptics.heavy(); nodeMenu = it }, onStillMenu = { haptics.heavy(); stillMenu = it })
-            Spacer(Modifier.height(120.dp))
         }
     }
 
@@ -383,7 +405,7 @@ fun ColorPage(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { stillMenu = null }) { Text(stringResource(R.string.colorpage_close)) } },
+            confirmButton = { FlatTextButton(onClick = { stillMenu = null }) { Text(stringResource(R.string.colorpage_close)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -411,7 +433,7 @@ fun ColorPage(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { nodeMenu = null }) { Text(stringResource(R.string.colorpage_close)) } },
+            confirmButton = { FlatTextButton(onClick = { nodeMenu = null }) { Text(stringResource(R.string.colorpage_close)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -427,50 +449,140 @@ fun ColorPage(
         AlertDialog(
             onDismissRequest = { renaming = null },
             title = { Text(stringResource(R.string.colorpage_node_rename)) },
-            text = { TextInput(stringResource(R.string.colorpage_node_name), name) { name = it.take(40) } },
-            confirmButton = { TextButton(onClick = { save() }, Modifier.testTag("nodeRenameSave")) { Text(stringResource(R.string.colorpage_save)) } },
-            dismissButton = { TextButton(onClick = { renaming = null }) { Text(stringResource(R.string.colorpage_cancel)) } },
+            text = { TextInput(stringResource(R.string.colorpage_node_name), name, focus = true) { name = it.take(40) } },
+            confirmButton = { FlatTextButton(onClick = { save() }, Modifier.testTag("nodeRenameSave")) { Text(stringResource(R.string.colorpage_save)) } },
+            dismissButton = { FlatTextButton(onClick = { renaming = null }) { Text(stringResource(R.string.colorpage_cancel)) } },
             containerColor = K.SurfaceHigh,
         )
     }
 }
 
-/** The clip tab: clip row, node chain, scopes, the node's tools, gallery and grade actions. */
 @Composable
-private fun ColorPageBody(
+private fun NoClip() {
+    Text(stringResource(R.string.colorpage_no_clip), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+}
+
+/** The clips in timeline order: small pictures, a ring around the one being graded and a dot on those with a grade. */
+@Composable
+private fun ClipStrip(clips: List<ColorClip>, current: Long?, gs: GradeState, onPick: (ColorClip) -> Unit) {
+    val scroll = rememberScrollState()
+    val density = LocalDensity.current
+    // the clip being graded stays in view (two clips' room before it)
+    val at = clips.indexOfFirst { it.id == current }
+    LaunchedEffect(at) { if (at >= 0) scroll.animateScrollTo(with(density) { (70.dp * (at - 2)).roundToPx() }.coerceAtLeast(0)) }
+    Row(
+        Modifier.fillMaxWidth().height(52.dp).sideScroll(scroll).padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+    ) {
+        for ((i, c) in clips.withIndex()) key(c.id) {
+            ClipThumb(i + 1, c, c.id == current, graded = gs.grades[c.id]?.isNeutral == false) { onPick(c) }
+        }
+    }
+}
+
+@Composable
+private fun ClipThumb(n: Int, c: ColorClip, selected: Boolean, graded: Boolean, onClick: () -> Unit) {
+    val ctx = LocalContext.current
+    val img by produceState<ImageBitmap?>(null, c.uri, c.srcIn) { value = c.uri?.let { Thumbs.load(ctx, it, c.srcIn + 0.2) } }
+    val ring by animateColorAsState(if (selected) K.Primary else K.Primary.copy(alpha = 0f), label = "ct")
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        Modifier.size(64.dp, 44.dp).clip(shape).background(K.SurfaceHighest)
+            .clickable(role = Role.Tab, onClickLabel = c.name, onClick = onClick).semantics { this.selected = selected }.testTag("colorClip:${c.id}"),
+    ) {
+        val i = img
+        if (i != null) Image(i, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        // (no picture to show: the clip's number)
+        else Text("$n", color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.Center))
+        Box(Modifier.matchParentSize().border(3.dp, ring, shape))
+        if (graded) Box(Modifier.align(Alignment.TopEnd).padding(if (selected) 7.dp else 5.dp).size(7.dp).clip(CircleShape).background(K.OnSurface))
+    }
+}
+
+/**
+ * The clip's nodes in a row, joined by short wires: the number and the name, the selected one round and in the accent's
+ * container color. Long press = menu. The outlined plus adds a node at the end; the grid button at the far right
+ * stays put and opens the gallery, the clip's grade and the timeline's look.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NodeRow(
+    clip: ColorClip?, g: ClipGrade?, selected: Int?, more: Boolean,
+    onPick: (Int) -> Unit, onMenu: (GradeNode) -> Unit, onAdd: () -> Unit, onMore: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.weight(1f).sideScroll(), verticalAlignment = Alignment.CenterVertically) {
+            if (clip != null && g != null) {
+                val cacheStatus = se.gendut.klipp.engine.NodeCache.status(clip.id)
+                for ((i, n) in g.nodes.withIndex()) key(n.id) {
+                    if (i > 0) Wire()
+                    NodeChip(n, n.id == selected && !more, { onPick(n.id) }, { onMenu(n) },
+                        cacheText = if (n.cache) cacheStatus ?: stringResource(R.string.colorpage_cache) else null)
+                }
+                Wire()
+                val src = remember { MutableInteractionSource() }
+                Box(
+                    Modifier.pressPop(src, 0.88f).size(44.dp).clip(RoundedCornerShape(14.dp)).border(1.5.dp, K.Outline, RoundedCornerShape(14.dp))
+                        .clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onAdd).testTag("addNode"),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Ic.Plus, stringResource(R.string.colorpage_new_node), tint = K.OnSurface, modifier = Modifier.size(18.dp)) }
+            }
+        }
+        Spacer(Modifier.width(6.dp))
+        val src = remember { MutableInteractionSource() }
+        val bg by animateColorAsState(if (more) K.PrimaryContainer else K.PrimaryContainer.copy(alpha = 0f), label = "gm")
+        Box(
+            Modifier.pressPop(src, 0.88f).size(44.dp).clip(RoundedCornerShape(14.dp)).background(bg)
+                .clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onMore).testTag("colorMore"),
+            contentAlignment = Alignment.Center,
+        ) { Icon(Ic.Grid, stringResource(R.string.design_color_more), tint = if (more) K.PrimarySoft else K.OnSurface, modifier = Modifier.size(20.dp)) }
+    }
+}
+
+@Composable
+private fun Wire() = Box(Modifier.width(8.dp).height(2.dp).background(K.OutlineVar))
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NodeChip(n: GradeNode, selected: Boolean, onClick: () -> Unit, onLong: () -> Unit, cacheText: String? = null) {
+    val src = remember { MutableInteractionSource() }
+    // selected: rounder and in the container color – shape and color show the selection
+    val r by animateDpAsState(if (selected) 22.dp else 14.dp, spring(0.55f, 600f), label = "nr")
+    val pad by animateDpAsState(if (selected) 16.dp else 12.dp, spring(0.55f, 600f), label = "np")
+    val bg by animateColorAsState(if (selected) K.PrimaryContainer else K.SurfaceHigh, label = "nb")
+    val fg = if (selected) K.PrimarySoft else K.OnSurface
+    val weight = if (selected) FontWeight.Bold else FontWeight.SemiBold
+    Row(
+        Modifier.pressPop(src, 0.92f).graphicsLayer { alpha = if (n.enabled) 1f else 0.45f }
+            .height(44.dp).clip(RoundedCornerShape(r)).background(bg)
+            .combinedClickable(interactionSource = src, indication = null, onLongClick = onLong, onClick = onClick)
+            .padding(horizontal = pad)
+            .testTag("node:${n.id}"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text("${n.id}", color = if (selected) fg else K.OnSurfaceVar, fontSize = 13.sp, fontWeight = weight, style = TextStyle(fontFeatureSettings = "tnum"))
+        Text(n.label.ifBlank { Str.t(if (n.isNeutral) R.string.colorpage_node_neutral else R.string.colorpage_node_default_label) }.let(Str::name),
+            color = fg, fontSize = 13.sp, fontWeight = weight, maxLines = 1)
+        // the node cache: status (cached / caching 40 % / queued)
+        if (cacheText != null) Text(cacheText, color = K.Teal, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.testTag("nodeCache:${n.id}"))
+    }
+}
+
+/** The selected node's tools: the rail of tools on the left, the tool itself beside it (scrolls when it is tall). */
+@Composable
+private fun NodeTools(
     state: EditorState,
     gs: GradeState,
-    clips: List<ColorClip>,
     current: ColorClip,
-    look: se.gendut.klipp.engine.Look,
-    onImportLut: (((String) -> Unit) -> Unit)?,
-    nodeId: Int,
-    setNode: (Int) -> Unit,
+    node: GradeNode,
     editor: Int,
     setEditor: (Int) -> Unit,
-    scopeKind: Int,
-    setScope: (Int) -> Unit,
-    onNodeMenu: (GradeNode) -> Unit,
-    onStillMenu: (Still) -> Unit,
+    onImportLut: (((String) -> Unit) -> Unit)?,
+    setNode: (Int) -> Unit,
 ) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
-
-    // the clips in timeline order (like Resolve's clip strip)
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        for ((i, c) in clips.withIndex()) key(c.id) {
-            ClipChip(i + 1, c, c.id == current.id, graded = gs.grades[c.id]?.isNeutral == false) {
-                haptics.tick()
-                state.selected = c.id
-                state.playing = false
-                if (state.playhead < c.start || state.playhead >= c.end) state.playhead = (c.start + c.end) / 2
-            }
-        }
-    }
-
-    val g = gs.shown(current.id) ?: ClipGrade()
-    val node = g.nodes.firstOrNull { it.id == nodeId } ?: g.nodes.first()
     fun live(n: GradeNode) = gs.liveNode(current.id, n)
     fun commit(n: GradeNode) {
         gs.commitNode(current.id, n)
@@ -481,29 +593,41 @@ private fun ColorPageBody(
     androidx.compose.runtime.DisposableEffect(current.id, node.id, editor) {
         gs.windowEdit = if (editor == 5) current.id to node.id else null
         if (gs.showKey != null && gs.showKey != current.id to node.id) gs.showKey = null
-        if (editor != 4 && editor != 2 && editor != 1) gs.pick = null
-        if (editor != 2) wbPicking = false
+        if (editor != 4 && editor != 2 && editor != 1 && editor != 0) gs.pick = null
+        if (editor != 2 && editor != 0) wbPicking = false
         onDispose { gs.windowEdit = null; gs.pick = null }
     }
-
-    // nodes
-    Spacer(Modifier.height(6.dp))
-    PanelCard(title = stringResource(R.string.colorpage_nodes), trailing = { ScopesButton(scopeKind, setScope) }) {
-        NodeGraph(current, g, node.id, onPick = { haptics.tick(); setNode(it) }, onMenu = onNodeMenu) {
-            haptics.confirm()
-            val cg = gs.of(current.id)
-            val nid = (cg.nodes.maxOf { it.id }) + 1
-            gs.set(current.id, cg.copy(nodes = cg.nodes + GradeNode(nid, "")))
-            setNode(nid)
+    // white balance: tap something that should be white or gray
+    val wbOn = gs.pick != null && wbPicking
+    fun pickWb() {
+        if (gs.pick != null) { gs.pick = null; wbPicking = false; return }
+        val clip = current
+        val nid = node.id
+        wbPicking = true
+        gs.pickHint = Str.t(R.string.colorpage_pick_hint_white)
+        gs.pick = { x, y ->
+            wbPicking = false
+            scope.launch {
+                val n2 = pickWhite(ctx, clip, state.playhead, gs.of(clip.id), nid, x, y) ?: return@launch
+                haptics.confirm()
+                gs.commitNode(clip.id, n2)
+            }
         }
-        Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.colorpage_node_hold_hint), color = K.Outline, fontSize = 11.sp, modifier = Modifier.weight(1f))
+    }
+    // a grade copied from another clip is offered once: the button pastes it here, then copies again
+    val canPaste = gs.clipboard != null && gs.clipboardFrom != current.id && current.id !in gs.pasted
+    fun copyOrPaste() {
+        haptics.confirm()
+        val cb = gs.clipboard
+        if (canPaste && cb != null) {
+            // another clip gets the color – not the copied clip's stabilization and tracking
+            val g = cb.forOtherClip(gs.of(current.id).stab, gs.of(current.id).layer, gs.of(current.id).mblur)
+            gs.set(current.id, g); gs.pasted.add(current.id); setNode(g.nodes.first().id)
+        } else {
+            gs.clipboard = gs.of(current.id); gs.clipboardFrom = current.id; gs.pasted.clear()
         }
-        if (scopeKind > 0) Scopes(current, state, gs, scopeKind, look)
     }
 
-    // the node's tools
-    Spacer(Modifier.height(12.dp))
     val tabs = listOf(
         ToolTab(stringResource(R.string.colorpage_tool_wheels), Ic.Wheels, "editor:Hjul", marked = node.hasLog || !(node.lift.isNeutral && node.gamma.isNeutral && node.gain.isNeutral && node.offset.isNeutral)),
         ToolTab(stringResource(R.string.colorpage_tool_curves), Ic.Curves, "editor:Kurvor", marked = node.hasCurves || node.hasHsl),
@@ -513,125 +637,144 @@ private fun ColorPageBody(
         ToolTab(stringResource(R.string.colorpage_tool_window), Ic.Window, "editor:Fönster", marked = node.win.on),
         ToolTab(stringResource(R.string.colorpage_tool_film), Ic.Film, "editor:Film", marked = node.film != null),
     )
-    ToolTabs(tabs, editor, setEditor, Modifier.padding(horizontal = 12.dp))
-    Spacer(Modifier.height(8.dp))
-    PanelCard(title = stringResource(R.string.colorpage_editor_title, stringResource(when (editor) { 0 -> R.string.colorpage_editor_wheels; 1 -> R.string.colorpage_editor_curves; 2 -> R.string.colorpage_editor_adjust; 3 -> R.string.colorpage_editor_lut; 4 -> R.string.colorpage_editor_qualifier; 5 -> R.string.colorpage_editor_window; else -> R.string.colorpage_editor_film }), node.id)) {
-        AnimatedContent(editor, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "editor") { e ->
-            when (e) {
-                0 -> WheelsGrid(node, onLive = ::live, onCommit = ::commit)
-                1 -> CurvesEditor(node, onLive = ::live, onCommit = ::commit, picking = gs.pick != null, onPick = { got ->
-                    if (got == null) { gs.pick = null; return@CurvesEditor }
-                    val clip = current
-                    val nid = node.id
-                    gs.pickHint = Str.t(R.string.colorpage_pick_hint_curve)
-                    gs.pick = { x, y ->
-                        scope.launch {
-                            val rgb = pickHsl(ctx, clip, state.playhead, gs.of(clip.id), nid, x, y) ?: return@launch
-                            haptics.confirm()
-                            got(rgb)
-                        }
-                    }
-                })
-                3 -> NodeLutEditor(node, onLive = ::live, onCommit = ::commit, onImport = onImportLut)
-                6 -> FilmEditor(node, onCommit = ::commit, onLive = { gs.previewNode(current.id, it) })
-                4 -> QualifierEditor(current.id, node, gs, onLive = ::live, onCommit = ::commit, onPick = {
-                    if (gs.pick != null) { gs.pick = null; return@QualifierEditor }
-                    val clip = current
-                    val nid = node.id
-                    gs.pickHint = Str.t(R.string.colorpage_pick_hint_color)
-                    gs.pick = { x, y ->
-                        scope.launch {
-                            val q = pickColor(ctx, clip, state.playhead, gs.of(clip.id), nid, x, y) ?: return@launch
-                            haptics.confirm()
-                            gs.of(clip.id).nodes.firstOrNull { it.id == nid }?.let { gs.commitNode(clip.id, it.copy(qual = q)) }
-                        }
-                    }
-                })
-                5 -> WindowEditor(current.id, node, gs, onLive = ::live, onCommit = ::commit, colorClip = current, playhead = { state.playhead }, seek = { state.playing = false; state.playhead = it })
-                else -> Column {
-                    // white balance: tap something that should be white or gray
-                    val wbOn = gs.pick != null && wbPicking
-                    PillButton(if (wbOn) stringResource(R.string.colorpage_wb_tap) else stringResource(R.string.colorpage_wb_dropper), {
-                        if (gs.pick != null) { gs.pick = null; wbPicking = false; return@PillButton }
+    Row(Modifier.fillMaxSize()) {
+        ToolRail(tabs, editor, setEditor, dense = true)
+        // each tool starts at its top; the column lies right of undo and redo, so it only needs air at its end
+        val scroll = key(editor) { rememberScrollState() }
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll).testTag("colorScroll").padding(bottom = 16.dp)) {
+            AnimatedContent(editor, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "editor") { e ->
+                when (e) {
+                    0 -> Flush { WheelsPanel(node, onLive = ::live, onCommit = ::commit, wbOn = wbOn, onWb = ::pickWb, canPaste = canPaste, onCopyPaste = ::copyOrPaste) }
+                    1 -> CurvesEditor(node, onLive = ::live, onCommit = ::commit, picking = gs.pick != null, onPick = { got ->
+                        if (got == null) { gs.pick = null; return@CurvesEditor }
                         val clip = current
                         val nid = node.id
-                        wbPicking = true
-                        gs.pickHint = Str.t(R.string.colorpage_pick_hint_white)
+                        gs.pickHint = Str.t(R.string.colorpage_pick_hint_curve)
                         gs.pick = { x, y ->
-                            wbPicking = false
                             scope.launch {
-                                val n2 = pickWhite(ctx, clip, state.playhead, gs.of(clip.id), nid, x, y) ?: return@launch
+                                val rgb = pickHsl(ctx, clip, state.playhead, gs.of(clip.id), nid, x, y) ?: return@launch
                                 haptics.confirm()
-                                gs.commitNode(clip.id, n2)
+                                got(rgb)
                             }
                         }
-                    }, Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("adj:wb"), icon = Ic.Dropper, filled = !wbOn)
-                    SectionLabel(stringResource(R.string.colorpage_group_balance))
-                    PropSlider(stringResource(R.string.colorpage_temperature), node.temp, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "temp", onLive = { live(node.copy(temp = it)) }) { commit(node.copy(temp = it)) }
-                    PropSlider(stringResource(R.string.colorpage_tint), node.tint, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "tint", onLive = { live(node.copy(tint = it)) }) { commit(node.copy(tint = it)) }
-                    SectionLabel(stringResource(R.string.colorpage_group_tone))
-                    PropSlider(stringResource(R.string.colorpage_contrast), node.contrast, 0f, 2f, 1f, { "%.2f".format(it) }, "contrast", onLive = { live(node.copy(contrast = it)) }) { commit(node.copy(contrast = it)) }
-                    PropSlider(stringResource(R.string.colorpage_pivot), node.pivot, 0f, 1f, 0.435f, { "%.3f".format(it) }, "pivot", onLive = { live(node.copy(pivot = it)) }) { commit(node.copy(pivot = it)) }
-                    SectionLabel(stringResource(R.string.colorpage_group_color))
-                    PropSlider(stringResource(R.string.colorpage_saturation), node.sat, 0f, 2f, 1f, { "%.0f".format(it * 50) }, "sat", onLive = { live(node.copy(sat = it)) }) { commit(node.copy(sat = it)) }
-                    PropSlider(stringResource(R.string.colorpage_hue), node.hue, -180f, 180f, 0f, { "%.0f°".format(it) }, "hue", onLive = { live(node.copy(hue = it)) }) { commit(node.copy(hue = it)) }
-                    PropSlider(stringResource(R.string.colorpage_film_density), node.density * 100f, 0f, 100f, 0f, { "%.0f".format(it) }, "density", onLive = { live(node.copy(density = it / 100f)) }) { commit(node.copy(density = it / 100f)) }
-                    SectionLabel(stringResource(R.string.colorpage_group_finish))
-                    PropSlider(stringResource(R.string.colorpage_noise_reduction), node.denoise * 100f, 0f, 100f, 0f, { "%.0f".format(it) }, "denoise", onLive = { live(node.copy(denoise = it / 100f)) }) { commit(node.copy(denoise = it / 100f)) }
-                    PropSlider(stringResource(R.string.colorpage_node_mix), node.mix, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "mix", onLive = { live(node.copy(mix = it)) }) { commit(node.copy(mix = it)) }
+                    })
+                    3 -> NodeLutEditor(node, onLive = ::live, onCommit = ::commit, onImport = onImportLut)
+                    6 -> FilmEditor(node, onCommit = ::commit, onLive = { gs.previewNode(current.id, it) })
+                    4 -> QualifierEditor(current.id, node, gs, onLive = ::live, onCommit = ::commit, onPick = {
+                        if (gs.pick != null) { gs.pick = null; return@QualifierEditor }
+                        val clip = current
+                        val nid = node.id
+                        gs.pickHint = Str.t(R.string.colorpage_pick_hint_color)
+                        gs.pick = { x, y ->
+                            scope.launch {
+                                val q = pickColor(ctx, clip, state.playhead, gs.of(clip.id), nid, x, y) ?: return@launch
+                                haptics.confirm()
+                                gs.of(clip.id).nodes.firstOrNull { it.id == nid }?.let { gs.commitNode(clip.id, it.copy(qual = q)) }
+                            }
+                        }
+                    })
+                    5 -> Column {
+                        // the window follows over time: the playhead for the clip, with the tracked stretch marked
+                        ClipScrubber(state, current, node.win.takeIf { it.on }?.track?.let { it.t0..it.end }, Modifier.padding(bottom = 6.dp))
+                        WindowEditor(current.id, node, gs, onLive = ::live, onCommit = ::commit, colorClip = current, playhead = { state.playhead }, seek = { state.playing = false; state.playhead = it })
+                    }
+                    else -> Flush {
+                        PillButton(if (wbOn) stringResource(R.string.colorpage_wb_tap) else stringResource(R.string.colorpage_wb_dropper), ::pickWb,
+                            Modifier.padding(vertical = 6.dp).testTag("adj:wb"), icon = Ic.Dropper, filled = false, on = wbOn)
+                        SectionLabel(stringResource(R.string.colorpage_group_balance))
+                        PropSlider(stringResource(R.string.colorpage_temperature), node.temp, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "temp", onLive = { live(node.copy(temp = it)) }) { commit(node.copy(temp = it)) }
+                        PropSlider(stringResource(R.string.colorpage_tint), node.tint, -1f, 1f, 0f, { "%+.0f".format(it * 100) }, "tint", onLive = { live(node.copy(tint = it)) }) { commit(node.copy(tint = it)) }
+                        SectionLabel(stringResource(R.string.colorpage_group_tone))
+                        PropSlider(stringResource(R.string.colorpage_contrast), node.contrast, 0f, 2f, 1f, { "%.2f".format(it) }, "contrast", onLive = { live(node.copy(contrast = it)) }) { commit(node.copy(contrast = it)) }
+                        PropSlider(stringResource(R.string.colorpage_pivot), node.pivot, 0f, 1f, 0.435f, { "%.3f".format(it) }, "pivot", onLive = { live(node.copy(pivot = it)) }) { commit(node.copy(pivot = it)) }
+                        SectionLabel(stringResource(R.string.colorpage_group_color))
+                        PropSlider(stringResource(R.string.colorpage_saturation), node.sat, 0f, 2f, 1f, { "%.0f".format(it * 50) }, "sat", onLive = { live(node.copy(sat = it)) }) { commit(node.copy(sat = it)) }
+                        PropSlider(stringResource(R.string.colorpage_hue), node.hue, -180f, 180f, 0f, { "%.0f°".format(it) }, "hue", onLive = { live(node.copy(hue = it)) }) { commit(node.copy(hue = it)) }
+                        PropSlider(stringResource(R.string.colorpage_film_density), node.density * 100f, 0f, 100f, 0f, { "%.0f".format(it) }, "density", onLive = { live(node.copy(density = it / 100f)) }) { commit(node.copy(density = it / 100f)) }
+                        SectionLabel(stringResource(R.string.colorpage_group_finish))
+                        PropSlider(stringResource(R.string.colorpage_noise_reduction), node.denoise * 100f, 0f, 100f, 0f, { "%.0f".format(it) }, "denoise", onLive = { live(node.copy(denoise = it / 100f)) }) { commit(node.copy(denoise = it / 100f)) }
+                        PropSlider(stringResource(R.string.colorpage_node_mix), node.mix, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "mix", onLive = { live(node.copy(mix = it)) }) { commit(node.copy(mix = it)) }
+                    }
                 }
             }
         }
     }
+}
 
-    // what else there is for the clip: one bar instead of a column of cards
-    Spacer(Modifier.height(12.dp))
-    var lower by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
-    ToolTabs(listOf(
-        ToolTab(stringResource(R.string.colorpage_gallery), Ic.Still, "lower:gallery"),
-        ToolTab(stringResource(R.string.colorpage_clip_grade), Ic.Copy, "lower:grade"),
-        ToolTab(stringResource(R.string.colortools_stabilization), Ic.Target, "lower:stab", gs.of(current.id).stab != null || gs.of(current.id).mblur != null),
-    ), lower, { lower = it }, Modifier.padding(horizontal = 12.dp))
-    when (lower) {
-        0 -> {
-    // the gallery: stills to compare against (split screen) and take grades from
-    Spacer(Modifier.height(12.dp))
-    PanelCard(title = stringResource(R.string.colorpage_gallery), trailing = { Text(stringResource(R.string.colorpage_gallery_hint), color = K.Outline, fontSize = 11.sp) }) {
-        StillsRow(gs, onGrab = {
-            val clip = current
-            scope.launch {
-                val img = grabStill(ctx, clip, state.playhead, gs.of(clip.id), look) ?: return@launch
-                haptics.confirm()
-                runCatching { StillStore.add(img, clip.name, gs.of(clip.id)) }
-            }
-        }, onMenu = onStillMenu)
+/** The tools drawn for this page lie flush with the rail; the shared editors keep their own margins. */
+@Composable
+private fun Flush(content: @Composable ColumnScope.() -> Unit) {
+    CompositionLocalProvider(LocalSliderInset provides 0.dp) {
+        Column(Modifier.padding(start = 8.dp, end = 12.dp), content = content)
     }
+}
 
-        }
-        1 -> {
-    // grade actions for the clip
-    Spacer(Modifier.height(12.dp))
-    PanelCard(title = stringResource(R.string.colorpage_clip_grade)) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
-            ActionTile(stringResource(R.string.colorpage_copy), Ic.Copy, Modifier.weight(1f).testTag("grade:copy")) { haptics.confirm(); gs.clipboard = gs.of(current.id); gs.clipboardFrom = current.id }
-            ActionTile(stringResource(R.string.colorpage_paste), Ic.Paste, Modifier.weight(1f).testTag("grade:paste"), enabled = gs.clipboard != null) {
-                gs.clipboard?.let {
-                    haptics.confirm()
-                    // another clip gets the color – not the copied clip's stabilization and tracking
-                    val g = if (gs.clipboardFrom == current.id) it else it.forOtherClip(gs.of(current.id).stab, gs.of(current.id).layer, gs.of(current.id).mblur)
-                    gs.set(current.id, g); setNode(g.nodes.first().id)
+/**
+ * What the grid button opens instead of the node's tools: the gallery (stills to compare against and take grades
+ * from), the grade actions for the clip, and the timeline's look.
+ */
+@Composable
+private fun ColorMore(
+    state: EditorState,
+    gs: GradeState,
+    clips: List<ColorClip>,
+    current: ColorClip?,
+    look: se.gendut.klipp.engine.Look,
+    setNode: (Int) -> Unit,
+    onStillMenu: (Still) -> Unit,
+    onDone: () -> Unit,
+    timeline: @Composable () -> Unit,
+) {
+    val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    var tab by rememberSaveable { mutableStateOf(0) }
+    val names = listOf(stringResource(R.string.colorpage_gallery), stringResource(R.string.colorpage_clip_grade), stringResource(R.string.colorpage_tab_timeline))
+    val tags = listOf("lower:gallery", "lower:grade", "colorTab:timeline")
+    Column(Modifier.fillMaxSize()) {
+        SheetHeader(names[tab], onDone = onDone)
+        ConnectedToggleGroup(names, tab, { tab = it }, Modifier.padding(horizontal = 12.dp).fillMaxWidth(), height = 44.dp, tag = { tags[it] })
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).testTag("colorScroll").padding(top = 8.dp, bottom = LocalBarSpace.current + 26.dp)) {
+            when (tab) {
+                0 -> if (current == null) NoClip() else {
+                    StillsRow(gs, onGrab = {
+                        val clip = current
+                        scope.launch {
+                            val img = grabStill(ctx, clip, state.playhead, gs.of(clip.id), look) ?: return@launch
+                            haptics.confirm()
+                            runCatching { StillStore.add(img, clip.name, gs.of(clip.id)) }
+                        }
+                    }, onMenu = onStillMenu)
+                    Text(stringResource(R.string.colorpage_gallery_hint), color = K.Outline, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                }
+                1 -> if (current == null) NoClip() else Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    ActionTile(stringResource(R.string.colorpage_copy), Ic.Copy, Modifier.weight(1f).testTag("grade:copy")) {
+                        haptics.confirm(); gs.clipboard = gs.of(current.id); gs.clipboardFrom = current.id; gs.pasted.clear()
+                    }
+                    ActionTile(stringResource(R.string.colorpage_paste), Ic.Paste, Modifier.weight(1f).testTag("grade:paste"), enabled = gs.clipboard != null) {
+                        gs.clipboard?.let {
+                            haptics.confirm()
+                            // another clip gets the color – not the copied clip's stabilization and tracking
+                            val g = if (gs.clipboardFrom == current.id) it else it.forOtherClip(gs.of(current.id).stab, gs.of(current.id).layer, gs.of(current.id).mblur)
+                            gs.set(current.id, g); setNode(g.nodes.first().id)
+                        }
+                    }
+                    ActionTile(stringResource(R.string.colorpage_all_clips), Ic.Layers, Modifier.weight(1f).testTag("grade:all")) {
+                        haptics.confirm()
+                        val cg = gs.of(current.id)
+                        gs.setAll(clips.filter { it.id != current.id }.associate { it.id to cg.forOtherClip(gs.of(it.id).stab, gs.of(it.id).layer, gs.of(it.id).mblur) })
+                    }
+                    ActionTile(stringResource(R.string.colorpage_reset), Ic.Reset, Modifier.weight(1f).testTag("grade:reset"), danger = true) { haptics.heavy(); gs.set(current.id, ClipGrade()); setNode(1) }
+                    // (stabilization and motion blur are on the clip: Picture in the edit page)
+                }
+                else -> {
+                    // grade on the original files instead of the proxy (full resolution, no transcoding) – applies app-wide
+                    val px = se.gendut.klipp.engine.Proxies
+                    ToggleChip(stringResource(R.string.colorpage_original), !px.enabled, { haptics.tick(); px.switch(!px.enabled) }, Modifier.padding(start = 16.dp, bottom = 4.dp).testTag("colorOriginal"))
+                    timeline()
                 }
             }
-            ActionTile(stringResource(R.string.colorpage_all_clips), Ic.Layers, Modifier.weight(1f).testTag("grade:all")) {
-                haptics.confirm()
-                val cg = gs.of(current.id)
-                gs.setAll(clips.filter { it.id != current.id }.associate { it.id to cg.forOtherClip(gs.of(it.id).stab, gs.of(it.id).layer, gs.of(it.id).mblur) })
-            }
-            ActionTile(stringResource(R.string.colorpage_reset), Ic.Reset, Modifier.weight(1f).testTag("grade:reset"), danger = true) { haptics.heavy(); gs.set(current.id, ClipGrade()); setNode(1) }
         }
-    }
-        }
-        else -> StabilizeCard(gs, current)
     }
 }
 
@@ -639,48 +782,96 @@ private fun ColorPageBody(
 private val SCOPES = listOf(R.string.colorpage_scope_none to Ic.EyeOff, R.string.colorpage_scope_waveform to Ic.Waveform, R.string.colorpage_scope_parade to Ic.Parade, R.string.colorpage_scope_vectorscope to Ic.Vectorscope)
 
 /**
- * Scopes as a button with an icon: a tap drops down the choices. With a scope on, the button is tonal and shows
- * which one.
+ * What the color page lays over the picture: Compare and Scope at the bottom left, full screen at the bottom right,
+ * and the chosen scope over the picture's top left. Compare splits the picture against the clip without its grade
+ * (drag the line); a still from the gallery is compared the same way from there.
  */
 @Composable
-private fun ScopesButton(kind: Int, onKind: (Int) -> Unit) {
-    var open by remember { mutableStateOf(false) }
+fun ColorViewerTools(
+    state: EditorState,
+    gs: GradeState,
+    clips: List<ColorClip>,
+    look: se.gendut.klipp.engine.Look,
+    modifier: Modifier = Modifier,
+    onFullscreen: (() -> Unit)? = null,
+) {
     val haptics = rememberHaptics()
-    val src = remember { MutableInteractionSource() }
-    val pressed by src.collectIsPressedAsState()
-    val r by animateDpAsState(if (pressed) 8.dp else 18.dp, spring(0.55f, 700f), label = "sb")
-    val on = kind > 0
-    val bg by animateColorAsState(if (on || open) K.Tonal else K.SurfaceHigh, label = "sbb")
-    val fg = if (on || open) K.PrimarySoft else K.OnSurface
-    Box {
-        Row(
-            Modifier.height(36.dp).clip(RoundedCornerShape(r)).background(bg)
-                .clickable(interactionSource = src, indication = null, role = androidx.compose.ui.semantics.Role.Button) { haptics.tick(); open = true }
-                .padding(start = 12.dp, end = 10.dp).testTag("scopes"),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            androidx.compose.material3.Icon(if (on) SCOPES[kind].second else Ic.Waveform, null, tint = fg, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(if (on) stringResource(SCOPES[kind].first) else stringResource(R.string.colorpage_scopes), color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.width(2.dp))
-            val turn by animateFloatAsState(if (open) 180f else 0f, spring(0.6f, 500f), label = "sbt")
-            androidx.compose.material3.Icon(Ic.ChevronDown, null, tint = fg, modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = turn })
+    val ctx = LocalContext.current
+    val clip = remember(clips) { derivedStateOf { currentColorClip(clips, state) } }.value
+    val comparing = gs.compare != null
+    if (gs.compare?.id == Still.ORIGINAL && clip != null) {
+        // the clip without its grade at the playhead: while stopped, in fifths of a second (follows a scrub)
+        val tick = remember(clip) { derivedStateOf { (clip.srcAt(state.playhead) * 5).roundToInt() } }.value
+        LaunchedEffect(clip, tick, state.playing) {
+            if (state.playing) return@LaunchedEffect
+            delay(60)
+            val bare = gs.of(clip.id).copy(nodes = listOf(GradeNode(1)))
+            grabStill(ctx, clip, state.playhead, bare, se.gendut.klipp.engine.Look.NONE)?.let { gs.compareImage = it.asImageBitmap() }
         }
-        androidx.compose.material3.DropdownMenu(
-            expanded = open, onDismissRequest = { open = false },
-            shape = RoundedCornerShape(20.dp), containerColor = K.SurfaceHighest,
-            offset = androidx.compose.ui.unit.DpOffset(0.dp, 6.dp),
-        ) {
-            for ((i, sc) in SCOPES.withIndex()) {
-                val sel = i == kind
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text(stringResource(sc.first), color = if (sel) K.Primary else K.OnSurface, fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium) },
-                    leadingIcon = { androidx.compose.material3.Icon(sc.second, null, tint = if (sel) K.Primary else K.OnSurfaceVar, modifier = Modifier.size(20.dp)) },
-                    trailingIcon = if (sel) ({ androidx.compose.material3.Icon(Ic.Check, null, tint = K.Primary, modifier = Modifier.size(18.dp)) }) else null,
-                    onClick = { haptics.tick(); onKind(i); open = false },
-                    modifier = Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(14.dp)).background(if (sel) K.Tonal else Color.Transparent).testTag("scope:$i"),
-                )
+    }
+    Box(modifier.fillMaxSize()) {
+        if (gs.scopeKind > 0 && clip != null) Scopes(clip, state, gs, gs.scopeKind, look, Modifier.align(Alignment.TopStart).padding(8.dp).fillMaxWidth(0.48f).fillMaxHeight(0.62f))
+        // (the dropper has the whole picture while it picks)
+        if (gs.pick == null) {
+            Row(Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ViewerChip(stringResource(R.string.design_color_compare), Ic.Compare, comparing, "colorCompare") {
+                    haptics.tick()
+                    if (comparing) { gs.compare = null; gs.compareImage = null }
+                    else if (clip != null) { gs.compareImage = null; gs.wipe = 0.5f; gs.compare = Still(Still.ORIGINAL, clip.name, 0L, ClipGrade()) }
+                }
+                var open by remember { mutableStateOf(false) }
+                Box {
+                    ViewerChip(stringResource(R.string.design_color_scope), Ic.Scope, gs.scopeKind > 0 || open, "scopes") { haptics.tick(); open = true }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = open, onDismissRequest = { open = false },
+                        shape = RoundedCornerShape(20.dp), containerColor = K.SurfaceHighest,
+                        offset = androidx.compose.ui.unit.DpOffset(0.dp, 6.dp),
+                    ) {
+                        for ((i, sc) in SCOPES.withIndex()) {
+                            val sel = i == gs.scopeKind
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(stringResource(sc.first), color = if (sel) K.PrimarySoft else K.OnSurface, fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium) },
+                                leadingIcon = { Icon(sc.second, null, tint = if (sel) K.PrimarySoft else K.OnSurfaceVar, modifier = Modifier.size(20.dp)) },
+                                trailingIcon = if (sel) ({ Icon(Ic.Check, null, tint = K.Primary, modifier = Modifier.size(18.dp)) }) else null,
+                                onClick = { haptics.tick(); gs.scopeKind = i; open = false },
+                                modifier = Modifier.testTag("scope:$i"),
+                            )
+                        }
+                    }
+                }
             }
+            if (onFullscreen != null) {
+                val src = remember { MutableInteractionSource() }
+                Box(
+                    Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 4.dp).pressPop(src, 0.88f).size(44.dp)
+                        .clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onFullscreen).testTag("colorFullscreen"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(Modifier.size(32.dp).clip(CircleShape).background(Color(0x990F1012)), contentAlignment = Alignment.Center) {
+                        Icon(Ic.Fullscreen, stringResource(R.string.design_color_fullscreen), tint = Color.White, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A pill over the picture: dark and see-through, in the accent's container color while its tool is on. */
+@Composable
+private fun ViewerChip(label: String, icon: ImageVector, on: Boolean, tag: String, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val bg by animateColorAsState(if (on) K.PrimaryContainer else Color(0xB20F1012), label = "vc")
+    val fg = if (on) K.PrimarySoft else Color.White
+    Box(
+        Modifier.pressPop(src, 0.9f).height(44.dp).clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onClick).testTag(tag),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            Modifier.height(32.dp).clip(RoundedCornerShape(16.dp)).background(bg).padding(start = 10.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(icon, null, tint = fg, modifier = Modifier.size(16.dp))
+            Text(label, color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
@@ -692,177 +883,151 @@ private fun NodeMenuRow(label: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).combinedClickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 14.dp))
 }
 
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun ClipChip(n: Int, c: ColorClip, selected: Boolean, graded: Boolean, onClick: () -> Unit) {
-    // selected: rounder corners, a primary-colored ring around the image and the name in primary color
-    val r by animateDpAsState(if (selected) 22.dp else 14.dp, spring(0.5f, 500f), label = "cc")
-    val ring by animateColorAsState(if (selected) K.Primary else Color.Transparent, label = "ccb")
-    val ctx = LocalContext.current
-    val img by produceState<ImageBitmap?>(null, c.uri, c.srcIn) { value = c.uri?.let { Thumbs.load(ctx, it, c.srcIn + 0.2) } }
-    Column(
-        Modifier.width(124.dp).clip(RoundedCornerShape(r + 3.dp)).combinedClickable(onClick = onClick).testTag("colorClip:${c.id}"),
-    ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).border(3.dp, ring, RoundedCornerShape(r + 3.dp)).padding(5.dp)) {
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(r - 2.dp)).background(K.SurfaceHighest)) {
-                img?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-                Text("%02d".format(n), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
-                    modifier = Modifier.align(Alignment.BottomStart).padding(5.dp).clip(CircleShape).background(Color(0x99000000)).padding(horizontal = 7.dp, vertical = 1.dp))
-                if (graded) Box(Modifier.align(Alignment.TopEnd).padding(6.dp).size(12.dp).clip(CircleShape).background(Color(0x99000000)).padding(2.dp).clip(CircleShape).background(K.Primary))
-            }
-        }
-        Text(c.name, color = if (selected) K.Primary else K.OnSurfaceVar, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp).padding(top = 2.dp, bottom = 4.dp))
-    }
-}
+/** One of the wheel's ranges: its name, the wheel's value and how the node gets a new one. */
+private class WheelRange(val key: String, val label: String, val wheel: Wheel, val with: (Wheel) -> GradeNode)
 
 /**
- * The node chain (like Resolve's node tree, in a row): each node shows its image – the clip graded up to and including
- * the node – with input and output, the number and icons for the tools used in it. "+" adds a node at the end.
- * Long press = menu.
+ * The wheels: one large wheel for the range chosen beside it (shadows, midtones, highlights, offset – each button
+ * shows its own wheel small), the luminance of that range as a slider under, then white balance and copying the
+ * grade. Primaries are lift, gamma and gain; Log is the log wheels with their two range limits.
  */
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun NodeGraph(clip: ColorClip, g: ClipGrade, selected: Int, onPick: (Int) -> Unit, onMenu: (GradeNode) -> Unit, onAdd: () -> Unit) {
-    val cacheStatus = se.gendut.klipp.engine.NodeCache.status(clip.id)
-    val ctx = LocalContext.current
-    // the clip's image, small (software bitmap so the grade can be computed on it)
-    val base by produceState<Bitmap?>(null, clip.uri, clip.srcIn) {
-        val img = clip.uri?.let { Thumbs.load(ctx, it, clip.srcIn + 0.2) }
-        if (img == null) { value = withContext(Dispatchers.Default) { swatch() }; return@produceState }
-        value = withContext(Dispatchers.Default) {
-            val b = img.asAndroidBitmap().copy(Bitmap.Config.ARGB_8888, false)
-            Bitmap.createScaledBitmap(b, 160, (160f * b.height / b.width).roundToInt().coerceAtLeast(1), true)
+private fun WheelsPanel(
+    n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit,
+    wbOn: Boolean, onWb: () -> Unit, canPaste: Boolean, onCopyPaste: () -> Unit,
+) {
+    val haptics = rememberHaptics()
+    var log by rememberSaveable { mutableStateOf(false) }
+    var at by rememberSaveable { mutableStateOf(1) }
+    val shadow = stringResource(R.string.colorpage_wheel_shadow)
+    val mid = stringResource(R.string.colorpage_wheel_midtone)
+    val high = stringResource(R.string.colorpage_wheel_highlight)
+    // primaries go by the grading names (the same in every language); the log wheels by the tonal ranges they work on
+    val ranges = if (!log) listOf(
+        WheelRange("Lift", "Lift", n.lift) { n.copy(lift = it) },
+        WheelRange("Gamma", "Gamma", n.gamma) { n.copy(gamma = it) },
+        WheelRange("Gain", "Gain", n.gain) { n.copy(gain = it) },
+        WheelRange("Offset", "Offset", n.offset) { n.copy(offset = it) },
+    ) else listOf(
+        WheelRange("LogShadow", shadow, n.logShadow) { n.copy(logShadow = it) },
+        WheelRange("LogMid", mid, n.logMid) { n.copy(logMid = it) },
+        WheelRange("LogHi", high, n.logHi) { n.copy(logHi = it) },
+        WheelRange("Offset", "Offset", n.offset) { n.copy(offset = it) },
+    )
+    val cur = ranges[at.coerceIn(0, ranges.lastIndex)]
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+            WheelMode(stringResource(R.string.colorpage_wheels_primaries), !log, first = true, tag = "wheels:0") { haptics.tick(); log = false }
+            Spacer(Modifier.width(3.dp))
+            WheelMode(stringResource(R.string.colorpage_wheels_log), log, first = false, tag = "wheels:1") { haptics.tick(); log = true }
+            Spacer(Modifier.weight(1f))
+            val src = remember { MutableInteractionSource() }
+            Box(
+                Modifier.pressPop(src, 0.88f).size(44.dp).clip(RoundedCornerShape(14.dp))
+                    .clickable(interactionSource = src, indication = null, role = Role.Button) {
+                        // all of this mode's wheels in one step
+                        val reset = if (!log) n.copy(lift = Wheel(), gamma = Wheel(), gain = Wheel(), offset = Wheel())
+                        else n.copy(logShadow = Wheel(), logMid = Wheel(), logHi = Wheel(), offset = Wheel(), logLow = 0.333f, logHigh = 0.55f)
+                        if (reset != n) { haptics.heavy(); onCommit(reset) }
+                    }.testTag("wheels:reset"),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Ic.Reset, stringResource(R.string.design_color_reset_wheels), tint = K.OnSurface, modifier = Modifier.size(20.dp)) }
         }
-    }
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        NodePort(K.Teal)
-        for ((i, n) in g.nodes.withIndex()) key(n.id) {
-            Wire()
-            NodeCard(n, ClipGrade(g.nodes.take(i + 1)), base, n.id == selected, { onPick(n.id) }, { onMenu(n) },
-                cacheText = if (n.cache) cacheStatus ?: stringResource(R.string.colorpage_cache) else null)
+        BoxWithConstraints(Modifier.fillMaxWidth().height(176.dp)) {
+            // on a narrow phone the wheel gives way, so the ranges' names fit beside it
+            val wheel = (maxWidth - 114.dp).coerceIn(140.dp, 176.dp)
+            Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                key(cur.key) {
+                    ColorWheel(cur.key, cur.wheel, Modifier.size(wheel), { onLive(cur.with(it)) }) { onCommit(cur.with(it)) }
+                }
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    for ((i, r) in ranges.withIndex()) {
+                        RangeButton(r.label, r.wheel, r === cur, Modifier.weight(1f).testTag("range:${r.key}")) { haptics.tick(); at = i }
+                    }
+                }
+            }
         }
-        Wire()
-        NodePort(K.Teal)
-        Spacer(Modifier.width(14.dp))
-        val src = remember { MutableInteractionSource() }
-        val pressed by src.collectIsPressedAsState()
-        val r by animateDpAsState(if (pressed) 12.dp else 24.dp, spring(0.55f, 700f), label = "add")
-        Box(
-            Modifier.size(48.dp).clip(RoundedCornerShape(r)).background(K.Tonal)
-                .combinedClickable(interactionSource = src, indication = null, onClick = onAdd).testTag("addNode"),
-            contentAlignment = Alignment.Center,
-        ) { androidx.compose.material3.Icon(Ic.Plus, stringResource(R.string.colorpage_new_node), tint = K.PrimarySoft, modifier = Modifier.size(22.dp)) }
-    }
-}
-
-/** Without a clip image: a grayscale ramp with a color band, so the node's grading still shows on the card. */
-private fun swatch(): Bitmap {
-    val w = 160; val h = 90
-    val px = IntArray(w * h) { i ->
-        val x = i % w; val y = i / w
-        if (y < h / 2) {
-            val v = x * 255 / (w - 1)
-            (0xFF shl 24) or (v shl 16) or (v shl 8) or v
-        } else android.graphics.Color.HSVToColor(floatArrayOf(x * 360f / w, 0.55f, 0.75f))
-    }
-    return Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
-}
-
-@Composable
-private fun NodePort(c: Color) = Box(Modifier.size(12.dp).clip(CircleShape).background(c))
-
-@Composable
-private fun Wire() = Box(Modifier.width(14.dp).height(2.dp).background(K.OutlineVar))
-
-/** The tools used in the node (the icons on the node card). */
-private fun GradeNode.toolIcons() = buildList {
-    if (hasLog || !(lift.isNeutral && gamma.isNeutral && gain.isNeutral && offset.isNeutral)) add(Ic.Wheels)
-    if (hasCurves) add(Ic.Curves)
-    if (contrast != 1f || sat != 1f || hue != 0f || temp != 0f || tint != 0f) add(Ic.Sliders)
-    if (lut != null) add(Ic.Cube)
-    if (qual.on) add(Ic.Dropper)
-    if (win.on) add(Ic.Window)
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun NodeCard(n: GradeNode, upTo: ClipGrade, base: Bitmap?, selected: Boolean, onClick: () -> Unit, onLong: () -> Unit, cacheText: String? = null) {
-    val src = remember { MutableInteractionSource() }
-    // selected: rounder, filled with the primary container color and a ring – shape and color show the selection
-    val r by animateDpAsState(if (selected) 24.dp else 16.dp, spring(0.55f, 600f), label = "nr")
-    val bg by animateColorAsState(if (selected) K.PrimaryContainer else K.SurfaceHigh, label = "nb")
-    val ring by animateColorAsState(if (selected) K.Primary else Color.Transparent, label = "nring")
-    val fg = if (selected) K.PrimarySoft else K.OnSurface
-    // the node's image: the clip graded up to and including the node (recomputed shortly after dragging stops)
-    val img by produceState<ImageBitmap?>(null, base, upTo) {
-        val b = base ?: return@produceState
-        delay(120)
-        value = withContext(Dispatchers.Default) { upTo.applyTo(b).asImageBitmap() }
-    }
-    Column(
-        Modifier.pressPop(src, 0.9f).graphicsLayer { alpha = if (n.enabled) 1f else 0.45f }
-            .width(128.dp).clip(RoundedCornerShape(r)).background(bg).border(2.dp, ring, RoundedCornerShape(r))
-            .combinedClickable(interactionSource = src, indication = null, onLongClick = onLong) {
-                onClick()
-            }
-            .padding(6.dp)
-            .testTag("node:${n.id}"),
-    ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(r - 6.dp)).background(K.SurfaceHighest)) {
-            img?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-            Text("%02d".format(n.id), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace,
-                modifier = Modifier.align(Alignment.TopStart).padding(4.dp).clip(CircleShape).background(Color(0x99000000)).padding(horizontal = 6.dp))
-            if (!n.enabled) Text(stringResource(R.string.colorpage_node_off_badge), color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.Center).clip(CircleShape).background(Color(0xCC93000A)).padding(horizontal = 8.dp, vertical = 2.dp))
-            // the node cache: status (cached / caching 40 % / queued)
-            if (cacheText != null) Text(cacheText, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).clip(CircleShape).background(Color(0xCC1B5E20)).padding(horizontal = 6.dp, vertical = 1.dp).testTag("nodeCache:${n.id}"))
-        }
-        Row(Modifier.fillMaxWidth().height(26.dp).padding(start = 4.dp, top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (n.isNeutral && n.enabled) stringResource(R.string.colorpage_node_neutral) else n.label.ifBlank { Str.t(R.string.colorpage_node_default_label) }.let(Str::name), color = fg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            for (ic in n.toolIcons().take(4)) androidx.compose.material3.Icon(ic, null, tint = if (selected) K.Primary else K.OnSurfaceVar, modifier = Modifier.padding(start = 2.dp).size(14.dp))
-        }
-    }
-}
-
-/** Lift, Gamma, Gain, Offset or the log wheels (Shadow, Midtone, Highlight, Offset) – two by two. */
-@Composable
-private fun WheelsGrid(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit) {
-    var log by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    Column(Modifier.padding(horizontal = 6.dp)) {
-        ConnectedToggleGroup(listOf(stringResource(R.string.colorpage_wheels_primaries), stringResource(R.string.colorpage_wheels_log)), if (log) 1 else 0, { log = it == 1 },
-            Modifier.padding(horizontal = 10.dp, vertical = 4.dp).fillMaxWidth(), tag = { "wheels:$it" })
-        if (!log) {
-            Row {
-                ColorWheel("Lift", n.lift, Modifier.weight(1f), { onLive(n.copy(lift = it)) }) { onCommit(n.copy(lift = it)) }
-                ColorWheel("Gamma", n.gamma, Modifier.weight(1f), { onLive(n.copy(gamma = it)) }) { onCommit(n.copy(gamma = it)) }
-            }
-            Row {
-                ColorWheel("Gain", n.gain, Modifier.weight(1f), { onLive(n.copy(gain = it)) }) { onCommit(n.copy(gain = it)) }
-                ColorWheel("Offset", n.offset, Modifier.weight(1f), { onLive(n.copy(offset = it)) }) { onCommit(n.copy(offset = it)) }
-            }
-        } else {
-            Row {
-                ColorWheel(stringResource(R.string.colorpage_wheel_shadow), n.logShadow, Modifier.weight(1f), { onLive(n.copy(logShadow = it)) }) { onCommit(n.copy(logShadow = it)) }
-                ColorWheel(stringResource(R.string.colorpage_wheel_midtone), n.logMid, Modifier.weight(1f), { onLive(n.copy(logMid = it)) }) { onCommit(n.copy(logMid = it)) }
-            }
-            Row {
-                ColorWheel(stringResource(R.string.colorpage_wheel_highlight), n.logHi, Modifier.weight(1f), { onLive(n.copy(logHi = it)) }) { onCommit(n.copy(logHi = it)) }
-                ColorWheel("Offset", n.offset, Modifier.weight(1f), { onLive(n.copy(offset = it)) }) { onCommit(n.copy(offset = it)) }
-            }
+        PropSlider(stringResource(R.string.design_color_luma, cur.label.lowercase()), cur.wheel.master, -1f, 1f, 0f, { "%+.2f".format(it) }, "master", lane = false,
+            onLive = { onLive(cur.with(cur.wheel.copy(master = it))) }) { onCommit(cur.with(cur.wheel.copy(master = it))) }
+        if (log) {
             PropSlider(stringResource(R.string.colorpage_log_low), n.logLow * 100f, 5f, n.logHigh * 100f - 5f, 33.3f, { "%.0f".format(it) }, "logLow", lane = false,
                 onLive = { onLive(n.copy(logLow = it / 100f)) }) { onCommit(n.copy(logLow = it / 100f)) }
             PropSlider(stringResource(R.string.colorpage_log_high), n.logHigh * 100f, n.logLow * 100f + 5f, 95f, 55f, { "%.0f".format(it) }, "logHigh", lane = false,
                 onLive = { onLive(n.copy(logHigh = it / 100f)) }) { onCommit(n.copy(logHigh = it / 100f)) }
         }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlatButton(if (wbOn) stringResource(R.string.design_color_cancel_pick) else stringResource(R.string.colorpage_group_balance), Ic.Dropper, wbOn, Modifier.weight(1f).testTag("wheels:wb"), onWb)
+            FlatButton(stringResource(if (canPaste) R.string.design_color_paste_grade else R.string.design_color_copy_grade), if (canPaste) Ic.Paste else Ic.Copy, false, Modifier.weight(1f).testTag("wheels:copy"), onCopyPaste)
+        }
+    }
+}
+
+/** Primaries or Log: the chosen one a light pill, the other gray with its small corners toward it. */
+@Composable
+private fun WheelMode(label: String, on: Boolean, first: Boolean, tag: String, onClick: () -> Unit) {
+    val bg by animateColorAsState(if (on) K.OnSurface else K.SurfaceHigh, label = "wm")
+    val inner by animateDpAsState(if (on) 22.dp else 8.dp, spring(0.55f, 700f), label = "wmr")
+    val shape = if (first) RoundedCornerShape(22.dp, inner, inner, 22.dp) else RoundedCornerShape(inner, 22.dp, 22.dp, inner)
+    Box(
+        Modifier.height(44.dp).clip(shape).background(bg)
+            .clickable(role = Role.Tab, onClick = onClick).semantics { selected = on }
+            .padding(horizontal = if (on) 18.dp else 16.dp).testTag(tag),
+        contentAlignment = Alignment.Center,
+    ) { Text(label, color = if (on) K.Bg else K.OnSurface, fontSize = 13.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold, maxLines = 1) }
+}
+
+/** A range beside the wheel: its wheel small (the dot is where its puck is) and its name. */
+@Composable
+private fun RangeButton(label: String, w: Wheel, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val r by animateDpAsState(if (on) 28.dp else 12.dp, spring(0.55f, 600f), label = "rr")
+    val bg by animateColorAsState(if (on) K.PrimaryContainer else K.SurfaceHigh, label = "rb")
+    val fg = if (on) K.PrimarySoft else K.OnSurface
+    val ring = if (on) K.Primary else K.Outline
+    Row(
+        modifier.fillMaxWidth().pressPop(src, 0.94f).clip(RoundedCornerShape(r)).background(bg)
+            .clickable(interactionSource = src, indication = null, role = Role.Tab, onClick = onClick).semantics { selected = on }
+            .padding(horizontal = if (on) 8.dp else 6.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Canvas(Modifier.size(30.dp)) {
+            drawCircle(ring, size.minDimension / 2f - 1.5.dp.toPx(), style = Stroke(3.dp.toPx()))
+            val t = 9.dp.toPx()
+            drawCircle(fg, 3.dp.toPx(), Offset(center.x + w.x * t, center.y - w.y * t))
+        }
+        // a long name shrinks to the button's width instead of being cut
+        BasicText(
+            label, color = { fg }, maxLines = 1,
+            style = TextStyle(fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.SemiBold),
+            autoSize = TextAutoSize.StepBased(8.sp, 11.sp, 0.5.sp), modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+/** A wide, flat button under a tool: an icon and a name; in the accent's container color while [on]. */
+@Composable
+private fun FlatButton(label: String, icon: ImageVector, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    val bg by animateColorAsState(if (on) K.PrimaryContainer else K.SurfaceHigh, label = "fb")
+    val fg = if (on) K.PrimarySoft else K.OnSurface
+    Row(
+        modifier.pressPop(src, 0.94f).height(44.dp).clip(RoundedCornerShape(14.dp)).background(bg)
+            .clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+    ) {
+        Icon(icon, null, tint = fg, modifier = Modifier.size(18.dp))
+        BasicText(
+            label, color = { fg }, maxLines = 1,
+            style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.SemiBold),
+            autoSize = TextAutoSize.StepBased(9.sp, 13.sp, 0.5.sp), modifier = Modifier.weight(1f, fill = false),
+        )
     }
 }
 
 /**
- * A color wheel: drag the puck toward a color (no snapping – a click when passing the center), drag the strip below the wheel for
- * luminance (the master control). Double-tap the wheel to reset the color, the strip to reset the master.
+ * A color wheel: a ring of the colors around a dark disc, and a puck with a line from the center. Drag the puck toward
+ * a color (no snapping – a click when passing the center); double-tap the wheel to reset the color. The luminance of
+ * the range is the slider under the wheel.
  */
 @Composable
 fun ColorWheel(label: String, w: Wheel, modifier: Modifier, onLive: (Wheel) -> Unit, onCommit: (Wheel) -> Unit) {
@@ -872,142 +1037,81 @@ fun ColorWheel(label: String, w: Wheel, modifier: Modifier, onLive: (Wheel) -> U
     LaunchedEffect(w) { if (!dragging) cur = w }
     val live by rememberUpdatedState(onLive)
     val commit by rememberUpdatedState(onCommit)
-    val lastTap = remember { longArrayOf(0L, 0L) }
-    Column(modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(label, color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        // R G B in their colors, dimmed when zero
-        val rgb = cur.rgb()
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for ((i, col) in listOf(Color(0xFFFF8A80), Color(0xFF8BE0A4), Color(0xFF8AB4FF)).withIndex()) {
-                Text("%+.2f".format(rgb[i]), color = if (abs(rgb[i]) < 0.005f) K.Outline else col, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
-            }
+    val lastTap = remember { longArrayOf(0L) }
+    val disc = K.SurfaceHigh
+    val cross = K.OutlineVar
+    val ink = K.OnSurface
+    // the color ring: same angle → color as the grade math (Wheel.rgb), muted to sit in the dark interface
+    val ringColors = remember {
+        (0..12).map { i ->
+            val h = Wheel.hueColor((-i * 30.0 * PI / 180).toFloat())
+            Color(0.31f + 0.54f * h[0], 0.31f + 0.54f * h[1], 0.31f + 0.54f * h[2])
         }
-        Box(Modifier.fillMaxWidth().aspectRatio(1f).padding(6.dp).testTag("wheel:$label")) {
-            Canvas(Modifier.fillMaxSize().pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    val r = size.width / 2f
-                    val c = Offset(size.width / 2f, size.height / 2f)
-                    val now = System.currentTimeMillis()
-                    if (now - lastTap[0] < 320) {
-                        down.consume()
-                        haptics.confirm(); lastTap[0] = 0
-                        if (cur.x != 0f || cur.y != 0f) { cur = cur.copy(x = 0f, y = 0f); commit(cur) }
-                        return@awaitEachGesture
-                    }
-                    // on the puck: take the gesture immediately; otherwise only on horizontal movement – vertical scrolls the page
-                    val puck = Offset(c.x + cur.x * r * 0.92f, c.y - cur.y * r * 0.92f)
-                    if ((down.position - puck).getDistance() < 28.dp.toPx()) down.consume()
-                    else when (claimHorizontal(down)) {
-                        null -> { lastTap[0] = now; return@awaitEachGesture }
-                        false -> return@awaitEachGesture
-                        true -> {}
-                    }
-                    val start = cur
-                    dragging = true
-                    var snapped = cur.x == 0f && cur.y == 0f
-                    // relative drag (like Resolve): the puck moves with the finger, with fine sensitivity
-                    var px = cur.x; var py = cur.y
-                    var last = down.position
-                    while (true) {
-                        val ev = awaitPointerEvent()
-                        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
-                        if (!ch.pressed) break
-                        val d = ch.position - last
-                        last = ch.position
-                        px += d.x / r * 0.6f
-                        py -= d.y / r * 0.6f
-                        val m = hypot(px, py)
-                        if (m > 1f) { px /= m; py /= m }
-                        // a click when the puck passes the center (within the click zone once, again after leaving it)
-                        val near = hypot(px, py) < 0.035f
-                        if (near && !snapped) haptics.tick()
-                        snapped = near
-                        cur = cur.copy(x = px, y = py)
-                        live(cur)
-                        ch.consume()
-                    }
-                    dragging = false
-                    // a tap without change: no undo step, but counts as a tap (double-tap)
-                    if (cur != start) commit(cur) else lastTap[0] = now
-                }
-            }) {
-                val r = size.minDimension / 2f
-                val c = center
-                // the color circle: same angle → color as the grade math (Wheel.rgb)
-                val cols = (0..12).map { i ->
-                    val phi = i * 30.0
-                    val th = (-phi * PI / 180).toFloat()
-                    val h = Wheel.hueColor(th)
-                    Color(h[0], h[1], h[2])
-                }
-                drawCircle(Brush.sweepGradient(cols, c), r, c)
-                drawCircle(Brush.radialGradient(listOf(Color(0xFF8A8A8A), Color(0x008A8A8A)), c, r), r, c)
-                drawCircle(Color(0x33000000), r * 0.98f, c, style = Stroke(r * 0.04f))
-                drawLine(Color(0x55FFFFFF), Offset(c.x - r * 0.12f, c.y), Offset(c.x + r * 0.12f, c.y), 1.dp.toPx())
-                drawLine(Color(0x55FFFFFF), Offset(c.x, c.y - r * 0.12f), Offset(c.x, c.y + r * 0.12f), 1.dp.toPx())
-                val p = Offset(c.x + cur.x * r * 0.92f, c.y - cur.y * r * 0.92f)
-                drawCircle(Color.Black.copy(alpha = 0.5f), (if (dragging) 11f else 9f) * density, p)
-                drawCircle(Color.White, (if (dragging) 9f else 7f) * density, p, style = Stroke(2.5f * density))
-            }
-        }
-        // the master control (luminance) as a strip dragged horizontally
-        MasterStrip(cur.master, label, onLive = { m -> cur = cur.copy(master = m); live(cur) }, onCommit = { m -> cur = cur.copy(master = m); commit(cur) }, lastTap = lastTap)
     }
-}
-
-@Composable
-private fun MasterStrip(value: Float, label: String, onLive: (Float) -> Unit, onCommit: (Float) -> Unit, lastTap: LongArray) {
-    val haptics = rememberHaptics()
-    val v by rememberUpdatedState(value)
-    val live by rememberUpdatedState(onLive)
-    val commit by rememberUpdatedState(onCommit)
-    Box(
-        Modifier.fillMaxWidth().height(28.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh).testTag("master:$label")
-            .pointerInput(Unit) {
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    val now = System.currentTimeMillis()
-                    if (now - lastTap[1] < 320) { down.consume(); haptics.confirm(); if (v != 0f) commit(0f); lastTap[1] = 0; return@awaitEachGesture }
-                    // only horizontal movement takes the gesture – vertical scrolls the page
-                    when (claimHorizontal(down)) {
-                        null -> { lastTap[1] = now; return@awaitEachGesture }
-                        false -> return@awaitEachGesture
-                        true -> {}
-                    }
-                    var m = v
-                    var last = down.position.x
-                    var side = kotlin.math.sign(m)
-                    while (true) {
-                        val ev = awaitPointerEvent()
-                        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
-                        if (!ch.pressed) break
-                        val dx = ch.position.x - last
-                        last = ch.position.x
-                        m = (m + dx / size.width * 1.2f).coerceIn(-1f, 1f)
-                        // no snapping: a tick when passing 0
-                        val s = kotlin.math.sign(m)
-                        if (s != side) { if (side != 0f || s == 0f) haptics.tick(); side = s }
-                        live(m)
-                        ch.consume()
-                    }
-                    commit(m)
-                }
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(Modifier.fillMaxSize()) {
-            // "wheel edge": ticks that slide with the value
-            val off = (value * size.width * 2f) % 12.dp.toPx()
-            var x = -12.dp.toPx() + off
-            while (x < size.width) {
-                drawLine(K.OutlineVar, Offset(x, size.height * 0.3f), Offset(x, size.height * 0.7f), 1.dp.toPx())
-                x += 6.dp.toPx()
+    Canvas(modifier.testTag("wheel:$label").pointerInput(Unit) {
+        // how far the puck goes from the center (it stays inside the ring)
+        fun travel() = size.width / 2f - 22.dp.toPx()
+        awaitEachGesture {
+            val down = awaitFirstDown()
+            val r = size.width / 2f
+            val c = Offset(size.width / 2f, size.height / 2f)
+            val now = System.currentTimeMillis()
+            if (now - lastTap[0] < 320) {
+                down.consume()
+                haptics.confirm(); lastTap[0] = 0
+                // (the range's luminance stays: it has its own slider)
+                if (cur.x != 0f || cur.y != 0f) { cur = w.copy(x = 0f, y = 0f); commit(cur) }
+                return@awaitEachGesture
             }
-            drawRect(K.Primary, Offset(size.width / 2f - 1.dp.toPx(), 0f), Size(2.dp.toPx(), size.height))
+            // on the puck: take the gesture immediately; otherwise only on horizontal movement – vertical scrolls the page
+            val puck = Offset(c.x + cur.x * travel(), c.y - cur.y * travel())
+            if ((down.position - puck).getDistance() < 28.dp.toPx()) down.consume()
+            else when (claimHorizontal(down)) {
+                null -> { lastTap[0] = now; return@awaitEachGesture }
+                false -> return@awaitEachGesture
+                true -> {}
+            }
+            val start = cur
+            dragging = true
+            var snapped = cur.x == 0f && cur.y == 0f
+            // relative drag: the puck moves with the finger, with fine sensitivity
+            var px = cur.x; var py = cur.y
+            var last = down.position
+            while (true) {
+                val ev = awaitPointerEvent()
+                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                if (!ch.pressed) break
+                val d = ch.position - last
+                last = ch.position
+                px += d.x / r * 0.6f
+                py -= d.y / r * 0.6f
+                val m = hypot(px, py)
+                if (m > 1f) { px /= m; py /= m }
+                // a click when the puck passes the center (within the click zone once, again after leaving it)
+                val near = hypot(px, py) < 0.035f
+                if (near && !snapped) haptics.tick()
+                snapped = near
+                cur = cur.copy(x = px, y = py)
+                live(cur)
+                ch.consume()
+            }
+            dragging = false
+            // a tap without change: no undo step, but counts as a tap (double-tap)
+            if (cur != start) commit(cur) else lastTap[0] = now
         }
-        Text("%+.2f".format(value), color = K.OnSurface, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xCC1D2026)).padding(horizontal = 6.dp))
+    }) {
+        val r = size.minDimension / 2f
+        val c = center
+        drawCircle(Brush.sweepGradient(ringColors, c), r, c)
+        drawCircle(disc, r - 10.dp.toPx(), c)
+        val arm = r - 20.dp.toPx()
+        drawLine(cross, Offset(c.x - arm, c.y), Offset(c.x + arm, c.y), 2.dp.toPx())
+        drawLine(cross, Offset(c.x, c.y - arm), Offset(c.x, c.y + arm), 2.dp.toPx())
+        val t = r - 22.dp.toPx()
+        val p = Offset(c.x + cur.x * t, c.y - cur.y * t)
+        drawLine(ink, c, p, 2.dp.toPx())
+        drawCircle(Color.Black.copy(alpha = 0.3f), 12.dp.toPx(), Offset(p.x, p.y + 2.dp.toPx()))
+        drawCircle(ink, (if (dragging) 12f else 10f) * density, p)
     }
 }
 
@@ -1030,19 +1134,22 @@ private suspend fun AwaitPointerEventScope.claimHorizontal(down: PointerInputCha
 /** The curves: the custom Y/R/G/B curves or one of the six HSL curves (a row of choices on top). */
 @Composable
 fun CurvesEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit, picking: Boolean = false, onPick: ((PickedRgb?) -> Unit)? = null) {
+    val haptics = rememberHaptics()
     var mode by remember { mutableStateOf(-1) }
     val labels = listOf(R.string.colorpage_curves_custom) + HslKind.entries.map { hslLabel(it) }
     Column {
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.fillMaxWidth().sideScroll().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for ((i, l) in labels.withIndex()) {
                 val k = i - 1
                 val on = mode == k
                 val used = if (k < 0) n.hasCurves else !n.hsl[HslKind.entries[k]].isNeutral
                 Box(
-                    Modifier.clip(RoundedCornerShape(16.dp)).background(if (on) K.Primary else K.SurfaceHigh)
-                        .clickable { mode = k }.padding(horizontal = 12.dp, vertical = 7.dp).testTag("curveMode:$k"),
+                    Modifier.height(44.dp).clip(RoundedCornerShape(if (on) 22.dp else 12.dp)).background(if (on) K.PrimaryContainer else K.SurfaceHigh)
+                        .clickable(role = Role.Tab) { if (!on) haptics.tick(); mode = k }.semantics { selected = on }
+                        .padding(horizontal = 14.dp).testTag("curveMode:$k"),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text(stringResource(l) + if (used && !on) " •" else "", color = if (on) K.OnPrimary else K.OnSurface, fontSize = 13.sp,
+                    Text(stringResource(l) + if (used && !on) " •" else "", color = if (on) K.PrimarySoft else K.OnSurface, fontSize = 13.sp,
                         fontWeight = if (on) FontWeight.Bold else FontWeight.Medium, maxLines = 1)
                 }
             }
@@ -1125,7 +1232,7 @@ fun HslCurveEditor(
     // the last tap on a point (time, index): a second tap on the same point soon after deletes it
     val lastTap = remember(kind) { LongArray(2) { -1L } }
     Column(Modifier.padding(horizontal = 14.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        run {
             // the value under the finger (or the last point touched), in the panel's terms
             val sel = active?.let { pts.getOrNull(it) }
             val readout = sel?.let { (x, y) ->
@@ -1137,14 +1244,20 @@ fun HslCurveEditor(
                 }
                 stringResource(R.string.colorpage_hsl_input, input) + " · " + out
             } ?: ""
-            Text(readout, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.weight(1f).testTag("hslReadout"))
-            if (onPick != null) {
-                PillButton(stringResource(if (picking) R.string.colortools_tap_image else R.string.colorpage_hsl_pick), {
-                    haptics.tick()
-                    onPick(if (picking) null else { rgb -> if (alive[0]) addPicked(HslCurves.axis(kind, rgb)) })
-                }, Modifier.padding(end = 6.dp).testTag("hslPick"), icon = Ic.Dropper, filled = picking)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                if (onPick != null) {
+                    // (while it waits for a tap its long text takes the room Reset leaves)
+                    PillButton(stringResource(if (picking) R.string.colortools_tap_image else R.string.colorpage_hsl_pick), {
+                        haptics.tick()
+                        onPick(if (picking) null else { rgb -> if (alive[0]) addPicked(HslCurves.axis(kind, rgb)) })
+                    }, Modifier.weight(1f, fill = false).testTag("hslPick"), icon = Ic.Dropper, filled = false, on = picking)
+                } else Spacer(Modifier.width(1.dp))
+                PillButton(stringResource(R.string.colorpage_reset), { haptics.confirm(); pts = defaults(); active = null; commit(node.copy(hsl = node.hsl.with(kind, HslCurve()))) },
+                    Modifier.padding(start = 6.dp), icon = Ic.Reset, filled = false)
             }
-            PillButton(stringResource(R.string.colorpage_reset), { haptics.confirm(); pts = defaults(); active = null; commit(node.copy(hsl = node.hsl.with(kind, HslCurve()))) }, icon = Ic.Reset, filled = false)
+            // a line of its own (beside the buttons it broke into four on a phone), there also when empty: nothing moves
+            Text(readout, color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp).testTag("hslReadout"))
         }
         Canvas(
             Modifier.fillMaxWidth().aspectRatio(1.6f).padding(vertical = 8.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF15171C)).testTag("hslCurve")
@@ -1294,10 +1407,10 @@ private fun CustomCurves(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (G
     // (per channel: a tap on Y and then on the same point in R must not count as a double tap)
     val lastTap = remember(ch) { LongArray(2) { -1L } }
     Column(Modifier.padding(horizontal = 14.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            ConnectedToggleGroup(listOf("Y", "R", "G", "B"), ch, { i -> ch = i; pts = curveOf(node, i).points }, Modifier.width(200.dp), tag = { "curveCh:$it" })
-            Spacer(Modifier.weight(1f))
-            PillButton(stringResource(R.string.colorpage_reset), { haptics.confirm(); pts = Curve.IDENTITY; commit(with(node, channel, Curve())) }, icon = Ic.Reset, filled = false)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            // (the channels give way to Reset on a narrow phone)
+            ConnectedToggleGroup(listOf("Y", "R", "G", "B"), ch, { i -> ch = i; pts = curveOf(node, i).points }, Modifier.weight(1f, fill = false).widthIn(max = 200.dp), tag = { "curveCh:$it" })
+            PillButton(stringResource(R.string.colorpage_reset), { haptics.confirm(); pts = Curve.IDENTITY; commit(with(node, channel, Curve())) }, Modifier.padding(start = 6.dp), icon = Ic.Reset, filled = false)
         }
         Canvas(
             Modifier.fillMaxWidth().aspectRatio(1f).padding(vertical = 8.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF15171C)).testTag("curve")
@@ -1404,7 +1517,7 @@ private fun CustomCurves(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (G
  * grade, PixelCopy) four times per second – falls back to stills if that fails.
  */
 @Composable
-private fun Scopes(c: ColorClip, state: EditorState, gs: GradeState, kind: Int, look: se.gendut.klipp.engine.Look) {
+private fun Scopes(c: ColorClip, state: EditorState, gs: GradeState, kind: Int, look: se.gendut.klipp.engine.Look, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val grade = gs.shown(c.id)
     // fifths of a second in the source – changes rarely, so the scope doesn't recompose every frame
@@ -1446,7 +1559,7 @@ private fun Scopes(c: ColorClip, state: EditorState, gs: GradeState, kind: Int, 
         }
     }
     val img = if (state.playing) playingImg ?: still else still
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).height(150.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF0B0C0F)).testTag("scope")) {
+    Box(modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xE60B0C0F)).testTag("scope")) {
         img?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = if (kind == 3) ContentScale.Fit else ContentScale.FillBounds) }
         Canvas(Modifier.fillMaxSize()) {
             if (kind == 3) {

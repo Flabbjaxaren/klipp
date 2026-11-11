@@ -169,7 +169,7 @@ private fun EaseMenu(k: UiKf, anim: AnimUi, onDismiss: () -> Unit, onPick: (Stri
 /** A small picture of the curve for each interpolation in the menu. */
 @Composable
 private fun EaseIcon(ease: String, selected: Boolean) {
-    val col = if (selected) K.Primary else K.OnSurfaceVar
+    val col = if (selected) K.PrimarySoft else K.OnSurfaceVar
     Canvas(Modifier.size(22.dp)) {
         val w = size.width; val h = size.height
         val path = Path()
@@ -208,8 +208,8 @@ fun nextInterp(i: String): String = when (i) {
 @Composable
 fun Stopwatch(anim: AnimUi) {
     val haptics = rememberHaptics()
-    val bg by animateColorAsState(if (anim.animated) K.Primary else Color.Transparent, label = "sw")
-    val fg by animateColorAsState(if (anim.animated) K.OnPrimary else K.OnSurfaceVar, label = "swf")
+    val bg by animateColorAsState(if (anim.animated) K.PrimaryContainer else Color.Transparent, label = "sw")
+    val fg by animateColorAsState(if (anim.animated) K.PrimarySoft else K.OnSurfaceVar, label = "swf")
     Box(
         Modifier.size(28.dp).clip(RoundedCornerShape(14.dp)).background(bg)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { haptics.confirm(); anim.onToggle() }
@@ -223,6 +223,25 @@ fun Stopwatch(anim: AnimUi) {
  * hold = square), the playhead. Tap = jump there, drag a keyframe = move it, long-press = change interpolation.
  * ◀ ▶ jump between keyframes, ◆ adds or removes the keyframe at the playhead.
  */
+/** The lanes, graphs and zoom bar start this far in: room for the graph button. */
+private val LANE_START = 50.dp
+
+/** Jump to the keyframe before, add or remove one at the playhead, jump to the next (in the slider's name row). */
+@Composable
+fun KeyframeNav(anim: AnimUi) {
+    val haptics = rememberHaptics()
+    val a by rememberUpdatedState(anim)
+    // only when the keyframe at/before/after the playhead changes – not every frame
+    val prev by remember { derivedStateOf { a.prev } }
+    val next by remember { derivedStateOf { a.next } }
+    val on by remember { derivedStateOf { a.atPlayhead } }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        SmallIcon(Ic.KfPrev, stringResource(R.string.keyframeui_prev_keyframe), prev != null, "kfprev:${anim.key}") { prev?.let { haptics.tick(); anim.onJump(it.t); anim.view.show(anim.frac(it.t)) } }
+        SmallIcon(Ic.Diamond, if (on != null) stringResource(R.string.keyframeui_remove_keyframe) else stringResource(R.string.keyframeui_add_keyframe), true, "kf:${anim.key}", filled = on != null) { haptics.confirm(); anim.onKey() }
+        SmallIcon(Ic.KfNext, stringResource(R.string.keyframeui_next_keyframe), next != null, "kfnext:${anim.key}") { next?.let { haptics.tick(); anim.onJump(it.t); anim.view.show(anim.frac(it.t)) } }
+    }
+}
+
 @Composable
 fun KeyframeLane(anim: AnimUi) {
     AnimatedVisibility(anim.animated, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
@@ -236,9 +255,9 @@ fun KeyframeLane(anim: AnimUi) {
             androidx.compose.runtime.snapshotFlow { a.frac(a.playhead) }.collect { f -> if (a.view.zoomed) a.view.show(f) }
         }
         androidx.compose.foundation.layout.Column {
-        Row(Modifier.fillMaxWidth().height(36.dp).padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().height(36.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             // the graph button keeps clear of the lane (a keyframe at the clip's start sits right at its edge)
-            Box(Modifier.width(108.dp).padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
+            Box(Modifier.width(LANE_START).padding(end = 16.dp), contentAlignment = Alignment.CenterStart) {
                 if (anim.onValue != null) {
                     val open = anim.key in anim.view.graphs
                     SmallIcon(Ic.Graph, stringResource(if (open) R.string.keyframeui_hide_graph else R.string.keyframeui_show_graph), true, "kfgraph:${anim.key}", filled = open) {
@@ -352,13 +371,6 @@ fun KeyframeLane(anim: AnimUi) {
                     }
                 }
             }
-            // only when the keyframe at/before/after the playhead changes – not every frame
-            val prev by remember { derivedStateOf { a.prev } }
-            val next by remember { derivedStateOf { a.next } }
-            val on by remember { derivedStateOf { a.atPlayhead } }
-            SmallIcon(Ic.KfPrev, stringResource(R.string.keyframeui_prev_keyframe), prev != null, "kfprev:${anim.key}") { prev?.let { haptics.tick(); anim.onJump(it.t); anim.view.show(anim.frac(it.t)) } }
-            SmallIcon(Ic.Diamond, if (on != null) stringResource(R.string.keyframeui_remove_keyframe) else stringResource(R.string.keyframeui_add_keyframe), true, "kf:${anim.key}", filled = on != null) { haptics.confirm(); anim.onKey() }
-            SmallIcon(Ic.KfNext, stringResource(R.string.keyframeui_next_keyframe), next != null, "kfnext:${anim.key}") { next?.let { haptics.tick(); anim.onJump(it.t); anim.view.show(anim.frac(it.t)) } }
         }
         AnimatedVisibility(anim.onValue != null && anim.key in anim.view.graphs, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
             KfGraph(anim)
@@ -377,8 +389,8 @@ private fun KfZoomBar(anim: AnimUi) {
     val haptics = rememberHaptics()
     val a by rememberUpdatedState(anim)
     val v = anim.view
-    Row(Modifier.fillMaxWidth().height(26.dp).padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.width(108.dp))
+    Row(Modifier.fillMaxWidth().height(26.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(LANE_START))
         Canvas(
             Modifier.weight(1f).height(22.dp).testTag("kfzoom:${anim.key}")
                 .pointerInput(Unit) {
@@ -427,14 +439,13 @@ private fun KfZoomBar(anim: AnimUi) {
                 drawRect(K.PrimarySoft.copy(alpha = 0.6f), Offset(kx - 1f, h * 0.3f), Size(2f, h * 0.4f))
             }
             val x0 = v.a * size.width; val x1 = v.b * size.width
-            drawRoundRect(K.Tonal.copy(alpha = 0.85f), Offset(x0, 0f), Size((x1 - x0).coerceAtLeast(6.dp.toPx()), h), r)
+            drawRoundRect(K.PrimaryContainer.copy(alpha = 0.85f), Offset(x0, 0f), Size((x1 - x0).coerceAtLeast(6.dp.toPx()), h), r)
             drawRoundRect(K.PrimarySoft, Offset(x0, 0f), Size((x1 - x0).coerceAtLeast(6.dp.toPx()), h), r, style = Stroke(1.5.dp.toPx()))
             // grips at the ends
             for (gx in listOf(x0 + 5.dp.toPx(), x1 - 5.dp.toPx())) drawLine(K.PrimarySoft, Offset(gx, h * 0.3f), Offset(gx, h * 0.7f), 2.dp.toPx())
             val ph = a.frac(a.playhead) * size.width
             drawRect(K.Primary, Offset(ph - 1.dp.toPx(), 0f), Size(2.dp.toPx(), h))
         }
-        Box(Modifier.width(102.dp))
     }
 }
 
@@ -453,13 +464,13 @@ private fun DrawScope.keyShape(path: Path, c: Offset, interp: String, selected: 
 
 @Composable
 private fun SmallIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, enabled: Boolean, tag: String, filled: Boolean = false, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (filled) K.Primary else Color.Transparent, label = "kfb")
+    val bg by animateColorAsState(if (filled) K.PrimaryContainer else Color.Transparent, label = "kfb")
     Box(
         Modifier.size(34.dp).clip(RoundedCornerShape(17.dp)).background(bg)
             .clickable(enabled = enabled, interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick)
             .testTag(tag),
         contentAlignment = Alignment.Center,
-    ) { Icon(icon, desc, tint = if (filled) K.OnPrimary else if (enabled) K.OnSurface else K.OutlineVar, modifier = Modifier.size(18.dp)) }
+    ) { Icon(icon, desc, tint = if (filled) K.PrimarySoft else if (enabled) K.OnSurface else K.OutlineVar, modifier = Modifier.size(18.dp)) }
 }
 
 /** The value of component [c] at timeline time [t] over keyframes sorted by time – the engine's curve. */
@@ -528,9 +539,9 @@ private fun KfGraph(anim: AnimUi) {
             n
         }
     }
-    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, bottom = 4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.width(108.dp))
+            Box(Modifier.width(LANE_START))
             Canvas(
                 Modifier.weight(1f).height(150.dp).clip(RoundedCornerShape(12.dp)).background(K.Deep).testTag("kfgraphview:${anim.key}")
                     .pointerInput(Unit) {
@@ -653,20 +664,18 @@ private fun KfGraph(anim: AnimUi) {
                 val ph = g.x(anim.playhead)
                 drawRect(K.Primary.copy(alpha = 0.8f), Offset(ph - 1.dp.toPx(), 0f), Size(2.dp.toPx(), size.height))
             }
-            Box(Modifier.width(102.dp).padding(start = 8.dp)) {
-                val v = value; val h = infl
-                val txt = when {
-                    v != null -> anim.format(v.third.toFloat())
-                    h != null -> stringResource(R.string.keyframeui_influence, Math.round(h.third * 100).toInt())
-                    else -> ""
-                }
-                Text(txt, color = K.OnSurface, fontSize = 12.sp, modifier = Modifier.testTag("kfgraphvalue"))
-            }
         }
-        Row {
-            Box(Modifier.width(108.dp))
-            Text(stringResource(R.string.keyframeui_graph_hint), color = K.OnSurfaceVar, fontSize = 11.sp, modifier = Modifier.weight(1f).padding(top = 4.dp))
-            Box(Modifier.width(102.dp))
+        // the hint, and the value under the finger while a point or handle is dragged
+        Row(Modifier.padding(top = 4.dp)) {
+            Box(Modifier.width(LANE_START))
+            Text(stringResource(R.string.keyframeui_graph_hint), color = K.OnSurfaceVar, fontSize = 11.sp, modifier = Modifier.weight(1f))
+            val v = value; val h = infl
+            val txt = when {
+                v != null -> anim.format(v.third.toFloat())
+                h != null -> stringResource(R.string.keyframeui_influence, Math.round(h.third * 100).toInt())
+                else -> ""
+            }
+            Text(txt, color = K.OnSurface, fontSize = 12.sp, maxLines = 1, softWrap = false, modifier = Modifier.padding(start = 8.dp).testTag("kfgraphvalue"))
         }
     }
 }

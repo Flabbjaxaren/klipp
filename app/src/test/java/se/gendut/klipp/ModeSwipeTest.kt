@@ -86,7 +86,7 @@ class ModeSwipeTest {
 
     @Test fun tapStillPicks() {
         val ui = setUp()
-        rule.onNodeWithText("Ljud").performClick()
+        rule.onNodeWithTag("modeTab:2").performClick()
         rule.waitForIdle()
         assertEquals(2f, ui.page.value, 0.01f)
     }

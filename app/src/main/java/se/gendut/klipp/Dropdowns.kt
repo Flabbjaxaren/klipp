@@ -50,7 +50,7 @@ fun <T> DropField(
     val haptics = rememberHaptics()
     val cur = options.firstOrNull { it.value == selected }
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        if (label != null) Text(label, color = K.Primary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
+        if (label != null) Text(label, color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
         Box {
             val shape = RoundedCornerShape(12.dp)
             Row(

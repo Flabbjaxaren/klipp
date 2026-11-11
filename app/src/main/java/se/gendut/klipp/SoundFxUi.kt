@@ -56,20 +56,55 @@ import java.io.File
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SoundFxSheet(onDismiss: () -> Unit, onAdd: (File, String, Double) -> Unit) {
+fun SoundFxSheet(
+    onDismiss: () -> Unit,
+    /** As the edit page's Sound: the sheet is titled "Sound" and has text read aloud as a third tab. */
+    speech: Boolean = false,
+    onAdd: (File, String, Double) -> Unit,
+) {
     val ctx = LocalContext.current
     val preview = remember { Preview(ctx) }
     DisposableEffect(Unit) { onDispose { preview.release() } }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = K.Surface) {
         var tab by remember { mutableStateOf(0) }
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f).testTag("sfxSheet")) {
-            Text(stringResource(R.string.sfx_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
-            Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
-            ConnectedToggleGroup(listOf(stringResource(R.string.sfx_tab_packs), "Freesound"), tab, { tab = it; preview.stop() },
+            Text(stringResource(if (speech) R.string.design_add_sound else R.string.sfx_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
+            if (tab < 2) Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+            val tabs = listOf(stringResource(R.string.sfx_tab_packs), "Freesound") +
+                (if (speech) listOf(stringResource(R.string.sfx_tab_speech)) else emptyList()) + stringResource(R.string.sfx_tab_files)
+            ConnectedToggleGroup(tabs, tab, { tab = it; preview.stop() },
                 Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), tag = { "sfxTab:$it" })
-            if (tab == 0) PacksTab(preview, onAdd) else FreesoundTab(preview, onAdd)
+            when (tab) {
+                0 -> PacksTab(preview, onAdd)
+                1 -> FreesoundTab(preview, onAdd)
+                tabs.lastIndex -> FilesTab(onAdd)
+                else -> TextToSpeechCard(onAdd)
+            }
         }
     }
+}
+
+/** The phone's own music and sounds: a file is copied into the app (the project keeps working if it is moved) and added. */
+@Composable
+private fun FilesTab(onAdd: (File, String, Double) -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val picker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        busy = true; error = null
+        scope.launch {
+            val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { SoundFx.copyAudio(ctx, uri) } }
+            busy = false
+            r.onSuccess { (file, name, secs) -> onAdd(file, name, secs) }
+                .onFailure { error = Str.t(R.string.sfx_file_failed) }
+        }
+    }
+    Text(stringResource(R.string.sfx_files_hint), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+    error?.let { Text(it, color = K.Error, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("sfx:fileError")) }
+    PillButton(stringResource(if (busy) R.string.sfx_file_busy else R.string.sfx_file_choose), { if (!busy) picker.launch(arrayOf("audio/*")) },
+        Modifier.padding(horizontal = 16.dp, vertical = 6.dp).testTag("sfx:file"))
 }
 
 /** Plays one sound at a time (a file or a URL). */
@@ -99,8 +134,9 @@ private fun PacksTab(preview: Preview, onAdd: (File, String, Double) -> Unit) {
     var open by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val installedPacks = remember(rev) { SoundFx.PACKS.filter { SoundFx.installed(ctx, it) }.map { it.id }.toSet() }
+    // (above the list, not in it: as the list's first row it appeared scrolled out of view)
+    error?.let { e -> Text(e, color = K.Error, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("sfx:error")) }
     LazyColumn(Modifier.fillMaxWidth()) {
-        error?.let { e -> item { Text(e, color = K.Error, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) } }
         for (pack in SoundFx.PACKS) {
             val installed = pack.id in installedPacks
             val progress = SoundFx.progress[pack.id]
@@ -121,7 +157,7 @@ private fun PacksTab(preview: Preview, onAdd: (File, String, Double) -> Unit) {
                             error = null
                             scope.launch {
                                 SoundFx.download(ctx, pack).onSuccess { open = pack.id }
-                                    .onFailure { error = Str.t(R.string.sfx_download_failed, it.message.orEmpty()) }
+                                    .onFailure { error = Str.t(R.string.sfx_download_failed, Str.netError(it)) }
                             }
                         }, Modifier.testTag("sfxDownload:${pack.id}"))
                     }
@@ -157,7 +193,8 @@ private fun FreesoundTab(preview: Preview, onAdd: (File, String, Double) -> Unit
         Column(Modifier.padding(horizontal = 16.dp)) {
             Text(stringResource(R.string.sfx_freesound_key_intro), color = K.OnSurfaceVar, fontSize = 13.sp)
             val links = androidx.compose.ui.platform.LocalUriHandler.current
-            Text("freesound.org/apiv2/apply", color = K.Primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            Text("freesound.org/apiv2/apply", color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
                 modifier = Modifier.padding(vertical = 6.dp).clickable { runCatching { links.openUri("https://freesound.org/apiv2/apply") } })
             Field(input, { input = it }, stringResource(R.string.sfx_freesound_key_hint), "sfxKey")
             PillButton(stringResource(R.string.sfx_save), {
@@ -171,7 +208,7 @@ private fun FreesoundTab(preview: Preview, onAdd: (File, String, Double) -> Unit
         searching = true; message = null
         scope.launch {
             SoundFx.search(key, query).onSuccess { hits = it; if (it.isEmpty()) message = Str.t(R.string.sfx_no_results) }
-                .onFailure { message = Str.t(R.string.sfx_search_failed, it.message.orEmpty()) }
+                .onFailure { message = Str.t(R.string.sfx_search_failed, Str.netError(it)) }
             searching = false
         }
     }
@@ -191,13 +228,13 @@ private fun FreesoundTab(preview: Preview, onAdd: (File, String, Double) -> Unit
                 busy = h.id
                 scope.launch {
                     SoundFx.fetch(ctx, h).onSuccess { onAdd(it, h.name, SoundFx.wavSeconds(it)) }
-                        .onFailure { message = Str.t(R.string.sfx_download_failed, it.message.orEmpty()) }
+                        .onFailure { message = Str.t(R.string.sfx_download_failed, Str.netError(it)) }
                     busy = null
                 }
             }, subtitle = h.user, busy = busy == h.id)
         }
         if (mine.isNotEmpty()) {
-            item { Text(stringResource(R.string.sfx_downloaded), color = K.Primary, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)) }
+            item { Text(stringResource(R.string.sfx_downloaded), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)) }
             items(mine, key = { it.file.path }) { s -> SoundRow(s.name, s.seconds, preview.playing == s.file.path, { preview.toggle(s.file.path, s.file.toURI().toString()) }, { onAdd(s.file, s.name, s.seconds) }) }
         }
         item {
@@ -212,9 +249,9 @@ private fun SoundRow(name: String, seconds: Double, playing: Boolean, onPlay: ()
     val haptics = rememberHaptics()
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(36.dp).clip(RoundedCornerShape(18.dp)).background(if (playing) K.Primary else K.SurfaceHigh).clickable { haptics.tick(); onPlay() },
+            Modifier.size(44.dp).clip(RoundedCornerShape(22.dp)).background(if (playing) K.PrimaryContainer else K.SurfaceHigh).clickable { haptics.tick(); onPlay() },
             contentAlignment = Alignment.Center,
-        ) { Text(if (playing) "■" else "▶", color = if (playing) K.OnPrimary else K.OnSurface, fontSize = 13.sp) }
+        ) { Text(if (playing) "■" else "▶", color = if (playing) K.PrimarySoft else K.OnSurface, fontSize = 13.sp) }
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
             Text(name, color = K.OnSurface, fontSize = 14.sp, maxLines = 1)
             Text(listOfNotNull(stringResource(R.string.sfx_seconds, seconds), subtitle?.takeIf { it.isNotBlank() }).joinToString(" · "), color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1)

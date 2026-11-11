@@ -23,7 +23,7 @@
     <string name="theme_base_graphite_hint">a bit lighter</string>
 
     <!-- AudioUi.kt -->
-    <string name="audioui_effects">Audio Effects</string>
+    <string name="audioui_effects">Audio effects</string>
     <string name="audioui_effects_hint">Effects apply only to this clip and play right away.</string>
     <string name="audioui_on">On</string>
     <string name="audioui_off">Off</string>
@@ -59,24 +59,27 @@
     <string name="app_gesture_two">Pinch = zoom · tap = undo</string>
     <string name="app_new_project_title">New project?</string>
     <string name="app_new_project_text">The current project is saved in the archive and you start with an empty timeline.</string>
-    <string name="app_new_project">New Project</string>
+    <string name="app_new_project">New project</string>
     <string name="app_cancel">Cancel</string>
-    <string name="app_render_timeline">Render Timeline</string>
+    <string name="app_render_timeline">Render timeline</string>
     <string name="app_render_timeline_hint">everything plays from finished files – smooth, no lag. If something changes, that part is re-rendered when you ask</string>
     <string name="app_render_auto_on">Render automatically: on</string>
     <string name="app_render_auto_off">Render automatically: off</string>
     <string name="app_render_auto_hint">heavy parts (layers, effects, transitions) render in the background when you\'re not playing or dragging – uses battery</string>
-    <string name="app_delete_renders">Delete Renders</string>
+    <string name="app_delete_renders">Delete renders</string>
     <string name="app_megabytes">%1$.0f MB</string>
     <string name="app_renders_deleted">Renders deleted</string>
-    <string name="app_app_settings">App Settings</string>
+    <string name="app_app_settings">App settings</string>
     <string name="app_app_settings_hint">theme, timeline, proxy, export defaults …</string>
     <string name="app_projects">Projects</string>
-    <string name="app_settings">Settings</string>
     <string name="app_undo">Undo</string>
     <string name="app_redo">Redo</string>
     <string name="app_export">Export</string>
     <string name="app_add_marker">Add marker</string>
+    <string name="app_remove_marker">Remove marker</string>
+    <string name="app_marker_removed">Marker removed</string>
+    <string name="app_remove_all_markers">Remove all markers</string>
+    <string name="app_markers_removed">All markers removed</string>
     <string name="app_prev_frame">Previous frame</string>
     <string name="app_pause">Pause</string>
     <string name="app_play">Play</string>
@@ -90,14 +93,10 @@
     <string name="app_linked_on">Linked selection on – video and audio move together</string>
     <string name="app_linked_off">Linked selection off – video and audio move separately</string>
     <string name="app_locked_playhead">Locked playhead</string>
-    <string name="app_playhead_locked">Playhead locked in the center – drag the timeline</string>
-    <string name="app_playhead_free">Free timeline – drag the playhead</string>
     <string name="app_magnetic_snapping">Magnetic snapping</string>
     <string name="app_snapping_on">Magnetic snapping on</string>
     <string name="app_snapping_off">Magnetic snapping off</string>
     <string name="app_volume_lines">Volume lines</string>
-    <string name="app_volume_lines_on">Volume lines: tap a line for a keyframe, drag it to change the level, double tap a keyframe to delete it</string>
-    <string name="app_volume_lines_off">Volume lines off</string>
     <string name="app_back">Back</string>
     <string name="app_ramp">Ramp</string>
     <string name="app_freeze">Freeze</string>
@@ -115,14 +114,13 @@
     <string name="app_half_second">0.5 s</string>
     <string name="app_copy">Copy</string>
     <string name="app_split">Split</string>
-    <string name="app_properties">Properties</string>
     <string name="app_speed">Speed</string>
     <string name="app_forward">Forward</string>
     <string name="app_reverse">Reverse</string>
     <string name="app_enable">Enable</string>
     <string name="app_disable">Disable</string>
     <string name="app_delete">Delete</string>
-    <string name="app_ripple_delete">Ripple Delete</string>
+    <string name="app_ripple_delete">Ripple delete</string>
     <plurals name="app_n_clips">
         <item quantity="one">%1$d clip</item>
         <item quantity="other">%1$d clips</item>
@@ -151,16 +149,13 @@
     <string name="app_rendered">Rendered</string>
     <string name="app_rendering">Rendering…</string>
     <string name="app_remove">Remove</string>
-    <string name="app_add_clip">Add clip</string>
-    <string name="app_short_link">Link</string>
-    <string name="app_short_center">Lock</string>
-    <string name="app_short_snap">Snap</string>
-    <string name="app_short_volume">Volume</string>
     <string name="app_sync_audio">Sync sound</string>
     <string name="app_edit_text">Edit text</string>
     <string name="app_volume">Volume</string>
-    <string name="app_fade">Fade</string>
     <string name="app_go_to_time">Go to time</string>
     <string name="app_go">Go</string>
     <string name="app_timecode_hint">Digits fill from the right: 1512 = 15 s 12 frames. +200 = 2 s forward.</string>
+    <!-- Str.kt -->
+    <string name="app_no_internet">No internet connection</string>
+    <string name="app_net_timeout">The connection timed out</string>
 </resources>

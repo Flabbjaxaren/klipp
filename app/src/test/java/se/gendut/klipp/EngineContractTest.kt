@@ -163,14 +163,14 @@ class EngineContractTest {
         val std = CompositionBuilder.build(s, { Uri.parse("file:///m/$it.mp4") }, look.copy(tetra = false))!!
         assertEquals("fallback: RGB + contrast + saturation", 3, std.effects.videoEffects.size)
         val a = comp.sequences[1].editedMediaItems.first { it.mediaItem.localConfiguration != null }
-        assertEquals("A1 at −6 dB gets a volume processor", 1, a.effects.audioProcessors.size)
+        assertEquals("A1 at −6 dB gets a volume processor (and the stereo upmix last)", 1, a.effects.audioProcessors.dropLast(1).size)
         assertTrue(a.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty())
     }
 
     @Test
     fun neutralLookAddsNoEffects() {
         val comp = CompositionBuilder.build(snap(), { Uri.parse("file:///m/$it.mp4") })!!
-        assertTrue(comp.sequences.flatMap { it.editedMediaItems }.all { it.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty() && it.effects.audioProcessors.isEmpty() })
+        assertTrue(comp.sequences.flatMap { it.editedMediaItems }.all { it.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty() && it.effects.audioProcessors.dropLast(1).isEmpty() })
     }
 
     @Test
@@ -198,7 +198,7 @@ class EngineContractTest {
         assertTrue("the contrast on the composition", comp.effects.videoEffects.first() is se.gendut.klipp.engine.LookEffect)
         val a = comp.sequences[1].editedMediaItems.first { it.mediaItem.localConfiguration != null }
         assertEquals(2f, a.speedProvider.getSpeed(0), 1e-6f)
-        assertEquals("only the volume", 1, a.effects.audioProcessors.size)
+        assertEquals("only the volume (and the stereo upmix last)", 1, a.effects.audioProcessors.dropLast(1).size)
         assertTrue(a.effects.audioProcessors[0] is androidx.media3.common.audio.ChannelMixingAudioProcessor)
         // clipping takes source material = duration × speed
         val clip = v.mediaItem.clippingConfiguration
@@ -279,7 +279,7 @@ class EngineContractTest {
         // titles and captions as overlays on the whole composition
         assertTrue(comp.effects.videoEffects.any { it is androidx.media3.effect.OverlayEffect })
         val a = comp.sequences[2].editedMediaItems.first { it.mediaItem.localConfiguration != null }
-        assertEquals(1, a.effects.audioProcessors.size)
+        assertEquals(1, a.effects.audioProcessors.dropLast(1).size)
         val total = (s.sequence!!.duration * 1_000_000).toLong()
         for (i in 0..1) {
             val sum = comp.sequences[i].editedMediaItems.sumOf { e ->

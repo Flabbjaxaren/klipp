@@ -3,7 +3,6 @@ package se.gendut.klipp
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,9 +23,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,18 +42,23 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.StringRes
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -65,7 +70,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.log10
-import kotlin.random.Random
 
 /** Color correction – values −1..1, Animatable so presets can spring in. */
 class ColorGrade {
@@ -93,9 +97,12 @@ class AudioMix {
     var onCommit: (Int) -> Unit = {}
     /** Mix normalization (dB), set by the loudness measurement; applied on top of the master fader. */
     var normDb by mutableFloatStateOf(0f)
-    /** Fader 0..1 where 0.75 = 0 dB. The master fader (3) has a square law (reaches +5 dB). */
+    /**
+     * Fader 0..1 where 0.75 = 0 dB. The master fader (3) has a square law (reaches +5 dB). (Where the fader is going:
+     * it springs after the finger, and a release must save where it was let go, not where the spring had got to.)
+     */
     fun db(i: Int): Double {
-        val g = gains[i].value
+        val g = gains[i].targetValue
         if (g < 0.001f) return -60.0
         return (if (i == 3) 40.0 else 20.0) * log10((g / 0.75f).toDouble())
     }
@@ -134,24 +141,29 @@ fun PanelTitle(text: String, trailing: @Composable () -> Unit = {}) {
     }
 }
 
-/** Small "chip" button with a springy press and shape change when selected. */
+/**
+ * Small "chip" button with a springy press and shape change when selected. What is chosen or switched on has the
+ * accent container, like every choice in the app; an action chip is never selected and stays neutral.
+ * [tight] = the chips share a row's width between them: less air beside the text.
+ */
 @Composable
 fun SpringChip(
     label: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    selectedColor: Color = K.Tonal,
+    selectedColor: Color = K.PrimaryContainer,
     selectedText: Color = K.PrimarySoft,
+    tight: Boolean = false,
 ) {
     val haptics = rememberHaptics()
     val src = remember { MutableInteractionSource() }
-    val radius by animateDpAsState(if (selected) 20.dp else 10.dp, androidx.compose.animation.core.spring(0.5f, 500f), label = "r")
+    val radius by animateDpAsState(if (selected) 22.dp else 10.dp, androidx.compose.animation.core.spring(0.5f, 500f), label = "r")
     val bg by animateColorAsState(if (selected) selectedColor else Color.Transparent, label = "bg")
     Box(
         modifier
             .pressPop(src, 0.9f)
-            .height(40.dp)
+            .height(44.dp)
             .clip(RoundedCornerShape(radius))
             .background(bg)
             .border(1.dp, if (selected) bg else K.OutlineVar, RoundedCornerShape(radius))
@@ -159,117 +171,24 @@ fun SpringChip(
                 haptics.tick()
                 onClick()
             }
-            .padding(horizontal = 14.dp),
+            .padding(horizontal = if (tight) 4.dp else 14.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(label, color = if (selected) selectedText else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(label, color = if (selected) selectedText else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
 /**
- * Material 3 Expressive-style slider: thick track, bar handle that grows when pressed. No snapping – a tick when passing
- * [default]; double tap = back to it.
+ * A slider of the timeline look: the same slider as every other property ([PropSlider]); the value is the look's own
+ * (an [Animatable], so a preset can spring in), and the app saves it and makes the undo step once it has rested.
  */
 @Composable
-fun ExpressiveSlider(
-    label: String,
-    value: Animatable<Float, *>,
-    scope: CoroutineScope,
-    bipolar: Boolean = true,
-    gradient: List<Color>? = null,
+private fun LookSlider(
+    label: String, tag: String, value: Animatable<Float, *>, scope: CoroutineScope, bipolar: Boolean = true, default: Float = 0f,
     format: (Float) -> String = { v -> (if (v > 0.005f) "+" else if (v < -0.005f) "−" else "") + "%.0f".format(abs(v) * 100) },
-    default: Float = 0f,
 ) {
-    val haptics = rememberHaptics()
-    var pressed by remember { mutableStateOf(false) }
-    val grow by animateFloatAsState(if (pressed) 1f else 0f, androidx.compose.animation.core.spring(0.4f, 600f), label = "grow")
-    val lastTap = remember { longArrayOf(0L) }
-    Row(
-        Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.width(96.dp))
-        Box(
-            Modifier
-                .weight(1f)
-                .height(44.dp)
-                .pointerInput(Unit) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        pressed = true
-                        var side = kotlin.math.sign(value.value - default)
-                        fun setFrom(x: Float) {
-                            val f = (x / size.width).coerceIn(0f, 1f)
-                            val v = if (bipolar) f * 2f - 1f else f
-                            val s = kotlin.math.sign(v - default)
-                            if (s != side) { if (side != 0f || s == 0f) haptics.tick(); side = s }
-                            scope.launch { value.animateTo(v, Springs.follow()) }
-                        }
-                        // wait until the finger moves sideways (drag) – vertically the panel may scroll; a tap changes
-                        // nothing (it may brush the panel by accident), a double tap goes back to the default
-                        var moved = false
-                        var cancelled = false
-                        while (true) {
-                            val ev = awaitPointerEvent()
-                            val c = ev.changes.firstOrNull { it.id == down.id } ?: break
-                            if (!c.pressed) break
-                            if (!moved) {
-                                if (c.isConsumed) { cancelled = true; break }
-                                val dx = abs(c.position.x - down.position.x)
-                                val dy = abs(c.position.y - down.position.y)
-                                if (dx > viewConfiguration.touchSlop / 2 && dx > dy) moved = true
-                                else if (dy > viewConfiguration.touchSlop) { cancelled = true; break }
-                            }
-                            if (moved) {
-                                setFrom(c.position.x)
-                                c.consume()
-                            }
-                        }
-                        if (!moved && !cancelled) {
-                            val now = System.currentTimeMillis()
-                            if (now - lastTap[0] < 350) {
-                                haptics.confirm()
-                                scope.launch { value.animateTo(default, Springs.pop()) }
-                                lastTap[0] = 0L
-                            } else lastTap[0] = now
-                        }
-                        pressed = false
-                    }
-                },
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Canvas(Modifier.fillMaxWidth().height(44.dp)) {
-                val h = 16.dp.toPx()
-                val top = (size.height - h) / 2
-                val r = CornerRadius(h / 2)
-                if (gradient != null) {
-                    drawRoundRect(
-                        androidx.compose.ui.graphics.Brush.horizontalGradient(gradient),
-                        Offset(0f, top), Size(size.width, h), r, alpha = 0.55f
-                    )
-                } else drawRoundRect(K.SurfaceHighest, Offset(0f, top), Size(size.width, h), r)
-                val v = value.value
-                val f = if (bipolar) (v + 1f) / 2f else v
-                val x = f * size.width
-                if (gradient == null) {
-                    val from = if (bipolar) size.width / 2 else 0f
-                    val l = minOf(from, x)
-                    val w = abs(x - from)
-                    if (w > 0.5f) drawRoundRect(K.Primary, Offset(l, top), Size(w, h), CornerRadius(minOf(h / 2, w / 2)))
-                }
-                if (bipolar) drawCircle(K.OnSurfaceVar.copy(alpha = 0.6f), 2.dp.toPx(), Offset(size.width / 2, size.height / 2))
-                val hw = (4f + 3f * grow).dp.toPx()
-                val hh = (30f + 10f * grow).dp.toPx()
-                drawRoundRect(
-                    K.PrimarySoft, Offset(x - hw / 2, (size.height - hh) / 2), Size(hw, hh),
-                    CornerRadius(hw / 2)
-                )
-            }
-        }
-        Text(
-            format(value.value), color = K.OnSurface, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
-            modifier = Modifier.width(48.dp).padding(start = 8.dp)
-        )
+    PropSlider(label, value.value, if (bipolar) -1f else 0f, 1f, default, format, tag, onLive = { v -> scope.launch { value.snapTo(v) } }) { v ->
+        scope.launch { value.snapTo(v) }
     }
 }
 
@@ -289,10 +208,14 @@ fun ColorPanel(grade: ColorGrade, onImportLut: (() -> Unit)? = null, scroll: Boo
     }
     // inside the color page (which already scrolls) the panel must not scroll itself – nested scrolling crashes
     Column(if (scroll) Modifier.fillMaxSize().verticalScroll(rememberScrollState()) else Modifier.fillMaxWidth()) {
-        PanelTitle(stringResource(R.string.panels_color)) {
-            SpringChip(stringResource(R.string.panels_reset), false, { lut = 0; preset(listOf(0f, 0f, 0f, 0f, 0f)) })
+        val reset = @Composable { SpringChip(stringResource(R.string.panels_reset), false, { lut = 0; preset(listOf(0f, 0f, 0f, 0f, 0f)) }) }
+        if (scroll) PanelTitle(stringResource(R.string.panels_color)) { reset() }
+        // inside the color page the top bar names the page: here only what this part is – the timeline's look
+        else Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.colortools_look), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            reset()
         }
-        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val luts = listOf(R.string.panels_preset_none, R.string.panels_preset_warm, R.string.panels_preset_cool, R.string.panels_preset_film, R.string.panels_preset_bw)
             val vals = listOf(
                 listOf(0f, 0f, 0f, 0f, 0f),
@@ -306,17 +229,17 @@ fun ColorPanel(grade: ColorGrade, onImportLut: (() -> Unit)? = null, scroll: Boo
         Spacer(Modifier.height(8.dp))
         SectionLabel("LUT")
         Row(
-            Modifier.padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()),
+            Modifier.sideScroll().padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             SpringChip(stringResource(R.string.panels_lut_none), grade.lutName == null, { grade.lutName = null })
             for (n in se.gendut.klipp.engine.LutStore.names) {
                 SpringChip(Str.name(n), grade.lutName == n, { grade.lutName = n; scope.launch { grade.lutMix.snapTo(0f); grade.lutMix.animateTo(1f, Springs.settle()) } })
             }
-            if (onImportLut != null) SpringChip(stringResource(R.string.panels_lut_import), false, onImportLut, selectedColor = K.Primary)
+            if (onImportLut != null) SpringChip(stringResource(R.string.panels_lut_import), false, onImportLut)
         }
         if (grade.lutName != null) {
-            ExpressiveSlider(stringResource(R.string.panels_lut_strength), grade.lutMix, scope, bipolar = false, format = { "%.0f %%".format(it * 100) }, default = 1f)
+            LookSlider(stringResource(R.string.panels_lut_strength), "lookLut", grade.lutMix, scope, bipolar = false, default = 1f, format = { "%.0f %%".format(it * 100) })
             Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 SpringChip(stringResource(R.string.panels_lut_tetra), grade.tetra, { grade.tetra = true })
                 SpringChip(stringResource(R.string.panels_lut_trilinear), !grade.tetra, { grade.tetra = false })
@@ -324,33 +247,24 @@ fun ColorPanel(grade: ColorGrade, onImportLut: (() -> Unit)? = null, scroll: Boo
             }
         }
         SectionLabel(stringResource(R.string.panels_tone))
-        ExpressiveSlider(stringResource(R.string.panels_exposure), grade.exposure, scope)
-        ExpressiveSlider(stringResource(R.string.panels_contrast), grade.contrast, scope)
+        LookSlider(stringResource(R.string.panels_exposure), "lookExposure", grade.exposure, scope)
+        LookSlider(stringResource(R.string.panels_contrast), "lookContrast", grade.contrast, scope)
         SectionLabel(stringResource(R.string.panels_white_balance))
-        ExpressiveSlider(stringResource(R.string.panels_temperature), grade.temp, scope, gradient = listOf(Color(0xFF4A7BD0), K.SurfaceHighest, Color(0xFFD0A44A)))
-        ExpressiveSlider(stringResource(R.string.panels_tint), grade.tint, scope, gradient = listOf(Color(0xFF4FB06A), K.SurfaceHighest, Color(0xFFC04FB0)))
+        LookSlider(stringResource(R.string.panels_temperature), "lookTemp", grade.temp, scope)
+        LookSlider(stringResource(R.string.panels_tint), "lookTint", grade.tint, scope)
         SectionLabel(stringResource(R.string.panels_creative))
-        ExpressiveSlider(stringResource(R.string.panels_saturation), grade.sat, scope)
-        PlaceholderBox(stringResource(R.string.panels_color_placeholder))
-        Spacer(Modifier.height(120.dp))
+        LookSlider(stringResource(R.string.panels_saturation), "lookSat", grade.sat, scope)
+        // (on its own the page ends clear of the bar; inside the color page that page makes the room)
+        if (scroll) Spacer(Modifier.height(LocalBarSpace.current + 36.dp))
     }
 }
 
 @Composable
 fun SectionLabel(text: String) {
     Text(
-        text, color = K.Primary, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 2.dp)
+        text, color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(start = LocalSliderInset.current, top = 12.dp, bottom = 2.dp)
     )
-}
-
-@Composable
-fun PlaceholderBox(text: String) {
-    Box(
-        Modifier.padding(16.dp).fillMaxWidth().height(56.dp)
-            .border(1.5.dp, K.OutlineVar, RoundedCornerShape(16.dp)),
-        contentAlignment = Alignment.Center
-    ) { Text(text, color = K.OnSurfaceVar, fontSize = 13.sp) }
 }
 
 /** The mixer's hooks into the project (null in prototype mode). */
@@ -376,27 +290,25 @@ class AudioTools(
  * other tracks (speech, voice-over), with smooth transitions. The volume keyframes can be adjusted in the clip's properties.
  */
 @Composable
-private fun DuckingCard(tools: AudioTools) {
+private fun DuckingCard(tools: AudioTools, /** The result has been written last in the card: bring it into view. */ reveal: () -> Unit) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
     var track by remember { mutableIntStateOf(1) }
     var reduce by remember { mutableStateOf(-12.0) }
     var busy by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
-    Column(
-        Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(K.Surface).padding(14.dp),
-    ) {
-        Text(stringResource(R.string.panels_duck_title), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+    Column(Modifier.padding(horizontal = 18.dp).fillMaxWidth()) {
         Text(stringResource(R.string.panels_duck_desc), color = K.OnSurfaceVar, fontSize = 12.sp)
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.panels_duck_music_on), color = K.OnSurfaceVar, fontSize = 12.sp)
-            for (i in 0..2) SpringChip("A${i + 1}", track == i, { track = i }, Modifier.testTag("duck:track:$i"))
+        // the choices share the row (a row that scrolled sideways hid its last choice on a narrow phone)
+        Text(stringResource(R.string.panels_duck_music_on), color = K.OnSurfaceVar, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (i in 0..2) SpringChip("A${i + 1}", track == i, { track = i }, Modifier.weight(1f).testTag("duck:track:$i"))
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.panels_duck_lower), color = K.OnSurfaceVar, fontSize = 12.sp)
-            for (db in listOf(-6.0, -12.0, -18.0)) SpringChip("%.0f dB".format(db).replace('-', '−'), reduce == db, { reduce = db }, Modifier.testTag("duck:db:${db.toInt()}"))
+        Text(stringResource(R.string.panels_duck_lower), color = K.OnSurfaceVar, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (db in listOf(-6.0, -12.0, -18.0)) SpringChip("%.0f dB".format(db).replace('-', '−'), reduce == db, { reduce = db }, Modifier.weight(1f).testTag("duck:db:${db.toInt()}"))
         }
-        Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SpringChip(stringResource(if (busy) R.string.panels_duck_listening else R.string.panels_duck_go), false, {
                 if (busy) return@SpringChip
                 busy = true; message = null
@@ -406,8 +318,9 @@ private fun DuckingCard(tools: AudioTools) {
                         message = if (n == 0) Str.t(R.string.panels_duck_no_speech, track + 1) else Str.p(R.plurals.panels_duck_done, n, track + 1, n)
                     }.onFailure { message = it.message }
                     busy = false
+                    reveal()
                 }
-            }, Modifier.testTag("duck:go"), selectedColor = K.Primary)
+            }, Modifier.weight(1f).testTag("duck:go"))
             SpringChip(stringResource(R.string.panels_duck_remove), false, {
                 if (busy) return@SpringChip
                 busy = true; message = null
@@ -415,10 +328,11 @@ private fun DuckingCard(tools: AudioTools) {
                     tools.unduck(track).onSuccess { n -> haptics.tick(); message = if (n == 0) Str.t(R.string.panels_duck_none, track + 1) else Str.p(R.plurals.panels_duck_removed, n, n) }
                         .onFailure { message = it.message }
                     busy = false
+                    reveal()
                 }
-            }, Modifier.testTag("duck:remove"))
+            }, Modifier.weight(1f).testTag("duck:remove"))
         }
-        message?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
+        message?.let { Text(it, color = K.OnSurface, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp, bottom = 4.dp).testTag("duck:msg")) }
     }
 }
 
@@ -445,10 +359,24 @@ fun normalizeDb(measured: Double, truePeak: Double, faderDb: Double, target: Dou
 /** Targets for loudness normalization. */
 private val LOUDNESS_TARGETS = listOf(-14.0 to R.string.panels_target_youtube, -16.0 to R.string.panels_target_podcast, -23.0 to R.string.panels_target_tv)
 
+/**
+ * The sound page's tabs (the page shows them itself, or the app's dock does): what is done to the sound that is
+ * already there. New sound (effects, speech, a voice-over) is added from the edit page's dock.
+ */
 @Composable
-fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null) {
+internal fun audioTabs(mix: AudioMix, tools: Boolean): List<ToolTab> = listOf(
+    ToolTab(stringResource(R.string.panels_tab_mixer), Ic.Sliders, "audioTab:mixer"),
+    ToolTab(stringResource(R.string.panels_tab_loudness), Ic.Waveform, "audioTab:loudness", mix.normDb != 0f),
+) + if (!tools) emptyList() else listOf(
+    ToolTab(stringResource(R.string.panels_tab_ducking), Ic.VolLine, "audioTab:ducking"),
+)
+
+@Composable
+fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, dockTabs: Boolean = false) {
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
+    // what the app's bar covers of the page's bottom (nothing in landscape, where it sits under the picture)
+    val bar = LocalBarSpace.current
     // level meters: real levels from playback (peak level in dBFS, −60 … 0 → 0 … 1)
     LaunchedEffect(state.playing) {
         if (!state.playing) {
@@ -480,132 +408,133 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null) {
     var measuring by remember { mutableStateOf(false) }
     var target by remember { mutableStateOf(-14.0) }
     var message by remember { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PanelTitle(stringResource(R.string.panels_audio))
-        var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
-        val tabs = listOf(
-            ToolTab(stringResource(R.string.panels_tab_mixer), Ic.Sliders, "audioTab:mixer"),
-            ToolTab(stringResource(R.string.panels_tab_loudness), Ic.Waveform, "audioTab:loudness", mix.normDb != 0f),
-        ) + if (tools == null) emptyList() else listOf(
-            ToolTab(stringResource(R.string.panels_tab_record), Ic.Mic, "audioTab:record"),
-            ToolTab(stringResource(R.string.panels_tab_sounds), Ic.Audio, "audioTab:sounds"),
-            ToolTab(stringResource(R.string.panels_tab_ducking), Ic.VolLine, "audioTab:ducking"),
-        )
-        ToolTabs(tabs, tab.coerceIn(0, tabs.lastIndex), { tab = it }, Modifier.padding(horizontal = 12.dp))
+    val scroll = rememberScrollState()
+    // a result is written last in its card: the page goes to its end, where the card stands clear of the dock
+    val reveal: () -> Unit = { scope.launch { androidx.compose.runtime.withFrameNanos { }; scroll.animateScrollTo(scroll.maxValue) } }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize()) {
+    val pageHeight = maxHeight
+    Column(Modifier.fillMaxSize().verticalScroll(scroll)) {
+        // the tab lives in the editor state: in the app the dock at the bottom shows the tabs (dockTabs) and the top
+        // bar names the page; on its own the page does both itself
+        var tab by state::audioTab
+        val tabs = audioTabs(mix, tools != null)
+        LaunchedEffect(state.openTab) { tabs.indexOfFirst { it.tag == state.openTab }.takeIf { it >= 0 }?.let { tab = it; state.openTab = null } }
+        if (!dockTabs) {
+            PanelTitle(stringResource(R.string.panels_audio))
+            ToolTabs(tabs, tab.coerceIn(0, tabs.lastIndex), { tab = it }, Modifier.padding(horizontal = 12.dp))
+        }
         Spacer(Modifier.height(10.dp))
         when (tab.coerceIn(0, tabs.lastIndex)) {
             0 -> {
-        Row(
-            Modifier.padding(16.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("A1", "A2", "A3", "Mix").forEachIndexed { i, n ->
-                ChannelStrip(n, i, mix, scope, Modifier.weight(1f), auto = tracks.getOrNull(i)?.takeIf { i < 3 }?.volKf?.size ?: 0)
-            }
-        }
+                // the strips take the room above the dock, so the values and M/S under the faders show without scrolling
+                val above = if (dockTabs) 10.dp else 122.dp
+                val stripHeight = (pageHeight - above - (if (bar > 0.dp) bar + 8.dp else 12.dp)).coerceIn(216.dp, 280.dp)
+                Row(Modifier.padding(horizontal = 12.dp).fillMaxWidth().height(stripHeight), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("A1", "A2", "A3", "Mix").forEachIndexed { i, n ->
+                        ChannelStrip(n, i, mix, scope, Modifier.weight(1f).fillMaxHeight(), auto = tracks.getOrNull(i)?.takeIf { i < 3 }?.volKf?.size ?: 0)
+                    }
+                }
                 if (tools != null) PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.panels_volume_automation)) {
-            Text(stringResource(R.string.panels_automation_hint),
-                color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (i in 0..2) {
-                    val n = tracks.getOrNull(i)?.volKf?.size ?: 0
-                    SpringChip("◆ A${i + 1}" + if (n > 0) " ($n)" else "", n > 0, {
-                        haptics.tick(); tools.toggleKf(i, state.playhead.toDouble(), mix.db(i))
-                    }, Modifier.testTag("kf:A${i + 1}"))
-                    if (n > 0) SpringChip(stringResource(R.string.panels_clear_track, i + 1), false, { haptics.heavy(); tools.clearKf(i) }, Modifier.testTag("kfClear:A${i + 1}"))
-                }
-            }
-                }
-            }
-            1 -> {
-        // loudness: measure the whole mix and normalize master toward a target
-        Column(
-            Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(K.Surface).padding(14.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.panels_integrated_loudness), color = K.OnSurfaceVar, fontSize = 12.sp)
-                    val m = measured
-                    val withMaster = m?.let { it.first + mix.db(3) + mix.normDb }
-                    Text(
-                        when { measuring -> stringResource(R.string.panels_measuring_value); withMaster == null -> "– LUFS"; else -> "%.1f LUFS".format(withMaster).replace('-', '−') },
-                        color = if (withMaster != null && abs(withMaster - target) <= 1.0) Color(0xFF5BC27A) else K.OnSurface,
-                        fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.testTag("lufs"),
-                    )
-                    if (m != null) Text(stringResource(R.string.panels_peak_lra, m.second + mix.db(3) + mix.normDb, m.third).replace('-', '−'), color = K.OnSurfaceVar, fontSize = 11.sp)
-                }
-                if (tools != null) SpringChip(stringResource(if (measuring) R.string.panels_measuring else R.string.panels_measure), false, {
-                    if (measuring) return@SpringChip
-                    measuring = true; message = null
-                    scope.launch {
-                        tools.measure().onSuccess { measured = it; haptics.confirm() }.onFailure { message = it.message }
-                        measuring = false
+                    Text(stringResource(R.string.panels_automation_hint),
+                        color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))
+                    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (i in 0..2) {
+                            val n = tracks.getOrNull(i)?.volKf?.size ?: 0
+                            SpringChip("◆ A${i + 1}" + if (n > 0) " ($n)" else "", n > 0, {
+                                haptics.tick(); tools.toggleKf(i, state.playhead.toDouble(), mix.db(i))
+                            }, Modifier.testTag("kf:A${i + 1}"))
+                            if (n > 0) SpringChip(stringResource(R.string.panels_clear_track, i + 1), false, { haptics.heavy(); tools.clearKf(i) }, Modifier.testTag("kfClear:A${i + 1}"))
+                        }
                     }
-                }, Modifier.testTag("measure"))
+                }
             }
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for ((t, label) in LOUDNESS_TARGETS) SpringChip("%.0f · %s".format(t, stringResource(label)).replace('-', '−'), target == t, { target = t })
-            }
-            if (tools != null) Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                SpringChip(stringResource(R.string.panels_normalize), false, {
-                    if (measuring) return@SpringChip
-                    measuring = true; message = null
-                    scope.launch {
-                        tools.measure().onSuccess { m ->
-                            measured = m
-                            val n = normalizeDb(m.first, m.second, mix.db(3), target)
-                            mix.normDb = n.toFloat()
+            1 -> PanelCard {
+                // loudness: measure the whole mix and normalize master toward a target
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.panels_integrated_loudness), color = K.OnSurfaceVar, fontSize = 12.sp)
+                            val m = measured
+                            val withMaster = m?.let { it.first + mix.db(3) + mix.normDb }
+                            Text(
+                                when { measuring -> stringResource(R.string.panels_measuring_value); withMaster == null -> "– LUFS"; else -> "%.1f LUFS".format(withMaster).replace('-', '−') },
+                                color = if (withMaster != null && abs(withMaster - target) <= 1.0) Color(0xFF5BC27A) else K.OnSurface,
+                                fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.testTag("lufs"),
+                            )
+                            if (m != null) Text(stringResource(R.string.panels_peak_lra, m.second + mix.db(3) + mix.normDb, m.third).replace('-', '−'), color = K.OnSurfaceVar, fontSize = 11.sp)
+                        }
+                        if (tools != null) SpringChip(stringResource(if (measuring) R.string.panels_measuring else R.string.panels_measure), false, {
+                            if (measuring) return@SpringChip
+                            measuring = true; message = null
+                            scope.launch {
+                                tools.measure().onSuccess { measured = it; haptics.confirm() }.onFailure { message = it.message; reveal() }
+                                measuring = false
+                            }
+                        }, Modifier.testTag("measure"))
+                    }
+                    Text(stringResource(R.string.panels_target), color = K.OnSurfaceVar, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+                    // the targets wrap (a row that scrolled sideways cut the last one on a narrow phone)
+                    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for ((t, label) in LOUDNESS_TARGETS) SpringChip("%.0f · %s".format(t, stringResource(label)).replace('-', '−'), target == t, { target = t }, Modifier.testTag("target:${t.toInt()}"))
+                    }
+                    if (tools != null) androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SpringChip(stringResource(R.string.panels_normalize), false, {
+                            if (measuring) return@SpringChip
+                            measuring = true; message = null
+                            scope.launch {
+                                tools.measure().onSuccess { m ->
+                                    measured = m
+                                    val n = normalizeDb(m.first, m.second, mix.db(3), target)
+                                    mix.normDb = n.toFloat()
+                                    mix.onCommit(3)
+                                    haptics.confirm()
+                                    val final = m.first + mix.db(3) + n
+                                    message = if (final < target - 0.3) Str.t(R.string.panels_normalize_limited, final).replace('-', '−')
+                                    else Str.t(R.string.panels_normalize_done, n, final).replace('-', '−')
+                                }.onFailure { message = it.message }
+                                measuring = false
+                                reveal()
+                            }
+                        }, Modifier.testTag("normalize"))
+                        // the normalization stays on the mix until it is taken away (it is not the fader)
+                        if (abs(mix.normDb) > 0.05f) SpringChip(stringResource(R.string.panels_normalize_remove), false, {
+                            mix.normDb = 0f
                             mix.onCommit(3)
-                            haptics.confirm()
-                            val final = m.first + mix.db(3) + n
-                            message = if (final < target - 0.3) Str.t(R.string.panels_normalize_limited, final).replace('-', '−')
-                            else Str.t(R.string.panels_normalize_done, n, final).replace('-', '−')
-                        }.onFailure { message = it.message }
-                        measuring = false
+                            message = null
+                        }, Modifier.testTag("normalize:remove"))
                     }
-                }, Modifier.testTag("normalize"), selectedColor = K.Primary)
-            }
-            message?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)) }
-        }
-            }
-            2 -> if (tools != null) PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.panels_voice_over)) {
-            // voice-over
-            val vo = tools.voiceOver
-            Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                for (i in 0..2) SpringChip("A${i + 1}", vo.track == i, { if (vo.phase == 0) vo.track = i })
-                when {
-                    vo.phase == 0 -> SpringChip(stringResource(R.string.panels_record), false, { haptics.confirm(); vo.onStart() }, Modifier.testTag("voStart"), selectedColor = K.Error)
-                    vo.phase > 0 -> Text("${vo.phase} …", color = K.Error, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 8.dp))
-                    else -> SpringChip(stringResource(R.string.panels_stop), true, { haptics.confirm(); vo.onStop() }, Modifier.testTag("voStop"), selectedColor = K.Error, selectedText = Color.White)
+                    message?.let { Text(it, color = K.OnSurface, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp).testTag("loudness:msg")) }
                 }
             }
-            Text(
-                stringResource(if (vo.phase < 0) R.string.panels_recording_hint else R.string.panels_record_hint),
-                color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-            )
-            }
-            3 -> if (tools != null) {
-PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.sfx_title)) {
-            // sound effects (CC0 packs and Freesound)
-            tools.addSound?.let { add ->
-                var sfxOpen by remember { mutableStateOf(false) }
-                Text(stringResource(R.string.sfx_section_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
-                PillButton(stringResource(R.string.sfx_browse), { haptics.tick(); sfxOpen = true }, Modifier.padding(horizontal = 16.dp, vertical = 6.dp).testTag("sfxOpen"))
-                if (sfxOpen) SoundFxSheet(onDismiss = { sfxOpen = false }) { file, name, secs -> add(file, name, secs) }
-            }
-                }
-                PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.tts_title)) { tools.addSound?.let { add -> TextToSpeechCard(add) } }
-            }
-            else -> if (tools != null) PanelCard(Modifier.padding(top = 10.dp)) { DuckingCard(tools) }
+            else -> if (tools != null) PanelCard(title = stringResource(R.string.panels_duck_title)) { DuckingCard(tools, reveal) }
         }
-        Spacer(Modifier.height(120.dp))
+        Spacer(Modifier.height(bar + 36.dp))
     }
+    }
+}
+
+/** A voice-over: the track it goes on and the record button (with its countdown), then stop. */
+@Composable
+internal fun VoiceOverCard(vo: VoiceOverUi) {
+    val haptics = rememberHaptics()
+    Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        for (i in 0..2) SpringChip("A${i + 1}", vo.track == i, { if (vo.phase == 0) vo.track = i })
+        when {
+            vo.phase == 0 -> SpringChip(stringResource(R.string.panels_record), false, { haptics.confirm(); vo.onStart() }, Modifier.testTag("voStart"), selectedColor = K.Error)
+            vo.phase > 0 -> Text("${vo.phase} …", color = K.Error, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 8.dp))
+            else -> SpringChip(stringResource(R.string.panels_stop), true, { haptics.confirm(); vo.onStop() }, Modifier.testTag("voStop"), selectedColor = K.Error, selectedText = Color.White)
+        }
+    }
+    Text(
+        stringResource(if (vo.phase < 0) R.string.panels_recording_hint else R.string.panels_record_hint),
+        color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
+    )
 }
 
 /** Text read aloud by the phone's own voice, placed at the playhead. */
 @Composable
-private fun TextToSpeechCard(add: (java.io.File, String, Double) -> Unit) {
+internal fun TextToSpeechCard(add: (java.io.File, String, Double) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val haptics = rememberHaptics()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
@@ -635,14 +564,15 @@ private fun ChannelStrip(name: String, i: Int, mix: AudioMix, scope: CoroutineSc
     val lastTap = remember { longArrayOf(0L) }
     val isMix = i == 3
     Column(
-        modifier.clip(RoundedCornerShape(20.dp)).background(if (isMix) Color(0xFF2A1D12) else K.Surface).padding(vertical = 10.dp),
+        // the mix is set apart by its tone only (the accent is for what is switched on)
+        modifier.clip(RoundedCornerShape(20.dp)).background(if (isMix) K.SurfaceHigh else K.Surface).padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(name, color = if (isMix) K.PrimarySoft else K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        Text(name, color = K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
         Text(if (auto > 0) "AUTO" else " ", color = K.Primary, fontSize = 9.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
         Box(
-            Modifier.height(170.dp).width(56.dp).testTag("fader:$name").pointerInput(Unit) {
+            Modifier.weight(1f).width(56.dp).testTag("fader:$name").pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     val startY = down.position.y
@@ -700,23 +630,20 @@ private fun ChannelStrip(name: String, i: Int, mix: AudioMix, scope: CoroutineSc
                 val capY = size.height * (1f - g.value)
                 val capW = 30.dp.toPx()
                 val capH = 20.dp.toPx()
-                drawRoundRect(
-                    if (isMix) K.Primary else K.OnSurface,
-                    Offset(railX - capW / 2, capY - capH / 2), Size(capW, capH), CornerRadius(8.dp.toPx())
-                )
+                drawRoundRect(K.OnSurface, Offset(railX - capW / 2, capY - capH / 2), Size(capW, capH), CornerRadius(8.dp.toPx()))
             }
         }
         Spacer(Modifier.height(6.dp))
         Text(if (isMix) gainToDb(g.value, squared = true) else gainToDb(g.value), color = K.OnSurfaceVar, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-        if (isMix && abs(mix.normDb) > 0.05f) Text("norm %+.1f".format(mix.normDb).replace('-', '−'), color = K.Primary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         Spacer(Modifier.height(6.dp))
         if (!isMix) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 ToggleSquare("M", mix.mute[i]) { mix.mute[i] = !mix.mute[i]; mix.onCommit(i) }
                 ToggleSquare("S", mix.solo[i]) { mix.solo[i] = !mix.solo[i]; mix.onCommit(i) }
             }
-        } else {
-            Spacer(Modifier.height(28.dp))
+        } else Box(Modifier.height(28.dp), contentAlignment = Alignment.Center) {
+            // the normalization on top of the fader (set and removed under Loudness)
+            if (abs(mix.normDb) > 0.05f) Text("norm %+.1f".format(mix.normDb).replace('-', '−'), color = K.Primary, fontSize = 10.sp, fontFamily = FontFamily.Monospace, maxLines = 1, modifier = Modifier.testTag("mix:norm"))
         }
     }
 }
@@ -725,7 +652,7 @@ private fun ChannelStrip(name: String, i: Int, mix: AudioMix, scope: CoroutineSc
 private fun ToggleSquare(label: String, on: Boolean, width: Dp = 28.dp, onClick: () -> Unit) {
     val haptics = rememberHaptics()
     val src = remember { MutableInteractionSource() }
-    val bg by animateColorAsState(if (on) K.Primary else K.SurfaceHigh, label = "t")
+    val bg by animateColorAsState(if (on) K.PrimaryContainer else K.SurfaceHigh, label = "t")
     val radius by animateDpAsState(if (on) 14.dp else 8.dp, androidx.compose.animation.core.spring(0.45f, 600f), label = "tr")
     Box(
         Modifier.pressPop(src, 0.8f)
@@ -735,7 +662,7 @@ private fun ToggleSquare(label: String, on: Boolean, width: Dp = 28.dp, onClick:
                 onClick()
             },
         contentAlignment = Alignment.Center
-    ) { Text(label, color = if (on) K.OnPrimary else K.OnSurface, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+    ) { Text(label, color = if (on) K.PrimarySoft else K.OnSurface, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
 }
 
 @Composable
@@ -759,12 +686,11 @@ fun TextPanel(title: TitleState) {
         SectionLabel(stringResource(R.string.panels_animation_in))
         Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TitleStyle.entries.forEach { s ->
-                SpringChip(stringResource(s.labelRes), title.style == s, { title.style = s; title.previewKey++ }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+                SpringChip(stringResource(s.labelRes), title.style == s, { title.style = s; title.previewKey++ })
             }
             SpringChip(stringResource(R.string.panels_play), false, { title.previewKey++ })
         }
-        PlaceholderBox(stringResource(R.string.panels_text_placeholder))
-        Spacer(Modifier.height(120.dp))
+        Spacer(Modifier.height(LocalBarSpace.current + 36.dp))
     }
 }
 
@@ -776,27 +702,54 @@ private fun TemplateCard(label: String, selected: Boolean, modifier: Modifier, o
     Box(
         modifier.pressPop(src, 0.92f)
             .height(76.dp).clip(shape)
-            .background(if (selected) Color(0xFF5E2C55) else K.Surface)
-            .border(1.5.dp, if (selected) Color(0xFFFFD7F0) else K.OutlineVar, shape)
+            .background(if (selected) K.PrimaryContainer else K.Surface)
+            .border(1.5.dp, if (selected) K.PrimaryContainer else K.OutlineVar, shape)
             .clickable(interactionSource = src, indication = null) {
                 onClick()
             }
             .padding(12.dp),
         contentAlignment = Alignment.BottomStart
-    ) { Text(label, color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+    ) { Text(label, color = if (selected) K.PrimarySoft else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
 }
 
+/**
+ * A one-line text field with its label: beside it, or above it where the row is narrow ([stacked]). The field has the
+ * dropdowns' look (a lighter tone with an outline), so it shows on a panel as well as in a dialog.
+ */
 @Composable
-fun TextInput(label: String, value: String, onChange: (String) -> Unit) {
-    Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.width(64.dp))
+fun TextInput(
+    label: String, value: String, modifier: Modifier = Modifier, stacked: Boolean = false,
+    /** The field takes the keyboard when it appears, with the caret after the text (a dialog that asks for a name). */
+    focus: Boolean = false,
+    /** Digits only: the number keyboard. */
+    number: Boolean = false,
+    onChange: (String) -> Unit,
+) {
+    // the caret is kept here (the caller owns the text, and may filter what is typed)
+    var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+    if (field.text != value) field = field.copy(text = value, selection = TextRange(field.selection.end.coerceAtMost(value.length)))
+    var focused by remember { mutableStateOf(false) }
+    val requester = remember { FocusRequester() }
+    if (focus) LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
+    val shape = RoundedCornerShape(12.dp)
+    val input: @Composable (Modifier) -> Unit = { m ->
         BasicTextField(
-            value = value,
-            onValueChange = onChange,
+            value = field,
+            onValueChange = { field = it; if (it.text != value) onChange(it.text) },
             singleLine = true,
             textStyle = TextStyle(color = K.OnSurface, fontSize = 15.sp),
             cursorBrush = SolidColor(K.Primary),
-            modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh).padding(horizontal = 14.dp, vertical = 12.dp)
+            keyboardOptions = if (number) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
+            modifier = m.focusRequester(requester).onFocusChanged { focused = it.isFocused }
+                .clip(shape).background(K.SurfaceHighest).border(1.dp, if (focused) K.Primary else K.OutlineVar, shape)
+                .padding(horizontal = 14.dp, vertical = 12.dp),
         )
+    }
+    if (stacked) Column(modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth()) {
+        Text(label, color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.padding(top = 6.dp, bottom = 4.dp))
+        input(Modifier.fillMaxWidth())
+    } else Row(modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.width(64.dp))
+        input(Modifier.weight(1f))
     }
 }
