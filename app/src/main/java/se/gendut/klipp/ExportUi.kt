@@ -52,6 +52,8 @@ fun ExportOptions(
     /** Some clip is 10-bit (null = not known). */
     anyTenBit: Boolean? = null,
     caps: se.gendut.klipp.engine.EncoderInfo = se.gendut.klipp.engine.PhoneEncoders,
+    /** The project's length (s): the presets show their estimated size (0 = not shown). */
+    seconds: Double = 0.0,
     onChange: (ExportSettings) -> Unit,
 ) {
     // the same plan the export itself follows: what is made, what is refused, what to know
@@ -61,6 +63,27 @@ fun ExportOptions(
     val outFps = s.outputFps(projectFps)
     val auto = stringResource(R.string.exportui_auto)
     val projects = stringResource(R.string.exportui_project_setting)
+
+    // presets in plain words on top of the tabs: each sets codec, bit depth, bitrate and audio; any other choice = custom
+    val preset = se.gendut.klipp.engine.ExportPreset.of(s, seqW, seqH, projectFps, caps)
+    DropField(stringResource(R.string.exportui_preset), se.gendut.klipp.engine.ExportPreset.entries.map { p ->
+        val x = p.apply(s, seqW, seqH, projectFps, caps)
+        val px = planOf(x)
+        val what = when (p) {
+            se.gendut.klipp.engine.ExportPreset.COMPATIBLE -> stringResource(R.string.exportpreset_compatible_hint)
+            se.gendut.klipp.engine.ExportPreset.SMALLER -> stringResource(R.string.exportpreset_smaller_hint, codecName(px.effective.codec))
+            se.gendut.klipp.engine.ExportPreset.QUALITY -> stringResource(R.string.exportpreset_quality_hint, codecName(px.effective.codec))
+            se.gendut.klipp.engine.ExportPreset.CUSTOM -> stringResource(R.string.exportpreset_custom_hint)
+        }
+        // the estimate is what the preset makes (a "smaller" file only says so when the numbers do)
+        val size = if (seconds > 0 && p != se.gendut.klipp.engine.ExportPreset.CUSTOM) " · ≈ " + sizeLabel(px.effective.estimateMb(seqW, seqH, projectFps, seconds)) else ""
+        Opt(p, stringResource(when (p) {
+            se.gendut.klipp.engine.ExportPreset.COMPATIBLE -> R.string.exportpreset_compatible
+            se.gendut.klipp.engine.ExportPreset.SMALLER -> R.string.exportpreset_smaller
+            se.gendut.klipp.engine.ExportPreset.QUALITY -> R.string.exportpreset_quality
+            se.gendut.klipp.engine.ExportPreset.CUSTOM -> R.string.exportpreset_custom
+        }), what + size, enabled = p != se.gendut.klipp.engine.ExportPreset.CUSTOM || preset == p, key = p.name)
+    }, preset, "exp:preset") { p -> onChange(p.apply(s, seqW, seqH, projectFps, caps)) }
 
     var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     ConnectedToggleGroup(
@@ -214,7 +237,7 @@ fun ExportDialog(
                 // the same height on every tab, so the dialog stays where it is when the tab changes; the summary is always in view
                 Column(Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
                     TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
-                    ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps) { s = it }
+                    ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps, seconds) { s = it }
                 }
                 Text(
                     "${ow}×$oh · ${stringResource(R.string.exportui_fps_value, fpsLabel(plan.fps))} · ${codecName(plan.effective.codec)}" +

@@ -63,9 +63,10 @@ class ProjectsTest {
         rule.waitForIdle()
         rule.onNodeWithTag("newProject").performClick()
         rule.waitForIdle()
-        // the format is chosen in a dropdown menu
-        rule.onNodeWithTag("fmt").performScrollTo().performClick()
-        rule.onNodeWithTag("fmt:Stående").performScrollTo().performClick()
+        // the format in three plain choices; frame rate and sound are not asked (under Advanced)
+        rule.onNodeWithTag("fmt").assertDoesNotExist()
+        rule.onNodeWithTag("fps").assertDoesNotExist()
+        rule.onNodeWithTag("fmtSimple:1").performClick()
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("build/shots/36_nytt_projekt.png")
         rule.onNodeWithTag("create").performClick()
@@ -158,6 +159,26 @@ class ProjectsTest {
         rule.waitForIdle()
         rule.onNodeWithTag("backupChoose").assertExists()
         rule.onNodeWithTag("backupNow").assertDoesNotExist()
+    }
+
+    @Test fun advancedKeepsWhatWasChosenWhenItIsClosed() {
+        val fake = FakeProjects()
+        rule.setContent { KlippTheme { ProjectsScreen(fake) {} } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("newProject").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Avancerat").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("fmt").performScrollTo().performClick()
+        rule.onNodeWithTag("fmt:Liggande 4K").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Dölj avancerat").performScrollTo().performClick()
+        rule.waitForIdle()
+        // closed again: the choice stays (no plain choice lit, the hint says which)
+        rule.onNodeWithTag("fmt").assertDoesNotExist()
+        rule.onNodeWithTag("fmtHint").assertTextContains("3840×2160", substring = true)
+        rule.onNodeWithTag("create").performClick()
+        assertEquals("create  3840x2160 25.0", fake.log.last())
     }
 
     @Test fun eachBackupGetsANameOfItsOwn() {

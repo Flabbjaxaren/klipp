@@ -173,6 +173,12 @@
     <string name="projectsscreen_custom_format">Custom format</string>
     <string name="projectsscreen_custom_format_hint">any width × height</string>
     <string name="projectsscreen_format">Format</string>
+    <string name="projectsscreen_fmt_auto_short">Like the clip</string>
+    <string name="projectsscreen_fmt_portrait_short">Portrait</string>
+    <string name="projectsscreen_fmt_landscape_short">Landscape</string>
+    <string name="projectsscreen_advanced">Advanced</string>
+    <string name="projectsscreen_hide_advanced">Hide advanced</string>
+    <string name="projectsscreen_advanced_hint">More formats, frame rate, sound and export defaults</string>
     <string name="projectsscreen_frame_rate">Frame rate</string>
     <string name="projectsscreen_fps_hint_film">film</string>
     <string name="projectsscreen_fps_hint_pal">PAL (Europe)</string>
@@ -260,6 +266,16 @@
         <item quantity="one">They are used %1$d time in the timeline – those clips will be removed too.</item>
         <item quantity="other">They are used %1$d times in the timeline – those clips will be removed too.</item>
     </plurals>
+    <!-- ExportPreset (ExportUi.kt) -->
+    <string name="exportui_preset">Preset</string>
+    <string name="exportpreset_compatible">Best compatibility</string>
+    <string name="exportpreset_compatible_hint">H.264, 8-bit – plays everywhere</string>
+    <string name="exportpreset_smaller">Smaller file</string>
+    <string name="exportpreset_smaller_hint">%1$s at a lower bitrate</string>
+    <string name="exportpreset_quality">High quality</string>
+    <string name="exportpreset_quality_hint">%1$s at a high bitrate, 10-bit when the clips are</string>
+    <string name="exportpreset_custom">Custom</string>
+    <string name="exportpreset_custom_hint">Your own choices in the tabs below</string>
     <!-- ExportPlan (ExportUi.kt) -->
     <string name="exportplan_size_none">No encoder on this phone can make %1$d×%2$d – choose a lower resolution</string>
     <string name="exportplan_size_other">%1$s can’t make %2$d×%3$d on this phone, so the file is made in %4$s</string>

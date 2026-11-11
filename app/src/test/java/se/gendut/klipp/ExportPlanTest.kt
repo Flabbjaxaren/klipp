@@ -172,4 +172,26 @@ class ExportPlanTest {
         rule.onNodeWithTag("exp:bits").performClick()
         rule.onNodeWithText(t(R.string.exportui_bits_h264_hevc)).assertExists()
     }
+
+    @Test fun presetsSetOnlyTheirChoicesAndAnyOtherChoiceIsCustom() {
+        val caps = Fake(mapOf(H264 to 2160, HEVC to 2160), ten = setOf(HEVC))
+        val mine = ExportSettings(height = 720, fps = 25.0, sampleRate = 44_100, mono = true)
+        for (p in listOf(se.gendut.klipp.engine.ExportPreset.COMPATIBLE, se.gendut.klipp.engine.ExportPreset.SMALLER, se.gendut.klipp.engine.ExportPreset.QUALITY)) {
+            val x = p.apply(mine, 1920, 1080, 30.0, caps)
+            assertEquals("$p is recognised", p, se.gendut.klipp.engine.ExportPreset.of(x, 1920, 1080, 30.0, caps))
+            // the resolution, frame rate and audio format are the user's
+            assertEquals(720, x.height); assertEquals(25.0, x.fps, 0.0); assertEquals(44_100, x.sampleRate); assertTrue(x.mono)
+            // one choice changed by hand: custom
+            assertEquals(se.gendut.klipp.engine.ExportPreset.CUSTOM, se.gendut.klipp.engine.ExportPreset.of(x.copy(cbr = true), 1920, 1080, 30.0, caps))
+        }
+        val compatible = se.gendut.klipp.engine.ExportPreset.COMPATIBLE.apply(mine, 1920, 1080, 30.0, caps)
+        assertEquals(H264, compatible.codec); assertEquals(8, compatible.bitDepth)
+        // a smaller file is smaller by the estimate (HEVC, the low level), high quality larger
+        val sec = 60.0
+        fun mb(p: se.gendut.klipp.engine.ExportPreset) = p.apply(mine, 1920, 1080, 30.0, caps).estimateMb(1920, 1080, 30.0, sec)
+        assertTrue(mb(se.gendut.klipp.engine.ExportPreset.SMALLER) < mb(se.gendut.klipp.engine.ExportPreset.COMPATIBLE))
+        assertTrue(mb(se.gendut.klipp.engine.ExportPreset.QUALITY) > mb(se.gendut.klipp.engine.ExportPreset.SMALLER))
+        // no HEVC on the phone: H.264 for all of them
+        assertEquals(H264, se.gendut.klipp.engine.ExportPreset.SMALLER.apply(mine, 1920, 1080, 30.0, Fake(mapOf(H264 to 2160))).codec)
+    }
 }

@@ -170,3 +170,39 @@ data class ExportPlan(
         }
     }
 }
+
+/**
+ * The export's presets in plain words. Each one only sets choices the export already has (codec, bit depth, bitrate
+ * level, audio quality) on top of the current settings – resolution and frame rate stay as chosen – and goes through
+ * [ExportPlan] like any choice. Settings that match no preset are "custom".
+ */
+enum class ExportPreset {
+    /** H.264, 8-bit, the standard bitrate: plays everywhere. */
+    COMPATIBLE,
+    /** HEVC where the phone has it (same quality in about 60 % of the bitrate), the low bitrate, 8-bit. */
+    SMALLER,
+    /** HEVC where the phone has it, the high bitrate, bit depth following the sources. */
+    QUALITY,
+    CUSTOM;
+
+    /** These settings with the preset applied for a [w]×[h] project at [fps] (unchanged for [CUSTOM]). */
+    fun apply(s: ExportSettings, w: Int, h: Int, fps: Double, caps: EncoderInfo): ExportSettings {
+        val hevc = if (MimeTypes.VIDEO_H265 in caps.codecs) MimeTypes.VIDEO_H265 else MimeTypes.VIDEO_H264
+        val (ow, oh) = s.outputSize(w, h)
+        val f = s.outputFps(fps).takeIf { it > 0.0 } ?: 30.0
+        fun mbps(level: Int, codec: String) = ExportPresets.mbps(level, ow, oh, f, codec).toFloat()
+        val base = s.copy(hdr = false, cbr = false, keyframeSec = 0f, highProfile = true, audio = true)
+        return when (this) {
+            COMPATIBLE -> base.copy(codec = MimeTypes.VIDEO_H264, bitDepth = 8, bitrateMbps = 0f, audioKbps = 192)
+            SMALLER -> base.copy(codec = hevc, bitDepth = 8, bitrateMbps = mbps(ExportPresets.LOW, hevc), audioKbps = 128)
+            QUALITY -> base.copy(codec = hevc, bitDepth = 0, bitrateMbps = mbps(ExportPresets.HIGH, hevc), audioKbps = 256)
+            CUSTOM -> s
+        }
+    }
+
+    companion object {
+        /** The preset these settings are (CUSTOM when a single choice differs from every preset). */
+        fun of(s: ExportSettings, w: Int, h: Int, fps: Double, caps: EncoderInfo): ExportPreset =
+            entries.firstOrNull { it != CUSTOM && it.apply(s, w, h, fps, caps) == s } ?: CUSTOM
+    }
+}
