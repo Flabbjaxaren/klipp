@@ -617,6 +617,8 @@ fun NewProjectDialog(onDismiss: () -> Unit, onCreate: (NewProjectSpec) -> Unit) 
     var mono by remember { mutableStateOf(false) }
     var export by remember { mutableStateOf(se.gendut.klipp.engine.ExportSettings.load(ctx, null)) }
     var showExport by remember { mutableStateOf(false) }
+    // frame rate, sound, other formats and the export's defaults: behind "Advanced" (all kept when it is closed again)
+    var advanced by remember { mutableStateOf(false) }
     // custom format: even dimensions between 16 and 8192 (the encoders require even sizes)
     fun dim(t: String) = t.toIntOrNull()?.takeIf { it in 16..8192 }?.let { it / 2 * 2 }
     // "Like the first clip": the frame rate can follow the clip too; otherwise 25 until one is picked
@@ -629,27 +631,55 @@ fun NewProjectDialog(onDismiss: () -> Unit, onCreate: (NewProjectSpec) -> Unit) 
         text = {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
                 TextInput(stringResource(R.string.projectsscreen_name), name) { name = it }
-                FormatPicker(preset, custom, auto = true) { p, c -> preset = p; custom = c }
-                if (custom) {
-                    Row {
-                        TextInput(stringResource(R.string.projectsscreen_width), cw, Modifier.weight(1f), stacked = true, number = true) { cw = it.filter(Char::isDigit).take(4) }
-                        TextInput(stringResource(R.string.projectsscreen_height), ch, Modifier.weight(1f), stacked = true, number = true) { ch = it.filter(Char::isDigit).take(4) }
+                // the format in three plain choices; the others are under Advanced
+                val portrait = PRESETS.first { it.key == "Stående" }
+                val landscape = PRESETS.first { it.key == "Liggande HD" }
+                val simple = when {
+                    custom -> -1
+                    preset == null -> 0
+                    preset == portrait -> 1
+                    preset == landscape -> 2
+                    else -> -1
+                }
+                SectionLabel(stringResource(R.string.projectsscreen_format))
+                ConnectedToggleGroup(
+                    listOf(stringResource(R.string.projectsscreen_fmt_auto_short), stringResource(R.string.projectsscreen_fmt_portrait_short), stringResource(R.string.projectsscreen_fmt_landscape_short)),
+                    simple, { i -> custom = false; preset = when (i) { 1 -> portrait; 2 -> landscape; else -> null } },
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), tag = { "fmtSimple:$it" },
+                )
+                Text(
+                    when {
+                        custom -> stringResource(R.string.projectsscreen_custom_format)
+                        preset == null -> stringResource(R.string.projectsscreen_like_first_clip_hint)
+                        else -> "${preset!!.label} · ${preset!!.hint}"
+                    },
+                    color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("fmtHint"),
+                )
+                PresetRow(stringResource(if (advanced) R.string.projectsscreen_hide_advanced else R.string.projectsscreen_advanced),
+                    stringResource(R.string.projectsscreen_advanced_hint), advanced) { advanced = !advanced }
+                if (advanced) {
+                    FormatPicker(preset, custom, auto = true) { p, c -> preset = p; custom = c }
+                    if (custom) {
+                        Row {
+                            TextInput(stringResource(R.string.projectsscreen_width), cw, Modifier.weight(1f), stacked = true, number = true) { cw = it.filter(Char::isDigit).take(4) }
+                            TextInput(stringResource(R.string.projectsscreen_height), ch, Modifier.weight(1f), stacked = true, number = true) { ch = it.filter(Char::isDigit).take(4) }
+                        }
+                        if (size == null) Text(stringResource(R.string.projectsscreen_size_error), color = K.Error, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp))
                     }
-                    if (size == null) Text(stringResource(R.string.projectsscreen_size_error), color = K.Error, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp))
-                }
-                FpsPicker(shownFps, auto = autoFps) { fps = it }
-                SampleRatePicker(sr) { sr = it }
-                Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SpringChip(stringResource(R.string.projectsscreen_stereo), !mono, { mono = false })
-                    SpringChip(stringResource(R.string.projectsscreen_mono), mono, { mono = true })
-                }
-                SectionLabel(stringResource(R.string.projectsscreen_export))
-                PresetRow(stringResource(if (showExport) R.string.projectsscreen_hide_export_settings else R.string.projectsscreen_export_settings),
-                    stringResource(R.string.projectsscreen_export_settings_hint), showExport) { showExport = !showExport }
-                if (showExport) {
-                    val (w, h) = size ?: (1920 to 1080)
-                    ExportOptions(export.copy(hdr = false), w, h, shownFps ?: 60.0, hdrPossible = false,
-                        hdrBlocked = stringResource(R.string.settings_hdr_at_export)) { export = it }
+                    FpsPicker(shownFps, auto = autoFps) { fps = it }
+                    SampleRatePicker(sr) { sr = it }
+                    Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SpringChip(stringResource(R.string.projectsscreen_stereo), !mono, { mono = false })
+                        SpringChip(stringResource(R.string.projectsscreen_mono), mono, { mono = true })
+                    }
+                    SectionLabel(stringResource(R.string.projectsscreen_export))
+                    PresetRow(stringResource(if (showExport) R.string.projectsscreen_hide_export_settings else R.string.projectsscreen_export_settings),
+                        stringResource(R.string.projectsscreen_export_settings_hint), showExport) { showExport = !showExport }
+                    if (showExport) {
+                        val (w, h) = size ?: (1920 to 1080)
+                        ExportOptions(export.copy(hdr = false), w, h, shownFps ?: 60.0, hdrPossible = false,
+                            hdrBlocked = stringResource(R.string.settings_hdr_at_export)) { export = it }
+                    }
                 }
             }
         },

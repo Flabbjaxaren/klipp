@@ -173,6 +173,12 @@
     <string name="projectsscreen_custom_format">Eget format</string>
     <string name="projectsscreen_custom_format_hint">valfri bredd × höjd</string>
     <string name="projectsscreen_format">Format</string>
+    <string name="projectsscreen_fmt_auto_short">Som klippet</string>
+    <string name="projectsscreen_fmt_portrait_short">Stående</string>
+    <string name="projectsscreen_fmt_landscape_short">Liggande</string>
+    <string name="projectsscreen_advanced">Avancerat</string>
+    <string name="projectsscreen_hide_advanced">Dölj avancerat</string>
+    <string name="projectsscreen_advanced_hint">Fler format, bildfrekvens, ljud och exportstandard</string>
     <string name="projectsscreen_frame_rate">Bildfrekvens</string>
     <string name="projectsscreen_fps_hint_film">film</string>
     <string name="projectsscreen_fps_hint_pal">PAL (Europa)</string>
@@ -260,6 +266,16 @@
         <item quantity="one">De används %1$d gånger i tidslinjen – de klippen tas också bort.</item>
         <item quantity="other">De används %1$d gånger i tidslinjen – de klippen tas också bort.</item>
     </plurals>
+    <!-- ExportPreset (ExportUi.kt) -->
+    <string name="exportui_preset">Förval</string>
+    <string name="exportpreset_compatible">Bäst kompatibilitet</string>
+    <string name="exportpreset_compatible_hint">H.264, 8-bit – spelas överallt</string>
+    <string name="exportpreset_smaller">Mindre fil</string>
+    <string name="exportpreset_smaller_hint">%1$s med lägre bithastighet</string>
+    <string name="exportpreset_quality">Hög kvalitet</string>
+    <string name="exportpreset_quality_hint">%1$s med hög bithastighet, 10-bit när klippen är det</string>
+    <string name="exportpreset_custom">Anpassat</string>
+    <string name="exportpreset_custom_hint">Dina egna val i flikarna nedan</string>
     <!-- ExportPlan (ExportUi.kt) -->
     <string name="exportplan_size_none">Ingen kodare i telefonen klarar %1$d×%2$d – välj en lägre upplösning</string>
     <string name="exportplan_size_other">%1$s klarar inte %2$d×%3$d i telefonen, så filen görs i %4$s</string>
