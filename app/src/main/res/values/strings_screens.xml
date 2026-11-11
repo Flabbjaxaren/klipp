@@ -52,7 +52,6 @@
     <string name="exportui_res_hint_unsupported">%1$d×%2$d · not supported by the encoder</string>
     <string name="exportui_res_hint_upscaled">%1$d×%2$d · upscaled</string>
     <string name="exportui_note_upscaled">Larger than the project: the image is upscaled (no added sharpness).</string>
-    <string name="exportui_note_size_unsupported">The phone\'s encoder can\'t handle %1$d×%2$d with this codec – the nearest possible size is used.</string>
     <string name="exportui_fps_value">%1$s fps</string>
     <string name="exportui_frame_rate">Frame rate</string>
     <string name="exportui_codec">Codec</string>
@@ -252,4 +251,12 @@
         <item quantity="one">They are used %1$d time in the timeline – those clips will be removed too.</item>
         <item quantity="other">They are used %1$d times in the timeline – those clips will be removed too.</item>
     </plurals>
+    <!-- ExportPlan (ExportUi.kt) -->
+    <string name="exportplan_size_none">No encoder on this phone can make %1$d×%2$d – choose a lower resolution</string>
+    <string name="exportplan_size_other">%1$s can’t make %2$d×%3$d on this phone, so the file is made in %4$s</string>
+    <string name="exportplan_size_unknown">The phone doesn’t say whether %1$s can make %2$d×%3$d – the export will try</string>
+    <string name="exportplan_rate_unlisted">The %1$s encoder doesn’t list %2$s fps at this size – it may choose another rate</string>
+    <string name="exportplan_ten_none">No encoder on this phone makes 10-bit – the file will be 8-bit</string>
+    <string name="exportplan_hdr_sdr">This phone can’t encode HDR – the file will be SDR</string>
+    <string name="exportplan_fix">Use %1$s</string>
 </resources>

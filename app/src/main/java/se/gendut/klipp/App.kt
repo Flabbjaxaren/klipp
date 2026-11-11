@@ -232,6 +232,12 @@ fun KlippApp(
         val q = controller.snapshot.sequence
         val graded = gs.grades.values.any { !it.isNeutral } || !lookOf(grade).isNeutral
         val anyHdr = remember(controller.revision) { se.gendut.klipp.engine.CompositionBuilder.anyHdr(context, controller.snapshot) { controller.uriOf(it) } }
+        // 10-bit sources (Auto bit depth follows them) – read from the files, off the main thread
+        val anyTen by androidx.compose.runtime.produceState<Boolean?>(null, controller.revision) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { se.gendut.klipp.engine.CompositionBuilder.anyTenBit(context, controller.snapshot) { controller.uriOf(it) } }.getOrNull()
+            }
+        }
         ExportDialog(
             initial = remember { se.gendut.klipp.engine.ExportSettings.load(context, controller.currentId) },
             defaultName = remember { "Klipp_" + java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.ROOT).format(java.util.Date()) },
@@ -239,6 +245,7 @@ fun KlippApp(
             hdrPossible = anyHdr && se.gendut.klipp.engine.EncoderCaps.hdrSupported,
             // grading is done in SDR (8 bits, gamma) – in an HDR signal it would look wrong
             hdrBlocked = if (graded) stringResource(R.string.app_hdr_blocked) else null,
+            anyTenBit = anyTen,
             onDismiss = { exportAsk = false },
         ) { st, name -> exportAsk = false; runExport(st, name) }
     }
