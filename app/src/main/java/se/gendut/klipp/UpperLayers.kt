@@ -176,7 +176,7 @@ private fun LayerVideo(
                     MediaItem.ClippingConfiguration.Builder()
                         // start ≥ 0 and end after start (camera files can have a negative start time, see Playback.clipped)
                         .setStartPositionMs(((s.srcIn * 1000).roundToLong() - preMs[k]).coerceAtLeast(0L))
-                        .setEndPositionMs(((s.srcIn + (if (s.speed == 0.0) 0.1 else (seg.dur + (if (handoff) HANDOFF_ITEM_TAIL_S else 0.0)) * kotlin.math.abs(s.speed))) * 1000).roundToLong().coerceAtLeast((s.srcIn * 1000).roundToLong().coerceAtLeast(0L) + 1))
+                        .setEndPositionMs(((s.srcIn + (if (s.speed == 0.0) 0.1 else (seg.dur + (if (handoff) HANDOFF_ITEM_TAIL_S else UPPER_ITEM_TAIL_S)) * kotlin.math.abs(s.speed))) * 1000).roundToLong().coerceAtLeast((s.srcIn * 1000).roundToLong().coerceAtLeast(0L) + 1))
                         .build()
                 ).build()
         })
@@ -497,6 +497,13 @@ private const val HANDOFF_PREROLL_S = 0.25
  */
 private const val HANDOFF_ITEM_TAIL_S = 0.5
 
+/**
+ * An upper layer's items run this much (s) past their segment, hidden (the layer isn't shown after the segment's end),
+ * as the export's upper layers do (UPPER_TAIL): an item ending exactly at the segment's end lost its last frame – paused
+ * there, the layer showed the frame before (measured on the vivo with frame-coded clips).
+ */
+private const val UPPER_ITEM_TAIL_S = 0.2
+
 /** Turned off for the session when the main player was late during a pre-roll (see HANDOFF_PREROLL_S). */
 internal object Preroll { @Volatile var off = false }
 /** Playback has run this long (ms) before late frames during a pre-roll count against it. */
@@ -769,12 +776,12 @@ object SyncStats {
  */
 private suspend fun repaint(player: ExoPlayer) {
     kotlinx.coroutines.delay(100)
-    // one millisecond forward or back (alternating): a new frame at the same spot without drifting over time
     if (!player.playWhenReady && player.playbackState != Player.STATE_IDLE) {
         val pos = player.currentPosition
-        player.seekTo(if (pos % 2L == 0L) pos + 1 else pos - 1)
+        player.seekTo(se.gendut.klipp.engine.Repaint.next(player, pos))
     }
 }
+
 
 /**
  * The layer player's frame time → source time (seconds in the clip's file), for tracked windows. The player's
