@@ -10,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -189,16 +188,14 @@ private val TitleTemplate.desc: Int get() = when (this) {
     TitleTemplate.FREE -> R.string.titleui_tpl_desc_free
 }
 
-/** A template as a tile: a still of it and its name; selected = tonal with a bright edge. */
+/** A template as a tile: a still of it and its name; selected = the accent's container. */
 @Composable
 private fun TemplateRow(t: TitleTemplate, anim: TitleAnim, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
-    val bg by animateColorAsState(if (selected) K.Tonal else K.Surface, label = "tb")
-    val border by animateColorAsState(if (selected) K.Primary else Color.Transparent, label = "tbr")
+    val bg by animateColorAsState(if (selected) K.PrimaryContainer else K.Surface, label = "tb")
     Column(
         modifier.pressPop(src, 0.97f)
             .clip(RoundedCornerShape(16.dp)).background(bg)
-            .border(1.5.dp, border, RoundedCornerShape(16.dp))
             .clickable(interactionSource = src, indication = null, onClick = onClick)
             .padding(6.dp)
             .testTag("mall:${t.key}"),
@@ -246,9 +243,9 @@ private fun TitleFields(template: TitleTemplate, lines: List<String>, onChange: 
 @Composable
 private fun AnimChips(template: TitleTemplate, anim: TitleAnim, onPick: (TitleAnim) -> Unit) {
     if (template == TitleTemplate.ROLL) return
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (a in TitleAnim.entries) {
-            SpringChip(a.label, anim == a, { onPick(a) }, Modifier.testTag("anim:${a.key}"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+            SpringChip(a.label, anim == a, { onPick(a) }, Modifier.testTag("anim:${a.key}"))
         }
     }
 }
@@ -258,28 +255,33 @@ private fun AnimChips(template: TitleTemplate, anim: TitleAnim, onPick: (TitleAn
  * insert at the playhead), captions, and editing by the transcript.
  */
 @Composable
-fun TitlesPanel(state: EditorState, onEdit: () -> Unit) {
+fun TitlesPanel(state: EditorState, dockTabs: Boolean = false, onEdit: () -> Unit) {
     val backend = state.props ?: return
-    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    // the tab lives in the editor state: in the app the dock at the bottom shows the tabs (dockTabs), not the page
+    var tab by state::textTab
+    LaunchedEffect(state.openTab) { when (state.openTab) { "textTab:titles" -> { tab = 0; state.openTab = null }; "textTab:captions" -> { tab = 1; state.openTab = null } } }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("titles")) {
-        PanelTitle(stringResource(R.string.titleui_panel_title))
-        ConnectedToggleGroup(
-            listOf(stringResource(R.string.titleui_tab_titles), stringResource(R.string.titleui_captions), stringResource(R.string.transcript_title)),
-            tab, { tab = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
-            tag = { "textTab:$it" },
-        )
-        Spacer(Modifier.height(6.dp))
+        // (in the app the top bar names the page and the dock holds its tabs; on its own the page does both)
+        if (!dockTabs) {
+            PanelTitle(stringResource(R.string.titleui_panel_title))
+            ConnectedToggleGroup(
+                listOf(stringResource(R.string.titleui_tab_titles), stringResource(R.string.titleui_captions), stringResource(R.string.transcript_title)),
+                tab, { tab = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
+                tag = { "textTab:$it" },
+            )
+        }
+        Spacer(Modifier.height(if (dockTabs) 10.dp else 6.dp))
         when (tab) {
             0 -> TitlesTab(state, backend, onEdit)
             1 -> CaptionsTab(state, backend, onEdit)
             else -> (backend as? se.gendut.klipp.engine.ProjectController)?.let { TranscriptCard(it, state) }
         }
-        Spacer(Modifier.height(120.dp))
+        Spacer(Modifier.height(LocalBarSpace.current + 36.dp))
     }
 }
 
 @Composable
-private fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
+internal fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
     val haptics = rememberHaptics()
     var template by remember { mutableStateOf(TitleTemplate.LOWER_THIRD) }
     var anim by remember { mutableStateOf(TitleAnim.BOUNCE) }
@@ -316,6 +318,7 @@ private fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> U
             state.playing = false
             state.playhead = t.start
             state.selected = t.id
+            state.inspectGroup = 0
             state.inspecting = true
             onEdit()
         }
@@ -324,7 +327,7 @@ private fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> U
 
 /** Captions: shown or hidden, new / import, made from the speech, their style, and the list to correct. */
 @Composable
-private fun CaptionsTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
+internal fun CaptionsTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
     val haptics = rememberHaptics()
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -346,9 +349,9 @@ private fun CaptionsTab(state: EditorState, backend: PropsBackend, onEdit: () ->
     Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (backend.hasCaptionTrack) {
             val vis = backend.captionsVisible
-            SpringChip(stringResource(if (vis) R.string.titleui_captions_shown else R.string.titleui_captions_hidden), vis, { backend.setCaptionsVisible(!vis) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+            SpringChip(stringResource(if (vis) R.string.titleui_captions_shown else R.string.titleui_captions_hidden), vis, { backend.setCaptionsVisible(!vis) })
         }
-        SpringChip(stringResource(if (styleOpen) R.string.titleui_hide_style else R.string.titleui_font_and_style), styleOpen, { haptics.tick(); styleOpen = !styleOpen }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+        SpringChip(stringResource(if (styleOpen) R.string.titleui_hide_style else R.string.titleui_font_and_style), styleOpen, { haptics.tick(); styleOpen = !styleOpen })
     }
     androidx.compose.animation.AnimatedVisibility(styleOpen) { Column { CaptionStyleEditor(backend, state.captions.first().track) } }
     var editing by remember { mutableStateOf<Long?>(null) }
@@ -423,9 +426,9 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
             TitleFontRow(look.font) { commit(look.copy(font = it)) }
             // bold, italic, all capitals
             Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                SpringChip(stringResource(R.string.titleui_bold), look.bold, { commit(look.copy(bold = !look.bold)) }, Modifier.testTag("title:bold"), selectedColor = K.Primary, selectedText = K.OnPrimary)
-                SpringChip(stringResource(R.string.titleui_italic), look.italic, { commit(look.copy(italic = !look.italic)) }, Modifier.testTag("title:italic"), selectedColor = K.Primary, selectedText = K.OnPrimary)
-                SpringChip(stringResource(R.string.titleui_caps), look.caps, { commit(look.copy(caps = !look.caps)) }, Modifier.testTag("title:caps"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+                SpringChip(stringResource(R.string.titleui_bold), look.bold, { commit(look.copy(bold = !look.bold)) }, Modifier.testTag("title:bold"))
+                SpringChip(stringResource(R.string.titleui_italic), look.italic, { commit(look.copy(italic = !look.italic)) }, Modifier.testTag("title:italic"))
+                SpringChip(stringResource(R.string.titleui_caps), look.caps, { commit(look.copy(caps = !look.caps)) }, Modifier.testTag("title:caps"))
             }
             PropSlider(stringResource(R.string.titleui_tracking), look.tracking * 100f, -10f, 60f, 0f, { "%.0f".format(it) }, "titleTracking", lane = false,
                 onLive = { live(look.copy(tracking = it / 100f)) }) { commit(look.copy(tracking = it / 100f)) }
@@ -433,15 +436,15 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
                 onLive = { live(look.copy(leading = it / 100f)) }) { commit(look.copy(leading = it / 100f)) }
             if (look.template == TitleTemplate.FREE) Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for ((k, l) in listOf("l" to stringResource(R.string.captionui_left), "c" to stringResource(R.string.captionui_center), "r" to stringResource(R.string.captionui_right)))
-                    SpringChip(l, look.align == k, { commit(look.copy(align = k)) }, Modifier.testTag("title:align:$k"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+                    SpringChip(l, look.align == k, { commit(look.copy(align = k)) }, Modifier.testTag("title:align:$k"))
             }
             }
         }
         1 -> {
             PanelCard(Modifier.padding(top = 10.dp)) {
             SectionLabel(stringResource(R.string.titleui_template))
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (t in TitleTemplate.entries) SpringChip(t.label, look.template == t, { backend.setTitle(p.id, look = look.copy(template = t).encode()) }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+            androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (t in TitleTemplate.entries) SpringChip(t.label, look.template == t, { backend.setTitle(p.id, look = look.copy(template = t).encode()) })
             }
             }
             if (look.template != TitleTemplate.ROLL) PanelCard(Modifier.padding(top = 10.dp)) { TitlePlateSection(look, ::live, ::commit) }
@@ -449,7 +452,7 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
             Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.captionui_outline)) }
                 SpringChip(stringResource(if (look.stroke > 0f) R.string.titleui_on else R.string.titleui_off), look.stroke > 0f,
-                    { commit(look.copy(stroke = if (look.stroke > 0f) 0f else 0.04f)) }, Modifier.testTag("title:stroke"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+                    { commit(look.copy(stroke = if (look.stroke > 0f) 0f else 0.04f)) }, Modifier.testTag("title:stroke"))
             }
             if (look.stroke > 0f) {
                 PropSlider(stringResource(R.string.titleui_width), look.stroke * 100f, 0.5f, 20f, 4f, { "%.1f".format(it) }, "titleStroke", lane = false,
@@ -477,7 +480,7 @@ private fun TitlePlateSection(look: TitleLook, live: (TitleLook) -> Unit, commit
     fun c(n: TitlePlate) = commit(look.copy(plate = n))
     Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.titleui_plate)) }
-        SpringChip(stringResource(if (pl.on) R.string.titleui_on else R.string.titleui_off), pl.on, { c(pl.copy(on = !pl.on)) }, Modifier.testTag("title:plate"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+        SpringChip(stringResource(if (pl.on) R.string.titleui_on else R.string.titleui_off), pl.on, { c(pl.copy(on = !pl.on)) }, Modifier.testTag("title:plate"))
     }
     if (pl.on) {
         PropSlider(stringResource(R.string.titleui_opacity), pl.opacity * 100f, 0f, 100f, TitlePlate.default(look.template).opacity * 100f, { "%.0f %%".format(it) }, "plateOpacity", lane = false,
@@ -494,7 +497,7 @@ private fun TitlePlateSection(look: TitleLook, live: (TitleLook) -> Unit, commit
     if (look.template == TitleTemplate.LOWER_THIRD || look.template == TitleTemplate.CHAPTER) {
         Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.titleui_accent)) }
-            SpringChip(stringResource(if (pl.accentOn) R.string.titleui_on else R.string.titleui_off), pl.accentOn, { c(pl.copy(accentOn = !pl.accentOn)) }, Modifier.testTag("title:accent"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+            SpringChip(stringResource(if (pl.accentOn) R.string.titleui_on else R.string.titleui_off), pl.accentOn, { c(pl.copy(accentOn = !pl.accentOn)) }, Modifier.testTag("title:accent"))
         }
         if (pl.accentOn) ColorPicker(pl.accent, "accentColor", onLive = { l(pl.copy(accent = it)) }) { c(pl.copy(accent = it)) }
     }
@@ -511,7 +514,7 @@ private fun TitleShadowSection(state: EditorState, p: ClipProps, look: TitleLook
         Box(Modifier.weight(1f)) { SectionLabel(stringResource(R.string.titleui_shadow)) }
         SpringChip(stringResource(if (sh.on) R.string.titleui_on else R.string.titleui_off), sh.on,
             { commit(if (sh.on) TitleShadow.OFF else TitleShadow()) },
-            Modifier.testTag("title:shadow"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+            Modifier.testTag("title:shadow"))
     }
     if (!sh.on) return
     val d = TitleShadow()
@@ -536,7 +539,7 @@ fun ListRow(time: String, text: String, onClick: () -> Unit) {
             .clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(time, color = K.Primary, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(96.dp))
+        Text(time, color = K.OnSurfaceVar, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(96.dp))
         Text(text, color = K.OnSurface, fontSize = 14.sp, maxLines = 2)
     }
 }
@@ -553,7 +556,7 @@ private fun CaptionEditor(c: UiCaption, backend: PropsBackend, onDone: () -> Uni
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(K.SurfaceHigh).padding(12.dp).testTag("caption:${c.id}"),
         )
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SpringChip(stringResource(R.string.titleui_save), false, { haptics.confirm(); backend.setCaptionText(c.id, text); onDone() }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+            SpringChip(stringResource(R.string.titleui_save), false, { haptics.confirm(); backend.setCaptionText(c.id, text); onDone() })
             SpringChip(stringResource(R.string.titleui_delete), false, { haptics.heavy(); backend.deleteCaption(c.id); onDone() })
             Text("${formatTc(c.start)} – ${formatTc(c.end)}", color = K.OnSurfaceVar, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.CenterVertically))
         }
@@ -638,7 +641,7 @@ private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
     // the clip the box is drawn on: the topmost visible video under the title at the playhead (inside the title)
     val at = state.playhead.coerceIn(t0, t1 - 0.001f)
     val under = state.clips.filter { it.kind == ClipKind.VIDEO && it.enabled && state.trackStates.getOrNull(it.track)?.enabled != false && at >= it.start && at < it.start + it.length }.minByOrNull { it.track }
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
         if (busy) {
             PillButton(stringResource(R.string.titleui_cancel), { TrackService.cancel() }, Modifier.testTag("follow:cancel"), icon = Ic.Close, filled = false)
         } else {
@@ -664,7 +667,7 @@ private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
                     gs.setFollow(p.id, se.gendut.klipp.engine.Follow(c.id, id))
                     TrackService.start(ctx, gs, c, id, at, follow = { t -> state.playing = false; state.playhead = t })
                 }
-            }, Modifier.testTag("follow:draw"), icon = Ic.Target, filled = state.boxPick == null)
+            }, Modifier.testTag("follow:draw"), icon = Ic.Target, on = state.boxPick != null)
         }
     }
     if (!busy && state.boxPick == null) TrackDensityRow()
@@ -684,7 +687,7 @@ private fun FollowSection(state: EditorState, p: ClipProps, gs: GradeState) {
             val on = cur?.clip == f.clip && cur.node == f.node
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ToggleChip(label, on, { haptics.tick(); gs.setFollow(p.id, if (on) cur else f.copy(scale = cur?.scale == true, rotate = cur?.rotate == true)) }, Modifier.testTag("follow:${f.clip}:${f.node}"))
-                if (removable(f)) Box(Modifier.size(40.dp).clip(RoundedCornerShape(20.dp)).clickable { haptics.confirm(); removeTrack(f) }.testTag("follow:delete:${f.clip}:${f.node}"), contentAlignment = Alignment.Center) {
+                if (removable(f)) Box(Modifier.size(44.dp).clip(RoundedCornerShape(22.dp)).clickable { haptics.confirm(); removeTrack(f) }.testTag("follow:delete:${f.clip}:${f.node}"), contentAlignment = Alignment.Center) {
                     androidx.compose.material3.Icon(Ic.Delete, stringResource(R.string.titleui_follow_delete), tint = K.OnSurfaceVar, modifier = Modifier.size(20.dp))
                 }
             }

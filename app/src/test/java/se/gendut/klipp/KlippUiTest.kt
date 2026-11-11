@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
@@ -107,7 +108,11 @@ class KlippUiTest {
         assertEquals(3f, state.clips.first { it.id == 2L }.length, 0.01f)
 
         // Razor: split A003 (0–8 s) at 4 s
-        toolClick("Rakblad")
+        // the tools are in the tool chip's menu
+        rule.onNodeWithTag("tool:menu").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("tool:RAZOR").performClick()
+        rule.waitForIdle()
         tl.performTouchInput { click(pt(4f, v1Center)) }
         rule.waitForIdle()
         val parts = state.clips.filter { it.track == 2 && it.name == "A003_intervju" && it.start < 8f }
@@ -141,11 +146,11 @@ class KlippUiTest {
     @Test
     fun audioAndTextPanels() {
         val (_, ui) = setUp()
-        rule.onNodeWithText("Ljud").performClick()
+        rule.onNodeWithTag("modeTab:2").performClick()
         rule.waitForIdle()
         assertEquals(2f, ui.page.value, 0.01f)
         rule.onRoot().captureRoboImage("$dir/08_ljud.png")
-        rule.onNodeWithText("Text").performClick()
+        rule.onNodeWithTag("modeTab:3").performClick()
         rule.waitForIdle()
         rule.onNodeWithText("Namnskylt").performClick()
         rule.mainClock.advanceTimeBy(600)
@@ -156,7 +161,8 @@ class KlippUiTest {
     fun addClipFromFab() {
         val (state, _) = setUp()
         val before = state.clips.size
-        rule.onNode(androidx.compose.ui.test.hasContentDescription("Lägg till klipp")).performClick()
+        // the row for an empty selection replaced the + button
+        rule.onNodeWithTag("add:media").performClick()
         rule.mainClock.advanceTimeBy(120)
         rule.onRoot().captureRoboImage("$dir/10_nytt_klipp_flyger.png")
         rule.waitForIdle()

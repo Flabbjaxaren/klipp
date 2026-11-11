@@ -6,17 +6,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -76,14 +76,20 @@ fun ColorPicker(color: Int, tag: String, onLive: (Int) -> Unit = {}, onCommit: (
     }
     val cur = Hsv.rgb(hsv[0], hsv[1], hsv[2])
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (c in PICKER_SWATCHES) {
+        // the quick colors in two rows: all of them show, also in the narrow sheet of a phone (a cell is pressed, the dot is smaller)
+        for (line in PICKER_SWATCHES.chunked(7)) Row(Modifier.fillMaxWidth()) {
+            for (c in line) {
                 val on = cur == c
                 Box(
-                    Modifier.size(34.dp).clip(CircleShape).background(Color(0xFF000000 or c.toLong()))
-                        .border(if (on) 3.dp else 1.dp, if (on) K.Primary else K.OutlineVar, CircleShape)
-                        .clickable { hsv = Hsv.of(c); commit(c) }.testTag("$tag:sw:${Hsv.hex(c)}")
-                )
+                    Modifier.weight(1f).height(40.dp).clip(RoundedCornerShape(12.dp))
+                        .clickable { hsv = Hsv.of(c); commit(c) }.testTag("$tag:sw:${Hsv.hex(c)}"),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        Modifier.padding(horizontal = 3.dp).widthIn(max = 34.dp).fillMaxWidth().aspectRatio(1f).clip(CircleShape)
+                            .background(Color(0xFF000000 or c.toLong())).border(if (on) 3.dp else 1.dp, if (on) K.Primary else K.OutlineVar, CircleShape)
+                    )
+                }
             }
         }
         // saturation (→) and brightness (↑) at the chosen hue

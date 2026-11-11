@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.horizontalScroll
 import se.gendut.klipp.engine.ClipGrade
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -59,6 +58,21 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material3.Icon
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -70,6 +84,9 @@ import kotlin.math.roundToInt
  * Slider for a real value: drag anywhere on the track (no snapping – a tick when passing the default position),
  * double tap = reset. The engine only gets the value when the finger lifts (one undo step per drag).
  */
+/** The room at the sides of a [PropSlider] (the color page's narrow column has its own). */
+val LocalSliderInset = androidx.compose.runtime.compositionLocalOf { 16.dp }
+
 @Composable
 fun PropSlider(
     label: String,
@@ -98,13 +115,21 @@ fun PropSlider(
     val live by rememberUpdatedState(onLive)
     val grow by animateFloatAsState(if (dragging) 1f else 0f, spring(0.4f, 600f), label = "grow")
     Column {
-    Row(Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (anim != null) Row(Modifier.width(108.dp), verticalAlignment = Alignment.CenterVertically) {
-            Stopwatch(anim)
-            Text(label, color = K.OnSurfaceVar, fontSize = 13.sp, maxLines = 1, modifier = Modifier.padding(start = 4.dp))
-        } else Text(label, color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.width(88.dp))
+    Column(Modifier.fillMaxWidth().padding(horizontal = LocalSliderInset.current)) {
+        // the name on the left and the value on the right, above the track (the track gets the whole width)
+        val nav = anim != null && lane && anim.animated
+        Row(Modifier.fillMaxWidth().height(if (nav) 34.dp else if (anim != null) 28.dp else 20.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (anim != null) Stopwatch(anim)
+            Text(
+                label, color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(start = if (anim != null) 6.dp else 0.dp, end = 8.dp),
+            )
+            // the keyframe jumps beside the name: the lane under the slider gets the whole width
+            if (nav) { KeyframeNav(anim); Spacer(Modifier.width(8.dp)) }
+            Text(format(v.value), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, style = TextStyle(fontFeatureSettings = "tnum"))
+        }
         Box(
-            Modifier.weight(1f).height(44.dp).testTag("prop:$tag")
+            Modifier.fillMaxWidth().height(44.dp).testTag("prop:$tag")
                 .pointerInput(min, max, default) {
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -163,24 +188,29 @@ fun PropSlider(
             Canvas(Modifier.fillMaxWidth().height(44.dp)) {
                 val h = 16.dp.toPx()
                 val top = (size.height - h) / 2
-                drawRoundRect(K.SurfaceHighest, Offset(0f, top), Size(size.width, h), CornerRadius(h / 2))
                 fun xOf(f: Float) = ((f - min) / (max - min)).coerceIn(0f, 1f) * size.width
                 val x = xOf(v.value)
                 val x0 = xOf(default.coerceIn(min, max))
+                val hw = (4f + 2f * grow).dp.toPx()
+                val hh = (36f + 6f * grow).dp.toPx()
+                // the track in two parts with a gap around the handle: round outer ends, tighter corners towards the handle
+                val gap = 6.dp.toPx() + hw / 2
+                val outer = CornerRadius(8.dp.toPx())
+                val inner = CornerRadius(3.dp.toPx())
+                val track = Path().apply {
+                    if (x - gap > 1f) addRoundRect(RoundRect(Rect(0f, top, x - gap, top + h), topLeft = outer, bottomLeft = outer, topRight = inner, bottomRight = inner))
+                    if (x + gap < size.width - 1f) addRoundRect(RoundRect(Rect(x + gap, top, size.width, top + h), topLeft = inner, bottomLeft = inner, topRight = outer, bottomRight = outer))
+                }
+                drawPath(track, K.SurfaceHighest)
+                // filled from the default position to the value
                 val a = kotlin.math.min(x, x0)
                 val b = kotlin.math.max(x, x0)
-                drawRoundRect(K.Primary.copy(alpha = 0.8f), Offset(a, top), Size((b - a).coerceAtLeast(0f), h), CornerRadius(h / 2))
-                // the default position
-                drawCircle(K.OnSurfaceVar.copy(alpha = 0.6f), 2.dp.toPx(), Offset(x0, size.height / 2))
-                val hw = (4f + 2f * grow).dp.toPx()
-                val hh = (28f + 8f * grow).dp.toPx()
-                drawRoundRect(K.PrimarySoft, Offset(x - hw / 2, (size.height - hh) / 2), Size(hw, hh), CornerRadius(hw / 2))
+                clipPath(track) { drawRect(K.Primary, Offset(a, top), Size((b - a).coerceAtLeast(0f), h)) }
+                // the default position (hidden under the handle)
+                if (abs(x - x0) > gap) drawCircle(if (b - a > 0f) K.OnPrimary.copy(alpha = 0.7f) else K.OnSurfaceVar, 2.dp.toPx(), Offset(x0.coerceIn(4.dp.toPx(), size.width - 4.dp.toPx()), size.height / 2))
+                drawRoundRect(K.Primary, Offset(x - hw / 2, (size.height - hh) / 2), Size(hw, hh), CornerRadius(hw / 2))
             }
         }
-        Text(
-            format(v.value), color = K.OnSurface, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
-            modifier = Modifier.width(64.dp).padding(start = 8.dp),
-        )
     }
     if (anim != null && lane) KeyframeLane(anim)
     }
@@ -210,8 +240,13 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
     val p = pState.value
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
-    Column(Modifier.fillMaxSize().background(K.Bg).verticalScroll(rememberScrollState()).testTag("properties")) {
-        PanelTitle(p?.name ?: stringResource(R.string.properties_title)) { RoundIcon(Ic.Check, stringResource(R.string.properties_done)) { haptics.tick(); onClose() } }
+    Column(Modifier.fillMaxSize().background(K.Bg).testTag("properties")) {
+        // a tool group of the clip opened from its toolbar: the group's name above the clip's
+        val groupTitle = if (state.inspectGroup == GROUP_PICTURE && p?.isTitle == false && !p.isAudio) stringResource(R.string.design_picture) else null
+        SheetHeader(
+            groupTitle ?: p?.name ?: stringResource(R.string.properties_title),
+            if (p != null && groupTitle != null) stringResource(R.string.design_selection, p.name, p.clipEnd - p.clipStart) else null,
+        ) { haptics.tick(); onClose() }
         if (p == null) {
             Text(stringResource(R.string.properties_select_clip), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
             return@Column
@@ -242,7 +277,6 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
             },
         )
         // one bar for everything about the clip; a dot marks the tools that are in use
-        var tab by androidx.compose.runtime.saveable.rememberSaveable(p.isTitle, p.isAudio) { mutableStateOf(0) }
         val gsNow = LocalGradeState.current
         val layerFx = gsNow?.shown(p.id)?.layer
         val moved = (p.x ?: (p.seqW / 2f)) != p.seqW / 2f || (p.y ?: (p.seqH / 2f)) != p.seqH / 2f || p.scale != 100f || p.rotation != 0f
@@ -261,17 +295,33 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
                 ToolTab(stringResource(R.string.titleui_tab_track), Ic.Target, "titleTab:3", gsNow?.let { p.id in it.follows || p.id in it.pins } == true),
                 motionTab, fadeTab,
             )
-            else -> listOf(
-                motionTab,
-                ToolTab(stringResource(R.string.properties_crop), Ic.Crop, "propTab:crop", layerFx?.crop != null),
-                ToolTab(stringResource(R.string.properties_blend_tab), Ic.Layers, "propTab:blend", p.opacity != 100f || (layerFx?.blend ?: se.gendut.klipp.engine.BlendMode.NORMAL) != se.gendut.klipp.engine.BlendMode.NORMAL),
-                ToolTab(stringResource(R.string.properties_tab_key), Ic.Dropper, "propTab:key", layerFx?.key != null),
-                ToolTab(stringResource(R.string.properties_mask), Ic.Window, "propTab:mask", layerFx?.mask != null),
-                fadeTab,
-            )
+            else -> {
+                val crop = ToolTab(stringResource(R.string.properties_crop), Ic.Crop, "propTab:crop", layerFx?.crop != null)
+                val blend = ToolTab(stringResource(R.string.properties_blend_tab), Ic.Layers, "propTab:blend", p.opacity != 100f || (layerFx?.blend ?: se.gendut.klipp.engine.BlendMode.NORMAL) != se.gendut.klipp.engine.BlendMode.NORMAL)
+                val key = ToolTab(stringResource(R.string.properties_tab_key), Ic.Dropper, "propTab:key", layerFx?.key != null)
+                val mask = ToolTab(stringResource(R.string.properties_mask), Ic.Window, "propTab:mask", layerFx?.mask != null)
+                val g = gsNow?.of(p.id)
+                // stabilization and motion blur need moving video from a file (not an adjustment layer or a freeze frame)
+                val camera = state.clips.firstOrNull { it.id == p.id }?.let { it.kind == ClipKind.VIDEO && !it.hold } == true
+                when (state.inspectGroup) {
+                    // the picture: where it sits, what of it shows, how it lies over what is below, and the camera's
+                    // movement (stabilized or smeared)
+                    GROUP_PICTURE -> listOf(
+                        ToolTab(stringResource(R.string.design_position), Ic.Center, "propTab:motion", moved), crop, blend, key, mask,
+                    ) + if (!camera) emptyList() else listOf(
+                        ToolTab(stringResource(R.string.design_stabilize), Ic.Target, "propTab:stab", g?.stab != null),
+                        ToolTab(stringResource(R.string.design_motion_blur), Ic.Film, "propTab:mblur", g?.mblur != null),
+                    )
+                    else -> listOf(motionTab, crop, blend, key, mask, fadeTab)
+                }
+            }
         }
+        // (the clip's toolbar can ask for one of the tools: the sheet opens on it)
+        var tab by androidx.compose.runtime.saveable.rememberSaveable(p.isTitle, p.isAudio, state.inspectGroup) {
+            mutableStateOf(tabs.indexOfFirst { it.tag == state.openTab }.coerceAtLeast(0))
+        }
+        LaunchedEffect(state.openTab) { tabs.indexOfFirst { it.tag == state.openTab }.takeIf { it >= 0 }?.let { tab = it; state.openTab = null } }
         val current = tab.coerceIn(0, tabs.lastIndex)
-        ToolTabs(tabs, current, { tab = it }, Modifier.padding(horizontal = 12.dp))
         @Composable fun opacitySlider() = PropSlider(stringResource(R.string.properties_opacity), p.opacity, 0f, 100f, 100f, { fmtNum(it, " %") }, "opacity", anim = anim("opacity"),
             onLive = { v -> live { it.copy(opacity = v) } }) { backend.setProps(p.id, opacity = it); done() }
         @Composable fun motion() = PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_motion), trailing = { SpringChip(stringResource(R.string.properties_reset), false, { haptics.confirm(); backend.resetMotion(p.id) }) }) {
@@ -292,6 +342,9 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
             FadeRow(stringResource(R.string.properties_fade_in), "In", p.fadeIn) { haptics.confirm(); backend.setTransition(p.id, true, it) }
             FadeRow(stringResource(R.string.properties_fade_out), "Ut", p.fadeOut) { haptics.confirm(); backend.setTransition(p.id, false, it) }
         }
+        Row(Modifier.weight(1f).fillMaxWidth()) {
+        ToolRail(tabs, current, { tab = it })
+        Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
         when {
             p.isAudio -> if (current == 0) PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_volume)) {
                 PropSlider(stringResource(R.string.properties_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "volume", anim = anim("level"),
@@ -302,17 +355,89 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
                 if (current == 4) motion()
                 if (current == 5) fade()
             }
-            else -> when (current) {
-                0 -> motion()
-                1 -> gsNow?.let { CropSection(it, p, state, backend) }
-                5 -> fade()
+            else -> when (val t = tabs[current].tag) {
+                "propTab:motion" -> motion()
+                "propTab:crop" -> gsNow?.let { CropSection(it, p, state, backend) }
+                "propTab:fade" -> fade()
+                // stabilization and motion blur used to be on the color page; one card here holds both
+                "propTab:stab", "propTab:mblur" -> gsNow?.let { g -> g.clipInfo?.invoke(p.id)?.let { StabilizeCard(g, it, blurOnly = t == "propTab:mblur") } }
                 else -> PanelCard(Modifier.padding(top = 10.dp)) {
-                    if (current == 2) opacitySlider()
-                    gsNow?.let { LayerSection(it, p.id, state, current - 1) }
+                    if (t == "propTab:blend") opacitySlider()
+                    gsNow?.let { LayerSection(it, p.id, state, when (t) { "propTab:blend" -> 1; "propTab:key" -> 2; else -> 3 }) }
                 }
             }
         }
-        Spacer(Modifier.height(120.dp))
+        Spacer(Modifier.height(24.dp))
+        }
+        }
+    }
+}
+
+/** The top of a sheet over the timeline: what it is about (and of which clip), and Done. */
+@Composable
+internal fun SheetHeader(title: String, subtitle: String? = null, onDone: () -> Unit) {
+    Row(Modifier.fillMaxWidth().height(60.dp).padding(start = 20.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(title, color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle != null) Text(subtitle, color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        val src = remember { MutableInteractionSource() }
+        Box(
+            Modifier.pressPop(src, 0.9f).height(44.dp).clip(RoundedCornerShape(22.dp)).background(K.SurfaceHighest)
+                .clickable(interactionSource = src, indication = null, onClick = onDone).padding(horizontal = 20.dp).testTag("sheet:done"),
+            contentAlignment = Alignment.Center,
+        ) { Text(stringResource(R.string.properties_done), color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+    }
+}
+
+/**
+ * The tools of a sheet as a rail on the left: an icon in a pill with its name under; a dot marks the tools in use.
+ * The rail ends above undo and redo, which lie over the page's corner. When the tools don't all fit they scroll, sized
+ * so that half a tool shows at the edge (and fades): there is more. The selected one is kept in view.
+ * [dense] = the color page's rail: the tools close together, the selected one's name in the text color.
+ */
+@Composable
+internal fun ToolRail(tabs: List<ToolTab>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier, dense: Boolean = false) {
+    val haptics = rememberHaptics()
+    val bar = LocalBarSpace.current
+    BoxWithConstraints(modifier.width(76.dp).fillMaxHeight().padding(top = if (dense) 0.dp else 6.dp, bottom = if (bar > 0.dp) bar + 4.dp else 0.dp)) {
+        val full = if (dense) 50.dp else 56.dp
+        val least = 44.dp
+        val each = when {
+            full * tabs.size <= maxHeight -> full
+            least * tabs.size <= maxHeight -> maxHeight / tabs.size
+            // they scroll: whole tools and half a one fill the height
+            else -> (maxHeight / ((maxHeight / least - 0.5f).toInt().coerceAtLeast(1) + 0.5f)).coerceAtLeast(least)
+        }
+        val scroll = rememberScrollState()
+        Column(Modifier.fillMaxSize().fadingEdges(scroll).verticalScroll(scroll), horizontalAlignment = Alignment.CenterHorizontally) {
+            for ((i, t) in tabs.withIndex()) {
+                val on = i == selected
+                val bg by animateColorAsState(if (on) K.PrimaryContainer else K.PrimaryContainer.copy(alpha = 0f), label = "rb")
+                val fg by animateColorAsState(if (on) K.PrimarySoft else K.OnSurfaceVar, label = "rf")
+                val name by animateColorAsState(if (on && dense) K.OnSurface else if (on) K.PrimarySoft else K.OnSurfaceVar, label = "rn")
+                Column(
+                    Modifier.width(76.dp).height(each).inViewWhen(on, each / 2, horizontal = false)
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, role = Role.Tab) { if (!on) haptics.tick(); onSelect(i) }
+                        .semantics { this.selected = on }
+                        .testTag(t.tag),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                ) {
+                    Box(Modifier.size(52.dp, 28.dp).clip(RoundedCornerShape(14.dp)).background(bg), contentAlignment = Alignment.Center) {
+                        Icon(t.icon, t.label, tint = fg, modifier = Modifier.size(20.dp))
+                        if (t.marked) Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 9.dp).size(7.dp).clip(CircleShape).background(K.Primary))
+                    }
+                    Spacer(Modifier.height(if (each < 52.dp) 2.dp else 3.dp))
+                    // a long name shrinks to the rail's width instead of being cut
+                    BasicText(
+                        t.label, color = { name }, maxLines = 1,
+                        style = TextStyle(fontSize = 11.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium),
+                        autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
+                        modifier = Modifier.padding(horizontal = 3.dp),
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -333,7 +458,7 @@ private fun LayerSection(gs: GradeState, clip: Long, state: EditorState, part: I
     if (part == 2) {
     SectionLabel(stringResource(R.string.properties_green_screen))
     val key = fx.key
-    Row(Modifier.padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SpringChip(stringResource(R.string.properties_off), key == null, { haptics.tick(); set(fx.copy(key = null)) }, Modifier.testTag("key:off"))
         SpringChip(stringResource(R.string.properties_key_green), key?.color == se.gendut.klipp.engine.ChromaKey.GREEN, {
             haptics.confirm(); set(fx.copy(key = (key ?: se.gendut.klipp.engine.ChromaKey()).copy(color = se.gendut.klipp.engine.ChromaKey.GREEN)))
@@ -359,7 +484,7 @@ private fun LayerSection(gs: GradeState, clip: Long, state: EditorState, part: I
     }
     if (part == 1) {
     SectionLabel(stringResource(R.string.properties_blend))
-    Row(Modifier.padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (m in se.gendut.klipp.engine.BlendMode.entries) {
             SpringChip(m.label, fx.blend == m, { haptics.tick(); set(fx.copy(blend = m)) }, Modifier.testTag("blend:${m.name}"))
         }
@@ -373,7 +498,7 @@ private fun LayerSection(gs: GradeState, clip: Long, state: EditorState, part: I
     if (part == 3) {
     SectionLabel(stringResource(R.string.properties_mask))
     val mask = fx.mask
-    Row(Modifier.padding(horizontal = 16.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SpringChip(stringResource(R.string.properties_off), mask == null, { haptics.tick(); set(fx.copy(mask = null)) }, Modifier.testTag("mask:off"))
         SpringChip(stringResource(R.string.properties_mask_rect), mask?.shape == se.gendut.klipp.engine.LayerMask.RECT, {
             haptics.confirm(); set(fx.copy(mask = (mask ?: se.gendut.klipp.engine.LayerMask()).copy(shape = se.gendut.klipp.engine.LayerMask.RECT)))
@@ -464,14 +589,14 @@ private fun CropSection(gs: GradeState, p: ClipProps, state: EditorState, backen
     PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_crop_format), trailing = {
         SpringChip(stringResource(R.string.properties_reset), false, { haptics.confirm(); set(null) }, Modifier.testTag("crop:reset"))
     }) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for ((label, a) in listOf("16:9" to 16f / 9f, "9:16" to 9f / 16f, "1:1" to 1f, "4:5" to 4f / 5f)) {
                 val ratio = a / frame
                 val w = if (ratio >= 1f) 1f else ratio
                 val h = if (ratio >= 1f) 1f / ratio else 1f
                 SpringChip(label, abs(cur.w - w) < 0.002f && abs(cur.h - h) < 0.002f && fx.crop != null, {
                     haptics.confirm(); set(crop.withValues(cur.copy(cx = 0.5f, cy = 0.5f, w = w, h = h), keySrc(), tol))
-                }, Modifier.testTag("crop:$label"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+                }, Modifier.weight(1f).testTag("crop:$label"), tight = true)
             }
         }
     }
@@ -622,7 +747,7 @@ private fun MaskControls(
         val busy = MaskTrackService.target == clip
         val progress = MaskTrackService.progress
         if (!busy) TrackDensityRow()
-        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (busy) {
                 PillButton(stringResource(R.string.properties_cancel), { MaskTrackService.cancel() }, Modifier.testTag("mask:trackCancel"), icon = Ic.Close, filled = false)
             } else {
@@ -654,10 +779,10 @@ private fun FadeRow(label: String, tag: String, current: Float?, set: (Float?) -
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.width(32.dp))
-        SpringChip(stringResource(R.string.properties_off), current == null, { set(null) }, selectedColor = K.SurfaceHighest, selectedText = K.OnSurface)
+        SpringChip(stringResource(R.string.properties_off), current == null, { set(null) }, Modifier.weight(1f), selectedColor = K.SurfaceHighest, selectedText = K.OnSurface, tight = true)
         for (s in listOf(0.5f, 1f, 2f)) {
             val on = current != null && abs(current - s) < 0.03f
-            SpringChip(if (s < 1f) stringResource(R.string.properties_fade_half) else "${s.roundToInt()} s", on, { set(s) }, Modifier.testTag("fade$tag$s"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+            SpringChip(if (s < 1f) stringResource(R.string.properties_fade_half) else "${s.roundToInt()} s", on, { set(s) }, Modifier.weight(1f).testTag("fade$tag$s"), tight = true)
         }
     }
 }

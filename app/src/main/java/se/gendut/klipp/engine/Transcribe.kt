@@ -497,7 +497,7 @@ object AutoCaptions {
                 message = Str.t(R.string.transcribe_canceled)
                 throw e
             } catch (e: Throwable) {
-                message = Str.t(R.string.transcribe_download_failed, e.message ?: e.javaClass.simpleName)
+                message = Str.t(R.string.transcribe_download_failed, Str.netError(e))
             } finally {
                 progress = null
                 phase = ""

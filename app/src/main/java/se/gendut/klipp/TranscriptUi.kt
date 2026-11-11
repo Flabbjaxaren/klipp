@@ -126,10 +126,10 @@ fun TranscriptSheet(controller: ProjectController, state: EditorState, onDismiss
                                 val current = now >= w.start && now < w.end
                                 Text(
                                     w.text, fontSize = 17.sp, lineHeight = 26.sp,
-                                    color = when { selected -> K.OnPrimary; current -> K.Primary; else -> K.OnSurface },
+                                    color = when { selected -> K.PrimarySoft; current -> K.Primary; else -> K.OnSurface },
                                     fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
                                     modifier = Modifier.padding(end = 3.dp, bottom = 2.dp).clip(RoundedCornerShape(6.dp))
-                                        .background(if (selected) K.Primary else androidx.compose.ui.graphics.Color.Transparent)
+                                        .background(if (selected) K.PrimaryContainer else androidx.compose.ui.graphics.Color.Transparent)
                                         .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                             haptics.tick()
                                             state.playing = false

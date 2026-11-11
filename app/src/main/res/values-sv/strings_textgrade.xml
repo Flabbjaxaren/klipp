@@ -82,10 +82,8 @@
     <string name="captionui_split">Dela</string>
     <string name="captionui_new">Ny</string>
     <string name="captionui_delete">Ta bort</string>
-    <string name="captionui_deselect">Avmarkera</string>
     <string name="captionui_playhead_inside">Ställ spelhuvudet inne i undertexten</string>
     <string name="captionui_caption">Undertext</string>
-    <string name="captionui_done">Klar</string>
     <string name="captionui_select_caption">Markera en undertext i tidslinjen</string>
     <string name="captionui_time_hint">%1$s – %2$s  ·  dra blocket i tidslinjen för att flytta, kanterna för att ändra längden</string>
     <string name="captionui_font_error">Kunde inte läsa typsnittet: %1$s</string>
@@ -139,8 +137,6 @@
     <string name="properties_tab_key">Nyckling</string>
     <string name="panels_tab_mixer">Mixer</string>
     <string name="panels_tab_loudness">Loudness</string>
-    <string name="panels_tab_record">Spela in</string>
-    <string name="panels_tab_sounds">Ljud</string>
     <string name="panels_tab_ducking">Ducking</string>
     <string name="colorpage_group_balance">Vitbalans</string>
     <string name="colorpage_group_tone">Ton</string>

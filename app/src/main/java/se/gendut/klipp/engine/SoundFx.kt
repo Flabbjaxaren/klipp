@@ -320,6 +320,35 @@ object SoundFx {
     }
 
     /**
+     * The phone's own audio file [uri] copied into the app (files/audio): the file, its name without extension, its
+     * length in seconds. Throws if it has no audio.
+     */
+    fun copyAudio(context: Context, uri: android.net.Uri): Triple<File, String, Double> {
+        val shown = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: "audio"
+        val dir = File(context.filesDir, "audio").apply { mkdirs() }
+        val safe = shown.replace(Regex("[^A-Za-z0-9._ -]"), "_").takeLast(80)
+        var out = File(dir, safe)
+        var k = 1
+        while (out.exists()) out = File(dir, "${safe.substringBeforeLast('.')}-${k++}.${safe.substringAfterLast('.', "m4a")}")
+        context.contentResolver.openInputStream(uri)?.use { i -> out.outputStream().use { i.copyTo(it) } } ?: error("cannot open the file")
+        val ex = MediaExtractor()
+        try {
+            ex.setDataSource(out.path)
+            val f = (0 until ex.trackCount).map { ex.getTrackFormat(it) }
+                .firstOrNull { it.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true } ?: error("no audio")
+            val us = if (f.containsKey(MediaFormat.KEY_DURATION)) f.getLong(MediaFormat.KEY_DURATION) else 0L
+            if (us <= 0L) error("no length")
+            return Triple(out, shown.substringBeforeLast('.').ifBlank { shown }, us / 1e6)
+        } catch (e: Exception) {
+            out.delete()
+            throw e
+        } finally {
+            ex.release()
+        }
+    }
+
+    /**
      * The audio track for a sound effect at [at] lasting [dur] s: the first of A2, A3, A1 with nothing there (A1 is
      * usually the dialogue), else A3 (the sound is placed over what is there). [busy] = each track's clips (start, end).
      */

@@ -50,16 +50,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -100,12 +100,10 @@ import kotlin.math.sign
 import kotlin.math.roundToInt
 
 var DEBUG_GESTURES = false
-private val MODES = listOf(R.string.app_mode_edit, R.string.app_mode_color, R.string.app_mode_audio, R.string.app_mode_text)
-private val MODE_ICONS = listOf(Ic.Edit, Ic.Color_, Ic.Audio, Ic.Text)
+internal val MODES = listOf(R.string.app_mode_edit, R.string.app_mode_color, R.string.app_mode_audio, R.string.app_mode_text)
+internal val MODE_ICONS = listOf(Ic.Edit, Ic.Color_, Ic.Audio, Ic.Text)
 /** The program monitor is never smaller than this in portrait. */
 private val MIN_MONITOR_H = 120.dp
-/** The sound's quick fade (in and out), seconds. */
-private const val QUICK_FADE = 0.5f
 
 class Toaster {
     var message by mutableStateOf<String?>(null)
@@ -131,6 +129,8 @@ fun KlippApp(
     val gs = remember { GradeState() }
     /** The look values that last became an undo step (or were loaded). */
     val lookMark = remember { arrayOfNulls<LookValues>(1) }
+    /** The master fader and the normalization that last became an undo step (or were loaded). */
+    val masterMark = remember { arrayOfNulls<MasterValues>(1) }
     // color changes are undone in the same history as the timeline (undo used to skip past them and undo the
     // latest timeline change – e.g. that the clip was added, so it disappeared)
     androidx.compose.runtime.DisposableEffect(gs, state) {
@@ -162,6 +162,8 @@ fun KlippApp(
     val sourcePlayback = remember(controller) { controller?.let { se.gendut.klipp.engine.SourcePlayback(context) } }
     androidx.compose.runtime.DisposableEffect(controller) { onDispose { playback?.release(); sourcePlayback?.release() } }
     var mediaOpen by remember { mutableStateOf(false) }
+    /** The edit page's add sheet that is open (sound, a voice-over, a title, captions), or null. */
+    var addSheet by remember { mutableStateOf<AddAction?>(null) }
     var sourceMedia by remember { mutableStateOf<se.gendut.klipp.engine.MediaInfo?>(null) }
     var exportProgress by remember { mutableStateOf<Int?>(null) }
     var confirmNew by remember { mutableStateOf(false) }
@@ -407,7 +409,7 @@ fun KlippApp(
                     toaster.show(Str.t(R.string.app_timeline_rendered))
                 }
             }
-            rendering?.join()
+            rendering.join()
         }
     }
     // titles that follow tracked windows: tracking data and timeline to the title layer (playback, export)
@@ -439,7 +441,7 @@ fun KlippApp(
             playback?.look = lookFromJson(o)
             playback?.master = masterFromJson(o)
             // (loading is not a change: the loaded look becomes the baseline for undo)
-            scope.launch { gradeFromJson(o, grade, mix); lookMark[0] = LookValues.of(grade) }
+            scope.launch { gradeFromJson(o, grade, mix); lookMark[0] = LookValues.of(grade); masterMark[0] = MasterValues.of(mix) }
             if (!o.optBoolean("linkedSelection", true)) controller.setLinkedSelection(false)
         }
         playback?.onLutFallback = {
@@ -449,6 +451,8 @@ fun KlippApp(
         }
         state.onTargetTrack = { controller.setTarget(it) }
         state.onAddMarker = { controller.addMarker(it); toaster.show(Str.t(R.string.app_marker_at, formatTc(it))) }
+        state.onRemoveMarker = { controller.removeMarker(it); toaster.show(Str.t(R.string.app_marker_removed)) }
+        state.onClearMarkers = { controller.clearMarkers(); toaster.show(Str.t(R.string.app_markers_removed)) }
         state.onSpeed = { id, p -> CrashReport.note("speed $p % on clip $id"); controller.setSpeed(id, p) }
         state.onBeatMarkers = { controller.addBeatMarkers(it) }
         state.onSpeedRamp = { id, r -> CrashReport.note("speed ramp ${r.name} on clip $id"); controller.speedRamp(id, r) }
@@ -457,9 +461,21 @@ fun KlippApp(
         state.uriOfItem = controller::uriOf
         // audio effect controls are heard directly (playback chains), without a rebuild
         state.onFxLive = { clip, i, param, v -> playback?.fx?.live(clip, i, param, v) }
+        // the master (fader and normalization) lives in the app, not the engine: to playback and saved – and an undo step
+        // of its own, in the same history as the timeline (it used to be left out: undo took the latest cut instead)
+        fun applyMaster() { playback?.master = mixMaster(mix); playback?.refresh(state.playhead.toDouble()); controller.requestSave() }
+        fun restoreMaster(v: MasterValues) { masterMark[0] = v; mix.normDb = v.norm; scope.launch { mix.gains[3].snapTo(v.fader); applyMaster() } }
+        masterMark[0] = MasterValues.of(mix)
         mix.onCommit = { i ->
-            if (i == 3) { playback?.master = mixMaster(mix); playback?.refresh(state.playhead.toDouble()); controller.requestSave() }
-            else {
+            if (i == 3) {
+                applyMaster()
+                val now = MasterValues.of(mix)
+                val before = masterMark[0] ?: now
+                if (now != before) {
+                    masterMark[0] = now
+                    state.recordSide("Master", { restoreMaster(before) }, { restoreMaster(now) })
+                }
+            } else {
                 val t = controller.snapshot.sequence?.audio?.getOrNull(i)
                 if (t != null && t.hasAutomation) {
                     // the track has automation: the fader writes a keyframe at the playhead (if it moved)
@@ -521,8 +537,21 @@ fun KlippApp(
 
     fun goTo(i: Int) {
         val target = i.coerceIn(0, MODES.lastIndex)
-        if (target != page.targetValue.roundToInt()) haptics.tick()
+        if (target != page.targetValue.roundToInt()) haptics.press()
         scope.launch { page.animateTo(target.toFloat(), Springs.page()) }
+    }
+    // the edit page's row for an empty selection: what is added. Each opens its sheet over the edit page (it used to
+    // jump to the sound or text page, each time to a different tab); without a project the text page is the prototype's
+    androidx.compose.runtime.DisposableEffect(state, controller) {
+        state.onAddAction = { what ->
+            when (what) {
+                AddAction.MEDIA -> if (controller != null) { if (controller.snapshot.media.isEmpty()) openImport() else mediaOpen = true } else state.addClipAtPlayhead()
+                AddAction.SOUND, AddAction.VOICE -> if (audioTools != null) addSheet = what else toaster.show(Str.t(R.string.app_prototype_mode))
+                AddAction.TITLE, AddAction.CAPTIONS -> if (state.props != null) addSheet = what
+                    else { state.openTab = if (what == AddAction.TITLE) "textTab:titles" else "textTab:captions"; goTo(3) }
+            }
+        }
+        onDispose { state.onAddAction = null }
     }
     // the system back closes what is open, innermost first, and only then leaves the app (it used to leave from
     // everywhere); the projects and settings pages have their own (they are composed later and win while shown)
@@ -551,7 +580,7 @@ fun KlippApp(
         }
     }
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalGradeState provides gs) {
+    CompositionLocalProvider(LocalGradeState provides gs) {
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -629,20 +658,41 @@ fun KlippApp(
         var monitorH by remember { mutableStateOf(AppPrefs.monitorHeight(context).takeIf { it > 0f }?.dp ?: defaultMonitorH) }
         // the picture's scrub speed while it is dragged (shown as a badge on the picture)
         var monitorTier by remember { mutableIntStateOf(0) }
-        // touch on the picture: scrub, frame steps, double tap = full screen (not while the picture's own tools are in use)
-        val pictureTouch = Modifier.monitorTouch(
-            state, enabled = !state.inspecting && !gs.active && sourceMedia == null, haptics = haptics,
-            onTier = { monitorTier = it }, onDoubleTap = { state.playing = false; fullscreen = true },
-        )
+        /** The clips the color page grades: the video clips of the three lowest tracks, in timeline order. */
+        @Composable
+        fun colorClips(): List<ColorClip> {
+            val q = controller?.snapshot?.sequence
+            return remember(q) {
+                q?.video?.take(3)?.flatMapIndexed { k, t ->
+                    t.clips.filter { it.text == null }.map { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 2 - k, c.speed, c.hold, c.reverse) }
+                }.orEmpty().sortedBy { it.start }
+            }
+        }
 
         @Composable
         fun MonitorArea(mod: Modifier) {
-            Box(mod.background(Color.Black).then(pictureTouch).testTag("monitorArea"), contentAlignment = Alignment.Center) {
+            val grading = gs.active && controller != null && playback != null
+            val clips = if (grading) colorClips() else emptyList()
+            val clipsNow = rememberUpdatedState(clips)
+            // touch on the picture: scrub, frame steps, double tap = full screen (not while the picture's own tools are
+            // in use). On the color page the scrub stays inside the clip being graded, and gives way to the dropper, the
+            // compare line and the window's handles
+            val pictureTouch = Modifier.monitorTouch(
+                state,
+                enabled = !state.inspecting && sourceMedia == null && (!gs.active || grading && gs.pick == null && gs.compare == null && gs.windowEdit == null),
+                haptics = haptics,
+                onTier = { monitorTier = it }, onDoubleTap = { state.playing = false; fullscreen = true },
+                within = if (grading) ({ currentColorClip(clipsNow.value, state)?.let { it.start..(it.end - 1f / FPS).coerceAtLeast(it.start) } }) else null,
+            )
+            // the picture a little in from the screen's edges, with square corners (rounded ones looked like a crop)
+            Box(mod.padding(start = 8.dp, end = 8.dp, top = 4.dp).clipToBounds().background(Color.Black).then(pictureTouch).testTag("monitorArea"), contentAlignment = Alignment.Center) {
                 if (controller != null && playback != null) ProgramMonitor(controller, playback, state, gs, lookOf(grade), Modifier.fillMaxSize(), onFullscreen = { state.playing = false; fullscreen = true }) { if (controller.snapshot.media.isEmpty()) openImport() else mediaOpen = true }
                 else Monitor(state, grade, title)
                 ScrubSpeedBadge(monitorTier, Modifier.align(Alignment.TopCenter).padding(top = 8.dp))
+                // the color page's tools over the picture: compare, scopes, full screen
+                if (grading) ColorViewerTools(state, gs, clips, lookOf(grade), onFullscreen = { state.playing = false; fullscreen = true })
                 // the program's audio level (what is heard, after the master)
-                if (controller != null) ProgramMeter(state.playing, Modifier.align(Alignment.CenterEnd).padding(end = 6.dp, top = 10.dp, bottom = 10.dp).width(16.dp).fillMaxHeight())
+                else if (controller != null) ProgramMeter(state.playing, Modifier.align(Alignment.CenterEnd).padding(end = 6.dp, top = 10.dp, bottom = 10.dp).width(16.dp).fillMaxHeight())
             }
         }
 
@@ -710,21 +760,23 @@ fun KlippApp(
                                 }
                                 .background(K.Bg)
                         ) {
-                            when (i) {
-                                0 -> EditPage(state, tool, { tool = it }, toaster, tips = controller != null && !landscape, barSpace = !landscape, overlays = sourceMedia == null)
-                                1 -> if (controller != null) {
-                                    val q = controller.snapshot.sequence
-                                    val clips = remember(q) {
-                                        q?.video?.take(3)?.flatMapIndexed { k, t ->
-                                            t.clips.filter { it.text == null }.map { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 2 - k, c.speed, c.hold, c.reverse) }
-                                        }.orEmpty().sortedBy { it.start }
-                                    }
-                                    ColorPage(state, gs, clips, lookOf(grade), onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) }) {
-                                        ColorPanel(grade, { lutTarget = null; lutPicker.launch(arrayOf("*/*")) }, scroll = false)
-                                    }
-                                } else ColorPanel(grade, null)
-                                2 -> { controller?.revision; AudioPanel(mix, state, audioTools) }
-                                else -> if (state.props != null) TitlesPanel(state) { goTo(0) } else TextPanel(title)
+                            // the bar (72 dp and the 12 dp under it) lies over the page's bottom in portrait – not in
+                            // landscape, where it is under the picture, nor over the source viewer, which hides it
+                            val bar = if (landscape || (i == 0 && sourceMedia != null)) 0.dp else 84.dp
+                            CompositionLocalProvider(LocalBarSpace provides bar) {
+                                when (i) {
+                                    0 -> EditPage(
+                                        state, tool, { tool = it }, toaster, tips = controller != null && !landscape, overlays = sourceMedia == null,
+                                        onSettings = if (controller != null) ({ showSettings = true }) else null, onAppSettings = { showAppSettings = true },
+                                    )
+                                    1 -> if (controller != null) {
+                                        ColorPage(state, gs, colorClips(), lookOf(grade), onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) }) {
+                                            ColorPanel(grade, { lutTarget = null; lutPicker.launch(arrayOf("*/*")) }, scroll = false)
+                                        }
+                                    } else ColorPanel(grade, null)
+                                    2 -> { controller?.revision; AudioPanel(mix, state, audioTools, dockTabs = true) }
+                                    else -> if (state.props != null) TitlesPanel(state, dockTabs = true) { goTo(0) } else TextPanel(title)
+                                }
                             }
                         }
                     }
@@ -734,11 +786,10 @@ fun KlippApp(
 
         val topBar: @Composable () -> Unit = {
             TopBar(
-                state, toaster, ::export,
-                title = controller?.currentName?.ifBlank { null } ?: "Klipp",
-                onSettings = { if (controller != null) showSettings = true },
-                onAppSettings = { showAppSettings = true },
-            ) { if (controller != null) showProjects = true else toaster.show(Str.t(R.string.app_prototype_mode)) }
+                { page.value }, { goTo(it) },
+                onProjects = { if (controller != null) showProjects = true else toaster.show(Str.t(R.string.app_prototype_mode)) },
+                onExport = ::export,
+            )
         }
 
         if (fullscreen) {
@@ -751,7 +802,7 @@ fun KlippApp(
                     topBar()
                     Column(Modifier.weight(1f)) { TopArea(fill = true, monitorMod = Modifier.fillMaxWidth().weight(1f)) }
                     // room for the floating toolbar under the picture (the timeline keeps the whole right side)
-                    if (sourceMedia == null) Spacer(Modifier.height(84.dp))
+                    if (sourceMedia == null) Spacer(Modifier.height(92.dp))
                 }
                 Box(Modifier.weight(0.54f).fillMaxHeight()) {
                     Pages(Modifier.fillMaxSize())
@@ -770,28 +821,25 @@ fun KlippApp(
         }
         }
 
-        // Floating toolbar: undo/redo, modes and the FAB (hidden while the source is open – the timeline is needed then).
+        // At the bottom: undo/redo and the dock (the actions for what is selected, or the page's tabs), with what is
+        // selected named above. Hidden on the edit page while the source is open – the timeline is needed then.
         // In landscape it sits under the picture on the left.
+        val bottomBar by remember { derivedStateOf { sourceMedia == null || page.value.roundToInt() != 0 } }
         AnimatedVisibility(
-            sourceMedia == null,
+            bottomBar,
             enter = slideInVertically(spring(0.7f, 400f)) { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut(),
             modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(if (landscape) 0.46f else 1f),
         ) {
-        Row(
+        Column(
             Modifier.windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(start = 12.dp, end = 12.dp, bottom = 12.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(start = 8.dp, end = 8.dp, bottom = 12.dp).fillMaxWidth(),
         ) {
-            UndoRedo(state, ::undo, ::redo)
-            Spacer(Modifier.width(8.dp))
-            FloatingModes({ page.value }, Modifier.weight(1f)) { goTo(it) }
-            Spacer(Modifier.width(8.dp))
-            AddFab {
-                haptics.confirm()
-                if (page.value.roundToInt() != 0) goTo(0)
-                if (controller != null) { if (controller.snapshot.media.isEmpty()) openImport() else mediaOpen = true }
-                else state.addClipAtPlayhead()
+            SelectionChip(state, { page.value })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                UndoRedo(state, ::undo, ::redo)
+                Spacer(Modifier.width(8.dp))
+                Dock(state, { page.value }, audioTabs(mix, audioTools != null), Modifier.weight(1f))
             }
         }
         }
@@ -804,7 +852,7 @@ fun KlippApp(
             modifier = Modifier.align(Alignment.Center)
         ) {
             Row(
-                Modifier.clip(RoundedCornerShape(28.dp)).background(Color(0xCC1D2026)).padding(horizontal = 18.dp, vertical = 12.dp),
+                Modifier.clip(RoundedCornerShape(28.dp)).background(K.SurfaceHighest.copy(alpha = 0.85f)).padding(horizontal = 18.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -815,6 +863,14 @@ fun KlippApp(
                     color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
                 )
             }
+        }
+
+        when (addSheet) {
+            AddAction.SOUND -> audioTools?.addSound?.let { add -> SoundFxSheet(onDismiss = { addSheet = null }, speech = true) { file, name, secs -> add(file, name, secs); addSheet = null } }
+            AddAction.VOICE -> VoiceSheet(voice) { addSheet = null }
+            AddAction.TITLE -> TitleSheet(state) { addSheet = null }
+            AddAction.CAPTIONS -> CaptionsSheet(state) { addSheet = null }
+            else -> {}
         }
 
         if (controller != null && sourcePlayback != null) {
@@ -829,8 +885,8 @@ fun KlippApp(
                 onDismissRequest = { confirmNew = false },
                 title = { Text(stringResource(R.string.app_new_project_title)) },
                 text = { Text(stringResource(R.string.app_new_project_text)) },
-                confirmButton = { androidx.compose.material3.TextButton(onClick = { confirmNew = false; controller?.newProject() }) { Text(stringResource(R.string.app_new_project)) } },
-                dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmNew = false }) { Text(stringResource(R.string.app_cancel)) } },
+                confirmButton = { FlatTextButton(onClick = { confirmNew = false; controller?.newProject() }) { Text(stringResource(R.string.app_new_project)) } },
+                dismissButton = { FlatTextButton(onClick = { confirmNew = false }) { Text(stringResource(R.string.app_cancel)) } },
                 containerColor = K.SurfaceHigh,
             )
         }
@@ -845,7 +901,7 @@ fun KlippApp(
                 val backend = remember(controller) { controllerProjects(controller) }
                 // the system back closes the page (it left the app)
                 androidx.activity.compose.BackHandler { showProjects = false }
-                ProjectsScreen(backend) { showProjects = false }
+                ProjectsScreen(backend, onSettings = { showAppSettings = true }) { showProjects = false }
             }
             if (showSettings) {
                 val q = controller.snapshot.sequence
@@ -893,107 +949,29 @@ fun KlippApp(
 }
 
 @Composable
-private fun TopBar(state: EditorState, toaster: Toaster, export: () -> Unit, title: String = "Klipp", onSettings: () -> Unit = {}, onAppSettings: () -> Unit = {}, onNewProject: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RoundIcon(Ic.Media, stringResource(R.string.app_projects)) { onNewProject() }
-        // tap the name = project settings
-        Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { onSettings() }.padding(horizontal = 4.dp, vertical = 2.dp).testTag("projectTitle")) {
-            Text(title, color = K.OnSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            Text(state.subtitle, color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1)
-        }
-        RoundIcon(Ic.Gear, stringResource(R.string.app_settings), modifier = Modifier.size(44.dp).testTag("appSettings"), onClick = onAppSettings)
-        Spacer(Modifier.width(4.dp))
-        PillButton(stringResource(R.string.app_export)) { export() }
-        Spacer(Modifier.width(6.dp))
-    }
-}
-
-@Composable
-fun RoundIcon(icon: ImageVector, desc: String, enabled: Boolean = true, tint: Color = K.OnSurface, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun RoundIcon(
+    icon: ImageVector, desc: String, enabled: Boolean = true, tint: Color = K.OnSurface, modifier: Modifier = Modifier,
+    /** The key click on a press; off where the action gives its own (it may end in a refusal instead). */
+    haptic: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val haptics = rememberHaptics()
     val src = remember { MutableInteractionSource() }
     val alpha by animateFloatAsState(if (enabled) 1f else 0.35f, label = "a")
     Box(
         modifier.size(48.dp).pressPop(src, 0.8f).graphicsLayer { this.alpha = alpha }
             .clip(RoundedCornerShape(24.dp))
             .clickable(enabled = enabled, interactionSource = src, indication = null) {
+                if (haptic) haptics.press()
                 onClick()
             },
         contentAlignment = Alignment.Center
     ) { Icon(icon, desc, tint = tint, modifier = Modifier.size(24.dp)) }
 }
 
-@Composable
-private fun PillButton(label: String, onClick: () -> Unit) {
-    val src = remember { MutableInteractionSource() }
-    Box(
-        Modifier.pressPop(src, 0.88f)
-            .height(40.dp).clip(RoundedCornerShape(20.dp)).background(K.Primary)
-            .clickable(interactionSource = src, indication = null) {
-                onClick()
-            }
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center
-    ) { Text(label, color = K.OnPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold) }
-}
-
-@Composable
-private fun Transport(state: EditorState) {
-    val haptics = rememberHaptics()
-    val src = remember { MutableInteractionSource() }
-    val playW by animateDpAsState(if (state.playing) 80.dp else 64.dp, spring(0.45f, 500f), label = "pw")
-    val playR by animateDpAsState(if (state.playing) 24.dp else 16.dp, spring(0.45f, 500f), label = "pr")
-    val playBg = K.Primary
-    Row(
-        Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // tap the timecode = type a time to go to (digits as in Premiere, or +/- to move)
-        var tcOpen by remember { mutableStateOf(false) }
-        Text(
-            formatTc(state.playhead), color = K.Primary, fontSize = 15.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.width(108.dp).clip(RoundedCornerShape(8.dp)).clickable { haptics.tick(); state.playing = false; tcOpen = true }.testTag("timecode"),
-        )
-        if (tcOpen) TimecodeDialog(state.playhead, onDismiss = { tcOpen = false }) { t -> tcOpen = false; haptics.confirm(); state.playhead = snapFrame(t) }
-        Spacer(Modifier.weight(1f))
-        RoundIcon(Ic.Marker, stringResource(R.string.app_add_marker)) {
-            haptics.confirm()
-            val cb = state.onAddMarker
-            if (cb != null) cb(state.playhead) else state.markers = (state.markers + state.playhead).sorted()
-        }
-        RoundIcon(Ic.Prev, stringResource(R.string.app_prev_frame)) { state.playing = false; state.playhead = snapFrame((state.playhead - FRAME).coerceAtLeast(0f)); haptics.tick() }
-        Box(
-            Modifier.pressPop(src, 0.86f)
-                .size(playW, 48.dp).clip(RoundedCornerShape(playR)).background(playBg)
-                .clickable(interactionSource = src, indication = null) {
-                    haptics.confirm()
-                    if (!state.playing && state.playhead >= state.projectEnd - 0.05f) state.playhead = 0f
-                    state.playing = !state.playing
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            AnimatedContent(
-                state.playing,
-                transitionSpec = { (scaleIn(spring(0.4f, 600f)) + fadeIn()) togetherWith (scaleOut() + fadeOut()) },
-                label = "playicon"
-            ) { playing ->
-                Icon(if (playing) Ic.Pause else Ic.Play, stringResource(if (playing) R.string.app_pause else R.string.app_play), tint = K.OnPrimary, modifier = Modifier.size(26.dp))
-            }
-        }
-        RoundIcon(Ic.Next, stringResource(R.string.app_next_frame)) { state.playing = false; state.playhead = snapFrame(state.playhead + FRAME); haptics.tick() }
-        RoundIcon(Ic.NextEdit, stringResource(R.string.app_next_edit)) {
-            state.playing = false
-            val next = (state.clips.flatMap { listOf(it.start, it.end) } + state.markers).filter { it > state.playhead + 0.01f }.minOrNull()
-            if (next != null) { haptics.tick(); state.playhead = next } else haptics.heavy()
-        }
-    }
-}
-
 /** Go to a typed time. */
 @Composable
-private fun TimecodeDialog(now: Float, onDismiss: () -> Unit, onGo: (Float) -> Unit) {
+internal fun TimecodeDialog(now: Float, onDismiss: () -> Unit, onGo: (Float) -> Unit) {
     var text by remember { mutableStateOf("") }
     val parsed = parseTimecode(text, now)
     val focus = remember { androidx.compose.ui.focus.FocusRequester() }
@@ -1014,291 +992,10 @@ private fun TimecodeDialog(now: Float, onDismiss: () -> Unit, onGo: (Float) -> U
                 Text(if (text.isNotBlank() && parsed != null) "→ " + formatTc(parsed) else stringResource(R.string.app_timecode_hint), color = K.OnSurfaceVar, fontSize = 12.sp)
             }
         },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = { parsed?.let(onGo) }, enabled = parsed != null) { Text(stringResource(R.string.app_go)) } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text(stringResource(R.string.app_cancel)) } },
+        confirmButton = { FlatTextButton(onClick = { parsed?.let(onGo) }, enabled = parsed != null) { Text(stringResource(R.string.app_go)) } },
+        dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.app_cancel)) } },
         containerColor = K.SurfaceHigh,
     )
-}
-
-@Composable
-private fun EditPage(
-    state: EditorState, tool: Tool, setTool: (Tool) -> Unit, toaster: Toaster, tips: Boolean = false, barSpace: Boolean = true,
-    /** The clip/transition/cut bars and the render chip over the timeline; off while the source monitor is open (the timeline is short then and they covered its ruler). */
-    overlays: Boolean = true,
-) {
-    // the selection bars sit above the floating toolbar (portrait); in landscape the toolbar is elsewhere
-    val barPad = if (barSpace) 92.dp else 12.dp
-    val haptics = rememberHaptics()
-    Column(Modifier.fillMaxSize()) {
-        // Tools: connected buttons (icon + name) where the selected one morphs into a pill. On a narrow screen (under
-        // 400 dp) everything is a little tighter, so the four toggles still fit next to the tools
-        val compact = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 400
-        val gap = if (compact) 0.dp else 4.dp
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = if (compact) 6.dp else 10.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 3.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val tools = listOf(
-                Tool.SELECT to (stringResource(R.string.app_tool_move) to Ic.Select), Tool.RIPPLE to (stringResource(R.string.app_tool_ripple) to Ic.Ripple),
-                Tool.TRIM to (stringResource(R.string.app_tool_trim) to Ic.Trim), Tool.RAZOR to (stringResource(R.string.app_tool_razor) to Ic.Razor),
-            )
-            tools.forEachIndexed { i, (t, li) ->
-                ToolButton(li.first, li.second, tool == t, first = i == 0, last = i == tools.lastIndex, compact = compact) {
-                    haptics.tick(); setTool(t)
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            ToggleIcon(Ic.Link, stringResource(R.string.app_linked_selection), stringResource(R.string.app_short_link), state.linkedSelection, compact) {
-                val on = !state.linkedSelection
-                state.linkedSelection = on
-                state.onLinkedSelection?.invoke(on)
-                haptics.tick()
-                toaster.show(Str.t(if (on) R.string.app_linked_on else R.string.app_linked_off))
-            }
-            Spacer(Modifier.width(gap))
-            ToggleIcon(Ic.Center, stringResource(R.string.app_locked_playhead), stringResource(R.string.app_short_center), state.centerPlayhead, compact) {
-                state.centerPlayhead = !state.centerPlayhead
-                haptics.tick()
-                toaster.show(Str.t(if (state.centerPlayhead) R.string.app_playhead_locked else R.string.app_playhead_free))
-            }
-            Spacer(Modifier.width(gap))
-            ToggleIcon(Ic.Magnet, stringResource(R.string.app_magnetic_snapping), stringResource(R.string.app_short_snap), state.magnet, compact) {
-                state.magnet = !state.magnet
-                haptics.tick()
-                toaster.show(Str.t(if (state.magnet) R.string.app_snapping_on else R.string.app_snapping_off))
-            }
-            Spacer(Modifier.width(gap))
-            ToggleIcon(Ic.VolLine, stringResource(R.string.app_volume_lines), stringResource(R.string.app_short_volume), state.volLines, compact) {
-                state.volLines = !state.volLines
-                haptics.tick()
-                toaster.show(Str.t(if (state.volLines) R.string.app_volume_lines_on else R.string.app_volume_lines_off))
-            }
-        }
-        Box(Modifier.weight(1f).fillMaxWidth().padding(top = 4.dp)) {
-            Timeline(
-                state, tool,
-                Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-            )
-            if (overlays) {
-                ContextBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad))
-                TransitionBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad))
-                CutBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad, start = 12.dp, end = 12.dp))
-                RenderChip(Modifier.align(Alignment.TopEnd).padding(top = 34.dp, end = 10.dp))
-            }
-            MultiBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad))
-            // first-run tips about the gestures, only when nothing is selected (the selection bars use the same place)
-            val nothingSelected = state.selected == null && !state.groupSelected && state.selectedTransition == null && state.selectedCut == null && state.selectedCaption == null
-            TipCard(tips && nothingSelected && state.clips.isNotEmpty(), Modifier.align(Alignment.BottomCenter).padding(bottom = barPad, start = 12.dp, end = 12.dp))
-            CaptionBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad))
-            // Properties slide up over the timeline; the picture above stays visible
-            androidx.compose.animation.AnimatedVisibility(
-                visible = state.inspecting && state.selected != null,
-                enter = slideInVertically(spring(0.75f, 420f)) { it } + fadeIn(),
-                exit = slideOutVertically(spring(1f, 500f)) { it } + fadeOut(),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                Box(Modifier.fillMaxSize().shadow(12.dp, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))) {
-                    PropertiesPanel(state) { state.inspecting = false }
-                }
-            }
-            androidx.compose.animation.AnimatedVisibility(
-                visible = state.editingCaption && state.selectedCaption != null,
-                enter = slideInVertically(spring(0.75f, 420f)) { it } + fadeIn(),
-                exit = slideOutVertically(spring(1f, 500f)) { it } + fadeOut(),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                Box(Modifier.fillMaxSize().shadow(12.dp, RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))) {
-                    CaptionInspector(state)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ContextBar(state: EditorState, modifier: Modifier) {
-    val haptics = rememberHaptics()
-    var speedMode by remember { mutableStateOf(false) }
-    var freezeMode by remember { mutableStateOf(false) }
-    var volumeMode by remember { mutableStateOf(false) }
-    var labelMode by remember { mutableStateOf(false) }
-    LaunchedEffect(state.selected) { speedMode = false; freezeMode = false; volumeMode = false; labelMode = false }
-    // the actions follow what is selected: video, sound or a title
-    val sel = state.clips.firstOrNull { it.id == state.selected }
-    val isSound = sel?.kind == ClipKind.AUDIO || sel?.kind == ClipKind.MUSIC
-    val isTitle = sel?.kind == ClipKind.TITLE
-    AnimatedVisibility(
-        visible = state.selected != null,
-        enter = slideInVertically(spring(0.6f, 500f)) { it } + fadeIn(),
-        exit = slideOutVertically { it } + fadeOut(),
-        modifier = modifier
-    ) {
-        AnimatedContent(listOf(speedMode, freezeMode, volumeMode, labelMode), transitionSpec = { (fadeIn() + scaleIn(spring(0.6f, 500f), initialScale = 0.9f)) togetherWith fadeOut() }, label = "ctx") { (speed, freeze, volume, label) ->
-            Row(
-                Modifier.shadow(8.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(K.SurfaceHighest)
-                    // narrow screen: the row scrolls sideways instead of buttons ending up off-screen
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (speed) {
-                    val cur = state.clips.firstOrNull { it.id == state.selected }?.speed ?: 1f
-                    RoundIcon(Ic.Back, stringResource(R.string.app_back)) { speedMode = false }
-                    // ramp: the speed changes smoothly along the clip
-                    state.onSpeedRamp?.let { ramp ->
-                        var open by remember { mutableStateOf(false) }
-                        Box {
-                            Box(
-                                Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(10.dp)).background(K.Tonal)
-                                    .clickable { haptics.tick(); open = true }.padding(horizontal = 10.dp).testTag("speed:ramp"),
-                                contentAlignment = Alignment.Center,
-                            ) { Text(stringResource(R.string.app_ramp), color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                            androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(20.dp), containerColor = K.SurfaceHighest) {
-                                for (r in se.gendut.klipp.engine.SpeedRamp.entries) {
-                                    androidx.compose.material3.DropdownMenuItem(
-                                        text = { Text(r.label, color = K.OnSurface, fontWeight = FontWeight.Medium) },
-                                        onClick = { open = false; state.selected?.let { haptics.confirm(); ramp(it, r); speedMode = false } },
-                                        modifier = Modifier.testTag("ramp:${r.name}"),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    for (p in listOf(25, 50, 100, 150, 200, 400)) {
-                        val on = kotlin.math.abs(cur * 100 - p) < 0.5f
-                        Box(
-                            Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(if (on) 20.dp else 10.dp))
-                                .background(if (on) K.Primary else K.SurfaceHigh)
-                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                    state.selected?.let { haptics.confirm(); state.setSpeed(it, p) }
-                                }
-                                .padding(horizontal = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) { Text("$p%", color = if (on) K.OnPrimary else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    }
-                } else if (volume) {
-                    // the clip's level in a few steps (fine control in Properties)
-                    RoundIcon(Ic.Back, stringResource(R.string.app_back)) { volumeMode = false }
-                    val cur = state.selected?.let { id -> state.props?.props(id)?.levelDb } ?: 0f
-                    for (db in listOf(-12, -6, -3, 0, 3, 6)) {
-                        val on = abs(cur - db) < 0.05f
-                        Box(
-                            Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(if (on) 20.dp else 10.dp))
-                                .background(if (on) K.Primary else K.SurfaceHigh)
-                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                    state.selected?.let { haptics.confirm(); state.props?.setProps(it, levelDb = db.toFloat()) }
-                                }
-                                .padding(horizontal = 10.dp).testTag("level:$db"),
-                            contentAlignment = Alignment.Center
-                        ) { Text(if (db > 0) "+$db dB" else "$db dB", color = if (on) K.OnPrimary else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    }
-                } else if (label) {
-                    LabelPicker(sel?.label, onBack = { labelMode = false }) { l -> state.selected?.let { haptics.confirm(); state.setLabel(listOf(it), l); labelMode = false } }
-                } else if (freeze) {
-                    // freeze frame at the playhead: choose how long the frame is held
-                    RoundIcon(Ic.Back, stringResource(R.string.app_back)) { freezeMode = false }
-                    Text(stringResource(R.string.app_freeze), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 8.dp))
-                    for (sec in listOf(1f, 2f, 3f, 5f)) {
-                        Box(
-                            Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(10.dp)).background(K.SurfaceHigh)
-                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                    state.selected?.let { haptics.confirm(); state.freezeFrame(it, state.playhead, sec); freezeMode = false }
-                                }
-                                .padding(horizontal = 12.dp).testTag("freeze:${sec.toInt()}"),
-                            contentAlignment = Alignment.Center
-                        ) { Text(stringResource(R.string.app_seconds, sec.toInt()), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    }
-                } else {
-                    if (!isTitle) state.onCopyToSource?.let { copy ->
-                        ContextAction(Ic.Copy, stringResource(R.string.app_copy)) { state.selected?.let { haptics.confirm(); copy(it) } }
-                    }
-                    // a title: its text first (the title editor is in Properties)
-                    if (isTitle && state.props != null) ContextAction(Ic.Text, stringResource(R.string.app_edit_text), tag = "ctx:editText") { haptics.tick(); state.inspecting = true }
-                    ContextAction(Ic.Split, stringResource(R.string.app_split)) {
-                        state.selected?.let { haptics.confirm(); state.split(it, state.playhead) }
-                    }
-                    // sound: level steps and a quick fade in + out
-                    if (isSound && state.props != null) {
-                        ContextAction(Ic.Speaker, stringResource(R.string.app_volume), tag = "ctx:volume") { haptics.tick(); volumeMode = true }
-                        val p = state.selected?.let { state.props?.props(it) }
-                        val faded = (p?.fadeIn ?: 0f) > 0f || (p?.fadeOut ?: 0f) > 0f
-                        ContextAction(Ic.Fade, stringResource(R.string.app_fade), selected = faded, tag = "ctx:fade") {
-                            val id = state.selected ?: return@ContextAction
-                            haptics.confirm()
-                            val len = if (faded) null else QUICK_FADE.coerceAtMost((sel?.length ?: 1f) / 3f)
-                            state.props?.setTransition(id, true, len)
-                            state.props?.setTransition(id, false, len)
-                        }
-                    }
-                    if (state.props != null && !isTitle) ContextAction(Ic.Sliders, stringResource(R.string.app_properties)) { haptics.tick(); state.inspecting = true }
-                    if (!isTitle) ContextAction(Ic.Speed, stringResource(R.string.app_speed)) { haptics.tick(); speedMode = true }
-                    if (!isTitle) state.onBeatMarkers?.let { beats -> ContextAction(Ic.Bolt, stringResource(R.string.beats_btn), tag = "ctx:beats") { state.selected?.let { haptics.confirm(); beats(it) } } }
-                    if (state.clips.firstOrNull { it.id == state.selected }?.kind == ClipKind.VIDEO) {
-                        ContextAction(Ic.Freeze, stringResource(R.string.app_freeze)) { haptics.tick(); freezeMode = true }
-                    }
-                    state.clips.firstOrNull { it.id == state.selected }?.takeIf { (it.kind == ClipKind.VIDEO || it.kind == ClipKind.AUDIO) && !it.hold }?.let { c ->
-                        ContextAction(Ic.Reverse, stringResource(if (c.reverse) R.string.app_forward else R.string.app_reverse)) { haptics.confirm(); state.toggleReverse(c.id) }
-                    }
-                    ContextAction(Ic.Tag, stringResource(R.string.app_label), selected = sel?.label != null, tag = "ctx:label") { haptics.tick(); labelMode = true }
-                    val off = state.clips.firstOrNull { it.id == state.selected }?.enabled == false
-                    ContextAction(Ic.Power, stringResource(if (off) R.string.app_enable else R.string.app_disable)) { state.selected?.let { haptics.confirm(); state.toggleEnabled(listOf(it)) } }
-                    ContextAction(Ic.Delete, stringResource(R.string.app_delete)) { state.selected?.let { haptics.heavy(); state.requestRemove(it, false) } }
-                    ContextAction(Ic.Ripple, stringResource(R.string.app_ripple_delete)) { state.selected?.let { haptics.heavy(); state.requestRemove(it, true) } }
-                }
-            }
-        }
-    }
-}
-
-/** Several clips selected with the lasso: delete them or deselect. Drag one of them to move them all. */
-@Composable
-private fun MultiBar(state: EditorState, modifier: Modifier) {
-    val haptics = rememberHaptics()
-    var labelMode by remember { mutableStateOf(false) }
-    LaunchedEffect(state.groupSelected) { labelMode = false }
-    AnimatedVisibility(
-        visible = state.groupSelected,
-        enter = slideInVertically(spring(0.6f, 500f)) { it } + fadeIn(),
-        exit = slideOutVertically { it } + fadeOut(),
-        modifier = modifier.testTag("multiBar"),
-    ) {
-        // more actions than fit on a narrow phone: the bar scrolls sideways (deselect stays reachable)
-        Row(
-            Modifier.padding(horizontal = 8.dp).shadow(8.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(K.SurfaceHighest)
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val nClips = state.multi.size
-            val nCaps = state.multiCaptions.size
-            if (labelMode) {
-                val labels = state.multi.map { id -> state.clips.firstOrNull { it.id == id }?.label }.toSet()
-                LabelPicker(labels.singleOrNull(), onBack = { labelMode = false }) { l -> haptics.confirm(); state.setLabel(state.multi, l); labelMode = false }
-                return@Row
-            }
-            val clipsLabel = if (nClips > 0) pluralStringResource(R.plurals.app_n_clips, nClips, nClips) else null
-            val capsLabel = if (nCaps > 0) pluralStringResource(R.plurals.app_n_captions, nCaps, nCaps) else null
-            Text(
-                listOfNotNull(clipsLabel, capsLabel).joinToString(" · "),
-                color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 10.dp),
-            )
-            if (nClips > 0) ContextAction(Ic.Tag, stringResource(R.string.app_label), tag = "multi:label") { haptics.tick(); labelMode = true }
-            if (nClips > 0) ContextAction(Ic.Power, stringResource(R.string.app_toggle_enabled)) { haptics.confirm(); state.toggleEnabled(state.multi) }
-            // compound clip: selected, moved and graded together
-            if (state.props != null && nClips > 0) {
-                val groups = state.multi.mapNotNull { id -> state.clips.firstOrNull { it.id == id }?.group }.toSet()
-                val whole = groups.size == 1 && state.clips.all { it.group != groups.first() || it.id in state.multi } && state.multi.all { id -> state.clips.firstOrNull { it.id == id }?.group == groups.first() }
-                if (whole) ContextAction(Ic.Ungroup, stringResource(R.string.app_ungroup)) { haptics.confirm(); state.setGrouped(state.multi, false) }
-                else ContextAction(Ic.Group, stringResource(R.string.app_group)) { haptics.confirm(); state.setGrouped(state.multi, true) }
-            }
-            // separate sound (a recorder, another camera): lined up by the audio
-            if (state.props != null && nClips > 1) ContextAction(Ic.SyncAudio, stringResource(R.string.app_sync_audio), tag = "syncAudio") { haptics.confirm(); state.syncByAudio(state.multi) }
-            ContextAction(Ic.Delete, stringResource(R.string.app_delete)) { haptics.heavy(); state.removeGroup(false) }
-            if (nClips > 0) ContextAction(Ic.Ripple, stringResource(R.string.app_ripple_delete)) { haptics.heavy(); state.removeGroup(true) }
-            ContextAction(Ic.Close, stringResource(R.string.app_deselect)) { haptics.tick(); state.clearSelection() }
-        }
-    }
 }
 
 /**
@@ -1306,14 +1003,14 @@ private fun MultiBar(state: EditorState, modifier: Modifier) {
  * finished files, without lag); during rendering, the progress – tap to cancel.
  */
 @Composable
-private fun RenderChip(modifier: Modifier) {
+internal fun RenderChip(modifier: Modifier) {
     val haptics = rememberHaptics()
     val rc = se.gendut.klipp.engine.RenderCache
     val p = rc.progress
     val todo = rc.states.any { it.heavy && !it.ready }
     AnimatedVisibility(p != null || todo, modifier = modifier, enter = fadeIn() + scaleIn(initialScale = 0.8f), exit = fadeOut() + scaleOut(targetScale = 0.8f)) {
         Row(
-            Modifier.height(30.dp).clip(RoundedCornerShape(15.dp)).background(if (p != null) K.SurfaceHighest else K.Primary)
+            Modifier.height(30.dp).clip(RoundedCornerShape(15.dp)).background(K.SurfaceHighest)
                 .clickable {
                     haptics.confirm()
                     if (p != null || rc.renderAll) { rc.renderAll = false; rc.halted = true } else { rc.halted = false; rc.renderAll = true }
@@ -1321,302 +1018,46 @@ private fun RenderChip(modifier: Modifier) {
                 .padding(horizontal = 10.dp).testTag("renderChip"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Ic.Bolt, null, tint = if (p != null) K.Primary else K.OnPrimary, modifier = Modifier.size(16.dp))
+            Icon(Ic.Bolt, null, tint = if (p != null) K.Primary else K.OnSurface, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
             Text(
                 if (p != null) stringResource(R.string.app_rendering_progress, (p * 100).toInt()) else if (rc.renderAll) stringResource(R.string.app_waiting) else stringResource(R.string.app_render),
-                color = if (p != null) K.OnSurface else K.OnPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                color = K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold,
             )
         }
     }
 }
 
 /**
- * Selected edit point (tap the boundary between two clips): choose a transition and its length – it is inserted centered
- * on the edit point and becomes selected (type, direction and length can then be changed there). Audio: a crossfade.
+ * The color labels in a row (plus none): the current one ringed, and kept in view where the row scrolls. Each is
+ * pressed over 44 dp, though the dot is smaller.
  */
 @Composable
-internal fun CutBar(state: EditorState, modifier: Modifier) {
-    val haptics = rememberHaptics()
-    val cut = state.selectedCut
-    // the edit point still exists (the clips still meet)
-    val valid = cut != null && state.cutPairs().any { (l, r) -> l.id == cut.left && r.id == cut.right }
-    val audio = cut != null && state.clips.firstOrNull { it.id == cut.right }?.kind?.track == TrackKind.AUDIO
-    var len by remember { mutableStateOf(1f) }
-    AnimatedVisibility(
-        visible = valid && state.props != null,
-        enter = slideInVertically(spring(0.6f, 500f)) { it } + fadeIn(),
-        exit = slideOutVertically { it } + fadeOut(),
-        modifier = modifier,
-    ) {
-        fun add(effect: String) {
-            val c = state.selectedCut ?: return
-            haptics.confirm()
-            state.props?.addCutTransition(c.right, effect, len) { id -> state.selectedCut = null; state.selectedTransition = id }
-        }
-        Column(
-            Modifier.shadow(8.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(K.SurfaceHighest)
-                .padding(horizontal = 6.dp, vertical = 6.dp).testTag("cutbar"),
-        ) {
-            Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Ic.Fade, null, tint = K.PrimarySoft, modifier = Modifier.padding(horizontal = 8.dp).size(20.dp))
-                val types = if (audio) listOf(se.gendut.klipp.engine.TransitionType.CROSS) else se.gendut.klipp.engine.TransitionType.entries.toList()
-                for (ty in types) {
-                    Box(
-                        Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(10.dp)).background(K.Tonal)
-                            .clickable { add(ty.effect) }.padding(horizontal = 12.dp).testTag("cut:${ty.effect}"),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(if (audio) stringResource(R.string.app_crossfade) else ty.label, color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                }
-            }
-            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.app_length), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 10.dp))
-                for (sec in listOf(0.5f, 1f, 2f)) {
-                    val on = abs(len - sec) < 0.03f
-                    Box(
-                        Modifier.padding(horizontal = 2.dp).height(36.dp).clip(RoundedCornerShape(if (on) 18.dp else 10.dp))
-                            .background(if (on) K.Primary else K.SurfaceHigh)
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { haptics.tick(); len = sec }
-                            .padding(horizontal = 10.dp).testTag("cutlen:$sec"),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(if (sec < 1f) stringResource(R.string.app_half_second) else stringResource(R.string.app_seconds, sec.toInt()), color = if (on) K.OnPrimary else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                }
-                Spacer(Modifier.weight(1f))
-                RoundIcon(Ic.Close, stringResource(R.string.app_deselect)) { haptics.tick(); state.selectedCut = null }
-            }
-        }
-    }
-}
-
-/** Selected transition: choose a length or remove it. The edges can also be dragged directly in the timeline. */
-@Composable
-private fun TransitionBar(state: EditorState, modifier: Modifier) {
-    val haptics = rememberHaptics()
-    val tr = state.selectedTransition?.let { id -> state.transitions.firstOrNull { it.id == id } }
-    AnimatedVisibility(
-        visible = tr != null && state.props != null,
-        enter = slideInVertically(spring(0.6f, 500f)) { it } + fadeIn(),
-        exit = slideOutVertically { it } + fadeOut(),
-        modifier = modifier,
-    ) {
-        val cur = tr?.let { it.end - it.start } ?: 0f
-        Row(
-            Modifier.shadow(8.dp, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp)).background(K.SurfaceHighest)
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Ic.Fade, null, tint = K.PrimarySoft, modifier = Modifier.padding(horizontal = 8.dp).size(20.dp))
-            // the choices scroll when they don't fit (a phone's width); Remove stays in view at the end
-            Row(Modifier.weight(1f, fill = false).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-                // the type (engine effect): a menu; fades in/out to black or white, between two clips all types
-                val type = se.gendut.klipp.engine.TransitionType.of(tr?.effect ?: "cross_dissolve")
-                val choices = if (tr?.anchor == 0) se.gendut.klipp.engine.TransitionType.entries.toList() else se.gendut.klipp.engine.TransitionType.FADES
-                var open by remember { mutableStateOf(false) }
-                Box {
-                    Box(
-                        Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(10.dp)).background(K.Tonal)
-                            .clickable { haptics.tick(); open = true }.padding(horizontal = 10.dp).testTag("transition:type"),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            when (tr?.anchor) {
-                                -1 -> stringResource(if (type == se.gendut.klipp.engine.TransitionType.DIP_WHITE) R.string.app_fade_in_from_white else R.string.app_fade_in)
-                                1 -> stringResource(if (type == se.gendut.klipp.engine.TransitionType.DIP_WHITE) R.string.app_fade_out_to_white else R.string.app_fade_out)
-                                else -> type.label
-                            },
-                            color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                        )
-                    }
-                    androidx.compose.material3.DropdownMenu(expanded = open, onDismissRequest = { open = false }, shape = RoundedCornerShape(20.dp), containerColor = K.SurfaceHighest) {
-                        for (ty in choices) {
-                            val label = when {
-                                tr?.anchor == 0 -> ty.label
-                                ty == se.gendut.klipp.engine.TransitionType.DIP_WHITE -> stringResource(R.string.app_to_white)
-                                else -> stringResource(R.string.app_to_black)
-                            }
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(label, color = if (ty == type) K.Primary else K.OnSurface, fontWeight = FontWeight.Medium) },
-                                onClick = {
-                                    open = false
-                                    val id = state.selectedTransition ?: return@DropdownMenuItem
-                                    haptics.confirm(); state.props?.setTransitionType(id, ty.effect, tr?.reverse ?: false)
-                                },
-                                modifier = Modifier.testTag("transition:${ty.effect}"),
-                            )
-                        }
-                    }
-                }
-                if (type.directional && tr?.anchor == 0) {
-                    RoundIcon(Ic.Reverse, stringResource(R.string.app_reverse_direction)) {
-                        val id = state.selectedTransition ?: return@RoundIcon
-                        haptics.tick(); state.props?.setTransitionType(id, type.effect, !(tr.reverse))
-                    }
-                }
-                val bFrom = tr?.from; val bTo = tr?.to
-                if (type.blurs && bFrom != null && bTo != null && tr.anchor == 0) TransitionBlur(bFrom, bTo)
-                for (sec in listOf(0.5f, 1f, 2f)) {
-                    val on = abs(cur - sec) < 0.03f
-                    Box(
-                        Modifier.padding(horizontal = 2.dp).height(40.dp).clip(RoundedCornerShape(if (on) 20.dp else 10.dp))
-                            .background(if (on) K.Primary else K.SurfaceHigh)
-                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                                val id = state.selectedTransition ?: return@clickable
-                                haptics.confirm(); state.props?.resizeTransition(id, sec)
-                            }
-                            .padding(horizontal = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) { Text(if (sec < 1f) stringResource(R.string.app_half_second) else stringResource(R.string.app_seconds, sec.toInt()), color = if (on) K.OnPrimary else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                }
-                // pre-render: the transition plays from a finished file (smooth, no lag); re-rendered in the background after each change
-                val from = tr?.from; val to = tr?.to
-                if (from != null && to != null && tr.anchor == 0) {
-                    val pinned = se.gendut.klipp.engine.RenderCache.isPinned(from, to)
-                    val ready = pinned && se.gendut.klipp.engine.RenderCache.states.filter { it.a < tr.end - 1e-3 && it.b > tr.start + 1e-3 }.let { l -> l.isNotEmpty() && l.all { it.ready } }
-                    ContextAction(Ic.Bolt, when { !pinned -> stringResource(R.string.app_prerender); ready -> stringResource(R.string.app_rendered); else -> stringResource(R.string.app_rendering) }, selected = pinned, tag = "transition:render") {
-                        haptics.confirm(); se.gendut.klipp.engine.RenderCache.setPinned(from, to, !pinned); state.props?.requestSave()
-                    }
-                }
-            }
-            ContextAction(Ic.Delete, stringResource(R.string.app_remove), tag = "transition:remove") {
-                val id = state.selectedTransition ?: return@ContextAction
-                haptics.heavy(); state.selectedTransition = null; state.props?.removeTransition(id)
-            }
-        }
-    }
-}
-
-/** A transition's motion blur: drag sideways (0–300 %), double tap = the default. */
-@Composable
-private fun TransitionBlur(from: Long, to: Long) {
-    val haptics = rememberHaptics()
-    val v = se.gendut.klipp.engine.TransitionLooks.blurOf(from, to)
-    val max = se.gendut.klipp.engine.TransitionLooks.MAX_BLUR
-    val desc = stringResource(R.string.transitions_blur_desc)
-    Box(
-        Modifier.padding(horizontal = 2.dp).size(132.dp, 40.dp).clip(RoundedCornerShape(10.dp)).background(K.SurfaceHigh)
-            .pointerInput(from, to) {
-                detectHorizontalDragGestures { ch, dx ->
-                    ch.consume()
-                    val now = se.gendut.klipp.engine.TransitionLooks.blurOf(from, to)
-                    val next = (now + dx / size.width * max).coerceIn(0f, max)
-                    // a tick when passing the default
-                    if ((now - 1f) * (next - 1f) < 0f) haptics.tick()
-                    se.gendut.klipp.engine.TransitionLooks.setBlur(from, to, next)
-                }
-            }
-            .pointerInput(from, to) { detectTapGestures(onDoubleTap = { haptics.confirm(); se.gendut.klipp.engine.TransitionLooks.setBlur(from, to, 1f) }) }
-            .semantics { contentDescription = desc }
-            .testTag("transition:blur"),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Box(Modifier.fillMaxHeight().fillMaxWidth(v / max).background(K.Tonal))
-        // the default's place
-        Box(Modifier.fillMaxHeight().width(2.dp).offset(x = 132.dp / max - 1.dp).background(K.OutlineVar))
-        Text(
-            stringResource(R.string.transitions_blur, (v * 100f).roundToInt()), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-            maxLines = 1, softWrap = false, modifier = Modifier.align(Alignment.Center),
-        )
-    }
-}
-
-/** The color labels in a row (plus none): the current one ringed. */
-@Composable
-private fun LabelPicker(current: ClipLabel?, onBack: () -> Unit, onPick: (ClipLabel?) -> Unit) {
-    RoundIcon(Ic.Back, stringResource(R.string.app_back)) { onBack() }
+internal fun LabelPicker(current: ClipLabel?, onPick: (ClipLabel?) -> Unit) {
     val none = stringResource(R.string.app_label_none)
     Box(
-        Modifier.padding(horizontal = 4.dp).size(34.dp).clip(CircleShape)
-            .border(if (current == null) 2.5.dp else 1.5.dp, if (current == null) K.OnSurface else K.Outline, CircleShape)
+        Modifier.inViewWhen(current == null).size(44.dp).clip(CircleShape)
             .clickable(onClickLabel = none) { onPick(null) }.testTag("label:none"),
         contentAlignment = Alignment.Center,
-    ) { Box(Modifier.size(18.dp, 2.dp).graphicsLayer { rotationZ = -45f }.background(K.Outline)) }
+    ) {
+        Box(
+            Modifier.size(34.dp).border(if (current == null) 2.5.dp else 1.5.dp, if (current == null) K.OnSurface else K.Outline, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Box(Modifier.size(18.dp, 2.dp).graphicsLayer { rotationZ = -45f }.background(K.Outline)) }
+    }
     for (l in ClipLabel.entries) {
         val name = stringResource(l.title)
         Box(
-            Modifier.padding(horizontal = 4.dp).size(34.dp)
-                .then(if (l == current) Modifier.border(2.5.dp, K.OnSurface, CircleShape).padding(5.dp) else Modifier.padding(3.dp))
-                .clip(CircleShape).background(l.color)
-                .clickable(onClickLabel = name) { onPick(l) }.testTag("label:${l.name}")
-        )
-    }
-}
-
-@Composable
-private fun ContextAction(icon: ImageVector, label: String, selected: Boolean = false, tag: String? = null, onClick: () -> Unit) {
-    val src = remember { MutableInteractionSource() }
-    Column(
-        Modifier.pressPop(src, 0.85f)
-            .clip(RoundedCornerShape(18.dp))
-            .then(if (selected) Modifier.background(K.Primary) else Modifier)
-            .then(if (tag != null) Modifier.testTag(tag) else Modifier)
-            .clickable(interactionSource = src, indication = null) {
-                onClick()
-            }
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(icon, null, tint = if (selected) K.OnPrimary else K.OnSurface, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.height(2.dp))
-        Text(label, color = if (selected) K.OnPrimary else K.OnSurface, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false, style = IconLabel)
-    }
-}
-
-@Composable
-private fun ToolButton(label: String, icon: ImageVector, selected: Boolean, first: Boolean, last: Boolean, compact: Boolean = false, onClick: () -> Unit) {
-    val spec = spring<androidx.compose.ui.unit.Dp>(0.5f, 500f)
-    val outer = 22.dp
-    val inner = 8.dp
-    val l by animateDpAsState(if (selected || first) outer else inner, spec, label = "l")
-    val r by animateDpAsState(if (selected || last) outer else inner, spec, label = "r")
-    val bg by animateColorAsState(if (selected) K.Primary else K.SurfaceHigh, label = "bg")
-    val fg by animateColorAsState(if (selected) K.OnPrimary else K.OnSurface, label = "fg")
-    val src = remember { MutableInteractionSource() }
-    Column(
-        Modifier.pressPop(src, 0.9f)
-            .height(48.dp)
-            .clip(RoundedCornerShape(topStart = l, bottomStart = l, topEnd = r, bottomEnd = r))
-            .background(bg)
-            .clickable(interactionSource = src, indication = null) {
-                onClick()
-            }
-            .padding(horizontal = if (compact) 6.dp else 9.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(icon, label, tint = fg, modifier = Modifier.size(18.dp))
-        Text(label, color = fg, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, style = IconLabel)
-    }
-}
-
-@Composable
-private fun ToggleIcon(icon: ImageVector, desc: String, label: String, on: Boolean, compact: Boolean = false, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (on) K.Tonal else K.SurfaceHigh, label = "tb")
-    val r by animateDpAsState(if (on) 22.dp else 12.dp, spring(0.45f, 500f), label = "tr")
-    val rot = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-    Column(
-        Modifier.size(if (compact) 41.dp else 44.dp, 48.dp).clip(RoundedCornerShape(r)).background(bg)
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
-                scope.launch { rot.snapTo(-25f); rot.animateTo(0f, Springs.pop()) }
-                onClick()
-            },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Icon(icon, desc, tint = if (on) K.PrimarySoft else K.OnSurfaceVar, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rot.value })
-        Text(label, color = if (on) K.PrimarySoft else K.OnSurfaceVar, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, style = IconLabel)
-    }
-}
-
-/** Undo and redo at the bottom (within the thumb's reach), next to the modes. */
-@Composable
-private fun UndoRedo(state: EditorState, undo: () -> Unit, redo: () -> Unit) {
-    Row(
-        Modifier.height(64.dp).shadow(10.dp, RoundedCornerShape(32.dp)).clip(RoundedCornerShape(32.dp)).background(K.SurfaceHighest).padding(horizontal = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RoundIcon(Ic.Undo, stringResource(R.string.app_undo), enabled = state.undoCount > 0, modifier = Modifier.size(44.dp), onClick = undo)
-        RoundIcon(Ic.Redo, stringResource(R.string.app_redo), enabled = state.redoCount > 0, modifier = Modifier.size(44.dp), onClick = redo)
+            Modifier.inViewWhen(l == current).size(44.dp).clip(CircleShape)
+                .clickable(onClickLabel = name) { onPick(l) }.testTag("label:${l.name}"),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(
+                Modifier.size(34.dp)
+                    .then(if (l == current) Modifier.border(2.5.dp, K.OnSurface, CircleShape).padding(5.dp) else Modifier.padding(3.dp))
+                    .clip(CircleShape).background(l.color)
+            )
+        }
     }
 }
 
@@ -1630,96 +1071,6 @@ private fun MonitorHandle(onDrag: (Float) -> Unit, onEnd: () -> Unit, onReset: (
             .testTag("monitorHandle"),
         contentAlignment = Alignment.Center,
     ) { Box(Modifier.size(40.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(K.OutlineVar)) }
-}
-
-@Composable
-private fun FloatingModes(pageOf: () -> Float, modifier: Modifier, onPick: (Int) -> Unit) {
-    // read here (not by the caller): during a swipe only the mode row recomposes, not the whole screen
-    val page = pageOf()
-    BoxWithConstraints(
-        modifier.height(64.dp).shadow(10.dp, RoundedCornerShape(32.dp)).clip(RoundedCornerShape(32.dp)).background(K.SurfaceHighest).padding(6.dp)
-    ) {
-        val itemW = maxWidth / MODES.size
-        val itemPx = with(LocalDensity.current) { itemW.toPx() }
-        // Sideways along the row the mode steps: one on each time the finger passes into the next mode's place (not
-        // following it smoothly). A quick flick that never got that far still steps one. Taps pick a mode as before.
-        val dragging = Modifier.pointerInput(itemPx) {
-            awaitEachGesture {
-                val down = awaitFirstDown(requireUnconsumed = false)
-                // tracked from the touch down, so a short flick (mostly within the slop) still has its speed
-                val vt = VelocityTracker().apply { addPosition(down.uptimeMillis, down.position) }
-                val from = pageOf().roundToInt()
-                var at = from
-                var p = from.toFloat()
-                fun follow(c: PointerInputChange, dx: Float) {
-                    c.consume()
-                    p += dx / itemPx
-                    val step = p.roundToInt().coerceIn(0, MODES.lastIndex)
-                    if (step != at) { at = step; onPick(step) }
-                }
-                // past the slop sideways it is a drag (a tap is left to the mode's own click); every move counts for the speed
-                var dx = 0f
-                var dy = 0f
-                while (true) {
-                    val c = awaitPointerEvent().changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
-                    if (!c.pressed || c.isConsumed) return@awaitEachGesture
-                    vt.addPosition(c.uptimeMillis, c.position)
-                    dx += c.positionChange().x
-                    dy += c.positionChange().y
-                    if (abs(dy) > viewConfiguration.touchSlop && abs(dy) > abs(dx)) return@awaitEachGesture
-                    if (abs(dx) > viewConfiguration.touchSlop) { follow(c, dx - sign(dx) * viewConfiguration.touchSlop); break }
-                }
-                if (!horizontalDrag(down.id) { vt.addPosition(it.uptimeMillis, it.position); follow(it, it.positionChange().x) }) return@awaitEachGesture
-                val v = vt.calculateVelocity().x / itemPx
-                if (at == from && abs(v) > 1.5f) onPick(from + sign(v).toInt())
-            }
-        }
-        val p = page.coerceIn(0f, MODES.lastIndex.toFloat())
-        // The indicator stretches between modes and contracts when it lands
-        val frac = abs(page - page.roundToInt())
-        val stretch = 1f + frac * 0.6f
-        Box(
-            Modifier
-                .offset { IntOffset(((itemW * p).toPx()).roundToInt(), 0) }
-                .width(itemW).height(52.dp)
-                .graphicsLayer { scaleX = stretch; scaleY = 1f - frac * 0.12f }
-                .clip(RoundedCornerShape(26.dp)).background(K.Primary)
-        )
-        Row(Modifier.fillMaxSize().then(dragging).testTag("modes")) {
-            MODES.forEachIndexed { i, nameId ->
-                val name = stringResource(nameId)
-                val active = abs(p - i) < 0.5f
-                val fg by animateColorAsState(if (active) K.OnPrimary else K.OnSurface, label = "m$i")
-                Column(
-                    Modifier.weight(1f).fillMaxSize().clip(RoundedCornerShape(26.dp))
-                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onPick(i) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(MODE_ICONS[i], name, tint = fg, modifier = Modifier.size(20.dp))
-                    Text(name, color = fg, fontSize = 11.sp, fontWeight = FontWeight.Bold, style = IconLabel)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AddFab(onClick: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    val src = remember { MutableInteractionSource() }
-    val rot = remember { Animatable(0f) }
-    Box(
-        Modifier.pressPop(src, 0.82f)
-            .size(60.dp).shadow(10.dp, RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp)).background(K.Primary)
-            .clickable(interactionSource = src, indication = null) {
-                scope.launch { rot.animateTo(rot.value + 90f, Springs.pop()) }
-                onClick()
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(Ic.Plus, stringResource(R.string.app_add_clip), tint = K.OnPrimary, modifier = Modifier.size(28.dp).graphicsLayer { rotationZ = rot.value })
-    }
 }
 
 @Composable
@@ -1739,11 +1090,18 @@ private fun ToastHost(toaster: Toaster, modifier: Modifier) {
     ) {
         Text(
             toaster.message ?: "",
-            color = K.OnPrimary,
+            color = K.OnMark,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(K.Primary).padding(horizontal = 18.dp, vertical = 10.dp)
+            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(K.Mark).padding(horizontal = 18.dp, vertical = 10.dp)
         )
+    }
+}
+
+/** The master fader (0..1, where it is going) and the normalization (dB) as values (for the undo history). */
+data class MasterValues(val fader: Float, val norm: Float) {
+    companion object {
+        fun of(m: AudioMix) = MasterValues(m.gains[3].targetValue, m.normDb)
     }
 }
 
@@ -1768,7 +1126,7 @@ fun gradeToJson(g: ColorGrade, m: AudioMix): org.json.JSONObject = org.json.JSON
     .put("exposure", g.exposure.value.toDouble()).put("contrast", g.contrast.value.toDouble())
     .put("temp", g.temp.value.toDouble()).put("tint", g.tint.value.toDouble()).put("sat", g.sat.value.toDouble())
     .put("lut", g.lutName ?: org.json.JSONObject.NULL).put("lutMix", g.lutMix.value.toDouble()).put("tetra", g.tetra)
-    .put("master", m.gains[3].value.toDouble()).put("norm", m.normDb.toDouble())
+    .put("master", m.gains[3].targetValue.toDouble()).put("norm", m.normDb.toDouble())
 
 suspend fun gradeFromJson(o: org.json.JSONObject, g: ColorGrade, m: AudioMix) {
     g.exposure.snapTo(o.optDouble("exposure", 0.0).toFloat()); g.contrast.snapTo(o.optDouble("contrast", 0.0).toFloat())
@@ -1780,8 +1138,8 @@ suspend fun gradeFromJson(o: org.json.JSONObject, g: ColorGrade, m: AudioMix) {
     m.normDb = o.optDouble("norm", 0.0).toFloat().let { if (it.isNaN()) 0f else it }
 }
 
-/** Master: the fader's gain × the normalization (dB, from the loudness measurement). */
-fun mixMaster(m: AudioMix): Float = masterOf(m.gains[3].value) * Math.pow(10.0, m.normDb / 20.0).toFloat()
+/** Master: the fader's gain (where it is going – it springs after the finger) × the normalization (dB, from the loudness measurement). */
+fun mixMaster(m: AudioMix): Float = masterOf(m.gains[3].targetValue) * Math.pow(10.0, m.normDb / 20.0).toFloat()
 private fun masterOf(v: Float): Float = if (v < 0.001f) 0f else (v / 0.75f).let { it * it }.coerceIn(0f, 4f)
 
 /** The same look and master that [gradeFromJson] + [lookOf] give – directly, so the first playback is built with them. */

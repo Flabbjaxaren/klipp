@@ -74,8 +74,8 @@ class ScrubTiers(private val deadPx: Float, private val stepPx: Float, private v
 fun ScrubSpeedBadge(tier: Int, modifier: Modifier = Modifier) {
     AnimatedVisibility(tier > 0, modifier = modifier, enter = scaleIn(spring(0.5f, 600f), initialScale = 0.7f) + fadeIn(), exit = scaleOut(targetScale = 0.7f) + fadeOut()) {
         Text(
-            ScrubTiers.label(tier.coerceAtLeast(1)), color = K.OnPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(K.Primary).padding(horizontal = 9.dp, vertical = 3.dp).testTag("scrubSpeed"),
+            ScrubTiers.label(tier.coerceAtLeast(1)), color = K.PrimarySoft, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(K.PrimaryContainer).padding(horizontal = 9.dp, vertical = 3.dp).testTag("scrubSpeed"),
         )
     }
 }
@@ -87,6 +87,9 @@ private const val MONITOR_SCRUB_SECONDS = 6.0
  * Touch on the program picture: drag sideways = scrub (slower the further down the finger goes, see [ScrubTiers]),
  * a second finger tapping while the first is held = one frame forward (right of it) or back (left of it), double tap =
  * [onDoubleTap]. Off while [enabled] is false (the picture's own tools – motion, color windows – have it then).
+ *
+ * With [within] (the color page): only the scrub, kept inside the range it gives – the clip being graded. The picture
+ * has its own double tap and two-finger zoom there, and a zoomed picture is moved with the finger instead.
  */
 fun Modifier.monitorTouch(
     state: EditorState,
@@ -94,14 +97,17 @@ fun Modifier.monitorTouch(
     haptics: Haptics,
     onTier: (Int) -> Unit,
     onDoubleTap: () -> Unit,
-): Modifier = this.pointerInput(enabled) {
+    within: (() -> ClosedFloatingPointRange<Float>?)? = null,
+): Modifier = this.pointerInput(enabled, within != null) {
     if (!enabled) return@pointerInput
+    val color = within != null
     var lastTapUp = 0L
     var lastTapPos = androidx.compose.ui.geometry.Offset.Zero
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
-        if (down.isConsumed) return@awaitEachGesture
-        if (down.uptimeMillis - lastTapUp < viewConfiguration.doubleTapTimeoutMillis && (down.position - lastTapPos).getDistance() < 48.dp.toPx()) {
+        // (on the color page the picture's double tap has taken the press already)
+        if (down.isConsumed && !color) return@awaitEachGesture
+        if (!color && down.uptimeMillis - lastTapUp < viewConfiguration.doubleTapTimeoutMillis && (down.position - lastTapPos).getDistance() < 48.dp.toPx()) {
             lastTapUp = 0L
             haptics.confirm()
             onDoubleTap()
@@ -114,7 +120,9 @@ fun Modifier.monitorTouch(
         var moved = false
         while (true) {
             val ev = awaitPointerEvent()
-            for (c in ev.changes) if (c.id != down.id && c.changedToDownIgnoreConsumed() && !scrubbing) {
+            // two fingers on the color page: the picture's zoom
+            if (color && !scrubbing && ev.changes.count { it.pressed } > 1) break
+            if (!color) for (c in ev.changes) if (c.id != down.id && c.changedToDownIgnoreConsumed() && !scrubbing) {
                 val first = ev.changes.firstOrNull { it.id == down.id }?.position ?: down.position
                 val dir = if (c.position.x >= first.x) 1 else -1
                 state.playing = false
@@ -130,6 +138,7 @@ fun Modifier.monitorTouch(
                 }
                 break
             }
+            if (color && !scrubbing && c.isConsumed) break
             val d = c.position - down.position
             if (d.getDistance() > viewConfiguration.touchSlop) moved = true
             if (!scrubbing && !stepped && ev.changes.count { it.pressed } == 1 && abs(d.x) > viewConfiguration.touchSlop && abs(d.x) > abs(d.y)) {
@@ -138,9 +147,10 @@ fun Modifier.monitorTouch(
                 tiers.start(c.position.x, down.position.y, state.playhead.toDouble())
             }
             if (scrubbing) {
+                val lim = within?.invoke()
                 val t = tiers.at(c.position.x, c.position.y, secPerPx).coerceIn(0.0, state.projectEnd.toDouble().coerceAtLeast(0.0))
                 if (tiers.changed) { onTier(tiers.tier); haptics.tick() }
-                state.playhead = t.toFloat()
+                state.playhead = if (lim != null) snapFrame(t.toFloat()).coerceIn(lim.start, lim.endInclusive) else t.toFloat()
                 c.consume()
             }
         }

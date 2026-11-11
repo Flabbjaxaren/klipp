@@ -104,7 +104,6 @@ class Engine {
         // audio effect chains (no session needed – see rust/src/audio.rs); requires the library to be loaded
         @JvmStatic external fun nativeFxNew(json: String): Long
         @JvmStatic external fun nativeFxFree(fx: Long)
-        @JvmStatic external fun nativeFxCount(): Int
         @JvmStatic external fun nativeFxSet(fx: Long, index: Int, param: String, value: Double): Boolean
         @JvmStatic external fun nativeFxLatency(fx: Long, rate: Int): Int
         @JvmStatic external fun nativeFxReset(fx: Long)

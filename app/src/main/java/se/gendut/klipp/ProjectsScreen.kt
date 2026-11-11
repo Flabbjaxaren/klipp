@@ -3,17 +3,16 @@ package se.gendut.klipp
 import android.graphics.BitmapFactory
 import androidx.annotation.StringRes
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -32,36 +31,51 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -155,10 +169,13 @@ private fun dateLabel(ms: Long, withTime: Boolean = false): String {
     }
 }
 
-/** The projects page: all projects as cards with a thumbnail, new project at the top. Tap = open, long-press = more. */
+/**
+ * The projects page: the project last opened at the top with Continue, the others as thumbnails under it, New project
+ * floating in the corner. Tap a picture = open; the dots (or a long press) = more. The magnifier searches by name.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
+fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, onClose: () -> Unit) {
     val haptics = rememberHaptics()
     // the project list is read from disk – on the IO thread, not in composition (the previous list shows until the new one is ready)
     val projects by produceState(emptyList<ProjectCard>(), backend, backend.revision) {
@@ -171,7 +188,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
     var exporting by remember { mutableStateOf<ProjectCard?>(null) }
     var versionsOf by remember { mutableStateOf<ProjectCard?>(null) }
     // the project and choice waiting for the file picker (kept if the activity is recreated meanwhile)
-    var pendingExport by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingExport by rememberSaveable { mutableStateOf<String?>(null) }
     val createDoc = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         val p = pendingExport; pendingExport = null
         if (uri != null && p != null) backend.export(p.substringAfter(':'), p.startsWith("m:"), uri)
@@ -179,29 +196,69 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
     val openDoc = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { backend.import(it) }
     }
-    Column(Modifier.fillMaxSize().background(K.Bg).windowInsetsPadding(WindowInsets.safeDrawing).testTag("projects")) {
-        Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundIcon(Ic.Back, stringResource(R.string.projectsscreen_back)) { onClose() }
-            Text(stringResource(R.string.projectsscreen_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
-            PillButton(stringResource(R.string.projectsscreen_import), { haptics.tick(); openDoc.launch(arrayOf("*/*")) },
-                Modifier.padding(end = 12.dp).testTag("importProject"), icon = Ic.Download, filled = false)
+    // what is typed in the search field; null = not searching
+    var query by rememberSaveable { mutableStateOf<String?>(null) }
+    val hero = projects.firstOrNull { it.current } ?: projects.firstOrNull()
+    val shown = query?.trim().let { q ->
+        when {
+            q == null -> projects.filter { it.id != hero?.id }
+            q.isEmpty() -> projects
+            else -> projects.filter { it.name.contains(q, ignoreCase = true) }
         }
-        backend.progress?.let { f ->
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp).testTag("packProgress")) {
-                Text(stringResource(R.string.projectsscreen_copying, (f * 100).toInt()), color = K.OnSurfaceVar, fontSize = 13.sp)
-                androidx.compose.material3.LinearProgressIndicator(progress = { f }, Modifier.fillMaxWidth().padding(top = 6.dp), color = K.Primary, trackColor = K.SurfaceHigh)
+    }
+    fun open(p: ProjectCard) { haptics.confirm(); backend.open(p.id); onClose() }
+    // the system back leaves the search before it leaves the page
+    androidx.activity.compose.BackHandler(query != null) { query = null }
+    // (the empty pointer input keeps touches on the page's bare parts from reaching the editor under it)
+    Box(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.testTag("projects")) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            Row(
+                Modifier.fillMaxWidth().height(64.dp).padding(start = 20.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                val q = query
+                if (q != null) {
+                    SearchField(q, { query = it }, Modifier.weight(1f))
+                    HeaderButton(Ic.Close, stringResource(R.string.projectsscreen_search_close), Color.Transparent, Modifier.testTag("searchClose")) { query = null }
+                } else {
+                    Text("Klipp", color = K.OnSurface, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
+                    HeaderButton(Ic.Search, stringResource(R.string.projectsscreen_search), Color.Transparent, Modifier.testTag("searchProjects")) { query = "" }
+                    if (onSettings != null) HeaderButton(Ic.Gear, stringResource(R.string.app_app_settings), K.SurfaceHigh, Modifier.testTag("appSettings")) { onSettings() }
+                }
+            }
+            backend.progress?.let { f ->
+                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp).testTag("packProgress")) {
+                    Text(stringResource(R.string.projectsscreen_copying, (f * 100).toInt()), color = K.OnSurfaceVar, fontSize = 13.sp)
+                    androidx.compose.material3.LinearProgressIndicator(progress = { f }, Modifier.fillMaxWidth().padding(top = 6.dp), color = K.Primary, trackColor = K.SurfaceHigh)
+                }
+            }
+            LazyVerticalGrid(
+                GridCells.Adaptive(160.dp), Modifier.weight(1f).testTag("projectGrid"),
+                // (room for New project under the last row)
+                contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 96.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (query == null) {
+                    hero?.let { h ->
+                        item(key = "hero", span = { GridItemSpan(maxLineSpan) }) {
+                            HeroCard(h, onOpen = { open(h) }, onMenu = { haptics.heavy(); menuFor = h })
+                        }
+                    }
+                    item(key = "all", span = { GridItemSpan(maxLineSpan) }) {
+                        AllProjectsRow(projects.size) { haptics.tick(); openDoc.launch(arrayOf("*/*")) }
+                    }
+                }
+                items(shown, key = { it.id }) { p ->
+                    ProjectTile(p, onOpen = { open(p) }, onMenu = { haptics.heavy(); menuFor = p })
+                }
+                if (query != null && shown.isEmpty()) item(key = "none", span = { GridItemSpan(maxLineSpan) }) {
+                    Text(stringResource(R.string.projectsscreen_search_none), color = K.OnSurfaceVar, fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 16.dp).testTag("searchNone"))
+                }
             }
         }
-        LazyVerticalGrid(GridCells.Adaptive(160.dp), Modifier.weight(1f).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                NewProjectCard { haptics.confirm(); creating = true }
-            }
-            items(projects, key = { it.id }) { p ->
-                ProjectTile(p,
-                    onOpen = { haptics.confirm(); backend.open(p.id); onClose() },
-                    onMenu = { haptics.heavy(); menuFor = p })
-            }
-            item(span = { GridItemSpan(maxLineSpan) }) { Spacer(Modifier.height(40.dp)) }
+        NewProjectButton(Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 16.dp, bottom = 28.dp)) {
+            haptics.confirm(); creating = true
         }
     }
     if (creating) NewProjectDialog(onDismiss = { creating = false }) { spec ->
@@ -221,7 +278,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
                     if (!p.current) MenuRow(stringResource(R.string.projectsscreen_delete), danger = true) { menuFor = null; deleting = p }
                 }
             },
-            confirmButton = { TextButton(onClick = { menuFor = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
+            confirmButton = { FlatTextButton(onClick = { menuFor = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -247,7 +304,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { versionsOf = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
+            confirmButton = { FlatTextButton(onClick = { versionsOf = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -266,7 +323,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
                     ExportChoice(stringResource(R.string.projectsscreen_export_only), stringResource(R.string.projectsscreen_export_only_hint), "exportProjectOnly") { go(false) }
                 }
             },
-            confirmButton = { TextButton(onClick = { exporting = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
+            confirmButton = { FlatTextButton(onClick = { exporting = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -275,9 +332,9 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
         AlertDialog(
             onDismissRequest = { renaming = null },
             title = { Text(stringResource(R.string.projectsscreen_rename)) },
-            text = { TextInput(stringResource(R.string.projectsscreen_name), name) { name = it } },
-            confirmButton = { TextButton(onClick = { renaming = null; backend.rename(p.id, name.ifBlank { p.name }) }) { Text(stringResource(R.string.projectsscreen_save)) } },
-            dismissButton = { TextButton(onClick = { renaming = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
+            text = { TextInput(stringResource(R.string.projectsscreen_name), name, focus = true) { name = it } },
+            confirmButton = { FlatTextButton(onClick = { renaming = null; backend.rename(p.id, name.ifBlank { p.name }) }) { Text(stringResource(R.string.projectsscreen_save)) } },
+            dismissButton = { FlatTextButton(onClick = { renaming = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -286,8 +343,8 @@ fun ProjectsScreen(backend: ProjectsBackend, onClose: () -> Unit) {
             onDismissRequest = { deleting = null },
             title = { Text(stringResource(R.string.projectsscreen_delete_title, p.name)) },
             text = { Text(stringResource(R.string.projectsscreen_delete_text)) },
-            confirmButton = { TextButton(onClick = { deleting = null; backend.delete(p.id) }) { Text(stringResource(R.string.projectsscreen_delete), color = Color(0xFFFFB4AB)) } },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
+            confirmButton = { FlatTextButton(onClick = { deleting = null; backend.delete(p.id) }) { Text(stringResource(R.string.projectsscreen_delete), color = K.Error) } },
+            dismissButton = { FlatTextButton(onClick = { deleting = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -312,65 +369,180 @@ private fun ExportChoice(title: String, hint: String, tag: String, onClick: () -
 @Composable
 private fun MenuRow(label: String, danger: Boolean = false, onClick: () -> Unit) {
     Text(
-        label, color = if (danger) Color(0xFFFFB4AB) else K.OnSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+        label, color = if (danger) K.Error else K.OnSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
             .combinedClickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 14.dp),
     )
 }
 
+/** Behind a badge on a picture: dark enough for white text on any frame. */
+private val Scrim = Color(0xBF0F1012)
+
+/** A round button in the page's header. */
 @Composable
-private fun NewProjectCard(onClick: () -> Unit) {
+private fun HeaderButton(icon: ImageVector, desc: String, bg: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val haptics = rememberHaptics()
     val src = remember { MutableInteractionSource() }
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp).pressPop(src, 0.95f)
-            .clip(RoundedCornerShape(28.dp)).background(K.Primary)
-            .combinedClickable(interactionSource = src, indication = null) {
-                onClick()
+    Box(
+        modifier.size(44.dp).pressPop(src, 0.85f).clip(CircleShape).background(bg)
+            .clickable(interactionSource = src, indication = null, role = Role.Button) { haptics.press(); onClick() },
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, desc, tint = K.OnSurface, modifier = Modifier.size(22.dp)) }
+}
+
+/** The header's search field: it takes the keyboard when it appears. */
+@Composable
+private fun SearchField(value: String, onChange: (String) -> Unit, modifier: Modifier) {
+    val requester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
+    BasicTextField(
+        value, onChange, singleLine = true,
+        textStyle = TextStyle(color = K.OnSurface, fontSize = 16.sp),
+        cursorBrush = SolidColor(K.Primary),
+        modifier = modifier.focusRequester(requester).testTag("searchField"),
+        decorationBox = { inner ->
+            Row(
+                Modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(K.SurfaceHigh).padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Icon(Ic.Search, null, tint = K.OnSurfaceVar, modifier = Modifier.size(20.dp))
+                Box(Modifier.weight(1f)) {
+                    if (value.isEmpty()) Text(stringResource(R.string.projectsscreen_search), color = K.Outline, fontSize = 16.sp, maxLines = 1)
+                    inner()
+                }
             }
-            .padding(20.dp)
-            .testTag("newProject"),
-        verticalAlignment = Alignment.CenterVertically,
+        },
+    )
+}
+
+@Composable
+private fun rememberThumb(p: ProjectCard): ImageBitmap? {
+    val img by produceState<ImageBitmap?>(null, p.thumb, p.modified) {
+        value = p.thumb?.let { f -> withContext(Dispatchers.IO) { runCatching { BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() }.getOrNull() } }
+    }
+    return img
+}
+
+/** A project's picture: its thumbnail, or a film strip until it has one. Tap = open, long press = more. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ProjectPicture(p: ProjectCard, corner: Int, modifier: Modifier, onOpen: () -> Unit, onMenu: () -> Unit, badges: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
+    val img = rememberThumb(p)
+    val label = stringResource(R.string.projectsscreen_open_named, p.name)
+    Box(
+        modifier.clip(RoundedCornerShape(corner.dp)).background(K.SurfaceHigh)
+            .combinedClickable(role = Role.Button, onClick = onOpen, onLongClick = onMenu)
+            .semantics { contentDescription = label }
+            .testTag("project:${p.id}"),
     ) {
-        Icon(Ic.Plus, null, tint = K.OnPrimary, modifier = Modifier.size(28.dp))
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text(stringResource(R.string.projectsscreen_new_project), color = K.OnPrimary, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-            Text(stringResource(R.string.projectsscreen_new_project_hint), color = K.OnPrimary.copy(alpha = 0.75f), fontSize = 13.sp)
+        if (img != null) Image(img, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        else if (p.thumb == null) Icon(Ic.Film, null, tint = K.Outline, modifier = Modifier.align(Alignment.Center).size(28.dp))
+        badges()
+    }
+}
+
+/** The project last opened: a large picture, its name and facts, and Continue. */
+@Composable
+private fun HeroCard(p: ProjectCard, onOpen: () -> Unit, onMenu: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(K.Surface).padding(8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ProjectPicture(p, 20, Modifier.fillMaxWidth().height(180.dp), onOpen, onMenu) {
+            Text(
+                stringResource(R.string.projectsscreen_last_opened), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.TopStart).padding(10.dp).clip(RoundedCornerShape(12.dp)).background(Scrim).padding(horizontal = 10.dp, vertical = 4.dp),
+            )
+        }
+        Row(Modifier.padding(start = 12.dp, end = 4.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text(p.name, color = K.OnSurface, fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // the facts shrink a little on a narrow phone before they are cut
+                BasicText(
+                    factsLabel(p), color = { K.OnSurfaceVar }, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = TextStyle(fontSize = 13.sp, lineHeight = 18.sp),
+                    autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
+                )
+            }
+            // the page's play: the one filled accent
+            val src = remember { MutableInteractionSource() }
+            Row(
+                Modifier.height(52.dp).pressPop(src, 0.94f).clip(RoundedCornerShape(20.dp)).background(K.Primary)
+                    .clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onOpen)
+                    .padding(start = 16.dp, end = 22.dp).testTag("continue"),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(Ic.Play, null, tint = K.OnPrimary, modifier = Modifier.size(20.dp))
+                Text(stringResource(R.string.projectsscreen_continue), color = K.OnPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/** "1:12 · 1080p 25 · today 09:14": the length, the format and when it was last changed. */
+private fun factsLabel(p: ProjectCard): String {
+    val format = if (p.width > 0 && p.height > 0) {
+        val long = maxOf(p.width, p.height); val short = minOf(p.width, p.height)
+        // 16:9 either way up goes by its short side, anything else by its size
+        (if (long * 9 == short * 16) "${short}p" else "${p.width}×${p.height}") + (if (p.fps > 0) " ${fpsLabel(p.fps)}" else "")
+    } else null
+    return listOfNotNull(if (p.duration > 0) durLabel(p.duration) else null, format, dateLabel(p.modified)).joinToString(" · ")
+}
+
+/** "All projects · 5" over the grid, with Import at its end. */
+@Composable
+private fun AllProjectsRow(count: Int, onImport: () -> Unit) {
+    val all = stringResource(R.string.projectsscreen_all_projects)
+    Row(Modifier.fillMaxWidth().height(52.dp).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            buildAnnotatedString {
+                append(all)
+                withStyle(SpanStyle(color = K.OnSurfaceVar, fontWeight = FontWeight.Medium)) { append(" · $count") }
+            },
+            color = K.OnSurface, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f),
+        )
+        Row(
+            Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).clickable(role = Role.Button, onClick = onImport)
+                .padding(horizontal = 12.dp).testTag("importProject"),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Icon(Ic.Download, null, tint = K.OnSurface, modifier = Modifier.size(18.dp))
+            Text(stringResource(R.string.projectsscreen_import), color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        }
+    }
+}
+
 @Composable
 private fun ProjectTile(p: ProjectCard, onOpen: () -> Unit, onMenu: () -> Unit) {
-    val img by produceState<ImageBitmap?>(null, p.thumb, p.modified) {
-        value = p.thumb?.let { f -> withContext(Dispatchers.IO) { runCatching { BitmapFactory.decodeFile(f.absolutePath)?.asImageBitmap() }.getOrNull() } }
-    }
-    val border by animateColorAsState(if (p.current) K.Primary else K.OutlineVar, label = "pb")
-    Column(
-        Modifier.clip(RoundedCornerShape(20.dp)).background(K.Surface)
-            .border(if (p.current) 2.dp else 1.dp, border, RoundedCornerShape(20.dp))
-            .combinedClickable(onClick = onOpen, onLongClick = onMenu)
-            .testTag("project:${p.id}"),
-    ) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(K.SurfaceHighest)) {
-            img?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-            if (p.current) Text(
-                stringResource(R.string.projectsscreen_open_badge), color = K.OnPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(K.Primary).padding(horizontal = 8.dp, vertical = 2.dp),
-            )
+    Column(Modifier.padding(bottom = 10.dp)) {
+        ProjectPicture(p, 16, Modifier.fillMaxWidth().aspectRatio(1.83f), onOpen, onMenu) {
             if (p.duration > 0) Text(
-                durLabel(p.duration), color = Color.White, fontSize = 11.sp,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp),
+                durLabel(p.duration), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).clip(RoundedCornerShape(8.dp)).background(Scrim).padding(horizontal = 7.dp, vertical = 2.dp),
             )
         }
-        Column(Modifier.padding(10.dp)) {
-            Text(p.name, color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                listOfNotNull(dateLabel(p.modified), if (p.width > 0) "${p.width}×${p.height}" else null, if (p.fps > 0) "${fpsLabel(p.fps)}p" else null).joinToString(" · "),
-                color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1,
-            )
+        Row(Modifier.height(44.dp).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(p.name, color = K.OnSurface, fontSize = 14.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(dateLabel(p.modified), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onMenu).testTag("projectMenu:${p.id}"),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Ic.MoreVert, stringResource(R.string.projectsscreen_more_for, p.name), tint = K.OnSurface, modifier = Modifier.size(20.dp)) }
         }
+    }
+}
+
+/** New project, floating over the grid's corner. */
+@Composable
+private fun NewProjectButton(modifier: Modifier, onClick: () -> Unit) {
+    val src = remember { MutableInteractionSource() }
+    Row(
+        modifier.pressPop(src, 0.94f).shadow(12.dp, RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp)).background(K.SurfaceHighest)
+            .clickable(interactionSource = src, indication = null, role = Role.Button, onClick = onClick)
+            .height(56.dp).padding(start = 16.dp, end = 22.dp).testTag("newProject"),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(Ic.Plus, null, tint = K.OnSurface, modifier = Modifier.size(22.dp))
+        Text(stringResource(R.string.projectsscreen_new_project), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 
@@ -402,15 +574,17 @@ fun NewProjectDialog(onDismiss: () -> Unit, onCreate: (NewProjectSpec) -> Unit) 
                 TextInput(stringResource(R.string.projectsscreen_name), name) { name = it }
                 FormatPicker(preset, custom, auto = true) { p, c -> preset = p; custom = c }
                 if (custom) {
-                    TextInput(stringResource(R.string.projectsscreen_width), cw) { cw = it.filter(Char::isDigit).take(4) }
-                    TextInput(stringResource(R.string.projectsscreen_height), ch) { ch = it.filter(Char::isDigit).take(4) }
+                    Row {
+                        TextInput(stringResource(R.string.projectsscreen_width), cw, Modifier.weight(1f), stacked = true, number = true) { cw = it.filter(Char::isDigit).take(4) }
+                        TextInput(stringResource(R.string.projectsscreen_height), ch, Modifier.weight(1f), stacked = true, number = true) { ch = it.filter(Char::isDigit).take(4) }
+                    }
                     if (size == null) Text(stringResource(R.string.projectsscreen_size_error), color = K.Error, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp))
                 }
                 FpsPicker(shownFps, auto = autoFps) { fps = it }
                 SampleRatePicker(sr) { sr = it }
                 Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SpringChip(stringResource(R.string.projectsscreen_stereo), !mono, { mono = false }, selectedColor = K.Primary, selectedText = K.OnPrimary)
-                    SpringChip(stringResource(R.string.projectsscreen_mono), mono, { mono = true }, selectedColor = K.Primary, selectedText = K.OnPrimary)
+                    SpringChip(stringResource(R.string.projectsscreen_stereo), !mono, { mono = false })
+                    SpringChip(stringResource(R.string.projectsscreen_mono), mono, { mono = true })
                 }
                 SectionLabel(stringResource(R.string.projectsscreen_export))
                 PresetRow(stringResource(if (showExport) R.string.projectsscreen_hide_export_settings else R.string.projectsscreen_export_settings),
@@ -423,7 +597,7 @@ fun NewProjectDialog(onDismiss: () -> Unit, onCreate: (NewProjectSpec) -> Unit) 
             }
         },
         confirmButton = {
-            TextButton(
+            FlatTextButton(
                 onClick = {
                     val f = if (size != null) shownFps ?: 25.0 else fps
                     onCreate(NewProjectSpec(name, size?.first, size?.second, f, sr, mono, export))
@@ -432,7 +606,7 @@ fun NewProjectDialog(onDismiss: () -> Unit, onCreate: (NewProjectSpec) -> Unit) 
                 modifier = Modifier.testTag("create"),
             ) { Text(stringResource(R.string.projectsscreen_create)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.projectsscreen_cancel)) } },
+        dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.projectsscreen_cancel)) } },
         containerColor = K.SurfaceHigh,
     )
 }
@@ -490,7 +664,7 @@ fun SampleRatePicker(selected: Int, onPick: (Int) -> Unit) {
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PresetRow(label: String, hint: String, on: Boolean, onClick: () -> Unit) {
-    val bg by animateColorAsState(if (on) K.Tonal else Color.Transparent, label = "pr")
+    val bg by animateColorAsState(if (on) K.PrimaryContainer else Color.Transparent, label = "pr")
     Row(
         Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(14.dp)).background(bg)
             .combinedClickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 8.dp)
@@ -528,9 +702,9 @@ fun ProjectSettingsDialog(
             Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
                 TextInput(stringResource(R.string.projectsscreen_name), n) { n = it }
                 FormatPicker(preset, preset == null, auto = false) { p, _ -> preset = p; if (p != null) { w = p.w.toString(); h = p.h.toString() } }
-                Row(Modifier.padding(horizontal = 8.dp)) {
-                    Box(Modifier.weight(1f)) { TextInput(stringResource(R.string.projectsscreen_width), w) { w = it.filter(Char::isDigit).take(5); preset = null } }
-                    Box(Modifier.weight(1f)) { TextInput(stringResource(R.string.projectsscreen_height), h) { h = it.filter(Char::isDigit).take(5); preset = null } }
+                Row {
+                    TextInput(stringResource(R.string.projectsscreen_width), w, Modifier.weight(1f), stacked = true, number = true) { w = it.filter(Char::isDigit).take(5); preset = null }
+                    TextInput(stringResource(R.string.projectsscreen_height), h, Modifier.weight(1f), stacked = true, number = true) { h = it.filter(Char::isDigit).take(5); preset = null }
                 }
                 FpsPicker(f, auto = false) { f = it }
                 SampleRatePicker(sr) { sr = it }
@@ -542,13 +716,13 @@ fun ProjectSettingsDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
+            FlatTextButton(onClick = {
                 val ww = (w.toIntOrNull() ?: width).coerceIn(16, 8192) / 2 * 2
                 val hh = (h.toIntOrNull() ?: height).coerceIn(16, 8192) / 2 * 2
                 onApply(n.ifBlank { name }, ww, hh, f ?: fps, sr)
             }, modifier = Modifier.testTag("applySettings")) { Text(stringResource(R.string.projectsscreen_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.projectsscreen_cancel)) } },
+        dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.projectsscreen_cancel)) } },
         containerColor = K.SurfaceHigh,
     )
 }
@@ -561,7 +735,7 @@ fun ProxySection(context: android.content.Context) {
     androidx.compose.runtime.LaunchedEffect(p.revision) { size = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { p.size(context) } }
     SectionLabel(stringResource(R.string.projectsscreen_proxy_cache))
     Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        SpringChip(stringResource(if (p.enabled) R.string.projectsscreen_proxy_on else R.string.projectsscreen_proxy_off), p.enabled, { p.switch(!p.enabled) }, Modifier.testTag("proxyToggle"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+        SpringChip(stringResource(if (p.enabled) R.string.projectsscreen_proxy_on else R.string.projectsscreen_proxy_off), p.enabled, { p.switch(!p.enabled) }, Modifier.testTag("proxyToggle"))
         SpringChip(stringResource(R.string.projectsscreen_proxy_clear, size / 1e9), false, { p.clear(context); size = 0 }, Modifier.testTag("proxyClear"))
     }
     val proxyDefault = stringResource(R.string.projectsscreen_proxy_default)

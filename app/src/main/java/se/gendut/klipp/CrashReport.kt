@@ -10,7 +10,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -144,8 +143,8 @@ fun CrashDialog(text: String, onCopy: () -> Unit, onDismiss: () -> Unit) {
                 )
             }
         },
-        confirmButton = { TextButton(onClick = onCopy) { Text(stringResource(R.string.crashreport_copy)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.crashreport_close)) } },
+        confirmButton = { FlatTextButton(onClick = onCopy) { Text(stringResource(R.string.crashreport_copy)) } },
+        dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.crashreport_close)) } },
         containerColor = K.SurfaceHigh,
     )
 }

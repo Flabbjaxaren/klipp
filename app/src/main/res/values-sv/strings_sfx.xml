@@ -3,6 +3,12 @@
     <string name="sfx_title">Ljudeffekter</string>
     <string name="sfx_license_note">Alla ljud är CC0 – fria att använda i vilken film som helst, utan namnangivelse.</string>
     <string name="sfx_tab_packs">Paket</string>
+    <string name="sfx_tab_speech">Tal</string>
+    <string name="sfx_tab_files">Filer</string>
+    <string name="sfx_files_hint">Musik eller ett ljud från telefonen. Det kopieras in i Klipp och läggs vid spelhuvudet.</string>
+    <string name="sfx_file_choose">Välj en ljudfil</string>
+    <string name="sfx_file_busy">Kopierar…</string>
+    <string name="sfx_file_failed">Filen gick inte att läsa som ljud</string>
     <string name="sfx_size_mb">%1$.1f MB</string>
     <string name="sfx_download">Hämta</string>
     <string name="sfx_download_failed">Det gick inte att hämta: %1$s</string>
@@ -18,8 +24,6 @@
     <string name="sfx_forget_key">Glöm API-nyckeln</string>
     <string name="sfx_seconds">%1$.1f s</string>
     <string name="sfx_add">Lägg till</string>
-    <string name="sfx_browse">Bläddra bland ljudeffekter</string>
-    <string name="sfx_section_hint">Fria ljudeffekter (CC0) – de läggs vid spelhuvudet på första lediga ljudspår.</string>
     <string name="sfx_pack_impact">steg, slag, dunsar, glas, metall</string>
     <string name="sfx_pack_interface">klick, bekräftelser, fel, reglage</string>
     <string name="sfx_pack_ui">mjuka klick och reglage</string>

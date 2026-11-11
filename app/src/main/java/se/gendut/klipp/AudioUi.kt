@@ -1,14 +1,12 @@
 package se.gendut.klipp
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,7 +30,7 @@ import se.gendut.klipp.engine.AudioFxCatalog
 fun AudioFxSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
     val haptics = rememberHaptics()
     SectionLabel(stringResource(R.string.audioui_effects))
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (fx in AudioFxCatalog.all.filter { it.addable }) {
             val has = p.afx.any { it.id == fx.id }
             SpringChip(if (has) "${fx.label} ✓" else "+ ${fx.label}", has, {
@@ -51,7 +49,7 @@ fun AudioFxSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
         ) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(AudioFxCatalog.label(e.id), color = if (e.on) K.OnSurface else K.OnSurfaceVar, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                SpringChip(stringResource(if (e.on) R.string.audioui_on else R.string.audioui_off), e.on, { haptics.tick(); backend.toggleAudioFx(p.id, e.index) }, Modifier.testTag("fxOn:${e.id}"), selectedColor = K.Primary, selectedText = K.OnPrimary)
+                SpringChip(stringResource(if (e.on) R.string.audioui_on else R.string.audioui_off), e.on, { haptics.tick(); backend.toggleAudioFx(p.id, e.index) }, Modifier.testTag("fxOn:${e.id}"))
                 SpringChip(stringResource(R.string.audioui_remove), false, { haptics.heavy(); backend.removeAudioFx(p.id, e.index) }, Modifier.testTag("fxDel:${e.id}"))
             }
             if (def == null) {

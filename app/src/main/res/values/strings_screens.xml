@@ -44,7 +44,6 @@
     <string name="settings_group_developer">Developer</string>
     <string name="settings_agent_bridge">Let the computer control Klipp</string>
     <string name="settings_agent_bridge_hint">over USB or wireless debugging (adb) – for testing with an AI agent. Turn it off when you don\'t use it.</string>
-    <string name="settings_group_about">About Klipp</string>
     <string name="settings_about">Klipp %1$s – free software, GNU GPL v3.\nEditing engine: FilmCraft · playback and export: Media3 1.11.1\nFilm: spektrafilm © Andrea Volpato et al. (GPL-3.0), film profiles CC BY-SA 4.0 – github.com/andreavolpato/spektrafilm\nImage transform: OpenDRT © Jed Smith (GPL-3.0) · speech recognition: whisper.cpp (MIT)\nVideo pipeline: Media3 effect © The Android Open Source Project (Apache 2.0), modified for floating point throughout the pipeline\nSound effects: Kenney (kenney.nl) and BigSoundBank (bigsoundbank.com), CC0 · search: Freesound (CC0 sounds)</string>
     <string name="exportui_auto">Auto</string>
     <string name="exportui_auto_lower">auto</string>
@@ -66,6 +65,7 @@
     <string name="exportui_bits_8_hint">like most video files</string>
     <string name="exportui_bits_10">10-bit</string>
     <string name="exportui_quality">Quality (bitrate)</string>
+    <string name="exportui_tab_quality">Quality</string>
     <string name="exportui_quality_auto_hint">default for the format · %1$s</string>
     <string name="exportui_quality_custom">Custom</string>
     <string name="exportui_quality_custom_hint">set Mbps yourself</string>
@@ -119,9 +119,15 @@
     <string name="projectsscreen_preset_classic">Classic 4:3</string>
     <string name="projectsscreen_today_at">today %1$s</string>
     <string name="projectsscreen_yesterday_at">yesterday %1$s</string>
-    <string name="projectsscreen_back">Back</string>
-    <string name="projectsscreen_title">Projects</string>
     <string name="projectsscreen_open">Open</string>
+    <string name="projectsscreen_open_named">Open %1$s</string>
+    <string name="projectsscreen_more_for">More for %1$s</string>
+    <string name="projectsscreen_last_opened">Last opened</string>
+    <string name="projectsscreen_continue">Continue</string>
+    <string name="projectsscreen_all_projects">All projects</string>
+    <string name="projectsscreen_search">Search projects</string>
+    <string name="projectsscreen_search_close">Close search</string>
+    <string name="projectsscreen_search_none">No project has that in its name.</string>
     <string name="projectsscreen_rename">Rename</string>
     <string name="projectsscreen_duplicate">Duplicate</string>
     <string name="projectsscreen_delete">Delete</string>
@@ -144,8 +150,6 @@
     <string name="projectsscreen_delete_title">Delete %1$s?</string>
     <string name="projectsscreen_delete_text">The project is removed from the app. The video files on your phone are not touched.</string>
     <string name="projectsscreen_new_project">New project</string>
-    <string name="projectsscreen_new_project_hint">Choose format and frame rate</string>
-    <string name="projectsscreen_open_badge">Open</string>
     <string name="projectsscreen_width">Width</string>
     <string name="projectsscreen_height">Height</string>
     <string name="projectsscreen_size_error">Width and height: 16–8192 pixels</string>
@@ -219,12 +223,12 @@
     <string name="realmode_playback_error">Playback: %1$s</string>
     <string name="realmode_close_source">Close source</string>
     <string name="realmode_source_title">Source · %1$s</string>
-    <string name="realmode_mark_in">Mark In</string>
+    <string name="realmode_mark_in">Mark in</string>
     <string name="realmode_previous_frame">Previous frame</string>
     <string name="realmode_pause">Pause</string>
     <string name="realmode_play">Play</string>
     <string name="realmode_next_frame">Next frame</string>
-    <string name="realmode_mark_out">Mark Out</string>
+    <string name="realmode_mark_out">Mark out</string>
     <string name="realmode_insert">Insert</string>
     <string name="realmode_overwrite">Overwrite</string>
     <string name="realmode_exporting">Exporting</string>

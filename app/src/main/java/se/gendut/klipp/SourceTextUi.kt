@@ -123,7 +123,7 @@ fun SourceTextView(
                 Text(stringResource(if (redo) R.string.transcript_redo_hint else R.string.source_text_empty), color = K.OnSurfaceVar, fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                 // the last run's result ("No speech found" …) right under the hint, where it is seen
-                ac.message?.let { Text(it, color = K.Primary, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("src:message")) }
+                ac.message?.let { Text(it, color = K.OnSurface, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("src:message")) }
                 val pick = rememberSpeechPick()
                 SpeechPicker(pick, "src")
                 val model = pick.model
@@ -147,8 +147,8 @@ fun SourceTextView(
                         else stringResource(R.string.source_text_selected, durText(ws[parts[sel.last].last].end - ws[parts[sel.first].first].start)),
                         color = if (sel == null) K.Outline else K.Primary, fontSize = 11.sp, modifier = Modifier.weight(1f),
                     )
-                    androidx.compose.material3.TextButton({ haptics.tick(); redo = true }, Modifier.testTag("src:redo")) {
-                        Text(stringResource(R.string.transcript_redo), color = K.OnSurfaceVar, fontSize = 12.sp)
+                    FlatTextButton({ haptics.tick(); redo = true }, Modifier.testTag("src:redo")) {
+                        Text(stringResource(R.string.transcript_redo), fontSize = 12.sp)
                     }
                 }
                 val list = rememberLazyListState()
@@ -159,7 +159,7 @@ fun SourceTextView(
                         val playing = pos >= a.start && pos < b.end
                         Row(
                             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp).clip(RoundedCornerShape(10.dp))
-                                .background(if (marked) K.Primary.copy(alpha = 0.22f) else Color.Transparent)
+                                .background(if (marked) K.PrimaryContainer else Color.Transparent)
                                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {
                                     haptics.tick()
                                     val sel = selection
@@ -179,7 +179,7 @@ fun SourceTextView(
                                 .padding(horizontal = 8.dp, vertical = 6.dp)
                                 .testTag("src:s$si"),
                         ) {
-                            Text(formatTc(a.start.toFloat()).substring(3, 8), color = if (marked) K.Primary else K.Outline, fontSize = 11.sp,
+                            Text(formatTc(a.start.toFloat()).substring(3, 8), color = if (marked) K.PrimarySoft else K.Outline, fontSize = 11.sp,
                                 fontFamily = FontFamily.Monospace, modifier = Modifier.width(48.dp).padding(top = 3.dp))
                             Text(
                                 (r.first..r.last).joinToString(" ") { ws[it].text }, fontSize = 15.sp, lineHeight = 21.sp,

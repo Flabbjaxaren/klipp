@@ -262,9 +262,10 @@ fun ProgramMonitor(
                 gs.redraw = { if (!state.playing) playback.redraw() }
                 onDispose { gs.capture = null; gs.redraw = null }
             }
-            // long-press "Program" = diagnostics (which path playback takes, the layers, timings)
+            // long-press "Program" = diagnostics (which path playback takes, the layers, timings). Not on the color page:
+            // its own labels lie in that corner (which side is the still when comparing, the scopes)
             var diag by remember { mutableStateOf(false) }
-            Column(Modifier.align(Alignment.TopStart).padding(10.dp)) {
+            if (gs?.active != true) Column(Modifier.align(Alignment.TopStart).padding(10.dp)) {
                 Text(
                     stringResource(R.string.realmode_program) +
                         se.gendut.klipp.engine.Proxies.progress.values.let { v -> if (v.isEmpty()) "" else " · " + stringResource(R.string.realmode_proxy_status, v.firstOrNull { it >= 0 }?.let { "$it %" } ?: stringResource(R.string.realmode_proxy_queued)) + (if (v.size > 1) " (${v.size})" else "") },
@@ -320,7 +321,7 @@ fun ProgramMonitor(
 }
 
 @Composable
-fun BigButton(label: String, onClick: () -> Unit, color: Color = K.Primary, textColor: Color = K.OnPrimary, modifier: Modifier = Modifier) {
+fun BigButton(label: String, onClick: () -> Unit, color: Color = K.SurfaceHighest, textColor: Color = K.OnSurface, modifier: Modifier = Modifier) {
     val src = remember { MutableInteractionSource() }
     Box(
         modifier.pressPop(src, 0.9f)
@@ -552,17 +553,17 @@ fun SourcePanel(
                 Text("${m.width}×${m.height} · ${"%.2f".format(m.fps)} fps · ${durText(m.duration)}", color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1)
             }
             Text(
-                formatTc(pos.toFloat()), color = K.Primary, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
+                formatTc(pos.toFloat()), color = K.OnSurface, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(end = 4.dp)
             )
             if (text != null) {
-                val bg by androidx.compose.animation.animateColorAsState(if (textMode) K.Primary else Color.Transparent, label = "tx")
+                val bg by androidx.compose.animation.animateColorAsState(if (textMode) K.PrimaryContainer else Color.Transparent, label = "tx")
                 Box(
                     Modifier.padding(end = 6.dp).size(40.dp).clip(RoundedCornerShape(20.dp)).background(bg)
                         .clickable(onClickLabel = stringResource(if (textMode) R.string.source_show_picture else R.string.source_show_text)) { haptics.tick(); textMode = !textMode }
                         .testTag("source:text"),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Ic.Transcript, stringResource(R.string.source_text), tint = if (textMode) K.OnPrimary else K.OnSurface, modifier = Modifier.size(20.dp)) }
+                ) { Icon(Ic.Transcript, stringResource(R.string.source_text), tint = if (textMode) K.PrimarySoft else K.OnSurface, modifier = Modifier.size(20.dp)) }
             }
         }
         // Image (or the clip as text)
@@ -589,22 +590,22 @@ fun SourcePanel(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(56.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            RoundIcon(Ic.MarkIn, stringResource(R.string.realmode_mark_in)) { markIn = pos; if (markOut != null && markOut!! < pos) markOut = null; haptics.confirm(); pushMarks() }
-            RoundIcon(Ic.Prev, stringResource(R.string.realmode_previous_frame)) { playing = false; seek(pos - frame); haptics.tick() }
+            RoundIcon(Ic.MarkIn, stringResource(R.string.realmode_mark_in), haptic = false) { markIn = pos; if (markOut != null && markOut!! < pos) markOut = null; haptics.confirm(); pushMarks() }
+            RoundIcon(Ic.Prev, stringResource(R.string.realmode_previous_frame)) { playing = false; seek(pos - frame) }
             val bg = K.Primary
             Box(
                 Modifier.size(56.dp, 44.dp).clip(RoundedCornerShape(if (playing) 22.dp else 14.dp)).background(bg)
                     .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { haptics.confirm(); playing = !playing },
                 contentAlignment = Alignment.Center
             ) { Icon(if (playing) Ic.Pause else Ic.Play, stringResource(if (playing) R.string.realmode_pause else R.string.realmode_play), tint = K.OnPrimary, modifier = Modifier.size(24.dp)) }
-            RoundIcon(Ic.Next, stringResource(R.string.realmode_next_frame)) { playing = false; seek(pos + frame); haptics.tick() }
-            RoundIcon(Ic.MarkOut, stringResource(R.string.realmode_mark_out)) { markOut = pos; if (markIn != null && markIn!! > pos) markIn = null; haptics.confirm(); pushMarks() }
+            RoundIcon(Ic.Next, stringResource(R.string.realmode_next_frame)) { playing = false; seek(pos + frame) }
+            RoundIcon(Ic.MarkOut, stringResource(R.string.realmode_mark_out), haptic = false) { markOut = pos; if (markIn != null && markIn!! > pos) markIn = null; haptics.confirm(); pushMarks() }
             Spacer(Modifier.weight(1f))
             Text(formatTc(len.toFloat()).substring(3), color = K.OnSurfaceVar, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            EditButton(stringResource(R.string.realmode_insert), Ic.Split, K.Primary, K.OnPrimary, RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 6.dp, bottomEnd = 6.dp), Modifier.weight(1f)) { doEdit(false) }
-            EditButton(stringResource(R.string.realmode_overwrite), Ic.Edit, K.PrimaryContainer, K.PrimarySoft, RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 24.dp, bottomEnd = 24.dp), Modifier.weight(1f)) { doEdit(true) }
+            EditButton(stringResource(R.string.realmode_insert), Ic.Split, K.SurfaceHighest, K.OnSurface, RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 6.dp, bottomEnd = 6.dp), Modifier.weight(1f)) { doEdit(false) }
+            EditButton(stringResource(R.string.realmode_overwrite), Ic.Edit, K.SurfaceHigh, K.OnSurface, RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 24.dp, bottomEnd = 24.dp), Modifier.weight(1f)) { doEdit(true) }
         }
     }
 }
@@ -712,7 +713,7 @@ fun ScrubBar(
             val a = markIn ?: 0.0
             val b = markOut ?: duration
             if (markIn != null || markOut != null) {
-                drawRoundRect(K.Tonal, Offset(x(a), top), Size((x(b) - x(a)).coerceAtLeast(2f), h), CornerRadius(h / 2))
+                drawRoundRect(K.PrimaryContainer, Offset(x(a), top), Size((x(b) - x(a)).coerceAtLeast(2f), h), CornerRadius(h / 2))
             }
             // in/out: a bar through the track + a large tab below
             fun handle(t: Double, active: Boolean, left: Boolean) {
@@ -779,7 +780,7 @@ fun WavyProgress(p: Float, modifier: Modifier) {
         }
         drawPath(path, K.Primary, style = androidx.compose.ui.graphics.drawscope.Stroke(5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round))
         if (end < size.width - 8.dp.toPx())
-            drawLine(K.Tonal, Offset(end + 8.dp.toPx(), mid), Offset(size.width, mid), 5.dp.toPx(), androidx.compose.ui.graphics.StrokeCap.Round)
+            drawLine(K.PrimaryContainer, Offset(end + 8.dp.toPx(), mid), Offset(size.width, mid), 5.dp.toPx(), androidx.compose.ui.graphics.StrokeCap.Round)
     }
 }
 

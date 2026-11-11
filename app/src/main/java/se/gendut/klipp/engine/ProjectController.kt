@@ -528,6 +528,7 @@ class ProjectController(
                 group(Str.t(R.string.projectcontroller_undo_razor)) {
                     for (tr in tracks) engine.tryExec("timeline.razor", JSONObject().put("time", t).put("track", engineTrack(tr)))
                         .onSuccess { cuts++ }.onFailure { err = it }
+                    if (cuts > 0 && q0 != null) relinkTails(q0, before, at.toDouble())
                 }
             }
             if (cuts == 0) err?.let { onMessage(friendly(it.message)) }
@@ -537,6 +538,27 @@ class ProjectController(
             for ((old, pieces) in fresh.groupBy { f -> oldUi.values.firstOrNull { o -> o.track == f.track && o.start < at && o.end > at }?.id }) {
                 if (old != null) onSplit(old, pieces.map { it.id })
             }
+        }
+    }
+
+    /**
+     * A razor per track leaves the tails of a linked pair (picture and sound) in separate link groups: the tails that
+     * were cut from one link group are linked again, like the heads.
+     */
+    private suspend fun relinkTails(old: SequenceSnap, before: Set<Long>, at: Double) {
+        val now = runCatching { engine.snapshot() }.getOrNull()?.sequence ?: return
+        val oldCut = (old.video + old.audio).flatMap { tr -> tr.clips.filter { it.start < at && it.start + it.duration > at }.map { tr.id to it } }
+        val tails = (now.video + now.audio).flatMap { tr -> tr.clips.filter { it.id !in before }.map { tr.id to it } }
+        val groups = tails.mapNotNull { (track, c) ->
+            val from = oldCut.firstOrNull { (t, o) -> t == track && abs(o.start + o.duration - (c.start + c.duration)) < 1e-3 }?.second
+            from?.link?.let { it to c.id }
+        }.groupBy({ it.first }, { it.second })
+        for (ids in groups.values) {
+            if (ids.size < 2) continue
+            val p = JSONObject().put("clips", JSONArray(ids))
+            // (the command toggles: if it unlinked, once more)
+            val r = engine.tryExec("clip.link", p).getOrNull() ?: continue
+            if (r.has("linked") && !r.optBoolean("linked")) engine.tryExec("clip.link", p)
         }
     }
 
@@ -620,8 +642,13 @@ class ProjectController(
                 se.gendut.klipp.UiTransition(x.id, track, x.start.toFloat(), x.end.toFloat(), anchor, cut.toFloat(), x.effect, x.reverse, x.from, x.to)
             }
             // video: V1 = 2, V2 = 1, V3 = 0; audio: A1 = 3 …
+            val selectedWas = state.transitions.firstOrNull { it.id == state.selectedTransition }
             state.transitions = q.video.take(3).flatMapIndexed { k, t -> uiOf(t, 2 - k) } + q.audio.take(3).flatMapIndexed { k, t -> uiOf(t, 3 + k) }
-            if (state.selectedTransition != null && state.transitions.none { it.id == state.selectedTransition }) state.selectedTransition = null
+            // a selected transition that is gone: if another one is in its place now (a change of type or direction removes
+            // it and adds a new one), that one is selected – its card stays open
+            if (state.selectedTransition != null && state.transitions.none { it.id == state.selectedTransition }) {
+                state.selectedTransition = selectedWas?.let { w -> state.transitions.firstOrNull { it.track == w.track && it.from == w.from && it.to == w.to }?.id }
+            }
             state.captions = (q.captions.map { se.gendut.klipp.UiCaption(it.id, it.start.toFloat(), it.end.toFloat(), it.text, it.track) } +
                 q.hiddenCaptions.map { se.gendut.klipp.UiCaption(it.id, it.start.toFloat(), it.end.toFloat(), it.text, it.track, hidden = true) })
                 .sortedBy { it.start }
@@ -1229,6 +1256,18 @@ class ProjectController(
             .onFailure { onMessage(it.message ?: Str.t(R.string.projectcontroller_add_marker_failed)) }
         refresh()
     } }
+
+    /** Remove the marker at [atSec] (the nearest one, within half a frame). */
+    fun removeMarker(atSec: Float) = scope.launch { editLock.withLock {
+        val m = snapshot.sequence?.markers?.minByOrNull { abs(it.time - atSec) }?.takeIf { abs(it.time - atSec) < 0.5 / snapshot.fps }
+        if (m != null) {
+            engine.tryExec("markers.delete", JSONObject().put("target", "program").put("marker", m.id)).onFailure { onMessage(friendly(it.message)) }
+            refresh()
+        }
+    } }
+
+    /** Remove all the sequence's markers (one undo step). */
+    fun clearMarkers() = run("markers.clearAll", JSONObject().put("target", "program"))
 
     /** Markers on the beat of the clip's sound, within the clip (one undo step). */
     fun addBeatMarkers(clipId: Long) = scope.launch {

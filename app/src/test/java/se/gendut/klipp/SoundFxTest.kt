@@ -70,6 +70,13 @@ class SoundFxTest {
         assertTrue(SoundFx.PACKS.count { it.source == SoundFx.BIGSOUNDBANK } == 4)
     }
 
+    @Test fun aFailureWithoutNetworkSaysSo() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        assertEquals(app.getString(R.string.app_no_internet), Str.netError(java.io.IOException("x", java.net.UnknownHostException("Unable to resolve host"))))
+        assertEquals(app.getString(R.string.app_net_timeout), Str.netError(java.net.SocketTimeoutException("timeout")))
+        assertEquals("HTTP 404", Str.netError(java.io.IOException("HTTP 404")))
+    }
+
     @Test fun softLimitNeverClips() {
         assertEquals(0.5, SoundFx.softLimit(0.5), 0.0)
         assertEquals(-0.9, SoundFx.softLimit(-0.9), 0.0)

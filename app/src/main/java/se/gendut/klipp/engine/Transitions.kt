@@ -12,7 +12,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.BaseGlShaderProgram
 import androidx.media3.effect.GlEffect
 import androidx.media3.effect.GlShaderProgram
-import kotlin.math.hypot
 import se.gendut.klipp.R
 import se.gendut.klipp.Str
 
@@ -210,21 +209,6 @@ data class SegFx(
         const val WHIP_BLUR = 0.9f
         const val WHIP_SOFT = 0.4f
         const val PAN_BLUR = 0.8f
-
-        /** Visible at (x, y) in the frame's normalized coordinates (0..1, y down) with aspect ratio [aspect]? */
-        fun visibleAt(m: Mask?, x: Float, y: Float, aspect: Float): Boolean {
-            m ?: return true
-            return when (m.kind) {
-                Mask.LEFT_OF -> x < m.v
-                Mask.RIGHT_OF -> x > m.v
-                Mask.CIRCLE_IN, Mask.CIRCLE_OUT -> {
-                    val r = m.v * hypot(0.5f * aspect, 0.5f)
-                    val d = hypot((x - 0.5f) * aspect, y - 0.5f)
-                    if (m.kind == Mask.CIRCLE_IN) d < r else d >= r
-                }
-                else -> true
-            }
-        }
     }
 }
 

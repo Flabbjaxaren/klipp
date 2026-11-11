@@ -7,14 +7,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -121,7 +119,7 @@ fun PinSection(state: EditorState, p: ClipProps, gs: GradeState) {
     val busy = PinTrackService.target == p.id
     val at = state.playhead.coerceIn(title.start, title.end - 0.001f)
     val under = state.clips.filter { it.kind == ClipKind.VIDEO && it.enabled && state.trackStates.getOrNull(it.track)?.enabled != false && at >= it.start && at < it.start + it.length }.minByOrNull { it.track }
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), itemVerticalAlignment = Alignment.CenterVertically) {
         if (pin == null) {
             PillButton(stringResource(R.string.titlepin_pin), {
                 haptics.confirm()
@@ -193,7 +191,7 @@ fun PinOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier
             // is the ring, enlarged – with the fine cross in the middle on the corner itself. Its source is taken as
             // the layout's position plus an unscaled offset, so the corner goes in as its offset on screen (zoomed: scaled
             // and moved with the monitor) – it used to magnify somewhere else as soon as the monitor was zoomed.
-            .magnifier(sourceCenter = { magnifierSource(coords, dragAt) }, zoom = (LOUPE / 2f / HANDLE_R).toFloat().coerceAtLeast(1f),
+            .magnifier(sourceCenter = { magnifierSource(coords, dragAt) }, zoom = (LOUPE / 2f / HANDLE_R).coerceAtLeast(1f),
                 size = androidx.compose.ui.unit.DpSize(LOUPE.dp, LOUPE.dp), cornerRadius = (LOUPE / 2).dp)
             .pointerInput(id) {
             awaitEachGesture {

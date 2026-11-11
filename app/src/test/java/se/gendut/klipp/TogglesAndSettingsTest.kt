@@ -77,6 +77,8 @@ class TogglesAndSettingsTest {
         st.selected = id
         rule.setContent { KlippTheme { KlippApp(st) } }
         rule.waitForIdle()
+        rule.onNodeWithTag("ctx:more").performClick()
+        rule.waitForIdle()
         rule.onNodeWithText("Stäng av").performClick()
         rule.waitForIdle()
         assertFalse(st.clips.first { it.id == id }.enabled)
@@ -92,13 +94,17 @@ class TogglesAndSettingsTest {
         st.selected = id
         rule.setContent { KlippTheme { KlippApp(st) } }
         rule.waitForIdle()
-        rule.onNodeWithTag("ctx:label").performScrollTo().performClick()
+        rule.onNodeWithTag("ctx:more").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("ctx:label").performClick()
         rule.waitForIdle()
         rule.onNodeWithTag("label:YELLOW").performClick()
         rule.waitForIdle()
         assertEquals(ClipLabel.YELLOW, st.clips.first { it.id == id }.label)
         rule.onNodeWithTag("clipLabel:$id:YELLOW", useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("ctx:label").performScrollTo().performClick()
+        rule.onNodeWithTag("ctx:more").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("ctx:label").performClick()
         rule.waitForIdle()
         rule.onNodeWithTag("label:none").performClick()
         rule.waitForIdle()

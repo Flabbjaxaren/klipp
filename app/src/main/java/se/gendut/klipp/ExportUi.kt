@@ -2,20 +2,17 @@ package se.gendut.klipp
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,7 +56,7 @@ fun ExportOptions(
 
     var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     ConnectedToggleGroup(
-        listOf(stringResource(R.string.exportui_tab_video), stringResource(R.string.exportui_quality), stringResource(R.string.exportui_color), stringResource(R.string.exportui_audio)),
+        listOf(stringResource(R.string.exportui_tab_video), stringResource(R.string.exportui_tab_quality), stringResource(R.string.exportui_color), stringResource(R.string.exportui_audio)),
         tab, { tab = it }, Modifier.padding(vertical = 6.dp).fillMaxWidth(), tag = { "expTab:$it" },
     )
     when (tab) {
@@ -198,19 +195,22 @@ fun ExportDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.exportui_title)) },
         text = {
-            Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()).testTag("exportDialog")) {
-                TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
-                ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked) { s = it }
+            Column(Modifier.testTag("exportDialog")) {
+                // the same height on every tab, so the dialog stays where it is when the tab changes; the summary is always in view
+                Column(Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
+                    TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
+                    ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked) { s = it }
+                }
                 Text(
                     "${ow}×$oh · ${stringResource(R.string.exportui_fps_value, fpsLabel(s.outputFps(projectFps)))} · ${EncoderCaps.codecs.firstOrNull { it.mime == s.codec }?.label?.substringBefore(" ·") ?: "H.264"} · " +
                         (if (s.bitrateMbps > 0f) mbpsLabel(s.bitrateMbps.toDouble()) else stringResource(R.string.exportui_auto_lower)) + " · ≈ ${sizeLabel(mb)}",
-                    color = K.PrimarySoft, fontSize = 13.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp).testTag("exp:summary"),
+                    color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).testTag("exp:summary"),
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onExport(s, name.ifBlank { defaultName }) }, modifier = Modifier.testTag("exp:go")) { Text(stringResource(R.string.exportui_go)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.exportui_cancel)) } },
+        confirmButton = { FlatTextButton(onClick = { onExport(s, name.ifBlank { defaultName }) }, modifier = Modifier.testTag("exp:go")) { Text(stringResource(R.string.exportui_go)) } },
+        dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.exportui_cancel)) } },
         containerColor = K.SurfaceHigh,
     )
 }
@@ -224,7 +224,7 @@ private fun sizeLabel(mb: Double): String = if (mb >= 1000) "%.1f GB".format(mb 
 
 @Composable
 private fun Chips(content: @Composable () -> Unit) {
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+    FlowRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
 }
 
 @Composable
@@ -232,19 +232,18 @@ private fun Note(text: String) {
     Text(text, color = K.OnSurfaceVar, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
 }
 
-/** One choice (disabled = grayed out, can't be tapped). */
+/** One choice (the chosen one has the accent's container; disabled = grayed out, can't be tapped). */
 @Composable
 private fun Choice(label: String, on: Boolean, enabled: Boolean, tag: String, onClick: () -> Unit) {
     val haptics = rememberHaptics()
     Text(
         label,
-        color = when { !enabled -> K.Outline; on -> K.OnPrimary; else -> K.OnSurface },
+        color = when { on -> K.PrimarySoft; !enabled -> K.Outline; else -> K.OnSurface },
         fontSize = 13.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
-        modifier = Modifier.clip(RoundedCornerShape(if (on) 18.dp else 10.dp))
-            .background(if (on) K.Primary else androidx.compose.ui.graphics.Color.Transparent)
-            .border(1.dp, if (on) K.Primary else K.OutlineVar, RoundedCornerShape(if (on) 18.dp else 10.dp))
+        modifier = Modifier.clip(RoundedCornerShape(if (on) 20.dp else 10.dp))
+            .background(if (on) K.PrimaryContainer else K.SurfaceHighest)
             .clickable(enabled = enabled) { haptics.tick(); onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
             .testTag(tag),
     )
 }

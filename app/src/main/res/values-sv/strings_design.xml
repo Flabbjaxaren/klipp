@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="design_picture">Bild</string>
+    <string name="design_more">Mer</string>
+    <string name="design_stabilize">Stabilisera</string>
+    <string name="design_motion_blur">Oskärpa</string>
+    <string name="design_position">Position</string>
+    <string name="design_add_media">Media</string>
+    <string name="design_add_sound">Ljud</string>
+    <string name="design_add_title">Titel</string>
+    <string name="design_add_captions">Textning</string>
+    <string name="design_add_voice">Röst</string>
+    <string name="design_timeline_modes">Tidslinjens lägen</string>
+    <string name="design_tool">Verktyg</string>
+    <string name="design_sound_fx">Effekter</string>
+    <string name="theme_accent_lime">Lime</string>
+    <string name="theme_accent_custom">Egen</string>
+    <string name="theme_tone_button">Spela</string>
+    <string name="theme_tone_selected">Vald</string>
+    <string name="design_prev_edit">Föregående klippkant</string>
+    <string name="design_of_total">av %1$s</string>
+    <string name="design_project_settings">Projektinställningar</string>
+    <string name="design_workspaces">Arbetsytor</string>
+    <string name="design_transition">Övergång</string>
+    <string name="design_transition_blur">Rörelseoskärpa</string>
+    <string name="design_seconds_decimal">%1$.1f s</string>
+    <string name="design_selection">%1$s · %2$.1f s</string>
+    <string name="design_color_compare">Jämför</string>
+    <string name="design_color_scope">Scope</string>
+    <string name="design_color_fullscreen">Helskärm</string>
+    <string name="design_color_luma">Ljushet · %1$s</string>
+    <string name="design_color_copy_grade">Kopiera grade</string>
+    <string name="design_color_paste_grade">Klistra in grade</string>
+    <string name="design_color_reset_wheels">Återställ hjulen</string>
+    <string name="design_color_more">Galleri, grade och tidslinje</string>
+    <string name="design_color_cancel_pick">Avbryt</string>
+    <!-- Short names for the dock, where six actions share the width (the whole names are read out) -->
+    <string name="design_ripple_short">Rippla</string>
+    <string name="design_sync_short">Synka</string>
+    <string name="design_edit_short">Redigera</string>
+</resources>
