@@ -382,3 +382,29 @@ vid klippbyten och bör stå med i listan över ändringar som görs om vid uppg
 - Startstoppet har redan ett JVM-test för logiken (`StartEdgeTest`); det som saknas är ett test på telefon.
 - Undantaget från skarvlagret gäller stabilisering *och* rörelseoskärpa, och HDR-original utan proxy.
 - `KLIPP.md` dokumenterar inte alla ändringar i Media3 (`takeLateFrame`).
+
+## Mätningar och åtgärder 2026-11-11 (vivo X300 Ultra, Android 17, Media3 1.11.1, testversion 18)
+
+- **Färgkedjan i exporten (8.4).** Standard med 10-bitskällor: HEVC Main 10, `yuv420p10le`, BT.709 begränsat omfång,
+  25 fps; i ett utsnitt 979 nivåer och 75 % av värdena inte multiplar av 4, alltså verklig 10-bit. "Bäst
+  kompatibilitet": H.264 High, 8-bit, BT.709. HDR-export och HDR → SDR är inte provade (inget HDR-material i
+  testprojektet).
+- **Resurser (8.5).** 28 cykler med spela/pausa, fem seeks, färg-, ljud- och redigeringssidan, projektsidan och
+  tillbaka, bakgrund och förgrund. Trådar 82 → 102 och grafikminne 114 → 176 MB under de första cirka 12 cyklerna, sedan
+  oförändrat (102 trådar, 175–176 MB, PSS 580–620 MB) i 16 cykler: ingen fortsatt ökning efter uppvärmning. Antalet
+  avkodare kunde inte räknas med `dumpsys media.resource_manager` och är omätt.
+- **Avbruten export (8.5/PR 7).** Force-stop mitt i en export: ingen fil, dialog vid nästa start. Med appen i
+  bakgrunden blir en 4K 10-bit-export klar som förgrundstjänst.
+- **Risk 1 (Look per lager):** åtgärdad, se ovan.
+- **Risk 5 (bakgrundsjobb river spelare):** nodcache, förrenderade bitar och proxyfiler byts nu in först när
+  uppspelningen stoppats (`App.kt`, `UpperLayers.kt`); frysbilder och baklänges-filer byts fortfarande in direkt,
+  eftersom bilden är fel tills de finns. Kodningen av proxyfiler och nodcache pausas fortfarande inte under uppspelning.
+- **Förrenderade bitars nyckel:** innehåller nu varje LUT:s innehåll och om biten gjordes från proxyn (`RenderCache`,
+  test `aNewLutUnderTheSameNameMakesTheChunksAgain`). Följd: befintliga förrenderade bitar görs om en gång.
+- **Diagnostik (8.6):** långtryck på "Program" visar nu även Look-väg, visade/sent kastade/sent visade bildrutor och vad
+  som syns vid spelhuvudet (förrenderat eller live, antal lager, proxy eller original per lager). Kraschspåret sparar
+  filnamn (`lastPathSegment`), aldrig hela sökvägar; ett felmeddelande från systemet kan innehålla en sökväg.
+
+**Inte gjort:** systematisk bildjämförelse förhandsvisning–export med syntetiska klipp på telefon (8.3, utöver Look-
+mätningen), fem minuters driftmätning (testprojektet är 5,7 s), HDR-material, svagare telefoner. Hypoteserna om
+skarvlagrets klocka (risk 6) och det svarta blinket före ett klipp är inte prövade.
