@@ -1286,4 +1286,11 @@ private fun controllerProjects(c: se.gendut.klipp.engine.ProjectController) = ob
     override val progress: Float? get() = c.packProgress
     override fun versions(id: String) = c.versions(id).map { it.stamp to it.clips }
     override fun restoreVersion(id: String, stamp: Long) { c.restoreVersion(id, stamp) }
+    override fun backupFolder() = c.backupFolderName()
+    override fun setBackupFolder(tree: android.net.Uri) { c.setBackupFolder(tree) }
+    override fun backup(id: String, name: String) { c.backupProject(id, name) }
+    override fun backupInfo(id: String): BackupInfo {
+        val (last, status) = c.backupStatus(id)
+        return BackupInfo(last?.time, status == se.gendut.klipp.engine.Backups.Status.CHANGED, last?.complete ?: true)
+    }
 }

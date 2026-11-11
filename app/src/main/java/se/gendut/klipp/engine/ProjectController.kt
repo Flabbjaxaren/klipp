@@ -1122,42 +1122,12 @@ class ProjectController(
         packProgress = 0f
         // a file that was there before (the user chose to replace it) is never cut off or removed: the package is made
         // and checked beside it first, and only a whole package replaces it
-        var replacing = false
         var ours = false
         try {
             val w = withContext(kotlinx.coroutines.Dispatchers.IO) {
-                replacing = sizeOf(to) > 0
-                val pf = File(projectDir, "$id.fcproj")
-                val side = readSide(File(projectDir, "$id.media.json")).first
-                side.put("exportSettings", ExportSettings.load(context, id).toJson())
-                val a = side.optJSONArray("media") ?: JSONArray()
-                val links = (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { o -> runCatching { o.getLong("item") to Uri.parse(o.getString("uri")) }.getOrNull() } }
-                val media = if (!withMedia) emptyList() else links.map { (item, u) -> ProjectPackage.Media(item, displayName(u)) { context.contentResolver.openInputStream(u) } }
-                val size = pf.length() + (if (withMedia) links.sumOf { sizeOf(it.second) } else 0L)
-                fun pack(o: java.io.OutputStream) =
-                    ProjectPackage.write(o, pf.readBytes(), side, thumbFile(id).takeIf { it.exists() }?.readBytes(), media, se.gendut.klipp.BuildConfigShim.version, progressOf(size))
-                val written = if (replacing) {
-                    val tmp = File(context.cacheDir, "package_${System.currentTimeMillis()}.klipp")
-                    try {
-                        if (context.cacheDir.usableSpace < size + size / 20 + 50_000_000L) throw java.io.IOException(Str.t(R.string.projectcontroller_package_no_space))
-                        val r = tmp.outputStream().use { pack(it) }
-                        val v = tmp.inputStream().use { ProjectPackage.verify(it) }
-                        if (!v.ok) throw java.io.IOException(Str.t(R.string.projectcontroller_package_verify_failed, v.problem.orEmpty()))
-                        val out = context.contentResolver.openOutputStream(to, "wt") ?: throw java.io.IOException(Str.t(R.string.projectcontroller_package_write_failed))
-                        out.use { o -> tmp.inputStream().use { it.copyTo(o, 1 shl 16) } }
-                        r
-                    } finally {
-                        tmp.delete()
-                    }
-                } else {
-                    val out = context.contentResolver.openOutputStream(to, "wt") ?: throw java.io.IOException(Str.t(R.string.projectcontroller_package_write_failed))
-                    ours = true
-                    out.use { pack(it) }
-                }
-                // read back what landed in the chosen place: only a whole package counts as saved
-                val v = context.contentResolver.openInputStream(to)?.use { ProjectPackage.verify(it) } ?: ProjectPackage.Verified(false, "cannot be read back")
-                if (!v.ok) throw java.io.IOException(Str.t(R.string.projectcontroller_package_verify_failed, v.problem.orEmpty()))
-                written
+                val replacing = sizeOf(to) > 0
+                ours = !replacing
+                writePackage(id, withMedia, to, replacing)
             }
             onMessage(when {
                 !withMedia -> Str.t(R.string.projectcontroller_exported)
@@ -1175,6 +1145,109 @@ class ProjectController(
             packProgress = null
         }
     }
+
+    /**
+     * Project [id] as a package in [to], read back and checked before it counts. [replacing]: [to] holds an earlier
+     * file – the package is made and checked in the cache first, so the earlier file is replaced only by a whole one.
+     * Throws on any failure (the caller decides what to remove).
+     */
+    private fun writePackage(id: String, withMedia: Boolean, to: Uri, replacing: Boolean): ProjectPackage.Written {
+        val pf = File(projectDir, "$id.fcproj")
+        val side = readSide(File(projectDir, "$id.media.json")).first
+        side.put("exportSettings", ExportSettings.load(context, id).toJson())
+        val a = side.optJSONArray("media") ?: JSONArray()
+        val links = (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { o -> runCatching { o.getLong("item") to Uri.parse(o.getString("uri")) }.getOrNull() } }
+        val media = if (!withMedia) emptyList() else links.map { (item, u) -> ProjectPackage.Media(item, displayName(u)) { context.contentResolver.openInputStream(u) } }
+        val size = pf.length() + (if (withMedia) links.sumOf { sizeOf(it.second) } else 0L)
+        fun pack(o: java.io.OutputStream) =
+            ProjectPackage.write(o, pf.readBytes(), side, thumbFile(id).takeIf { it.exists() }?.readBytes(), media, se.gendut.klipp.BuildConfigShim.version, progressOf(size))
+        val written = if (replacing) {
+            val tmp = File(context.cacheDir, "package_${System.currentTimeMillis()}.klipp")
+            try {
+                if (context.cacheDir.usableSpace < size + size / 20 + 50_000_000L) throw java.io.IOException(Str.t(R.string.projectcontroller_package_no_space))
+                val r = tmp.outputStream().use { pack(it) }
+                val v = tmp.inputStream().use { ProjectPackage.verify(it) }
+                if (!v.ok) throw java.io.IOException(Str.t(R.string.projectcontroller_package_verify_failed, v.problem.orEmpty()))
+                val out = context.contentResolver.openOutputStream(to, "wt") ?: throw java.io.IOException(Str.t(R.string.projectcontroller_package_write_failed))
+                out.use { o -> tmp.inputStream().use { it.copyTo(o, 1 shl 16) } }
+                r
+            } finally {
+                tmp.delete()
+            }
+        } else {
+            val out = context.contentResolver.openOutputStream(to, "wt") ?: throw java.io.IOException(Str.t(R.string.projectcontroller_package_write_failed))
+            out.use { pack(it) }
+        }
+        // read back what landed in the chosen place: only a whole package counts as saved
+        val v = context.contentResolver.openInputStream(to)?.use { ProjectPackage.verify(it) } ?: ProjectPackage.Verified(false, "cannot be read back")
+        if (!v.ok) throw java.io.IOException(Str.t(R.string.projectcontroller_package_verify_failed, v.problem.orEmpty()))
+        return written
+    }
+
+    /** The project's content as [Backups] fingerprints it. */
+    private fun fingerprintOf(id: String): String =
+        Backups.fingerprint(File(projectDir, "$id.fcproj"), runCatching { readSide(File(projectDir, "$id.media.json")).first }.getOrNull())
+
+    /** How project [id] stands with its backups (reads the project's files: call off the main thread). */
+    fun backupStatus(id: String): Pair<Backups.Last?, Backups.Status> {
+        val last = Backups.last(context, id)
+        return last to Backups.status(last, fingerprintOf(id))
+    }
+
+    /**
+     * Backs project [id] up, with its media, as a new file in the backup folder ([Backups]). The file is checked
+     * before the backup counts; a failed one is removed and earlier backups are never touched.
+     */
+    fun backupProject(id: String, name: String) = scope.launch {
+        if (packProgress != null) return@launch
+        val tree = Backups.folder(context) ?: return@launch
+        if (id == currentId) save()
+        packProgress = 0f
+        var doc: Uri? = null
+        try {
+            val now = System.currentTimeMillis()
+            val file = se.gendut.klipp.ProjectPackageName.of(name, now)
+            val w = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val fp = fingerprintOf(id)
+                val d = try {
+                    Backups.createIn(context, tree, file)
+                } catch (e: SecurityException) {
+                    throw FolderLost(e)
+                } catch (e: java.io.FileNotFoundException) {
+                    throw FolderLost(e)
+                } catch (e: IllegalArgumentException) {
+                    throw FolderLost(e)
+                }
+                doc = d
+                val w = writePackage(id, withMedia = true, to = d, replacing = false)
+                Backups.record(context, id, Backups.Last(now, file, fp, complete = w.unreadable.isEmpty()))
+                w
+            }
+            projectsRevision++
+            onMessage(if (w.unreadable.isEmpty()) Str.t(R.string.projectcontroller_backup_done, Backups.folderName(context, tree))
+                else Str.t(R.string.projectcontroller_backup_incomplete, w.unreadable.size))
+        } catch (e: CancellationException) {
+            doc?.let { d -> runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, d) } }
+            throw e
+        } catch (e: FolderLost) {
+            Backups.clearFolder(context)
+            projectsRevision++
+            onMessage(Str.t(R.string.projectcontroller_backup_folder_lost))
+        } catch (e: Exception) {
+            // only the new file is removed; earlier backups were never opened
+            doc?.let { d -> runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, d) } }
+            onMessage(Str.t(R.string.projectcontroller_backup_failed, e.message.orEmpty()))
+        } finally {
+            packProgress = null
+        }
+    }
+
+    private class FolderLost(cause: Throwable) : Exception(cause)
+
+    /** The backup folder's name, or null when none is chosen. */
+    fun backupFolderName(): String? = Backups.folder(context)?.let { Backups.folderName(context, it) }
+
+    fun setBackupFolder(tree: Uri) { Backups.setFolder(context, tree); projectsRevision++ }
 
     /** Reads a package (from [from]) as a new project; its media files are unpacked into the app. */
     fun importProject(from: Uri) = scope.launch {
@@ -1199,10 +1272,10 @@ class ProjectController(
                 File(projectDir, "$nid.fcproj").writeBytes(u.project)
                 writeAtomic(File(projectDir, "$nid.media.json"), side.toString())
                 u.thumb?.let { runCatching { thumbFile(nid).writeBytes(it) } }
-                meta.getString("name")
+                meta.getString("name") to u.missing
             }
             projectsRevision++
-            onMessage(Str.t(R.string.projectcontroller_imported, name))
+            onMessage(if (name.second > 0) Str.t(R.string.projectcontroller_imported_incomplete, name.first, name.second) else Str.t(R.string.projectcontroller_imported, name.first))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

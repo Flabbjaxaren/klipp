@@ -119,6 +119,7 @@ class ProjectPackageTest {
         val v = ProjectPackage.verify(ByteArrayInputStream(bytes))
         assertTrue("whole as a file", v.ok)
         assertFalse("but not complete", v.complete)
+        assertEquals("the import says so", 1, ProjectPackage.read(ByteArrayInputStream(bytes), tmp.newFolder("mm")).missing)
     }
 
     @Test fun aPackageFromANewerKlippIsRefused() {

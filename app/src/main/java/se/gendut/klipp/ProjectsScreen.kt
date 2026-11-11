@@ -104,6 +104,25 @@ interface ProjectsBackend {
     fun versions(id: String): List<Pair<Long, Int>> = emptyList()
     /** Earlier version [stamp] of project [id] as a new project. */
     fun restoreVersion(id: String, stamp: Long) {}
+    /** The backup folder's name; null = none chosen (or it can't be reached any more). */
+    fun backupFolder(): String? = null
+    fun setBackupFolder(tree: android.net.Uri) {}
+    /** Back project [id] up, with its media, as a new file in the backup folder. */
+    fun backup(id: String, name: String) {}
+    /** How project [id] stands with its backups (reads files: called off the main thread). */
+    fun backupInfo(id: String): BackupInfo = BackupInfo(null, false, true)
+}
+
+/** A project's last backup: when (null = never), whether the project changed since, whether all media were in it. */
+data class BackupInfo(val time: Long?, val changed: Boolean, val complete: Boolean)
+
+/** One line about a project's backups. */
+@Composable
+fun backupLabel(b: BackupInfo): String = when {
+    b.time == null -> stringResource(R.string.projectsscreen_backup_never)
+    b.changed -> stringResource(R.string.projectsscreen_backup_changed, dateLabel(b.time, withTime = true))
+    !b.complete -> stringResource(R.string.projectsscreen_backup_incomplete, dateLabel(b.time, withTime = true))
+    else -> stringResource(R.string.projectsscreen_backup_at, dateLabel(b.time, withTime = true))
 }
 
 /**
@@ -192,6 +211,15 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
         val p = pendingExport; pendingExport = null
         if (uri != null && p != null) backend.export(p.substringAfter(':'), p.startsWith("m:"), uri)
     }
+    // the backup folder is chosen once; the project waiting for it (id:name) is kept across a recreated activity
+    var pendingBackup by rememberSaveable { mutableStateOf<String?>(null) }
+    val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { tree ->
+        val p = pendingBackup; pendingBackup = null
+        if (tree != null) {
+            backend.setBackupFolder(tree)
+            if (p != null) backend.backup(p.substringBefore(':'), p.substringAfter(':'))
+        }
+    }
     val openDoc = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { backend.import(it) }
     }
@@ -244,7 +272,8 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                 if (query == null) {
                     hero?.let { h ->
                         item(key = "hero", span = { GridItemSpan(maxLineSpan) }) {
-                            HeroCard(h, onOpen = { open(h) }, onMenu = { haptics.heavy(); menuFor = h })
+                            val b by produceState<BackupInfo?>(null, h.id, backend.revision) { value = withContext(Dispatchers.IO) { backend.backupInfo(h.id) } }
+                            HeroCard(h, b, onOpen = { open(h) }, onMenu = { haptics.heavy(); menuFor = h })
                         }
                     }
                     item(key = "all", span = { GridItemSpan(maxLineSpan) }) {
@@ -283,9 +312,26 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                         pendingExport = (if (withMedia) "m:" else "p:") + p.id
                         createDoc.launch(ProjectPackageName.of(p.name, System.currentTimeMillis()))
                     }
+                    // backups: a new file in the chosen folder each time
+                    val folder = remember(backend.revision) { backend.backupFolder() }
+                    val info by produceState<BackupInfo?>(null, p.id, backend.revision) { value = withContext(Dispatchers.IO) { backend.backupInfo(p.id) } }
+                    if (folder != null) {
+                        ExportChoice(stringResource(R.string.projectsscreen_backup_now), stringResource(R.string.projectsscreen_backup_now_hint, folder), "backupNow") {
+                            menuFor = null; haptics.confirm(); backend.backup(p.id, p.name)
+                        }
+                    } else {
+                        ExportChoice(stringResource(R.string.projectsscreen_backup_choose), stringResource(R.string.projectsscreen_backup_choose_hint), "backupChoose") {
+                            menuFor = null; pendingBackup = p.id + ":" + p.name; pickFolder.launch(null)
+                        }
+                    }
+                    info?.let { b ->
+                        Text(backupLabel(b), color = if (b.changed || b.time == null || !b.complete) K.OnSurface else K.OnSurfaceVar, fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 12.dp, end = 8.dp, bottom = 4.dp).testTag("backupStatus"))
+                    }
                     ExportChoice(stringResource(R.string.projectsscreen_backup_with_media), stringResource(R.string.projectsscreen_export_with_media_hint), "exportWithMedia") { export(true) }
                     ExportChoice(stringResource(R.string.projectsscreen_export_file_only), stringResource(R.string.projectsscreen_export_only_hint), "exportProjectOnly") { export(false) }
                     MenuRow(stringResource(R.string.projectsscreen_versions)) { menuFor = null; versionsOf = p }
+                    if (folder != null) MenuRow(stringResource(R.string.projectsscreen_backup_change)) { menuFor = null; pendingBackup = null; pickFolder.launch(null) }
                     if (!p.current) MenuRow(stringResource(R.string.projectsscreen_delete), danger = true) { menuFor = null; deleting = p }
                     Text(stringResource(R.string.projectsscreen_safety_note), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp,
                         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 10.dp).testTag("safetyNote"))
@@ -444,7 +490,7 @@ private fun ProjectPicture(p: ProjectCard, corner: Int, modifier: Modifier, onOp
 
 /** The project last opened: a large picture, its name and facts, and Continue. */
 @Composable
-private fun HeroCard(p: ProjectCard, onOpen: () -> Unit, onMenu: () -> Unit) {
+private fun HeroCard(p: ProjectCard, backup: BackupInfo?, onOpen: () -> Unit, onMenu: () -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(K.Surface).padding(8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         ProjectPicture(p, 20, Modifier.fillMaxWidth().height(180.dp), onOpen, onMenu) {
             Text(
@@ -461,6 +507,11 @@ private fun HeroCard(p: ProjectCard, onOpen: () -> Unit, onMenu: () -> Unit) {
                     style = TextStyle(fontSize = 13.sp, lineHeight = 18.sp),
                     autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 13.sp, stepSize = 0.5.sp),
                 )
+                // the backups, in a word (shown once known; "changed" and "never" stand out a little)
+                backup?.let { b ->
+                    Text(backupLabel(b), color = if (b.time != null && !b.changed && b.complete) K.OnSurfaceVar else K.OnSurface, fontSize = 12.sp, lineHeight = 16.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("heroBackup"))
+                }
             }
             // the page's play: the one filled accent
             val src = remember { MutableInteractionSource() }

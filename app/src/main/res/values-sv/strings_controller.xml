@@ -51,6 +51,10 @@
     <string name="projectcontroller_package_write_failed">Kunde inte skriva filen</string>
     <string name="projectcontroller_package_no_space">Inte tillräckligt med ledigt utrymme för att göra paketet säkert innan det ersätter den gamla filen</string>
     <string name="projectcontroller_package_verify_failed">Paketet blev inte helt: %1$s</string>
+    <string name="projectcontroller_backup_done">Säkerhetskopierat till %1$s</string>
+    <string name="projectcontroller_backup_incomplete">Säkerhetskopierat, men %1$d mediefiler gick inte att läsa – kopian är ofullständig</string>
+    <string name="projectcontroller_backup_folder_lost">Klipp når inte längre mappen för säkerhetskopior – välj den igen</string>
+    <string name="projectcontroller_backup_failed">Säkerhetskopieringen misslyckades: %1$s – tidigare kopior är orörda</string>
     <string name="projectcontroller_package_read_failed">Kunde inte läsa filen</string>
     <string name="projectcontroller_exported">Projektet är exporterat</string>
     <plurals name="projectcontroller_exported_media">
@@ -63,6 +67,7 @@
     </plurals>
     <string name="projectcontroller_export_project_failed">Kunde inte exportera projektet: %1$s</string>
     <string name="projectcontroller_imported">Importerat: %1$s</string>
+    <string name="projectcontroller_imported_incomplete">”%1$s” importerat – %2$d mediefiler saknades när paketet gjordes och är offline</string>
     <string name="projectcontroller_imported_name">%1$s (importerad)</string>
     <string name="projectcontroller_version_name">%1$s (%2$s)</string>
     <string name="projectcontroller_version_restored">Den tidigare versionen ligger som ett nytt projekt i listan</string>

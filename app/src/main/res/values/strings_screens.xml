@@ -134,7 +134,16 @@
     <string name="projectsscreen_import">Import</string>
     <string name="projectsscreen_export_with_media_hint">Everything in one file: opens on another phone or after reinstalling Klipp. As large as the videos.</string>
     <string name="projectsscreen_export_only_hint">Small: the edit, grades and names. The media stay where they are on this phone.</string>
-    <string name="projectsscreen_backup_with_media">Back up with media…</string>
+    <string name="projectsscreen_backup_now">Back up now</string>
+    <string name="projectsscreen_backup_now_hint">To “%1$s”, with the media. A new file each time – earlier backups stay as they are.</string>
+    <string name="projectsscreen_backup_choose">Back up to a folder…</string>
+    <string name="projectsscreen_backup_choose_hint">Pick a folder once – on a memory card, a USB stick or in Files. Each backup becomes a new file there, with the media.</string>
+    <string name="projectsscreen_backup_change">Change the backup folder…</string>
+    <string name="projectsscreen_backup_never">Never backed up</string>
+    <string name="projectsscreen_backup_at">Backed up %1$s</string>
+    <string name="projectsscreen_backup_changed">Changed since the backup %1$s</string>
+    <string name="projectsscreen_backup_incomplete">Backed up %1$s – some media were missing</string>
+    <string name="projectsscreen_backup_with_media">Export with media to a file…</string>
     <string name="projectsscreen_export_file_only">Export the project file only…</string>
     <string name="projectsscreen_safety_note">Projects and their earlier versions are kept inside Klipp: uninstalling the app or clearing its data removes them. A backup with media is a file of its own that you keep.</string>
     <string name="projectsscreen_versions_not_backup">Earlier versions are kept inside Klipp and are no backup: they go with the app if it is uninstalled.</string>
