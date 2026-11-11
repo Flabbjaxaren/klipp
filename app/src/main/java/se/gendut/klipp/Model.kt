@@ -20,6 +20,12 @@ val FRAME: Float get() = (1.0 / projectFps).toFloat()
 /** [t] rounded to the nearest whole frame. */
 fun snapFrame(t: Float): Float = (Math.round(t * projectFps) / projectFps).toFloat()
 
+/**
+ * The playhead as an exact frame time (Double). The playhead is a Float: 1.52 s is held as 1.5199999…, a hair before a
+ * clip that starts on that frame – a layer looked up with it began one frame late in the preview (not in the export).
+ */
+fun playheadSec(t: Float, fps: Double = projectFps): Double = Math.round(t * fps) / fps
+
 enum class TrackKind { VIDEO, AUDIO }
 
 data class TrackDef(val name: String, val kind: TrackKind, val heightDp: Int)
