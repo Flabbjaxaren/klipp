@@ -443,3 +443,4 @@ och harness; 8.5 samordnas med foreground-exporten), och sist PR 5–6.
 | PR 5 Projektstart och förval | Klar. | `ProjectsTest`, `ExportPlanTest` |
 | PR 6 Gester | Klar: Hjälp i Inställningar med knappalternativ, "Visa tipsen igen". Raderingsgesten hade redan skylt och haptik. | `SettingsHelpTest` |
 | PR 4b/4c, 8.3–8.6 på telefon | **Inte gjort**: bildjämförelse förhandsvisning–export på telefon, färgkedjan, resurscykler, utbyggd diagnostik. | – |
+| Look på hela bilden (beslut 2026-11-11) | Klar: förhandsvisningen lägger tidslinjens Look på hela den staplade bilden (Android 13+), titlar utanför, som exporten. | På vivo: mitt i en övergång samma medelljushet som exporten (17,0 / 17,0) |

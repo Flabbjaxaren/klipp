@@ -305,6 +305,12 @@ vid klippbyten och bör stå med i listan över ändringar som görs om vid uppg
    `UpperLayers.kt:396` mot `engine/Playback.kt:457`. En icke-linjär LUT eller kontrast före en övertoning,
    halvgenomskinlighet eller ett blandningsläge ger en annan bild än efter. Test (8.3/8.4): övertoning och
    multiplicera-lager med en stark LUT som `Look`, förhandsvisning mot exportbild vid samma tid.
+   **Åtgärdat 2026-11-11:** när något är staplat (ett övre lager eller en övergång) och telefonen har Android 13+
+   läggs `Look` som en AGSL-effekt över huvudspelaren och de övre lagren tillsammans (`ProgramStack`,
+   `GpuGrade.lookRenderEffect`), huvudspelaren byggs utan den (`Playback.lookOnScreen`) och titlarna ritas utanför
+   (`ProgramTitles`), som i exporten. Mätt på vivo X300 Ultra, mitt i en övergång med förvalet Film: medelljushet
+   17,0 i förhandsvisningen och 17,0 i exporten; utanför övergången 58,2 mot spelarens egen `Look` 59,0. Kvar:
+   Android 12 och äldre behåller lager för lager; i läget är huvudbilden en `TextureView` (8-bit, ingen HDR-yta).
 2. **Övre lager tål 200 ms drift innan de rättas.** `LayerSync.SEEK_MS` (`UpperLayers.kt:641`, `:654`): ett lager kan
    ligga flera bildrutor fel i upp till en sekund efter senaste seek, och felet visas bara i diagnostiken. Test (8.2):
    "Lång uppspelning (5 min)" och "Upprepad play/pause" med bildnummer i bilden, avläst via `surfaceTexture.timestamp`.

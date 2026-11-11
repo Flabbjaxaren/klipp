@@ -191,6 +191,8 @@ class ExportPlanTest {
         fun mb(p: se.gendut.klipp.engine.ExportPreset) = p.apply(mine, 1920, 1080, 30.0, caps).estimateMb(1920, 1080, 30.0, sec)
         assertTrue(mb(se.gendut.klipp.engine.ExportPreset.SMALLER) < mb(se.gendut.klipp.engine.ExportPreset.COMPATIBLE))
         assertTrue(mb(se.gendut.klipp.engine.ExportPreset.QUALITY) > mb(se.gendut.klipp.engine.ExportPreset.SMALLER))
+        // high quality is the top level: larger than the compatible file even in HEVC
+        assertTrue(mb(se.gendut.klipp.engine.ExportPreset.QUALITY) > mb(se.gendut.klipp.engine.ExportPreset.COMPATIBLE))
         // no HEVC on the phone: H.264 for all of them
         assertEquals(H264, se.gendut.klipp.engine.ExportPreset.SMALLER.apply(mine, 1920, 1080, 30.0, Fake(mapOf(H264 to 2160))).codec)
     }

@@ -84,6 +84,46 @@ object GpuGrade {
         return true
     }
 
+    /** A LUT as the shaders read it: its tiles in a bitmap (RGBA bytes → ARGB pixels). */
+    private fun lutTexture(l: CubeLut): Bitmap {
+        val bytes = l.textureBytes()
+        return Bitmap.createBitmap(l.texWidth, l.texHeight, Bitmap.Config.ARGB_8888).apply {
+            val px = IntArray(l.texWidth * l.texHeight)
+            for (i in px.indices) {
+                val r = bytes.get(i * 4).toInt() and 255; val g = bytes.get(i * 4 + 1).toInt() and 255; val b = bytes.get(i * 4 + 2).toInt() and 255
+                px[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
+            }
+            setPixels(px, 0, l.texWidth, 0, 0, l.texWidth, l.texHeight)
+        }
+    }
+
+    private var screenLut: Pair<CubeLut, Bitmap>? = null
+
+    /**
+     * The timeline's look as an effect on a whole view: the preview's stacked picture (main player and upper layers
+     * together), so the look sits on the whole image as in the export – not on each layer. Main thread only.
+     */
+    @RequiresApi(33)
+    fun lookRenderEffect(look: Look): android.graphics.RenderEffect {
+        val s = RuntimeShader(AgslShaders.LOOK)
+        val p = LookParams.of(look)
+        s.setFloatUniform("uScale", p.scale)
+        s.setFloatUniform("uContrastFactor", p.contrastFactor)
+        s.setFloatUniform("uSatShift", p.satShift)
+        val l = look.lut?.takeIf { look.lutMix > 0.005f }
+        val lut = l ?: CubeLut.identity(2)
+        val bmp = screenLut?.takeIf { it.first == lut }?.second ?: lutTexture(lut).also { screenLut = lut to it }
+        s.setInputShader("lut", BitmapShader(bmp, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply { filterMode = BitmapShader.FILTER_MODE_NEAREST })
+        s.setFloatUniform("uUseLut", if (l != null) 1f else 0f)
+        s.setFloatUniform("uLutSize", lut.size.toFloat())
+        s.setFloatUniform("uLutTiles", lut.tilesPerRow.toFloat())
+        s.setFloatUniform("uLutTex", lut.texWidth.toFloat(), lut.texHeight.toFloat())
+        s.setFloatUniform("uLutMin", lut.domainMin)
+        s.setFloatUniform("uLutMax", lut.domainMax)
+        s.setFloatUniform("uLutMix", look.lutMix.coerceIn(0f, 1f))
+        return android.graphics.RenderEffect.createRuntimeShaderEffect(s, "content")
+    }
+
     @RequiresApi(33)
     private object Impl {
         /**
@@ -179,18 +219,8 @@ object GpuGrade {
             }
         }
 
-        private fun lutBitmap(l: CubeLut): Bitmap = lutCache.getOrPut(l) {
-            val bytes = l.textureBytes()
-            Bitmap.createBitmap(l.texWidth, l.texHeight, Bitmap.Config.ARGB_8888).apply {
-                // RGBA bytes → ARGB pixels
-                val px = IntArray(l.texWidth * l.texHeight)
-                for (i in px.indices) {
-                    val r = bytes.get(i * 4).toInt() and 255; val g = bytes.get(i * 4 + 1).toInt() and 255; val b = bytes.get(i * 4 + 2).toInt() and 255
-                    px[i] = (0xFF shl 24) or (r shl 16) or (g shl 8) or b
-                }
-                setPixels(px, 0, l.texWidth, 0, 0, l.texWidth, l.texHeight)
-            }.also { if (lutCache.size > 6) lutCache.keys.firstOrNull()?.let { k -> if (k != l) lutCache.remove(k) } }
-        }
+        private fun lutBitmap(l: CubeLut): Bitmap = lutCache.getOrPut(l) { lutTexture(l) }
+            .also { if (lutCache.size > 6) lutCache.keys.firstOrNull()?.let { k -> if (k != l) lutCache.remove(k) } }
 
         private fun shaderOf(b: Bitmap, linear: Boolean): BitmapShader = BitmapShader(b, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
             filterMode = if (linear) BitmapShader.FILTER_MODE_LINEAR else BitmapShader.FILTER_MODE_NEAREST

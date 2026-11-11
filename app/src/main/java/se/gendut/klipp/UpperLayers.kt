@@ -60,19 +60,10 @@ fun UpperLayers(
     look: se.gendut.klipp.engine.Look = se.gendut.klipp.engine.Look.NONE,
     /** Changes when the clips' grades change (pre-rendered chunks may then have become invalid). */
     gradesKey: Any? = null,
+    /** Titles and captions too (false: drawn by [ProgramTitles], outside the look drawn over the whole picture). */
+    titles: Boolean = true,
 ) {
-    val snap = controller.snapshot
-    // the same plan as the main player's (CompositionBuilder): same lengths and same layers – layers without a playable
-    // file don't count, otherwise the two could disagree on which layer is the bottom (and a layer would be decoded twice)
-    // (reversed clips play from their reversed files once those are ready – then a new plan)
-    // pre-rendered chunks are swapped in as in the main player (there the layers draw nothing – the file already has it all)
-    val plan = remember(controller.revision, snap, se.gendut.klipp.engine.Reversals.revision, se.gendut.klipp.engine.RenderCache.revision, gradesKey) {
-        runCatching {
-            se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, controller::uriOf)?.let { p ->
-                se.gendut.klipp.engine.RenderCache.substitute(p, se.gendut.klipp.engine.RenderCache.chunks(p, gradeOf, controller::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort))
-            }
-        }.getOrNull()
-    } ?: return
+    val plan = rememberPreviewPlan(controller, gradeOf, gradesKey) ?: return
     Box(modifier.fillMaxSize().testTag("upperLayers")) {
         // the bottom layer is played by the main player; the others from the bottom up
         val uppers = plan.layers.dropLast(1).reversed()
@@ -94,8 +85,33 @@ fun UpperLayers(
         // back-to-back segments (a dissolve's two halves, clips next to each other in an upper track): two players
         // taking turns, see Alternate
         for (layer in uppers) for (part in Alternate.split(layer)) key(part.name) { LayerVideo(part, plan, controller, state, main, gradeOf, look, planName = layer.name) }
-        if (plan.overlays.isNotEmpty()) OverlayText(plan, state)
+        if (titles && plan.overlays.isNotEmpty()) OverlayText(plan, state)
     }
+}
+
+/**
+ * The same plan as the main player's (CompositionBuilder): same lengths and same layers – layers without a playable
+ * file don't count, otherwise the two could disagree on which layer is the bottom (and a layer would be decoded twice).
+ * (Reversed clips play from their reversed files once those are ready – then a new plan.) Pre-rendered chunks are
+ * swapped in as in the main player (there the layers draw nothing – the file already has it all).
+ */
+@Composable
+fun rememberPreviewPlan(controller: ProjectController, gradeOf: (Long) -> se.gendut.klipp.engine.ClipGrade?, gradesKey: Any?): LayerPlan? {
+    val snap = controller.snapshot
+    return remember(controller.revision, snap, se.gendut.klipp.engine.Reversals.revision, se.gendut.klipp.engine.RenderCache.revision, gradesKey) {
+        runCatching {
+            se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, controller::uriOf)?.let { p ->
+                se.gendut.klipp.engine.RenderCache.substitute(p, se.gendut.klipp.engine.RenderCache.chunks(p, gradeOf, controller::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort))
+            }
+        }.getOrNull()
+    }
+}
+
+/** Titles and captions alone, over the picture (when the look is drawn over the picture: they are not in it, as in the export). */
+@Composable
+fun ProgramTitles(controller: ProjectController, state: EditorState, gradeOf: (Long) -> se.gendut.klipp.engine.ClipGrade?, gradesKey: Any?) {
+    val plan = rememberPreviewPlan(controller, gradeOf, gradesKey) ?: return
+    if (plan.overlays.isNotEmpty()) Box(Modifier.fillMaxSize().testTag("programTitles")) { OverlayText(plan, state) }
 }
 
 @OptIn(UnstableApi::class)

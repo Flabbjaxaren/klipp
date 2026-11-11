@@ -181,7 +181,7 @@ enum class ExportPreset {
     COMPATIBLE,
     /** HEVC where the phone has it (same quality in about 60 % of the bitrate), the low bitrate, 8-bit. */
     SMALLER,
-    /** HEVC where the phone has it, the high bitrate, bit depth following the sources. */
+    /** HEVC where the phone has it, the highest bitrate level, bit depth following the sources. */
     QUALITY,
     CUSTOM;
 
@@ -195,7 +195,7 @@ enum class ExportPreset {
         return when (this) {
             COMPATIBLE -> base.copy(codec = MimeTypes.VIDEO_H264, bitDepth = 8, bitrateMbps = 0f, audioKbps = 192)
             SMALLER -> base.copy(codec = hevc, bitDepth = 8, bitrateMbps = mbps(ExportPresets.LOW, hevc), audioKbps = 128)
-            QUALITY -> base.copy(codec = hevc, bitDepth = 0, bitrateMbps = mbps(ExportPresets.HIGH, hevc), audioKbps = 256)
+            QUALITY -> base.copy(codec = hevc, bitDepth = 0, bitrateMbps = mbps(ExportPresets.MAX, hevc), audioKbps = 320)
             CUSTOM -> s
         }
     }

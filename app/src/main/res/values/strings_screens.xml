@@ -278,7 +278,7 @@
     <string name="exportpreset_smaller">Smaller file</string>
     <string name="exportpreset_smaller_hint">%1$s at a lower bitrate</string>
     <string name="exportpreset_quality">High quality</string>
-    <string name="exportpreset_quality_hint">%1$s at a high bitrate, 10-bit when the clips are</string>
+    <string name="exportpreset_quality_hint">%1$s at the highest bitrate, 10-bit when the clips are</string>
     <string name="exportpreset_custom">Custom</string>
     <string name="exportpreset_custom_hint">Your own choices in the tabs below</string>
     <!-- ExportPlan (ExportUi.kt) -->
