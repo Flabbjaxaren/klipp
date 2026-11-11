@@ -1,6 +1,8 @@
 package se.gendut.klipp.engine
 
 import android.util.Log
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 /**
  * Diagnostics for edit points in playback (plan PR 8.7). Off unless the app is started with the intent extras below –
@@ -16,11 +18,14 @@ import android.util.Log
  * frame-coded clips, tools/framecode).
  */
 object CutTrace {
-    @Volatile var on = false
+    var on by androidx.compose.runtime.mutableStateOf(false)
         private set
 
-    /** 0 = normal; 1 = no edit point layer (the main player alone); 2 = the edit point layer plays but never takes over. */
-    @Volatile var mode = 0
+    /**
+     * 0 = normal; 1 = no edit point layer (the main player alone); 2 = the edit point layer plays but never takes over.
+     * (Compose state: a change takes the edit point layer away or brings it back at once.)
+     */
+    var mode by androidx.compose.runtime.mutableIntStateOf(0)
         private set
 
     fun configure(trace: Boolean, diagMode: Int) {
