@@ -76,6 +76,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -216,8 +217,9 @@ fun ProgramMonitor(
                 // the composition always outputs the sequence format (each clip is fitted in Playback), the box has the same shape.
                 // Zoomed: a TextureView – a SurfaceView's image can't be scaled or clipped with the layout.
                 // (placing corners: a TextureView too, so the magnifier sees the picture – it can't read a SurfaceView)
-                val texture = usesBlendModes() || zoom.zoomed || state.pinEdit != null
-                ProgramSurface(playback.player, texture, Modifier.fillMaxSize().redrawOnResize(playback, state))
+                val wholeLook = rememberWholeLook(controller, playback, state, gs)
+                val texture = usesBlendModes() || zoom.zoomed || state.pinEdit != null || wholeLook
+                ProgramStack(controller, playback, state, gs, texture, wholeLook) {
                 // a new surface (SurfaceView ⇄ TextureView) stays black while standing still (a redraw isn't enough): reload
                 var lastTexture by remember { mutableStateOf(texture) }
                 LaunchedEffect(texture) {
@@ -236,8 +238,7 @@ fun ProgramMonitor(
                     }
                 }
                 if (noVideo) Box(Modifier.fillMaxSize().background(Color.Black).testTag("noVideo"))
-                // V2/V3, cross dissolves, titles and captions on top (see UpperLayers)
-                UpperLayers(controller, state, playback.player, gradeOf = { gs?.grades?.get(it) }, look = playback.look, gradesKey = gs?.revision)
+                }
                 // while dragging: the app's own image with live values (the video updates when the finger is lifted)
                 // ... and until the player has shown its first frame (start, reload) or while a new look is being built in:
                 // a still instead of black
@@ -798,6 +799,45 @@ fun usesBlendModes(): Boolean = LocalGradeState.current?.grades?.values?.any { i
  * image as the upper layers, so they can blend with it (blend modes: multiply, screen …). Layers over a SurfaceView
  * can only be placed on top.
  */
+/**
+ * Should the timeline's look be drawn over the whole stacked picture (as the export does) rather than on each player?
+ * Only when there is something stacked (an upper layer or a dissolve – otherwise each player's look is the same thing)
+ * and the GPU path exists (Android 13+). The main player is rebuilt without its look when this changes.
+ */
+@Composable
+fun rememberWholeLook(controller: se.gendut.klipp.engine.ProjectController, playback: ProgramPlayback, state: EditorState, gs: GradeState?): Boolean {
+    val plan = rememberPreviewPlan(controller, { gs?.grades?.get(it) }, gs?.revision)
+    val whole = android.os.Build.VERSION.SDK_INT >= 33 && se.gendut.klipp.engine.GpuGrade.supported && !se.gendut.klipp.engine.GpuGrade.broken &&
+        !playback.look.isNeutral && plan?.needsCompositor == true
+    LaunchedEffect(whole) {
+        if (playback.lookOnScreen != whole) { playback.lookOnScreen = whole; playback.refresh(state.playhead.toDouble()) }
+    }
+    return whole
+}
+
+/**
+ * The program picture: the main player, then the upper layers (V2/V3, dissolves), then titles and captions. With
+ * [wholeLook] the timeline's look is one effect over the main player and the upper layers together – a dissolve or a
+ * see-through layer then looks as in the export – and the titles stay outside it, as they are drawn after the look
+ * there. [between]: drawn over the main player, below the upper layers.
+ */
+@Composable
+fun ProgramStack(
+    controller: se.gendut.klipp.engine.ProjectController, playback: ProgramPlayback, state: EditorState, gs: GradeState?,
+    texture: Boolean, wholeLook: Boolean, between: @Composable () -> Unit = {},
+) {
+    val effect = if (wholeLook && android.os.Build.VERSION.SDK_INT >= 33)
+        remember(playback.look) { se.gendut.klipp.engine.GpuGrade.lookRenderEffect(playback.look).asComposeRenderEffect() } else null
+    Box(Modifier.fillMaxSize().graphicsLayer { renderEffect = effect }.testTag(if (wholeLook) "wholeLook" else "programStack")) {
+        ProgramSurface(playback.player, texture, Modifier.fillMaxSize().redrawOnResize(playback, state))
+        between()
+        // V2/V3, cross dissolves (and titles and captions, unless the look is drawn over the picture: see UpperLayers)
+        UpperLayers(controller, state, playback.player, gradeOf = { gs?.grades?.get(it) },
+            look = if (wholeLook) se.gendut.klipp.engine.Look.NONE else playback.look, gradesKey = gs?.revision, titles = !wholeLook)
+    }
+    if (wholeLook) ProgramTitles(controller, state, { gs?.grades?.get(it) }, gs?.revision)
+}
+
 @OptIn(UnstableApi::class)
 @Composable
 fun ProgramSurface(player: Player, texture: Boolean, modifier: Modifier = Modifier) {

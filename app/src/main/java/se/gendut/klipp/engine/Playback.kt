@@ -694,6 +694,13 @@ class ProgramPlayback(private val context: Context) {
         buildProblem?.let { append("build: ").append(it).append('\n') }
     }
     var look: Look by androidx.compose.runtime.mutableStateOf(Look.NONE)
+    /**
+     * The look is drawn on the screen over the whole stacked picture (main player and upper layers together, see
+     * GpuGrade.lookRenderEffect) – then the main player is built without it, as the upper layers are.
+     */
+    var lookOnScreen: Boolean by androidx.compose.runtime.mutableStateOf(false)
+    /** The look the main player itself applies. */
+    val playerLook: Look get() = if (lookOnScreen) Look.NONE else look
     var master: Float = 1f
     /** The clips' grades (the color mode). */
     var grades: Map<Long, ClipGrade> = emptyMap()
@@ -727,7 +734,7 @@ class ProgramPlayback(private val context: Context) {
     private fun keyOf(s: Snapshot, uriOf: (Long) -> Uri?): String {
         val q = s.sequence ?: return ""
         val sb = StringBuilder()
-        sb.append(look).append(master).append(hdrCodecFailed).append(LiveGrades.structure(grades).hashCode()).append('#').append(q.width).append('x').append(q.height).append(q.captions).append('#')
+        sb.append(playerLook).append(master).append(hdrCodecFailed).append(LiveGrades.structure(grades).hashCode()).append('#').append(q.width).append('x').append(q.height).append(q.captions).append('#')
         for (t in q.video.take(3) + q.audio.take(3)) {
             sb.append(t.id).append(t.enabled).append(t.muted).append(t.solo).append(t.volumeDb).append(t.transitions).append(t.volKf).append(t.autoMode).append('|')
             // the audio effects' values change live in the chains (no rebuild) – only which effects exist counts
@@ -782,7 +789,7 @@ class ProgramPlayback(private val context: Context) {
         // video from the proxy when available (light 1080p), audio from the original
         val videoUri: (Long) -> Uri? = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
         se.gendut.klipp.CrashReport.note("playback building: ${s.sequence?.video?.sumOf { it.clips.size } ?: 0} video clips, hdr=$hdrMode, proxy=${Proxies.enabled}, speed=${s.sequence?.video?.flatMap { it.clips }?.map { it.speed }?.filter { kotlin.math.abs(it - 1.0) > 0.001 }?.distinct()}")
-        val built = runCatching { CompositionBuilder.buildFull(s, uriOf, look, master, overlays = false, forceSingle = true, grades = grades, fx = fx, meters = true, hdrMode = hdrMode, videoUriOf = videoUri, liveGrades = true, nodeCache = true, previewShort = VideoPipeline.previewShort,
+        val built = runCatching { CompositionBuilder.buildFull(s, uriOf, playerLook, master, overlays = false, forceSingle = true, grades = grades, fx = fx, meters = true, hdrMode = hdrMode, videoUriOf = videoUri, liveGrades = true, nodeCache = true, previewShort = VideoPipeline.previewShort,
             planTransform = { p -> RenderCache.substitute(p, chunks) }) }.getOrElse {
             keepOld()
             // never an empty error: without text it looked like everything went fine (and then "nothing to play")

@@ -278,7 +278,7 @@
     <string name="exportpreset_smaller">Mindre fil</string>
     <string name="exportpreset_smaller_hint">%1$s med lägre bithastighet</string>
     <string name="exportpreset_quality">Hög kvalitet</string>
-    <string name="exportpreset_quality_hint">%1$s med hög bithastighet, 10-bit när klippen är det</string>
+    <string name="exportpreset_quality_hint">%1$s med högsta bithastighet, 10-bit när klippen är det</string>
     <string name="exportpreset_custom">Anpassat</string>
     <string name="exportpreset_custom_hint">Dina egna val i flikarna nedan</string>
     <!-- ExportPlan (ExportUi.kt) -->
