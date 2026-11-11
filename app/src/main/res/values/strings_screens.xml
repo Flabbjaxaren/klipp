@@ -42,6 +42,11 @@
     <string name="settings_export_note">Default for new projects (each project remembers its own choices).</string>
     <string name="settings_hdr_at_export">HDR is chosen at export (when the clips were shot in HDR).</string>
     <string name="settings_group_developer">Developer</string>
+    <string name="settings_group_help">Help</string>
+    <string name="settings_cat_help">Gestures and tips</string>
+    <string name="settings_help_gestures">Gestures</string>
+    <string name="settings_help_show_tips">Show the tips again</string>
+    <string name="settings_help_tips_back">The tips show again in the editor, one at a time.</string>
     <string name="settings_agent_bridge">Let the computer control Klipp</string>
     <string name="settings_agent_bridge_hint">over USB or wireless debugging (adb) – for testing with an AI agent. Turn it off when you don\'t use it.</string>
     <string name="settings_about">Klipp %1$s – free software, GNU GPL v3.\nEditing engine: FilmCraft · playback and export: Media3 1.11.1\nFilm: spektrafilm © Andrea Volpato et al. (GPL-3.0), film profiles CC BY-SA 4.0 – github.com/andreavolpato/spektrafilm\nImage transform: OpenDRT © Jed Smith (GPL-3.0) · speech recognition: whisper.cpp (MIT)\nVideo pipeline: Media3 effect © The Android Open Source Project (Apache 2.0), modified for floating point throughout the pipeline\nSound effects: Kenney (kenney.nl) and BigSoundBank (bigsoundbank.com), CC0 · search: Freesound (CC0 sounds)</string>

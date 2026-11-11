@@ -16,6 +16,8 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
 - `DefaultVideoFrameProcessor.java`: `Factory.klippGlObjectsProvider()` for the change above.
 - `FinalShaderProgramWrapper.java`: counts rendered and late-dropped frames (`KlippPrecision.framesShown`,
   `framesLate`, `lastLateAt`) for diagnostics and the preview's edit point layer.
+  It also shows a single late frame (typically at a clip change) instead of dropping it – one at a time, at most every
+  300 ms and never under sustained load (`KlippPrecision.takeLateFrame`, counted in `framesRescued`).
 - `KlippBlend.java` (new): blend modes for the layers (multiply, screen, overlay, soft light, add, darken,
   lighten, difference). A layer's `OverlaySettings` that implements `KlippBlend.Settings` is blended with its mode.
 - `DefaultCompositorGlProgram.java`: a layer with a blend mode is drawn by copying the image so far into a

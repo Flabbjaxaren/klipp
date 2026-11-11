@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** First-run tips about the touch gestures, in this order (the key is saved when the tip has been read). */
-private val TIPS = listOf(
+internal val TIPS = listOf(
     "knife" to R.string.tip_knife,
     "out" to R.string.tip_out,
     "edge" to R.string.tip_edge,
@@ -42,11 +42,23 @@ private val TIPS = listOf(
     "text" to R.string.tip_text,
 )
 
+/** The same gestures with the button that does the same (0 = there is none, the gesture is the only way). */
+internal val TIP_BUTTONS = mapOf(
+    "knife" to R.string.tip_knife_button,
+    "out" to R.string.tip_out_button,
+    "undo" to R.string.tip_undo_button,
+)
+
+/** Changes when the tips are reset in Settings, so the tip card starts over at once. */
+internal object TipsState {
+    var revision by androidx.compose.runtime.mutableIntStateOf(0)
+}
+
 /** One tip at a time over the timeline: "Next" shows the next one, × hides them all for good. */
 @Composable
 fun TipCard(visible: Boolean, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
-    var current by remember { mutableStateOf(TIPS.indexOfFirst { !AppPrefs.tipSeen(ctx, it.first) }) }
+    var current by remember(TipsState.revision) { mutableStateOf(TIPS.indexOfFirst { !AppPrefs.tipSeen(ctx, it.first) }) }
     AnimatedVisibility(
         visible && current >= 0, modifier = modifier,
         enter = slideInVertically(spring(0.7f, 400f)) { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut(),

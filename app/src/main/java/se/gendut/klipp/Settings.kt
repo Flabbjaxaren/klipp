@@ -86,6 +86,13 @@ object AppPrefs {
     /** Tips already shown (first-run hints), by key. */
     fun tipSeen(c: Context, key: String): Boolean = p(c).getBoolean("tip_$key", false)
     fun setTipSeen(c: Context, key: String) { p(c).edit().putBoolean("tip_$key", true).apply() }
+    /** All tips unread again (Settings → Help). */
+    fun resetTips(c: Context) {
+        val e = p(c).edit()
+        for (k in p(c).all.keys) if (k.startsWith("tip_")) e.remove(k)
+        e.apply()
+        TipsState.revision++
+    }
     /** The notification permission (export progress) was asked for once. */
     fun notifyAsked(c: Context): Boolean = p(c).getBoolean("notify_asked", false)
     fun setNotifyAsked(c: Context) { p(c).edit().putBoolean("notify_asked", true).apply() }
@@ -129,7 +136,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
     // (the empty parts take the touches too: the editor lies under the page)
     Column(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.windowInsetsPadding(WindowInsets.safeDrawing).testTag("settings")) {
         var page by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(-1) }
-        val pageTitles = listOf(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_group_playback), stringResource(R.string.settings_group_export), stringResource(R.string.settings_group_developer))
+        val pageTitles = listOf(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_group_playback), stringResource(R.string.settings_group_export), stringResource(R.string.settings_group_developer), stringResource(R.string.settings_group_help))
         if (page >= 0) androidx.activity.compose.BackHandler { page = -1 }
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             RoundIcon(Ic.Back, stringResource(R.string.settings_back)) { if (page >= 0) page = -1 else onClose() }
@@ -144,6 +151,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                     CategoryRow(stringResource(R.string.settings_group_playback), stringResource(R.string.settings_cat_playback), Ic.Folder, "set:cat:playback") { page = 3 }
                     CategoryRow(stringResource(R.string.settings_group_export), stringResource(R.string.settings_cat_export), Ic.Download, "set:cat:export") { page = 4 }
                     CategoryRow(stringResource(R.string.settings_group_developer), stringResource(R.string.settings_cat_developer), Ic.Gear, "set:cat:developer") { page = 5 }
+                    CategoryRow(stringResource(R.string.settings_group_help), stringResource(R.string.settings_cat_help), Ic.Bulb, "set:cat:help") { page = 6 }
                 }
                 0 -> PanelCard(Modifier.padding(top = 8.dp)) {
             Text(stringResource(R.string.settings_accent_color), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
@@ -270,6 +278,21 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                 stringResource(R.string.settings_about, BuildConfigShim.version),
                 color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
             )
+                }
+                6 -> PanelCard(Modifier.padding(top = 8.dp)) {
+            // every gesture, and the button that does the same where there is one: nothing needs more than one finger
+            SectionLabel(stringResource(R.string.settings_help_gestures))
+            for ((key, text) in TIPS) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).testTag("help:$key")) {
+                    Text(stringResource(text), color = K.OnSurface, fontSize = 14.sp, lineHeight = 19.sp)
+                    TIP_BUTTONS[key]?.let { Text(stringResource(it), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 2.dp)) }
+                }
+            }
+            var reset by remember { mutableStateOf(false) }
+            PillButton(stringResource(R.string.settings_help_show_tips), {
+                AppPrefs.resetTips(ctx); haptics.confirm(); reset = true
+            }, Modifier.padding(horizontal = 16.dp, vertical = 10.dp).testTag("set:showTips"))
+            if (reset) Text(stringResource(R.string.settings_help_tips_back), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp).testTag("set:tipsBack"))
                 }
             }
         }
