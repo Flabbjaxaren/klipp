@@ -140,11 +140,13 @@ private fun LayerVideo(
     planName: String = layer.name,
 ) {
     val ctx = LocalContext.current
+    // (how early each frame may go out: up to the layer's threshold, but never far earlier than the frame before it)
+    val ramp = remember { EarlyRamp(if (handoff) HANDOFF_EARLY_US else LAYER_EARLY_US) }
     val player = remember {
         // a TextureView shows a frame as soon as it arrives (a SurfaceView waits for the frame's time): released up to
         // 50 ms early (Media3's default) the layer's frames were seen about one frame before the main player's at 30 fps
         // (measured with frame-coded clips) – here at most LAYER_EARLY_US before their time
-        val renderers = LayerRenderersFactory(ctx, if (handoff) HANDOFF_EARLY_US else LAYER_EARLY_US)
+        val renderers = LayerRenderersFactory(ctx, ramp)
         ExoPlayer.Builder(ctx, renderers).setLoadControl(se.gendut.klipp.engine.Perf.editingLoadControl()).build().apply {
             volume = 0f // audio comes from the main player
             // the audio track isn't decoded at all in the layer players (saves power, and speed adjustments come for free)
@@ -157,7 +159,7 @@ private fun LayerVideo(
     DisposableEffect(player) { onDispose { player.release() } }
     // which frame the layer's TextureView holds: the video chain's frames by the time they are released at
     // (SurfaceTexture.timestamp), see the edit point layer's start below
-    val released = remember(player) { ReleasedFrames().also { player.setVideoFrameMetadataListener(it) } }
+    val released = remember(player) { ReleasedFrames(ramp).also { player.setVideoFrameMetadataListener(it) } }
     val clock = remember { LayerClock() }
     val segs = remember(layer) { layer.segs.filter { controller.uriOf(it.src.item) != null } }
     // the edit point layer starts each segment a little early, unseen (see HANDOFF_PREROLL_S): source ms before the
@@ -587,7 +589,7 @@ private fun LayerVideo(
  * SDR clip after it) – "SDR to HDR" isn't a conversion it has, the player failed and the layer stayed empty.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-private class LayerRenderersFactory(context: android.content.Context, private val earlyUs: Long) : androidx.media3.exoplayer.DefaultRenderersFactory(context) {
+private class LayerRenderersFactory(context: android.content.Context, private val ramp: EarlyRamp) : androidx.media3.exoplayer.DefaultRenderersFactory(context) {
     override fun buildVideoRenderers(
         context: android.content.Context, extensionRendererMode: Int, mediaCodecSelector: androidx.media3.exoplayer.mediacodec.MediaCodecSelector,
         enableDecoderFallback: Boolean, eventHandler: android.os.Handler, eventListener: androidx.media3.exoplayer.video.VideoRendererEventListener,
@@ -602,17 +604,59 @@ private class LayerRenderersFactory(context: android.content.Context, private va
                 .setEventHandler(eventHandler)
                 .setEventListener(eventListener)
                 .setMaxDroppedFramesToNotify(MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
-                .setEarlySchedulingThresholdUs(earlyUs),
+                .setEarlySchedulingThresholdUs(ramp.maxUs),
+            ramp,
         ))
     }
 }
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-private class LayerVideoRenderer(b: androidx.media3.exoplayer.video.MediaCodecVideoRenderer.Builder) : androidx.media3.exoplayer.video.MediaCodecVideoRenderer(b) {
+private class LayerVideoRenderer(b: androidx.media3.exoplayer.video.MediaCodecVideoRenderer.Builder, private val ramp: EarlyRamp) : androidx.media3.exoplayer.video.MediaCodecVideoRenderer(b) {
     override fun createPlaybackVideoGraphWrapper(
         context: android.content.Context, videoFrameReleaseControl: androidx.media3.exoplayer.video.VideoFrameReleaseControl,
-    ): androidx.media3.exoplayer.video.PlaybackVideoGraphWrapper =
-        super.createPlaybackVideoGraphWrapper(context, videoFrameReleaseControl).also { it.setRequestOpenGlToneMapping(true) }
+    ): androidx.media3.exoplayer.video.PlaybackVideoGraphWrapper {
+        ramp.control = videoFrameReleaseControl
+        return super.createPlaybackVideoGraphWrapper(context, videoFrameReleaseControl).also { it.setRequestOpenGlToneMapping(true) }
+    }
+
+    override fun onStarted() { ramp.start(); super.onStarted() }
+}
+
+/**
+ * How early a layer player hands out each frame. A TextureView shows a frame the moment it arrives, so two frames handed
+ * out together show only the second: at a start the player holds its frames until its position moves, and then every
+ * frame inside the threshold (up to [maxUs], longer than a frame at 25 or 30 fps) went out at once – V2 skipped its
+ * first frame after the paused one in 4 of 6 starts (101 and 102 released 2–3 ms apart; measured with frame-coded
+ * clips). Each frame may now go out at most [slackUs] earlier, against its own time, than the frame before it did: the
+ * frames after a start come one frame time apart, and within a few frames the threshold is back at [maxUs] (unchanged
+ * in steady playback).
+ */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+internal class EarlyRamp(val maxUs: Long) {
+    @Volatile var control: androidx.media3.exoplayer.video.VideoFrameReleaseControl? = null
+    private var lastReleaseNs = 0L
+
+    /** The player starts: the first frame may go out as early as ever. Playback thread. */
+    fun start() { lastReleaseNs = 0L; control?.setEarlySchedulingThresholdUs(maxUs) }
+
+    /** A frame goes out now ([nowNs]) to be shown at [releaseNs]: the threshold for the next one. Playback thread. */
+    fun released(releaseNs: Long, nowNs: Long) {
+        val c = control ?: return
+        val gapUs = if (lastReleaseNs > 0) (releaseNs - lastReleaseNs) / 1000 else 0L
+        lastReleaseNs = releaseNs
+        c.setEarlySchedulingThresholdUs(next((releaseNs - nowNs) / 1000, gapUs, maxUs))
+    }
+
+    companion object {
+        /** Without a known frame time (the first frame): this much (µs). */
+        const val SLACK_US = 8_000L
+
+        /** The slack: 40 % of the frame time (a frame stays on screen at least 60 % of it). */
+        fun slackUs(gapUs: Long): Long = if (gapUs in 1..100_000) gapUs * 2 / 5 else SLACK_US
+
+        /** The next frame's threshold: this frame's earliness plus the slack, at most [maxUs]. */
+        fun next(earlyUs: Long, gapUs: Long, maxUs: Long): Long = minOf(maxUs, maxOf(0L, earlyUs) + slackUs(gapUs))
+    }
 }
 
 /**
@@ -966,7 +1010,7 @@ private fun fillsFrame(s: Seg, u: android.net.Uri, plan: LayerPlan): Boolean {
 }
 
 /** The last frames a layer player released: their presentation time (µs, the item's) by release time (ns). */
-private class ReleasedFrames : androidx.media3.exoplayer.video.VideoFrameMetadataListener {
+private class ReleasedFrames(private val ramp: EarlyRamp? = null) : androidx.media3.exoplayer.video.VideoFrameMetadataListener {
     private val pts = LongArray(16)
     private val at = LongArray(16)
     @Volatile private var n = 0
@@ -974,6 +1018,7 @@ private class ReleasedFrames : androidx.media3.exoplayer.video.VideoFrameMetadat
     @Synchronized override fun onVideoFrameAboutToBeRendered(presentationTimeUs: Long, releaseTimeNs: Long, format: androidx.media3.common.Format, mediaFormat: android.media.MediaFormat?) {
         if (releaseTimeNs == androidx.media3.common.C.TIME_UNSET) return
         val k = n % 16; pts[k] = presentationTimeUs; at[k] = releaseTimeNs; n++
+        ramp?.released(releaseTimeNs, System.nanoTime())
         if (TRACE.on) TRACE.log("released", "pts=$presentationTimeUs at=$releaseTimeNs")
     }
 

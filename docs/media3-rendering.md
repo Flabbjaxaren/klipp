@@ -540,8 +540,16 @@ experimentella val; 20 ms gav en bildruta för sent – TextureView och Compose 
 skärmbild, 8 omgångar à 2 500 bildrutor): V2 låg efter V1 – med 50 ms samma bildruta 42 %, en efter 55 %; med 35 ms
 15 % / 80 %. Ett övre lager följer huvudspelarens rapporterade position och behöver lämna ut tidigare än skarvlagret
 (som startar från sin egen bildruta): skarvlagret 35 ms, övriga lager **65 ms → samma bildruta 84 %**, en efter 14 %,
-en före 2 %. Vid uppspelningsstart hoppar V2 ibland över sin första bildruta (3–4 av 8, även med Medias standard 50 ms –
-lagret startar när huvudspelaren redan rört sig); inte rättat.
+en före 2 %. Vid uppspelningsstart hoppade V2 ibland över sin första bildruta (4 av 6: koden 100 → 102).
+
+**Orsak och rättning (testversion 61):** en spelare håller sina bildrutor tills positionen rört sig och lämnar sedan ut
+alla som ligger inom tröskeln – 65 ms är längre än en bildruta vid 25 och 30 fps, så 101 och 102 gick ut 2–3 ms efter
+varandra, och en TextureView visar bara den sista (loggen `released`: i de rena starterna 12–13 ms isär). `EarlyRamp` i
+`UpperLayers.kt`: varje bildruta får lämnas ut högst 40 % av en bildrutetid tidigare (mot sin egen tid) än den förra;
+vid start börjar den på full tröskel, så första bildrutan går ut som förut och de följande en bildrutetid isär, tillbaka
+på 65 ms efter 4–5 bildrutor. **0 av 8 hopp.** Stadigt läge oförändrat (55–65 ms tidigt), lagrets försprång efter
+starten detsamma (huvudspelaren − V2 i medel 46 mot 48 ms). Andelen skärmbilder där V1 och V2 visar samma bildruta
+varierar mycket mellan omgångar (37–97 %, före och efter) – den beror på hur långt efter huvudspelaren lagret startar.
 
 29,97 fps: inga hoppade bildrutor; mätningen där har en egenhet från testet (källan 60,0 s ligger inte på 29,97-rutnätet,
 så första bildrutan efter snittet har sin tid 27 ms senare – huvudspelaren visar den då, och skarvlagret följer nu med).
