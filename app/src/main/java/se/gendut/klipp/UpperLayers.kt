@@ -140,7 +140,11 @@ private fun LayerVideo(
 ) {
     val ctx = LocalContext.current
     val player = remember {
-        ExoPlayer.Builder(ctx).setLoadControl(se.gendut.klipp.engine.Perf.editingLoadControl()).build().apply {
+        // a TextureView shows a frame as soon as it arrives (a SurfaceView waits for the frame's time): released up to
+        // 50 ms early (Media3's default) the layer's frames were seen about one frame before the main player's at 30 fps
+        // (measured with frame-coded clips) – here at most LAYER_EARLY_US before their time
+        val renderers = androidx.media3.exoplayer.DefaultRenderersFactory(ctx).setVideoRendererEarlySchedulingThresholdUs(LAYER_EARLY_US)
+        ExoPlayer.Builder(ctx, renderers).setLoadControl(se.gendut.klipp.engine.Perf.editingLoadControl()).build().apply {
             volume = 0f // audio comes from the main player
             // the audio track isn't decoded at all in the layer players (saves power, and speed adjustments come for free)
             trackSelectionParameters = trackSelectionParameters.buildUpon()
@@ -570,6 +574,8 @@ private fun LayerVideo(
     }
 }
 
+/** How early (µs) a layer player hands a frame to its TextureView at most (Media3's default: 50 000). */
+private const val LAYER_EARLY_US = 35_000L
 /** A layer player waiting for its next segment stands at most this far (ms) into it. */
 private const val PREPARED_MS = 20L
 /** Main chain frames of the new clip before the edit point layer stands down, and the wait after that (ms). */

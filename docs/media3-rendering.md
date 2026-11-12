@@ -519,6 +519,40 @@ läggs spelhuvudet på närmaste bildruta och den pausade spelaren söks dit (pa
 inget annat flyttat spelhuvudet under tiden (skrubbning, steg, sökning). Efter: **15/15** i huvudlagret, 6/6 med ett
 övre lager (V2) överst.
 
+## Bildfrekvenser och lagrens bildtid (2026-11-12, testversion 38–40)
+
+Samma snitt (vid 50 s, källan +10 s) i sekvenser på 25, 30 och 29,97 fps, 10 omgångar var, mätt mot en jämn linje
+genom bildrutorna före snittet. **Fynd:** lagerspelarna (skarvlagret, V2/V3) visade sina bildrutor upp till en bildruta
+för tidigt – en TextureView visar en bildruta när den kommer, och Media3 lämnar ut dem upp till 50 ms före sin tid
+(en SurfaceView, huvudspelarens, väntar på tiden). Vid 30 fps: skarvlagret −17…−28 ms, sista bildrutan före snittet
+bara 8–24 ms, och vid avlösningen till huvudspelaren upprepades en bildruta i 8/10. **Rättning:** lagerspelarna lämnar
+ut högst 35 ms före tiden (`DefaultRenderersFactory.setVideoRendererEarlySchedulingThresholdUs`, Media3:s eget
+experimentella val; 20 ms gav en bildruta för sent – TextureView och Compose lägger själva till omkring en bildruta).
+
+| | skarvlagret mot linjen | sista bildrutan före snittet | upprepad bildruta vid avlösningen |
+|---|---|---|---|
+| 30 fps, före (50 ms) | −17…−28 ms | 8–24 ms | 8/10 |
+| 30 fps, efter (35 ms) | −1…−15 ms | 24–41 ms | 0/10 |
+| 25 fps, före | −27…+10 ms | 15–66 ms | 5/10 |
+| 25 fps, efter | −1…+2 ms | 32–49 ms | 0/10 (10/10 rena) |
+
+29,97 fps: inga hoppade bildrutor; mätningen där har en egenhet från testet (källan 60,0 s ligger inte på 29,97-rutnätet,
+så första bildrutan efter snittet har sin tid 27 ms senare – huvudspelaren visar den då, och skarvlagret följer nu med).
+
+## 10-bit med avsiktlig 8-bitsreferens (2026-11-12)
+
+En svag gråskaleramp i 10-bit HEVC (80 nivåer över bredden; samma ramp i 8-bit ger 21) mitt i projektet. Export
+"Hög kvalitet" (HEVC Main 10): **80 nivåer**; "Bäst kompatibilitet" (H.264 8-bit): 21–25. Med kontrast 1,85 på klippet
+(kedjan räknar i flyttal): 10-bit **124 nivåer**, 8-bit 42 (hela 8-bitsomfånget över den sträckta rampen) – noderna
+tappar ingen precision på vägen till filen.
+
+## Look: rumslig jämförelse per kanal (2026-11-12)
+
+Tidslinjens Look "Film" plus LUT "Bleach" (kraftigt olinjär), pausat mot export per pixel och kanal i Display P3
+(skärmbilderna är P3; exportens Rec.709 räknas om). V1 med film + Look och med bara Look: 2,5–3,7 i medel per kanal
+(som utan Look). V2 överst (Look på hela den staplade bilden): 6–11 per pixel men 2–3,5 lågpassat – skillnaden är fin
+detalj i brusklippet (förhandsvisningen ritas mindre), inte färg.
+
 ## Resurssamordning under export (risk 9, 2026-11-12)
 
 `engine/BackgroundWork`: när en export startar pausas uppspelningen, proxy- och nodcachekodning som pågår avbryts och
