@@ -663,13 +663,27 @@ class ProjectController(
             state.clipLevels = q.audio.flatMap { it.clips }.associate { c ->
                 c.id to se.gendut.klipp.ClipLevel(c.levelDb.toFloat(), c.kf[KfKeys.LEVEL]?.map { se.gendut.klipp.UiKf(it.t.toFloat(), it.mt, it.interp, it.v, it.inInf, it.outInf) }.orEmpty())
             }
-        }
+        } ?: clearSequenceState()
         revision++
         scheduleSave()
         // heavy files (4K, high frame rate, HDR) get proxy files in the background
         runCatching { Proxies.ensure(context, snap.media.mapNotNull { m -> uris[m.id]?.let { it to m } }) }
         scope.launch { runCatching { Perf.prefetchHdr(context, snap.media.filter { it.hasVideo }.mapNotNull { uris[it.id] }) } }
         probeMedia(snap)
+    }
+
+    /**
+     * No sequence (a new project before its first clip): nothing of the previous project's timeline stays – its captions,
+     * markers and transitions were still drawn over the empty one (seen on the OnePlus, 2026-11-12).
+     */
+    private fun clearSequenceState() {
+        state.markers = emptyList()
+        state.transitions = emptyList(); state.selectedTransition = null
+        state.captions = emptyList(); state.hasCaptionLane = false; state.captionsOn = true
+        state.selectedCaption = null; state.editingCaption = false
+        state.trackStates = List(TRACKS.size) { se.gendut.klipp.TrackState() }
+        state.trackVolKf = emptyList(); state.clipLevels = emptyMap()
+        state.targetVideo = 2; state.targetAudio = 3
     }
 
     /**

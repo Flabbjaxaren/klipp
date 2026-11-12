@@ -551,6 +551,11 @@ på 65 ms efter 4–5 bildrutor. **0 av 8 hopp.** Stadigt läge oförändrat (55
 starten detsamma (huvudspelaren − V2 i medel 46 mot 48 ms). Andelen skärmbilder där V1 och V2 visar samma bildruta
 varierar mycket mellan omgångar (37–97 %, före och efter) – den beror på hur långt efter huvudspelaren lagret startar.
 
+**OnePlus (CPH2581, Android 16, testversion 61–62):** 10 av 10 starter utan hopp, inga missade V2-bildrutor över hela
+omgångarna (97–98 per omgång). Skärminspelning via adb är spärrad där, så mätt med spårloggen: en bildruta vars
+släpptid (`released`) aldrig blir lagrets `SurfaceTexture.timestamp` (`tex=` i `loop`-raderna) syntes aldrig – samma
+metod gav på vivon exakt samma hopp som inspelningarna (4/6 före, 0/8 efter).
+
 29,97 fps: inga hoppade bildrutor; mätningen där har en egenhet från testet (källan 60,0 s ligger inte på 29,97-rutnätet,
 så första bildrutan efter snittet har sin tid 27 ms senare – huvudspelaren visar den då, och skarvlagret följer nu med).
 
