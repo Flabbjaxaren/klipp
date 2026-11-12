@@ -84,6 +84,9 @@ object Proxies {
 
     private val queue = ArrayDeque<Job>()
     private var running: Transformer? = null
+    /** The job [running] makes (put back in the queue if an export stops it, see BackgroundWork). */
+    private var runningJob: Job? = null
+    private var runningBoost: Perf.Boost? = null
     private var app: Context? = null
     private val main = Handler(Looper.getMainLooper())
     /** The latest list passed to [ensure] (to redo the proxies when the settings change). */
@@ -106,6 +109,8 @@ object Proxies {
         if (app != null) return
         app = context.applicationContext
         val c = app!!
+        // an export goes first: the job under way stops (done again afterwards), nothing new starts meanwhile
+        BackgroundWork.listen { on -> if (on) holdForExport() else next() }
         val p = prefs(c)
         enabled = p.getBoolean("proxies", true)
         shortSide = p.getInt("proxyShort", SHORT_SIDE).takeIf { it in SIZES } ?: SHORT_SIDE
@@ -208,9 +213,24 @@ object Proxies {
         return v.toInt().coerceIn(2_000_000, 400_000_000)
     }
 
+    private fun holdForExport() {
+        val t = running ?: return
+        val job = runningJob
+        running = null; runningJob = null
+        runCatching { t.cancel() }
+        runningBoost?.close(); runningBoost = null
+        val c = app
+        if (job != null) {
+            if (c != null) File(fileFor(c, job.uri, job.sig).path + ".tmp").delete()
+            progress[key(job.uri)] = -1
+            queue.addFirst(job)
+        }
+        se.gendut.klipp.CrashReport.note("proxy stopped for the export: ${job?.uri?.lastPathSegment}")
+    }
+
     private fun next() {
         val c = app ?: return
-        if (running != null) return
+        if (running != null || BackgroundWork.exporting) return
         val job = queue.removeFirstOrNull() ?: return
         val u = job.uri
         val k = key(u)
@@ -248,7 +268,7 @@ object Proxies {
             .addListener(object : Transformer.Listener {
                 override fun onCompleted(composition: Composition, exportResult: ExportResult) {
                     boost.close()
-                    running = null
+                    running = null; runningJob = null; runningBoost = null
                     if (tmp.renameTo(out)) {
                         val old = ready[k]
                         ready[k] = Entry(out, job.sig)
@@ -262,7 +282,7 @@ object Proxies {
 
                 override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
                     boost.close()
-                    running = null
+                    running = null; runningJob = null; runningBoost = null
                     se.gendut.klipp.CrashReport.note("proxy error: ${exportException.errorCodeName} ${exportException.message}")
                     tmp.delete()
                     if (job.hdr && k !in glTried) {
@@ -287,7 +307,7 @@ object Proxies {
                 }
             })
             .build()
-        running = t
+        running = t; runningJob = job; runningBoost = boost
         runCatching { t.start(comp, tmp.absolutePath) }.onFailure { boost.close(); running = null; failed += k; progress.remove(k); next(); return }
         val holder = ProgressHolder()
         main.post(object : Runnable {

@@ -335,7 +335,7 @@ vid klippbyten och bör stå med i listan över ändringar som görs om vid uppg
    huvudspelaren väntar tills uppspelningen stoppats (`RealMode.kt:360–361`). Nodcache- och proxykodningen pausas inte
    under uppspelning (ingen kontroll i `engine/NodeCache.kt` eller `engine/Proxies.kt`), till skillnad från
    `RenderCache`. Test (8.5): spela medan en proxy och en nodcache blir klara; räkna seeks och sena bildrutor.
-6. **Skarvlagrets klocka uppdateras inte för nästa segment förrän det blir aktivt.** `LayerClock` sätts bara i den
+6. **[Rättat 2026-11-12, se "Segmentklockan" nedan]** **Skarvlagrets klocka uppdateras inte för nästa segment förrän det blir aktivt.** `LayerClock` sätts bara i den
    aktiva grenen (`UpperLayers.kt:350`); medan spelaren väntar pausad på nästa segment (`:330–342`) har effekterna redan
    bytts till det klippet (`cue`, `:339`, `:387`) men klockan har kvar föregående segments `srcIn` och `posSec`. Den
    väntande bildrutan och de första efter starten kan därför få stabilisering, följda fönster eller animerad mask för
@@ -349,7 +349,7 @@ vid klippbyten och bör stå med i listan över ändringar som görs om vid uppg
    `VERSION` (`:78`), inte proxy eller original och inte HDR-tonmappningens inställning. Bitarna rättas inte med
    `DecodeCalibration`, så en telefon som avkodar BT.709 som BT.601 ger en färgskiftning vid bitens kanter. Test (8.4):
    samma övergång live, via skarvlagret och förrenderad ("Samma bild vid samma tid"), samt byt LUT med samma namn.
-9. **Avkodare och kodare delas utan policy.** Varje övre lager håller en förberedd `ExoPlayer` (två med `Alternate`),
+9. **[Rättat 2026-11-12, se "Resurssamordning" nedan]** **Avkodare och kodare delas utan policy.** Varje övre lager håller en förberedd `ExoPlayer` (två med `Alternate`),
    plus skarvlagret och huvudspelaren, även när lagret inte syns (`UpperLayers.kt:112`, `:330–342`). Under export
    pausas inte förhandsvisningen och förrenderingen kan köra samtidigt (`App.kt:429` kontrollerar bara uppspelning).
    Test (8.5): 1 ↔ 3 aktiva lager, export under pågående förrendering, på en telefon med få hårdvaruavkodare.
@@ -486,6 +486,39 @@ P3 – telefonens skärmbilder är P3, exportens Rec.709 räknas om först) och 
 - *Zoom, rotera, vertikal whip, toningar via svart/vitt, ljusläcka frös 83–152 ms vid snittet* (skarvlagret hoppade
   över dem). Nu täckta (se avsnitt 5): största uppehåll 50–68 ms (en gång 83). Bilden från skarvlagret under
   uppspelning mot exporten: 2,7–5,7 i medel, samma som efter övergången. Tona, skjut och whip var redan jämna.
+
+## Segmentklockan (risk 6, 2026-11-12, testversion 35–37)
+
+**Metod.** Ett skakande bildrutekodat klipp (fast brusbild + bildkod, flyttad ±8–14 px per bildruta längs en känd bana),
+stabiliserat med Stativ i appen: rätt korrigering ger en stillastående bakgrund. Bakgrundens läge per bildruta i
+skärminspelningen mäts med faskorrelation mot en bildruta långt efter snittet (skärmpixlar; utan stabilisering ±27 px).
+
+**Orsak (inte den i hypotesen).** Att klockan inte sattes för det väntande segmentet var ett fel (rättat), men det
+avgörande: lagerspelarens bildrutetider räknas från där dess renderare startade (Media3: första strömmen efter en
+återställning, `MediaCodecVideoRenderer.startPositionUs`), och en sökning till ett annat objekt återställer den inte.
+Tiderna berodde alltså på vad som spelats tidigare – mätt −54,7 s vid ett snitt där klippets egen tid var 0,25 s.
+`LayerClock` provade bara "objektets tid" eller "filens tid", så stabilisering, följda fönster, animerade masker och
+skarvlagrets övergångar fick fel bildrutas värden i allt utom lagrets första objekt. Gäller V2/V3 lika.
+
+**Rättning.** Byter lagret objekt startas spelaren om från en känd punkt (`seekLayer`: stop, sök, prepare) och
+`LayerClock.baseUs` = filtiden där; en bildrutas filtid = dess tid + basen (med reserv om den inte stämmer med
+positionen). Klockan sätts även för det väntande segmentet.
+
+**Resultat.** Skarvlagret med stabiliserat klipp (diagnosflagga): före ±28 px skak under lagrets sekund, efter ≤2 px i
+14/14 omgångar – samma som huvudspelaren. Stabiliserat klipp som andra segment på V2: ≤1 px från första bildrutan
+(basen 5,0 s = klippets start). Regression: vanligt snitt 10 omgångar utan hoppade bildrutor, zoom jämn och lik exporten.
+**Undantaget för stabiliserade klipp är borttaget** (de får skarvlagret); klipp med rörelseoskärpa står kvar bakom
+flaggan (samma klocka, inte mätt).
+
+## Resurssamordning under export (risk 9, 2026-11-12)
+
+`engine/BackgroundWork`: när en export startar pausas uppspelningen, proxy- och nodcachekodning som pågår avbryts och
+läggs först i kön igen, inget nytt startar, förrenderingen väntar (`canWork`), och förhandsvisningens spelare släpper
+sina avkodare (huvudspelaren `stop`, lagren `stop`). Efteråt laddas förhandsvisningen om vid spelhuvudet och jobben
+fortsätter. **På vivo:** export startad mitt i en förrendering (63 %) – loggen visar "held" och "resumed", exporten
+klar på 8 s med alla 2250 kontrollerade bildrutor rätt, förrenderingen gjordes klart efteråt, förhandsvisningen visade
+rätt bildruta igen. Test: `BackgroundWorkTest`. Ej testat: export under proxykodning av tunga original (inget sådant
+material i testprojektet).
 
 **Inte gjort:** HDR-material, svagare telefoner, skarvlagrets klocka för stabiliserade klipp (risk 6), att pausa
 kodningen av proxy och nodcache under uppspelning.

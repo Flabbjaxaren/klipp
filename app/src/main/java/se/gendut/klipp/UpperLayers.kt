@@ -77,13 +77,16 @@ fun UpperLayers(
         val uppers = plan.layers.dropLast(1).reversed()
         // edit points in the main player's layer: the next clip is already decoded in its own player and covers
         // the switch (see Handoff) – directly above the main player, below the other layers
-        val stabilized = plan.layers.lastOrNull()?.segs.orEmpty().mapNotNull { it.clip?.id }.filter { id -> gradeOf(id)?.let { it.stab != null || it.mblur != null } == true }
-        val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized) {
+        // clips with motion blur stay in the main player (not yet measured in the edit point layer; diagnostics:
+        // CutTrace.stabHandoff). Stabilized clips are covered since the layer's clock was fixed (plan risk 6, measured with
+        // a shaking frame-coded clip: the background stands within 2 px through the layer's second, as in the main player)
+        val stabilized = plan.layers.lastOrNull()?.segs.orEmpty().mapNotNull { it.clip?.id }.filter { id -> gradeOf(id)?.mblur != null }
+        val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized, se.gendut.klipp.engine.CutTrace.stabHandoff) {
             plan.layers.lastOrNull()?.let { base ->
                 Handoff.layer(base) { s ->
                     val u = controller.uriOf(s.src.item) ?: return@layer false
-                    // a stabilized clip stays in the main player: in this one its first second was corrected wrongly (motion blur follows the same path)
-                    if (s.clip?.id in stabilized) return@layer false
+                    // (diagnostics: CutTrace.stabHandoff lets clips with motion blur in, to measure them first)
+                    if (s.clip?.id in stabilized && !se.gendut.klipp.engine.CutTrace.stabHandoff) return@layer false
                     // a transition is drawn in the sequence frame (as the export): only where the picture is that frame
                     if (s.hasFx && !fillsFrame(s, u, plan)) return@layer false
                     // HDR originals without a proxy are tone mapped differently in the two players – no handoff there
@@ -150,6 +153,7 @@ private fun LayerVideo(
     // which frame the layer's TextureView holds: the video chain's frames by the time they are released at
     // (SurfaceTexture.timestamp), see the edit point layer's start below
     val released = remember(player) { ReleasedFrames().also { player.setVideoFrameMetadataListener(it) } }
+    val clock = remember { LayerClock() }
     val segs = remember(layer) { layer.segs.filter { controller.uriOf(it.src.item) != null } }
     // the edit point layer starts each segment a little early, unseen (see HANDOFF_PREROLL_S): source ms before the
     // segment's start, per segment (0 = none)
@@ -188,7 +192,20 @@ private fun LayerVideo(
     LaunchedEffect(Unit) {
         snapshotFlow { se.gendut.klipp.engine.Proxies.revision to state.playing }.collect { (r, playing) -> if (!playing) proxyRev = r }
     }
+    // each item's start in its file (ms): where its frames' times are counted from (see LayerClock.baseUs)
+    val clipStartMs = remember(segs, preMs) { segs.indices.map { k -> clipStartMs(segs[k], preMs[k]) } }
+    // an export lets the layer's decoder go; afterwards the player is prepared again (the sync loop seeks as needed)
+    val exporting = se.gendut.klipp.engine.BackgroundWork.exporting
+    LaunchedEffect(player, exporting) {
+        if (exporting) { player.playWhenReady = false; player.stop() }
+        else if (player.playbackState == Player.STATE_IDLE && player.mediaItemCount > 0) {
+            val k = player.currentMediaItemIndex
+            player.prepare()
+            clock.baseUs = clipStartMs.getOrNull(k)?.let { (it + player.currentPosition) * 1000 } ?: Long.MIN_VALUE
+        }
+    }
     LaunchedEffect(segs, proxyRev, preMs) {
+        player.stop()
         player.setMediaItems(segs.mapIndexed { k, seg ->
             // freeze frame: just the frame (the player stays paused on it for the whole segment, see below)
             val s = seg.src as? SegSrc.Media ?: (seg.src as SegSrc.Still).let { st -> SegSrc.Media(st.item, st.sec, 0.0) }
@@ -196,13 +213,14 @@ private fun LayerVideo(
                 .setClippingConfiguration(
                     MediaItem.ClippingConfiguration.Builder()
                         // start ≥ 0 and end after start (camera files can have a negative start time, see Playback.clipped)
-                        .setStartPositionMs(((s.srcIn * 1000).roundToLong() - preMs[k]).coerceAtLeast(0L))
+                        .setStartPositionMs(clipStartMs[k])
                         .setEndPositionMs(((s.srcIn + (if (s.speed == 0.0) 0.1 else (seg.dur + (if (handoff) HANDOFF_ITEM_TAIL_S else UPPER_ITEM_TAIL_S)) * kotlin.math.abs(s.speed))) * 1000).roundToLong().coerceAtLeast((s.srcIn * 1000).roundToLong().coerceAtLeast(0L) + 1))
                         .build()
                 ).build()
         })
         drawnIndex = -1
         player.prepare()
+        clock.baseUs = clipStartMs.getOrNull(0)?.let { it * 1000 } ?: Long.MIN_VALUE
     }
     // the layer's view (its latest frame time, for the playback summary)
     var view by remember { mutableStateOf<android.view.TextureView?>(null) }
@@ -214,7 +232,18 @@ private fun LayerVideo(
     // the segment whose effects (grade, LUT) are loaded in the player: the active one, or in a gap the one the player
     // is already waiting on – so the LUT is there from the first frame instead of a few frames in
     var cue by remember { mutableIntStateOf(-1) }
-    val clock = remember { LayerClock() }
+    /**
+     * A seek in the layer's player. Its frames' times are counted from where its renderer began (Media3: the first stream
+     * after a reset), and a seek to another item doesn't reset it – the times then depended on what had played before
+     * (measured: −54.7 s at an edit point), so stabilization, tracked windows, masks and the edit point layer's
+     * transitions got the wrong frame's values (plan risk 6). To another item: a fresh start, from a known point.
+     */
+    fun seekLayer(idx: Int, ms: Long) {
+        if (idx != player.currentMediaItemIndex || player.playbackState == Player.STATE_IDLE) {
+            player.stop(); player.seekTo(idx, ms); player.prepare()
+            clock.baseUs = clipStartMs(segs[idx], preMs[idx]).let { (it + ms) * 1000 }
+        } else player.seekTo(idx, ms)
+    }
     // Follow the main player. Both play at normal speed from the same starting point, so they don't drift apart
     // (no time stretch). The layer only starts once the main player's position actually begins to advance –
     // otherwise it ends up ahead by the main player's startup delay. The drift is measured continuously (diagnostics view)
@@ -329,7 +358,7 @@ private fun LayerVideo(
                 // seen as soon as its view holds the segment's first frame (the item begins preMs before the segment) –
                 // the player's reported position comes ~20 ms after the frame; it starts the layer if the frame's
                 // time can't be told
-                val shown = view?.surfaceTexture?.timestamp?.let { released.ptsAt(it) }
+                val shown = view?.surfaceTexture?.timestamp?.let { released.ptsAt(it) }?.let { clock.itemUs(it, clipStartMs[i]) }
                 if ((shown != null && shown >= preMs[i] * 1000 - 1000) || player.currentPosition >= preMs[i]) {
                     preRolling = false
                     TRACE.log("handStart", "seg=$i t=$t shown=$shown pos=${player.currentPosition}")
@@ -397,8 +426,16 @@ private fun LayerVideo(
                 // (also when it is in that segment but not at its start: a layer with a single segment, or one played
                 // before, still stood where it stopped – and had to seek from a keyframe as the segment began)
                 val sought = next >= 0 && (player.currentMediaItemIndex != next || abs(player.currentPosition - waitMs(next)) > PREPARED_MS)
-                if (sought) { player.seekTo(next, waitMs(next)); lastSeek = now; TRACE.log("seek", "layer=${layer.name} wait idx=$next ms=${waitMs(next)} t=$t") }
-                if (next >= 0) cue = next
+                if (sought) { seekLayer(next, waitMs(next)); lastSeek = now; TRACE.log("seek", "layer=${layer.name} wait idx=$next ms=${waitMs(next)} t=$t") }
+                if (next >= 0) {
+                    cue = next
+                    // the clock for the segment waited on (risk 6): its effects are already loaded (cue), and the frame it
+                    // waits on – and the first ones after it starts – read their source time from the clock (stabilization,
+                    // tracked windows, animated masks). Before, the previous segment's values stayed until it became active
+                    val ns = segs[next]
+                    clock.srcIn = (ns.src as? SegSrc.Media)?.let { it.srcIn - preMs[next] / 1000.0 } ?: (ns.src as? SegSrc.Still)?.sec ?: 0.0
+                    clock.posSec = waitMs(next) / 1000.0; clock.item = ns.src.item
+                }
                 if (!state.playing && !sought) idle()
                 continue
             }
@@ -427,7 +464,7 @@ private fun LayerVideo(
                 // show the main player's picture without film – it stands down instead, still showing, see above
                 if (handReadyAt == 0L) { handReadyAt = now; unhide(); handFilmBase = filmedOf(handHid) }
                 handForced = true
-            } else d.seekMs?.let { player.seekTo(i, it); lastSeek = now; stats.seeks++; TRACE.log("seek", "layer=${layer.name} sync idx=$i ms=$it t=$t cur=${player.currentMediaItemIndex}/${player.currentPosition}") }
+            } else d.seekMs?.let { seekLayer(i, it); lastSeek = now; stats.seeks++; TRACE.log("seek", "layer=${layer.name} sync idx=$i ms=$it t=$t cur=${player.currentMediaItemIndex}/${player.currentPosition}") }
             if (player.playWhenReady != run) player.playWhenReady = run
             if (run && player.isPlaying && d.seekMs == null) stats.record(player.currentPosition - target)
             if (!state.playing && d.seekMs == null && player.playbackState != Player.STATE_BUFFERING) idle()
@@ -858,6 +895,12 @@ private suspend fun repaint(player: ExoPlayer) {
  * timestamps count either in the file's time or from the segment's start (the clipping); the interpretation closest
  * to the player's last known position is chosen.
  */
+/** Where a layer's item for segment [s] begins in its file (ms): the segment's source time less its pre-roll [preMs]. */
+private fun clipStartMs(s: Seg, preMs: Long): Long {
+    val m = s.src as? SegSrc.Media ?: (s.src as SegSrc.Still).let { st -> SegSrc.Media(st.item, st.sec, 0.0) }
+    return ((m.srcIn * 1000).roundToLong() - preMs).coerceAtLeast(0L)
+}
+
 /** Whether segment [s]'s picture is the sequence frame: the clip untransformed and the file in the frame's shape (known). */
 private fun fillsFrame(s: Seg, u: android.net.Uri, plan: LayerPlan): Boolean {
     val c = s.clip?.at(s.start)
@@ -894,23 +937,42 @@ private class LayerClock {
     @Volatile var posSec = 0.0
     /** The file being played (a reversed file: the original's time is computed, see Reversals.originalTime). */
     @Volatile var item = 0L
+    /**
+     * Where (µs, in the file) the player's renderer began: a frame's time + this = its time in the file (set at each fresh
+     * start, see seekLayer; MIN_VALUE = not known).
+     */
+    @Volatile var baseUs = Long.MIN_VALUE
+
+    /**
+     * A frame's time in the file (s). From [baseUs]; if that doesn't fit the position (more than [SLACK_S] away – e.g. the
+     * player went on into the next item by itself), the timestamp read as the item's own time or the file's, whichever
+     * lies nearer the position.
+     */
+    fun fileSec(pts: Long): Double {
+        val now = srcIn + posSec
+        val b = baseUs
+        if (b != Long.MIN_VALUE) { val f = (pts + b) / 1e6; if (abs(f - now) <= SLACK_S) return f }
+        val p = pts / 1e6
+        return if (abs(p - now) <= abs(srcIn + p - now)) p else srcIn + p
+    }
+
+    /** A frame's time in the current item (µs from [clipStartMs]). */
+    fun itemUs(pts: Long, clipStartMs: Long): Long = Math.round(fileSec(pts) * 1e6) - clipStartMs * 1000
 
     /**
      * Timeline time of a frame of the item now playing, for a segment from [segStart] at [speed] whose item begins [preMs]
-     * (source ms) before it: its timestamp read as the item's own time or the file's, whichever lies nearer the position.
+     * (source ms) before it.
      */
     fun timelineOf(pts: Long, segStart: Double, speed: Double, preMs: Long): Double? {
         if (speed <= 0.0) return null
-        val p = pts / 1e6
-        val inItem = if (abs(p - (srcIn + posSec)) <= abs(srcIn + p - (srcIn + posSec))) p - srcIn else p
+        val inItem = fileSec(pts) - srcIn
         return segStart + (inItem * 1000.0 - preMs) / (speed * 1000.0)
     }
 
-    fun source(pts: Long): Double {
-        val p = pts / 1e6
-        val now = srcIn + posSec
-        return se.gendut.klipp.engine.Reversals.originalTime(item, if (abs(p - now) <= abs(srcIn + p - now)) p else srcIn + p)
-    }
+    fun source(pts: Long): Double = fileSec(pts).also { if (TRACE.on) TRACE.log("clock", "pts=$pts file=${"%.4f".format(java.util.Locale.ROOT, it)} base=$baseUs pos=$posSec") }
+        .let { se.gendut.klipp.engine.Reversals.originalTime(item, it) }
+
+    companion object { const val SLACK_S = 1.5 }
 }
 
 

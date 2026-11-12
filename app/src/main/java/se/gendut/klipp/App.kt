@@ -242,6 +242,10 @@ fun KlippApp(
         exportProgress = 0
         // held in the foreground while it runs (and marked, so an export lost with the process is reported next time)
         se.gendut.klipp.engine.ExportGuard.begin(context, name)
+        // the export goes first: background jobs hold, the preview lets go of its decoders (see BackgroundWork)
+        state.playing = false
+        se.gendut.klipp.engine.BackgroundWork.export(true)
+        playback?.let { p -> runCatching { p.player.stop() } }
         scope.launch {
             val r = try {
                 se.gendut.klipp.engine.Exporter.export(context, c.snapshot, c::uriOf, name, lookOf(grade), mixMaster(mix), HashMap(gs.grades), st) {
@@ -249,6 +253,9 @@ fun KlippApp(
                 }
             } finally {
                 se.gendut.klipp.engine.ExportGuard.end(context)
+                se.gendut.klipp.engine.BackgroundWork.export(false)
+                // the picture back at the playhead
+                playback?.let { p -> runCatching { p.reload(state.playhead.toDouble()) } }
             }
             exportProgress = null
             r.onSuccess { haptics.confirm(); toaster.show(Str.t(R.string.app_export_saved) + (se.gendut.klipp.engine.Exporter.lastResult?.let { " · $it" } ?: "")) }
@@ -435,7 +442,7 @@ fun KlippApp(
             if (se.gendut.klipp.engine.RenderCache.halted) return@collectLatest
             // not while playing (rendering takes decoders and power from the picture); scrubbing, zooming and editing go on beside it
             rendering = renderScope.launch {
-                val r = se.gendut.klipp.engine.RenderCache.render(context, snap, controller::uriOf, grades, todo, canWork = { !state.playing }) {
+                val r = se.gendut.klipp.engine.RenderCache.render(context, snap, controller::uriOf, grades, todo, canWork = { !state.playing && !se.gendut.klipp.engine.BackgroundWork.exporting }) {
                     se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy) }
                     // into playback only once it's stopped (a rebuild during playback stutters)
                     scope.launch { androidx.compose.runtime.snapshotFlow { state.playing }.first { !it }; se.gendut.klipp.engine.RenderCache.bump() }

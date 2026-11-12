@@ -75,6 +75,8 @@ object NodeCache {
         if (app != null) return
         app = context.applicationContext
         DecodeCalibration.init(context)
+        // an export goes first: the file under way stops (made again afterwards), nothing new starts meanwhile
+        BackgroundWork.listen { on -> if (on) holdForExport() else next() }
         runCatching {
             val o = JSONObject(index(app!!).readText())
             o.optJSONObject("files")?.let { f ->
@@ -224,9 +226,19 @@ object NodeCache {
     /** The color check is running (before the first cache in a format); the queue waits. */
     private var calibrating = false
 
+    private fun holdForExport() {
+        val (r, t) = running ?: return
+        running = null
+        runCatching { t.cancel() }
+        app?.let { c -> File(File(dir(c), r.key + ".mp4").path + ".tmp").delete() }
+        progress.remove(r.clip)
+        queue.addFirst(r)
+        se.gendut.klipp.CrashReport.note("node cache stopped for the export: clip ${r.clip}")
+    }
+
     private fun next() {
         val c = app ?: return
-        if (running != null || calibrating) return
+        if (running != null || calibrating || BackgroundWork.exporting) return
         val r = queue.removeFirstOrNull() ?: return
         val out = File(dir(c), r.key + ".mp4")
         val tmp = File(out.path + ".tmp")
@@ -257,7 +269,7 @@ object NodeCache {
     fun correction(e: Entry): FloatArray? = DecodeCalibration.correction(if (e.tenBit) MimeTypes.VIDEO_H265 else MimeTypes.VIDEO_H264, e.tenBit)
 
     private fun start(c: Context, r: Req, out: File, tmp: File, codec: Perf.Codec?, hdr: Boolean, fps: Double) {
-        if (running != null || calibrating) { queue.addFirst(r); return }
+        if (running != null || calibrating || BackgroundWork.exporting) { queue.addFirst(r); return }
         val (mime, ten) = cacheMime()
         // first (once per phone and format): check that encode → decode gives the same colors
         if (!DecodeCalibration.isChecked(c, mime, ten != null)) {

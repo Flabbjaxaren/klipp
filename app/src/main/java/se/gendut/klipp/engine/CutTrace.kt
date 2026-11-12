@@ -29,6 +29,13 @@ object CutTrace {
     var mode by androidx.compose.runtime.mutableIntStateOf(0)
         private set
 
+    /**
+     * Diagnostics: clips with motion blur get the edit point layer too – normally they are left to the main player (the
+     * layer's clock gave them the wrong frame's values, plan risk 6; fixed and measured for stabilization, not yet for
+     * motion blur).
+     */
+    var stabHandoff by androidx.compose.runtime.mutableStateOf(false)
+
     fun configure(trace: Boolean, diagMode: Int) {
         on = trace
         mode = diagMode.coerceIn(0, 3)

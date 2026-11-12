@@ -289,12 +289,14 @@ object McpBridge {
             texts("selected $id")
         },
         Tool("logs", "The app's recent event trail (the same as in crash reports).") { texts(CrashReport.trail().joinToString("\n")) },
-        Tool("cut_trace", "Edit point diagnostics (CutTrace): configure it (trace, mode 0–2), or read and clear its lines.",
-            JSONObject().put("trace", prop("boolean", "turn the trace on/off")).put("mode", prop("number", "0 normal, 1 no edit point layer, 2 layer without takeover"))
-                .put("read", prop("boolean", "return the lines collected since the last read and clear them"))) { a ->
+        Tool("cut_trace", "Edit point diagnostics (CutTrace): configure it (trace, mode 0–3, stab), or read and clear its lines.",
+            JSONObject().put("trace", prop("boolean", "turn the trace on/off")).put("mode", prop("number", "0 normal, 1 no edit point layer, 2 layer without takeover, 3 layer marked red"))
+                .put("read", prop("boolean", "return the lines collected since the last read and clear them"))
+                .put("stab", prop("boolean", "diagnostics: stabilized clips get the edit point layer too"))) { a ->
+            if (a.has("stab")) se.gendut.klipp.engine.CutTrace.stabHandoff = a.getBoolean("stab")
             if (a.has("trace") || a.has("mode")) se.gendut.klipp.engine.CutTrace.configure(a.optBoolean("trace", se.gendut.klipp.engine.CutTrace.on), a.optInt("mode", se.gendut.klipp.engine.CutTrace.mode))
             if (a.optBoolean("read")) texts(se.gendut.klipp.engine.CutTrace.drain())
-            else texts("trace=${se.gendut.klipp.engine.CutTrace.on} mode=${se.gendut.klipp.engine.CutTrace.mode}")
+            else texts("trace=${se.gendut.klipp.engine.CutTrace.on} mode=${se.gendut.klipp.engine.CutTrace.mode} stab=${se.gendut.klipp.engine.CutTrace.stabHandoff}")
         },
     ) }
 
