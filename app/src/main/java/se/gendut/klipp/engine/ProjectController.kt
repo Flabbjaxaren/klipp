@@ -118,7 +118,7 @@ class ProjectController(
         val used = HashSet<Int>()
         try {
             if (opened.isEmpty()) { onMessage(Str.t(R.string.projectcontroller_files_open_failed)); return@launch }
-            val paths = JSONArray().apply { opened.forEach { put("/proc/self/fd/${it.second.fd}") } }
+            val paths = JSONArray().apply { opened.forEach { (u, pfd, name) -> put(FdPath.of(pfd.fd, name, context.contentResolver.getType(u))) } }
             var count = 0
             editLock.withLock {
                 // the whole import (files, names, new sequence) is one undo step
@@ -1505,7 +1505,7 @@ class ProjectController(
             val pfd = context.contentResolver.openFileDescriptor(u, "r") ?: error("cannot open the file")
             fds += pfd
             group(undo) {
-                val r = engine.exec("file.import", JSONObject().put("paths", JSONArray().put("/proc/self/fd/${pfd.fd}")))
+                val r = engine.exec("file.import", JSONObject().put("paths", JSONArray().put(FdPath.of(pfd.fd, file.name, null))))
                 val id = r.optJSONArray("items")?.optLong(0) ?: error("the import produced no clip")
                 uris[id] = u
                 engine.tryExec("clip.rename", JSONObject().put("item", id).put("name", name))
@@ -2226,3 +2226,18 @@ private val FILLERS = listOf("eh", "eeh", "öh", "öhm", "äh", "ähm", "ehm", "
 
 /** The animatable properties (see KfKeys). */
 private val KEYS = listOf(KfKeys.POSITION, KfKeys.SCALE, KfKeys.ROTATION, KfKeys.OPACITY, KfKeys.LEVEL)
+
+/**
+ * The path a media file is handed to the engine by: its open handle (`/proc/self/fd/N`, read through it – see the bridge's
+ * fds.rs) with the file's extension (`/proc/self/fd/N.mp4`). The engine streams a media file (its index now, the samples
+ * when needed) only when the path names a format it imports; without the extension it read the whole file into memory –
+ * a 4.6 GB 4K APV clip took the phone's memory and the phone restarted.
+ */
+object FdPath {
+    fun of(fd: Int, name: String?, mime: String?): String {
+        val fromName = name?.substringAfterLast('.', "")?.takeIf { name.contains('.') }
+        val ext = fromName?.takeIf { e -> e.length in 1..5 && e.all { it.isLetterOrDigit() && it.code < 128 } }
+            ?: mime?.let { android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }?.takeIf { e -> e.length in 1..5 && e.all { it.isLetterOrDigit() && it.code < 128 } }
+        return if (ext != null) "/proc/self/fd/$fd.${ext.lowercase()}" else "/proc/self/fd/$fd"
+    }
+}

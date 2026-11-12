@@ -15,9 +15,17 @@ use filmcraft_engine::{FsServices, Services};
 use filmcraft_engine::media_browser::{DirEntry, Volume};
 use filmcraft_media::{ByteReader, SharedReader};
 
-/// The handle's number in a path `/proc/self/fd/N`.
+/// The handle's number in a path `/proc/self/fd/N`, or `/proc/self/fd/N.ext` – Klipp adds the file's extension on import,
+/// because the engine streams a media file (reads its index now and its samples on demand) only when the path names an
+/// importable format; without it the whole file was read into memory (a 4.6 GB 4K APV clip: the phone ran out of memory).
 pub fn fd_of(path: &str) -> Option<i32> {
-    path.strip_prefix("/proc/self/fd/")?.parse::<i32>().ok().filter(|n| *n >= 0)
+    let rest = path.strip_prefix("/proc/self/fd/")?;
+    let num = match rest.split_once('.') {
+        Some((n, ext)) if !ext.is_empty() && ext.len() <= 5 && ext.chars().all(|c| c.is_ascii_alphanumeric()) => n,
+        Some(_) => return None,
+        None => rest,
+    };
+    num.parse::<i32>().ok().filter(|n| *n >= 0)
 }
 
 /// A private duplicate of the handle (closed when the duplicate is dropped; positional reads don't affect the original).
@@ -120,6 +128,20 @@ mod tests {
     use super::*;
     use std::io::Write;
     use std::os::fd::AsRawFd;
+
+    #[test]
+    fn fd_paths_with_an_extension() {
+        assert_eq!(fd_of("/proc/self/fd/57"), Some(57));
+        assert_eq!(fd_of("/proc/self/fd/57.mp4"), Some(57));
+        assert_eq!(fd_of("/proc/self/fd/57.MOV"), Some(57));
+        assert_eq!(fd_of("/proc/self/fd/57."), None);
+        assert_eq!(fd_of("/proc/self/fd/57.mp4/x"), None);
+        assert_eq!(fd_of("/proc/self/fd/x.mp4"), None);
+        assert_eq!(fd_of("/data/x.mp4"), None);
+        // the engine streams only a path whose extension it knows
+        assert!(filmcraft_media::is_importable(std::path::Path::new("/proc/self/fd/57.mp4")));
+        assert!(!filmcraft_media::is_importable(std::path::Path::new("/proc/self/fd/57")));
+    }
 
     #[test]
     fn reads_through_the_open_handle_without_reopening() {
