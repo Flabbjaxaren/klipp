@@ -54,6 +54,14 @@ object FrameHolds {
         return File(d, key(uri, sec) + ".png").takeIf { it.exists() && it.length() > 0 }
     }
 
+    /**
+     * Images that could not be extracted: key → whether the proxy was tried too. Tried again only once a proxy exists that
+     * wasn't tried. (A failure used to bump [revision] as well: playback was rebuilt, asked again, failed again – with APV
+     * originals, which MediaMetadataRetriever can't decode, about 70 times a second until Android killed the app for "too
+     * many binders"; the whip between two whole APV clips showed without its freeze frames meanwhile.)
+     */
+    private val failed = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
     /** Extract the missing images, in the background. */
     fun ensure(context: Context, holds: Collection<Pair<Uri, Double>>) {
         val app = context.applicationContext
@@ -61,12 +69,17 @@ object FrameHolds {
         for ((uri, sec) in holds) {
             val k = key(uri, sec)
             if (File(d, "$k.png").exists()) continue
+            val proxy = Proxies.videoUri(uri).takeIf { it != uri }
+            val triedProxy = failed[k]
+            if (triedProxy != null && (triedProxy || proxy == null)) continue
             synchronized(pending) { if (!pending.add(k)) continue }
             worker.execute {
-                runCatching { extract(app, uri, sec, File(d, "$k.png")) }
-                    .onFailure { se.gendut.klipp.CrashReport.note("freeze frame: ${it.message}") }
+                val ok = runCatching { extractAny(app, uri, proxy, sec, File(d, "$k.png")) }
+                    .onFailure { if (failed.put(k, proxy != null) == null) se.gendut.klipp.CrashReport.note("freeze frame: ${it.message}") }
+                    .isSuccess
+                if (ok) failed.remove(k)
                 synchronized(pending) { pending.remove(k) }
-                main.post { revision++ }
+                if (ok) main.post { revision++ }
             }
         }
     }
@@ -76,7 +89,21 @@ object FrameHolds {
         val d = dir(context.applicationContext)
         for ((uri, sec) in holds) {
             val f = File(d, key(uri, sec) + ".png")
-            if (!f.exists() || f.length() == 0L) extract(context.applicationContext, uri, sec, f)
+            if (!f.exists() || f.length() == 0L) extractAny(context.applicationContext, uri, Proxies.videoUri(uri).takeIf { it != uri }, sec, f)
+        }
+    }
+
+    /**
+     * From the original, or else from its proxy: MediaMetadataRetriever can't decode every codec the players can (APV) –
+     * the proxy (HEVC, same timing) then gives the frame at the proxy's size.
+     */
+    private fun extractAny(c: Context, uri: Uri, proxy: Uri?, sec: Double, out: File) {
+        try {
+            extract(c, uri, sec, out)
+        } catch (e: Exception) {
+            if (proxy == null) throw e
+            se.gendut.klipp.CrashReport.note("freeze frame from the proxy: ${uri.lastPathSegment} at $sec s (${e.message})")
+            extract(c, proxy, sec, out)
         }
     }
 
