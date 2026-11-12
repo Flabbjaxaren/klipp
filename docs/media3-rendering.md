@@ -510,6 +510,15 @@ positionen). Klockan sätts även för det väntande segmentet.
 **Undantaget för stabiliserade klipp är borttaget** (de får skarvlagret); klipp med rörelseoskärpa står kvar bakom
 flaggan (samma klocka, inte mätt).
 
+## Spela/pausa upprepat (2026-11-12, testversion 37–38)
+
+Spela 0,6–1,8 s, pausa, jämför bildkoden på skärmen med spelhuvudet: **1 av 15 rätt** – bilden låg 1–3 bildrutor
+*före* spelhuvudet (spelaren hade redan släppt bildrutor framåt när den pausades; spelhuvudet var den position
+uppspelningsslingan läste sist). En klippning direkt efter paus hamnade alltså inte där man såg. Rättning: vid paus
+läggs spelhuvudet på närmaste bildruta och den pausade spelaren söks dit (pausade sökningar är exakta); bara om
+inget annat flyttat spelhuvudet under tiden (skrubbning, steg, sökning). Efter: **15/15** i huvudlagret, 6/6 med ett
+övre lager (V2) överst.
+
 ## Resurssamordning under export (risk 9, 2026-11-12)
 
 `engine/BackgroundWork`: när en export startar pausas uppspelningen, proxy- och nodcachekodning som pågår avbryts och

@@ -370,6 +370,10 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
     LaunchedEffect(se.gendut.klipp.engine.Proxies.revision, se.gendut.klipp.engine.Perf.hdrRevision, se.gendut.klipp.engine.VideoPipeline.previewShort, state.playing) {
         if (!state.playing) playback.refresh(state.playhead.toDouble())
     }
+    // the playhead set when playback paused (see there) – the scrub watch leaves it alone
+    var pauseSnap by remember { androidx.compose.runtime.mutableFloatStateOf(-1f) }
+    // the playhead playback wrote last: a pause snaps only if nothing else moved it meanwhile (scrub, step, seek)
+    val loopHead = remember { floatArrayOf(-1f) }
     LaunchedEffect(state.playing) {
         // the display refresh rate follows the project frame rate during playback (smooth playback, see DisplayRate)
         (ctx as? android.app.Activity)?.let { se.gendut.klipp.engine.DisplayRate.apply(it, if (state.playing) controller.snapshot.fps else null) }
@@ -387,7 +391,7 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
                 val p = playback.player
                 val pos = playback.positionSec
                 playback.hint(pos)
-                if (p.playbackState == Player.STATE_READY || p.playbackState == Player.STATE_ENDED) state.playhead = pos.toFloat()
+                if (p.playbackState == Player.STATE_READY || p.playbackState == Player.STATE_ENDED) { state.playhead = pos.toFloat(); loopHead[0] = state.playhead }
                 when {
                     p.playbackState == Player.STATE_ENDED -> state.playing = false
                     !p.playWhenReady -> state.playing = false // the player paused itself (e.g. headphones unplugged)
@@ -404,7 +408,20 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
             }
             playback.player.pause()
         } else {
+            // (the effect that played is cancelled when playing turns off – the pause is handled here)
+            val wasPlaying = playback.player.playWhenReady
             playback.player.pause()
+            if (wasPlaying && playback.hasContent && state.playhead == loopHead[0]) {
+                // the picture where the playhead stands: when paused, the player had already released frames up to 1–3 ahead
+                // of the position the loop last read (measured with frame-coded clips: 14 of 15 pauses showed a later frame
+                // than the playhead, so an edit after a pause landed elsewhere than what was seen). The playhead goes to the
+                // nearest frame and the paused player is sought there – a paused seek shows exactly that frame
+                val fps = controller.snapshot.fps.takeIf { it > 0.0 } ?: 25.0
+                val snapped = playheadSec((Math.round(playback.positionSec * fps) / fps).toFloat(), fps)
+                pauseSnap = snapped.toFloat()
+                state.playhead = snapped.toFloat()
+                playback.seek(snapped)
+            }
         }
     }
     // scrubbing: the app shows stills from the clips (LivePreview) while the finger moves; the player seeks when
@@ -414,6 +431,8 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
         var last = state.playhead
         snapshotFlow { state.playhead }.collect { ph ->
             if (state.playing || kotlin.math.abs(ph - last) < 0.0005f) { last = ph; return@collect }
+            // (the playhead set where playback paused: already sought, no still)
+            if (ph == pauseSnap) { last = ph; pauseSnap = -1f; return@collect }
             last = ph
             state.scrubbing = true
             settle?.cancel()
