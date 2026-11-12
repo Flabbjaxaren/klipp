@@ -563,7 +563,8 @@ tills appen startades om. **Rättning:** lagerspelarna har en egen videorenderar
 tonmappas med OpenGL, som exporten; `LayerRenderersFactory`, `setRequestOpenGlToneMapping`). Fel i lagerspelare skrivs
 nu i händelsespåret. Efter: V2 lever genom byte original → proxy; rampen lika exporten i mellan- och högdagrar
 (38/51/63/…/252 – förut 33 mot 38 i skuggorna); kvar: de djupaste skuggorna (5/10 mot 13/26 i rampens nedersta sjättedel),
-lika med och utan proxy.
+lika med och utan proxy. Samma HLG-klipp på V1 (huvudspelaren) ger **exakt samma** värden som på V2 – förhandsvisningens
+två vägar är nu lika; det är exporten som lyfter de djupaste skuggorna (11/24 mot 5/10). Inte rättat.
 
 ## Övriga fynd 2026-11-12 (inte rättade)
 
@@ -574,7 +575,9 @@ lika med och utan proxy.
   Samma sak gav "pre-render: could not save" (två renderingar av samma bit). Nu en rendering och en sammanfogning i
   taget (`RenderCache.renderLock`, `joinLock`). Efter: 8/8 helt jämna över snittet i den förrenderade filen.
 - **Slut på avkodare** efter en lång session med många HDR-, proxy- och förrenderingsexperiment
-  (`DECODER_INIT_FAILED` i huvudspelaren); borta efter omstart.
+  (`DECODER_INIT_FAILED` i huvudspelaren); borta efter omstart. Ingen läcka: 10 varv spela/pausa/sök genom snitt, V2 och
+  gradient – appens kodekar konstant 3 (`dumpsys media.resource_manager`). Troligen en HDR-proxy som hängde (> 4 min,
+  håller avkodare och kodare).
 
 ## Resurssamordning under export (risk 9, 2026-11-12)
 
