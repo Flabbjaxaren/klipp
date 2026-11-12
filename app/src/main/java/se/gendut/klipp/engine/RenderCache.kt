@@ -412,7 +412,16 @@ object RenderCache {
     suspend fun render(
         context: Context, s: Snapshot, uriOf: (Long) -> Uri?, grades: Map<Long, ClipGrade>, todo: List<Chunk>,
         canWork: () -> Boolean, onChunk: () -> Unit,
-    ): Result<Int> = renderLock.withLock { renderLocked(context, s, uriOf, grades, todo, canWork, onChunk) }
+    ): Result<Int> = renderLock.withLock {
+        // automatic and in the background: whatever goes wrong fails this render, never the app
+        try {
+            renderLocked(context, s, uriOf, grades, todo, canWork, onChunk)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     /**
      * One render at a time, and never beside a join: two at once wrote the same temporary file – a chunk then failed

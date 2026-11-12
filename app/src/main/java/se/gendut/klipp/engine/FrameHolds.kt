@@ -97,7 +97,9 @@ object FrameHolds {
      * From the original, or else from its proxy: MediaMetadataRetriever can't decode every codec the players can (APV) –
      * the proxy (HEVC, same timing) then gives the frame at the proxy's size.
      */
-    private fun extractAny(c: Context, uri: Uri, proxy: Uri?, sec: Double, out: File) {
+    private fun extractAny(c: Context, uri: Uri, proxy: Uri?, sec: Double, out: File) = synchronized(lockOf(out)) {
+        // the background extraction and a render's/the export's await can ask for the same image at once
+        if (out.exists() && out.length() > 0) return@synchronized
         try {
             extract(c, uri, sec, out)
         } catch (e: Exception) {
@@ -106,6 +108,9 @@ object FrameHolds {
             extract(c, proxy, sec, out)
         }
     }
+
+    private val locks = java.util.concurrent.ConcurrentHashMap<String, Any>()
+    private fun lockOf(out: File): Any = locks.getOrPut(out.path) { Any() }
 
     /**
      * The freeze frames in a timeline: (file, source time) – freeze-frame clips and the transitions' padding where a clip's
@@ -132,9 +137,15 @@ object FrameHolds {
                 val k = MAX_SIDE.toFloat() / side
                 bmp = Bitmap.createScaledBitmap(bmp, Math.round(bmp.width * k), Math.round(bmp.height * k), true)
             }
-            val tmp = File(out.path + ".tmp")
-            tmp.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            if (!tmp.renameTo(out)) error("could not save the freeze frame")
+            // a temporary file of its own: two extractions of the same image shared one, and the second's rename failed
+            // ("could not save the freeze frame" – it took the app down from a transition's automatic pre-render)
+            val tmp = File.createTempFile(out.name, ".tmp", out.parentFile)
+            try {
+                tmp.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                if (!tmp.renameTo(out) && !(out.exists() && out.length() > 0)) error("could not save the freeze frame")
+            } finally {
+                tmp.delete()
+            }
         } finally {
             r.release()
         }
