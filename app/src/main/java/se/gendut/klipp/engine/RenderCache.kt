@@ -7,7 +7,6 @@ import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.media3.common.MimeTypes
@@ -45,7 +44,7 @@ object RenderCache {
     var progress by mutableStateOf<Float?>(null)
         internal set
 
-    /** Stopped by the user: no rendering until requested again ("Render", a transition to pre-render). */
+    /** Stopped by the user: no optional rendering ("Render", automatic) until requested again – transitions still render (playback shows them only rendered). */
     var halted by mutableStateOf(false)
 
     /** Render heavy parts automatically in the background (when nothing is playing or being dragged); saved in the app's settings. */
@@ -60,9 +59,6 @@ object RenderCache {
 
     /** "Render timeline": all chunks that are not ready get rendered (once; reset when done). */
     var renderAll by mutableStateOf(false)
-
-    /** The transitions to keep pre-rendered, as "from>to" (clip ids) – saved with the project. */
-    val pinned = mutableStateListOf<String>()
 
     /** The chunks' state for the timeline's render bar: (from, to, ready, needs rendering). */
     var states by mutableStateOf<List<ChunkState>>(emptyList())
@@ -97,16 +93,8 @@ object RenderCache {
         dir = d
     }
 
+    /** A transition's key, by the clips before and after it (its look, see TransitionLooks). */
     fun pairKey(from: Long, to: Long) = "$from>$to"
-
-    /** The transition between [from] and [to] is pre-rendered (or not). */
-    fun setPinned(from: Long, to: Long, on: Boolean) {
-        val k = pairKey(from, to)
-        if (on) halted = false
-        if (on && k !in pinned) pinned += k else if (!on) pinned.remove(k)
-    }
-
-    fun isPinned(from: Long, to: Long) = pairKey(from, to) in pinned
 
     /** The file for a render id (playback's uriOf). */
     fun uriOf(id: Long): Uri? = if (id > ID_BASE) null else files[id]?.takeIf { it.exists() }?.let { Uri.fromFile(it) }
@@ -230,8 +218,38 @@ object RenderCache {
      * The plan with the ready chunks substituted: in the chunks' time everything is removed from all layers and the bottom
      * layer plays the file. (Same in the main player and in the app's upper layer, so they agree.)
      */
-    fun substitute(plan: LayerPlan, chunks: List<Chunk>): LayerPlan {
-        val ready = chunks.filter { isReady(it) }
+    fun substitute(plan: LayerPlan, chunks: List<Chunk>): LayerPlan = substituteReady(plan, chunks.filter { isReady(it) })
+
+    /**
+     * The transitions between two clips (timeline time) in the tracks the preview draws: they are only ever seen pre-rendered
+     * (see [playPlan]).
+     */
+    fun transitionWindows(s: Snapshot): List<ClosedFloatingPointRange<Double>> =
+        s.playable().sequence?.video.orEmpty().take(3).filter { it.enabled }.flatMap { t ->
+            val byId = t.clips.associateBy { it.id }
+            t.transitions.filter { x ->
+                x.duration > 1e-6 && x.from?.let { byId[it] }?.text == null && x.to?.let { byId[it] }?.text == null &&
+                    x.from != null && x.to != null
+            }.map { it.start..it.end }
+        }
+
+    /**
+     * Playback's plan: [cuts] (the timeline with its transitions as plain cuts, LayerPlanner.plan(transitions = false)) with
+     * the ready chunks of [chunks] (made from the plan with the transitions) in their place. A transition comes in only
+     * whole – all chunks over its window ready – otherwise it stays a cut (half of one rendered and the other half a cut
+     * would jump). The main player and the upper layers both play this, so they always agree.
+     */
+    fun playPlan(cuts: LayerPlan, chunks: List<Chunk>, windows: List<ClosedFloatingPointRange<Double>>): LayerPlan =
+        substituteReady(cuts, playable(chunks, windows))
+
+    /** The ready chunks playback may use: none of a transition that isn't ready all over. */
+    fun playable(chunks: List<Chunk>, windows: List<ClosedFloatingPointRange<Double>>, ready: (Chunk) -> Boolean = ::isReady): List<Chunk> {
+        fun over(c: Chunk, w: ClosedFloatingPointRange<Double>) = c.a < w.endInclusive - 1e-6 && c.b > w.start + 1e-6
+        val incomplete = windows.filter { w -> chunks.any { c -> over(c, w) && !ready(c) } }
+        return chunks.filter { c -> ready(c) && incomplete.none { w -> over(c, w) } }
+    }
+
+    private fun substituteReady(plan: LayerPlan, ready: List<Chunk>): LayerPlan {
         if (ready.isEmpty() || plan.layers.isEmpty()) return plan
         // adjacent ready chunks merge into one interval (but play as separate files)
         val ranges = ready.map { it.a..it.b }

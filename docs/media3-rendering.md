@@ -611,3 +611,34 @@ material i testprojektet).
 
 **Inte gjort:** HDR-material, svagare telefoner, skarvlagrets klocka för stabiliserade klipp (risk 6), att pausa
 kodningen av proxy och nodcache under uppspelning.
+
+## Övergångar visas bara förrenderade (2026-11-12, testversion 63–65)
+
+**Bakgrund.** En whip mellan två hela APV-klipp (4K 120 fps, 1,5–1,9 Gbit/s) syntes spegelvänd och dubbel i
+förhandsvisningen när den inte var förrenderad. Två fel låg under:
+1. Övergångens frysbilder (första/sista bildrutan där filen tar slut) togs med `MediaMetadataRetriever`, som inte kan
+   avkoda APV; varje misslyckat försök byggde om uppspelningen (~70 gånger/s, tills Android dödade appen för "too many
+   binders"). Rättat i `FrameHolds`: bilden tas från proxyfilen när originalet inte går, och ett misslyckande bygger inte om.
+2. **Grundorsaken:** förhandsvisningen satte ihop övergången live av flera spelare – huvudspelaren (bottenlagret med
+   övergångens fönster) och ett överlappslager (två spelare som turades om) som följde huvudspelarens rapporterade position.
+   Med tunga filer låg huvudspelarens bild sekunder efter sin position (6 bilder/s med APV-original på OnePlus): lagren
+   visade övergången i tid, huvudspelaren en gång till senare, och dess frysbild med spegelvänd fortsättning (som
+   överlappslagret annars täcker) syntes ensam.
+
+**Ny ordning.** Förhandsvisningen sätter aldrig ihop en övergång mellan två klipp live:
+- `LayerPlanner.plan(transitions = false)` ger tidslinjen med övergångarna som rena snitt (toningar till/från svart och
+  vitt finns kvar – en spelare ritar dem ensam).
+- `CompositionBuilder.playPlan` / `RenderCache.playPlan`: snitten plus de förrenderade bitarna; en övergång byts in först
+  när alla bitar över dess fönster är klara (halv renderad och halv snitt skulle hoppa). Huvudspelaren och de övre lagren
+  spelar samma plan.
+- Alla övergångar renderas automatiskt i bakgrunden när uppspelningen står still, närmast spelhuvudet först (`App.kt`);
+  knappen "Förrendera" per övergång är borta. Renderchippets stopp gäller bara den valfria renderingen.
+- Skarvlagret ritar inga övergångar längre (ingen `TransitionFxEffect` i dess kedja, inga "en bild i taget"-undantag) och
+  spelar aldrig tunga original utan proxy (APV, ProRes …: två avkodare på samma 1,9 Gbit/s-fil tog slut på minnet).
+- Exporten och förrenderingen är oförändrade (hela planen med övergångar) – förhandsvisningen visar exportens pixlar.
+
+**Mätt på OnePlus (CPH2581), användarens APV-klipp med proxy:** en whip renderas på ~2 s. Innan den är klar: ett rent
+snitt (ingen dubblering, ingen spegling). Klar: övergången en gång, rättvänd, 32 bilder/s, 0 sena utan täckning; två
+whippar i en sekvens: båda klara inom ~10 s, 33 bilder/s. Utan proxy (APV-original i mjukvara) renderas övergången från
+originalen (~15 s) och visas rätt, men huvudspelaren klarar inte 1,9 Gbit/s APV i normal hastighet där: 7–8 bilder/s
+och `OutOfMemoryError` efter en stund (en separat fråga om minne för original, inte om övergångar).

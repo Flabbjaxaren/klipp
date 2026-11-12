@@ -39,21 +39,11 @@ class HandoffTest {
         assertNull(Handoff.layer(base) { true })
     }
 
-    @Test fun aTransitionShowingOnePictureAtATimeIsCoveredWithItsGeometry() {
-        // zoom, rotate, vertical whip, dips, light leak: the main player switches clips at the edit point (it froze 0.1–0.2 s
-        // there) – the layer covers it, drawing the transition itself
-        for (type in se.gendut.klipp.engine.TransitionType.entries.filter { it.sequential }) {
+    @Test fun aSegmentWithATransitionWindowIsNeverCovered() {
+        // transitions between two clips reach playback only pre-rendered (RenderCache.playPlan) – the layer never draws one
+        for (type in se.gendut.klipp.engine.TransitionType.entries) {
             val fx = se.gendut.klipp.engine.SegFx(type, true, false, 4.5, 5.5, 5.0, false)
-            val base = Layer("V1", listOf(seg(0.0, 5.0, 1), seg(5.0, 3.0, 2).copy(windows = listOf(fx))))
-            val h = Handoff.layer(base) { true }
-            assertEquals(type.name, listOf(5.0), h?.segs?.map { it.start })
-            assertEquals(listOf(fx), h!!.segs[0].windows)
-            assertEquals(base.segs[1].geomAt(5.2), h.segs[0].geomAt(5.2))
-        }
-        // with an overlap layer (whip, push): left to the main player and the overlap (a third video otherwise)
-        for (type in listOf(se.gendut.klipp.engine.TransitionType.PUSH, se.gendut.klipp.engine.TransitionType.WHIP)) {
-            val fx = se.gendut.klipp.engine.SegFx(type, true, false, 4.5, 5.5, 5.0, false)
-            assertNull(Handoff.layer(Layer("V1", listOf(seg(0.0, 5.0, 1), seg(5.0, 3.0, 2).copy(windows = listOf(fx))))) { true })
+            assertNull(type.name, Handoff.layer(Layer("V1", listOf(seg(0.0, 5.0, 1), seg(5.0, 3.0, 2).copy(windows = listOf(fx))))) { true })
         }
     }
 }

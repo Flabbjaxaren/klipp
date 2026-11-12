@@ -87,7 +87,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import se.gendut.klipp.engine.RenderCache
 import se.gendut.klipp.engine.SpeedRamp
 import se.gendut.klipp.engine.TransitionLooks
 import se.gendut.klipp.engine.TransitionType
@@ -815,14 +814,6 @@ private fun TransitionDock(state: EditorState) {
             val id = state.selectedTransition ?: return@DockItem
             state.selectedTransition = null; state.props?.removeTransition(id)
         })
-        // pre-render: the transition plays from a finished file (smooth, no lag); re-rendered in the background after each change
-        val from = tr?.from; val to = tr?.to
-        if (tr != null && from != null && to != null && tr.anchor == 0 && tr.track < 3) {
-            val pinned = RenderCache.isPinned(from, to)
-            val ready = pinned && RenderCache.states.filter { it.a < tr.end - 1e-3 && it.b > tr.start + 1e-3 }.let { l -> l.isNotEmpty() && l.all { it.ready } }
-            val label = when { !pinned -> stringResource(R.string.app_prerender); ready -> stringResource(R.string.app_rendered); else -> stringResource(R.string.app_rendering) }
-            add(DockItem(Ic.Bolt, label, "transition:render", primary = pinned) { RenderCache.setPinned(from, to, !pinned); state.props?.requestSave() })
-        }
         add(DockItem(Ic.Check, stringResource(R.string.properties_done), "transition:done") { state.selectedTransition = null })
     }
     DockItems(items)

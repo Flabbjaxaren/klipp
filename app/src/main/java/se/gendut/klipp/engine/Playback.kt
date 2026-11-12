@@ -367,11 +367,19 @@ object CompositionBuilder {
      * Playback's plan before the pre-render substitution (as [buildFull] makes it): same lengths, layers without a playable
      * file removed. Used for the pre-render chunks ([RenderCache.chunks]) in the main player and in the app's upper layers.
      */
-    fun previewPlan(s: Snapshot, uriOf: (Long) -> Uri?): LayerPlan? {
+    fun previewPlan(s: Snapshot, uriOf: (Long) -> Uri?, transitions: Boolean = true): LayerPlan? {
         val durs = s.media.associate { it.id to it.duration.takeIf { d -> d > 0 } }
-        val plan = LayerPlanner.plan(s, { MediaProbe.length(uriOf(it), durs[it]) }) ?: return null
+        val plan = LayerPlanner.plan(s, transitions) { MediaProbe.length(uriOf(it), durs[it]) } ?: return null
         return plan.copy(layers = plan.layers.filter { l -> l.segs.any { seg -> uriOf(seg.src.item) != null } })
     }
+
+    /**
+     * What playback shows (the main player and the upper layers alike): the timeline with its transitions as cuts, each
+     * transition pre-rendered in its place once all of it is ready (see [RenderCache.playPlan]). [chunks] = the pre-render
+     * chunks of [previewPlan].
+     */
+    fun playPlan(s: Snapshot, uriOf: (Long) -> Uri?, chunks: List<RenderCache.Chunk>): LayerPlan? =
+        previewPlan(s, uriOf, transitions = false)?.let { RenderCache.playPlan(it, chunks, RenderCache.transitionWindows(s)) }
 
     /** Is there 10-bit material among the video clips (the original files)? Probes the files – not on the main thread. */
     fun anyTenBit(context: Context, s: Snapshot, uriOf: (Long) -> Uri?): Boolean {
@@ -417,13 +425,15 @@ object CompositionBuilder {
         range: ClosedFloatingPointRange<Double>? = null,
         /** Transform the plan before the build (playback: pre-rendered parts are substituted, see [RenderCache.substitute]). */
         planTransform: ((LayerPlan) -> LayerPlan)? = null,
-    ): Built? = buildPlayable(s.playable(), uriOf, look, master, overlays, forceSingle, grades, fx, meters, hdrMode, videoUriOf, liveGrades, output, nodeCache, previewShort, range, planTransform)
+        /** Draw the transitions between two clips (export, pre-render); playback: false, see [playPlan]. */
+        transitions: Boolean = true,
+    ): Built? = buildPlayable(s.playable(), uriOf, look, master, overlays, forceSingle, grades, fx, meters, hdrMode, videoUriOf, liveGrades, output, nodeCache, previewShort, range, planTransform, transitions)
 
     private fun buildPlayable(
         s: Snapshot, uriOf: (Long) -> Uri?, look: Look, master: Float, overlays: Boolean, forceSingle: Boolean,
         grades: Map<Long, ClipGrade>, fx: FxRegistry?, meters: Boolean, hdrMode: Int, videoUriOf: (Long) -> Uri?,
         liveGrades: Boolean, output: ExportSettings?, nodeCache: Boolean, previewShort: Int,
-        range: ClosedFloatingPointRange<Double>? = null, planTransform: ((LayerPlan) -> LayerPlan)? = null,
+        range: ClosedFloatingPointRange<Double>? = null, planTransform: ((LayerPlan) -> LayerPlan)? = null, transitions: Boolean = true,
     ): Built? {
         val q = s.sequence ?: return null
         val total = q.duration
@@ -434,7 +444,7 @@ object CompositionBuilder {
         val md: (Long) -> Double? = { MediaProbe.length(uriOf(it), durs[it]) }
         val mdVideo: (Long) -> Double? = { MediaProbe.cached(videoUriOf(it))?.duration ?: durs[it] }
         val mdAudio: (Long) -> Double? = { MediaProbe.cached(uriOf(it))?.duration ?: durs[it] }
-        var plan = LayerPlanner.plan(s, md)
+        var plan = LayerPlanner.plan(s, transitions, md)
         // layers without a playable file do not count
         plan = plan?.copy(layers = plan.layers.filter { l -> l.segs.any { seg -> videoUriOf(seg.src.item) != null } })
         if (plan != null && range != null) plan = LayerPlanner.slice(plan, range.start, range.endInclusive)
@@ -836,9 +846,12 @@ class ProgramPlayback(private val context: Context) {
         val chunks = runCatching { CompositionBuilder.previewPlan(s, uriOf)?.let { RenderCache.chunks(it, { id -> grades[id] }, uriOf, s.fps, VideoPipeline.previewShort) } }
             .getOrNull().orEmpty()
         renderChunks = chunks
+        // what plays: transitions as cuts, each one pre-rendered in its place once it is ready all over (see playPlan)
+        val windows = RenderCache.transitionWindows(s)
+        val playable = RenderCache.playable(chunks, windows)
         edges = CutSeek.edgesOf(s, chunks)
-        cuts = runCatching { CompositionBuilder.previewPlan(s, uriOf)?.let { CutSeek.cutsOf(RenderCache.substitute(it, chunks).layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
-        val key = "#render" + RenderCache.usedFiles(chunks) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#holds" + FrameHolds.revision + "#rev" + Reversals.revision
+        cuts = runCatching { CompositionBuilder.playPlan(s, uriOf, chunks)?.let { CutSeek.cutsOf(it.layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
+        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#holds" + FrameHolds.revision + "#rev" + Reversals.revision
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
         LiveGrades.publish(grades)
         if (!force && key == lastKey && hasContent) {
@@ -862,7 +875,7 @@ class ProgramPlayback(private val context: Context) {
         val videoUri: (Long) -> Uri? = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
         se.gendut.klipp.CrashReport.note("playback building: ${s.sequence?.video?.sumOf { it.clips.size } ?: 0} video clips, hdr=$hdrMode, proxy=${Proxies.enabled}, speed=${s.sequence?.video?.flatMap { it.clips }?.map { it.speed }?.filter { kotlin.math.abs(it - 1.0) > 0.001 }?.distinct()}")
         val built = runCatching { CompositionBuilder.buildFull(s, uriOf, playerLook, master, overlays = false, forceSingle = true, grades = grades, fx = fx, meters = true, hdrMode = hdrMode, videoUriOf = videoUri, liveGrades = true, nodeCache = true, previewShort = VideoPipeline.previewShort,
-            planTransform = { p -> RenderCache.substitute(p, chunks) }) }.getOrElse {
+            planTransform = { p -> RenderCache.playPlan(p, chunks, windows) }, transitions = false) }.getOrElse {
             keepOld()
             // never an empty error: without text it looked like everything went fine (and then "nothing to play")
             buildProblem = "${it.javaClass.simpleName}: ${it.message ?: Str.t(R.string.playback_no_message)}${where(it)}"

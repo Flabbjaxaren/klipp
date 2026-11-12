@@ -403,7 +403,7 @@ fun KlippApp(
         val renderScope = this
         androidx.compose.runtime.snapshotFlow {
             // (not the render's own revision: a finished chunk would then cancel rendering of the next)
-            listOf(controller.revision, gs.revision, se.gendut.klipp.engine.RenderCache.pinned.toList(), se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll,
+            listOf(controller.revision, gs.revision, se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll,
                 se.gendut.klipp.engine.RenderCache.cleared, se.gendut.klipp.engine.RenderCache.halted, se.gendut.klipp.engine.RenderCache.auto,
                 se.gendut.klipp.engine.VideoPipeline.previewShort)
         }.debounce(1200).collectLatest {
@@ -414,17 +414,20 @@ fun KlippApp(
                     ?.let { p -> se.gendut.klipp.engine.RenderCache.chunks(p, { id -> grades[id] }, controller::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort) }
             }.getOrNull().orEmpty()
             se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy) }
-            // the transitions that should be pre-rendered (the clips before and after, by their current ids)
-            val pinned = se.gendut.klipp.engine.RenderCache.pinned.toSet()
-            val windows = snap.playable().sequence?.video.orEmpty().flatMap { t -> t.transitions }
-                .filter { x -> x.from != null && x.to != null && se.gendut.klipp.engine.RenderCache.pairKey(x.from, x.to) in pinned }
-                .map { it.start to it.end }
+            // every transition between two clips: playback shows it only pre-rendered (a cut until then, see
+            // RenderCache.playPlan) – they come first, the one nearest the playhead first
+            val windows = se.gendut.klipp.engine.RenderCache.transitionWindows(snap)
             val all = se.gendut.klipp.engine.RenderCache.renderAll
             val auto = se.gendut.klipp.engine.RenderCache.auto
+            val head = state.playhead.toDouble()
+            fun inTransition(c: se.gendut.klipp.engine.RenderCache.Chunk) = windows.any { w -> c.a < w.endInclusive - 1e-6 && c.b > w.start + 1e-6 }
+            fun distance(c: se.gendut.klipp.engine.RenderCache.Chunk) = if (head < c.a) c.a - head else if (head > c.b) head - c.b else 0.0
+            // (stopping with the render chip stops only the optional rendering – the transitions are needed for playback)
+            val optional = !se.gendut.klipp.engine.RenderCache.halted
             val todo = chunks.filter { c ->
-                !se.gendut.klipp.engine.RenderCache.isReady(c) && (all || (auto && c.heavy) || windows.any { (a, b) -> c.a < b - 1e-6 && c.b > a + 1e-6 })
-            }
-            se.gendut.klipp.engine.RenderCache.wanted = if (se.gendut.klipp.engine.RenderCache.halted) emptySet() else todo.map { it.hash }.toSet()
+                !se.gendut.klipp.engine.RenderCache.isReady(c) && (inTransition(c) || (optional && (all || (auto && c.heavy))))
+            }.sortedWith(compareBy({ !inTransition(it) }, { distance(it) }))
+            se.gendut.klipp.engine.RenderCache.wanted = todo.map { it.hash }.toSet()
             se.gendut.klipp.engine.RenderCache.generation++
             // the render under way: its chunk finishes (or stops, if no longer wanted), then the new list takes over
             rendering?.join()
@@ -439,7 +442,6 @@ fun KlippApp(
                 }
                 return@collectLatest
             }
-            if (se.gendut.klipp.engine.RenderCache.halted) return@collectLatest
             // not while playing (rendering takes decoders and power from the picture); scrubbing, zooming and editing go on beside it
             rendering = renderScope.launch {
                 val r = se.gendut.klipp.engine.RenderCache.render(context, snap, controller::uriOf, grades, todo, canWork = { !state.playing && !se.gendut.klipp.engine.BackgroundWork.exporting }) {
@@ -478,7 +480,6 @@ fun KlippApp(
         if (controller == null) return@LaunchedEffect
         se.gendut.klipp.engine.LutStore.init(context)
         controller.extraSave = { gradeToJson(grade, mix).put("linkedSelection", state.linkedSelection).put("grades", gs.toJson())
-            .put("renderPinned", org.json.JSONArray(se.gendut.klipp.engine.RenderCache.pinned.toList()))
             .put("transitionBlur", se.gendut.klipp.engine.TransitionLooks.toJson()) }
         // the pieces get the clip's grade as part of the split (undone with it) – no separate color step
         controller.onSplit = { old, fresh -> gs.grades[old]?.let { g -> gs.setAll(fresh.associateWith { g }, record = false) } }
@@ -487,8 +488,6 @@ fun KlippApp(
             gs.load(o.optJSONObject("grades"))
             se.gendut.klipp.engine.RenderCache.renderAll = false
             se.gendut.klipp.engine.RenderCache.halted = false
-            se.gendut.klipp.engine.RenderCache.pinned.clear()
-            o.optJSONArray("renderPinned")?.let { a -> for (i in 0 until a.length()) se.gendut.klipp.engine.RenderCache.pinned += a.optString(i) }
             se.gendut.klipp.engine.TransitionLooks.load(o.optJSONObject("transitionBlur"))
             state.clearSideHistory()
             // playback gets the look, grades and master right away – otherwise it is rebuilt just after start

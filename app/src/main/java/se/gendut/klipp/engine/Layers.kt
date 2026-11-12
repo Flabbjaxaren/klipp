@@ -147,7 +147,13 @@ data class OverlayItem(
 object LayerPlanner {
     private const val EPS = 1e-6
 
-    fun plan(s: Snapshot, mediaDur: (Long) -> Double?): LayerPlan? {
+    /**
+     * @param transitions draw the transitions between two clips (export, pre-render). Playback passes false: there a
+     * transition is a plain cut until its pre-rendered file is ready ([RenderCache.playPlan]) – the preview never composes a
+     * transition live from several players (they drifted apart with heavy files: the transition showed twice, and a
+     * freeze frame's mirrored continuation was seen). Fades to and from black stay: one player draws them alone.
+     */
+    fun plan(s: Snapshot, transitions: Boolean = true, mediaDur: (Long) -> Double?): LayerPlan? {
         val q = s.playable().sequence ?: return null
         val layers = ArrayList<Layer>()
         val overlays = ArrayList<OverlayItem>()
@@ -199,7 +205,7 @@ object LayerPlanner {
             }
             // cross dissolve: the incoming clip's start before the clip and the outgoing clip's end after,
             // in a separate layer above the track with opacity following the transition
-            for (x in t.transitions.sortedBy { it.start }) {
+            for (x in if (transitions) t.transitions.sortedBy { it.start } else emptyList()) {
                 val from = x.from?.let { byId[it] }?.takeIf { it.text == null } ?: continue
                 val to = x.to?.let { byId[it] }?.takeIf { it.text == null } ?: continue
                 val cut = to.start

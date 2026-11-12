@@ -148,9 +148,6 @@
     <string name="app_to_white">Mot vitt</string>
     <string name="app_to_black">Mot svart (genomskinlig)</string>
     <string name="app_reverse_direction">Vänd riktning</string>
-    <string name="app_prerender">Förrendera</string>
-    <string name="app_rendered">Renderad</string>
-    <string name="app_rendering">Renderar…</string>
     <string name="app_remove">Ta bort</string>
     <string name="app_sync_audio">Synka ljud</string>
     <string name="app_edit_text">Redigera text</string>

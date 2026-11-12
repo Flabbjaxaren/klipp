@@ -148,9 +148,6 @@
     <string name="app_to_white">To white</string>
     <string name="app_to_black">To black (transparent)</string>
     <string name="app_reverse_direction">Reverse direction</string>
-    <string name="app_prerender">Pre-render</string>
-    <string name="app_rendered">Rendered</string>
-    <string name="app_rendering">Rendering…</string>
     <string name="app_remove">Remove</string>
     <string name="app_sync_audio">Sync sound</string>
     <string name="app_edit_text">Edit text</string>
