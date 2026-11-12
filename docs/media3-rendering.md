@@ -151,9 +151,15 @@ den håller sin avkodare även när lagret inte syns. `TextureView` kopplas i `f
 extra lager med segmentet `[skarv, skarv + 1 s]` för varje klipp i bottenlagret, spelat av en egen spelare som står
 pausad på första bildrutan och tar över bilden vid skarven. Det ligger direkt ovanför huvudspelaren (`:93`).
 
-- **Undantag** (verifierat i koden): tidslinjens start, segment med ramp (toning), med övergångsgeometri, frysta
-  bildrutor och klipp med opacitet under 100 % (`:609–611`); stabiliserade klipp *och* klipp med rörelseoskärpa
+- **Undantag** (verifierat i koden): tidslinjens start, segment med ramp (toning), övergångar med överlappslager
+  (tona, skjut, whip – annars tre videor samtidigt), frysta bildrutor och klipp med opacitet under 100 %;
+  **[2026-11-12]** övergångar med en bild i taget (zoom, rotera, vertikal whip, toningar via färg, ljusläcka) täcks nu:
+  lagret ritar övergången med exportens `TransitionFxEffect` i sin egen kedja (tid ur lagrets klocka,
+  `LayerClock.timelineOf`), bara där bilden är sekvensramen (klippet otransformerat, filen i ramens form, `fillsFrame`); stabiliserade klipp *och* klipp med rörelseoskärpa
   (`:81`, `:87`); HDR-original utan proxy, eftersom de tonmappas olika i de två spelarna (`:89`).
+- **Synlig från sin egen bildruta [2026-11-12]:** lagret visas när dess TextureView håller segmentets första bildruta
+  (`ReleasedFrames`: spelarens bildrutor per släpptid, jämförd med `SurfaceTexture.timestamp`), inte när
+  huvudspelarens rapporterade position når skarven – den står still just medan huvudspelaren byter avkodare (se 8.7 nedan).
 - **Förrullning:** segmentet startar 0,25 s tidigare, osynligt, där inget annat lager spelar (`HANDOFF_PREROLL_S`,
   `handoffPreroll`, `:472–495`). Blir huvudspelaren sen under en förrullning stängs den av för sessionen
   (`Preroll.off`, `:286–293`).
@@ -432,12 +438,54 @@ under nivåmätaren i förhandsvisningens högerkant och läses som 0 – det sy
 bildruta, även vid V1-snittet. Under 230 s uppspelning (23 mätpunkter): B − A = 49–50 hela vägen, ingen växande drift
 mellan lagren (−1 när skärmbilden tas mitt i ett byte). Övre lagret i skärminspelning: inga tappade bildrutor.
 
-**Kvar (reproducerbart, inte rättat).** *Vid ett snitt i huvudlagret under uppspelning* visas sista bildrutan före snittet
+**Kvar (reproducerbart) – rättat 2026-11-12, se PR 8.7 nedan.** *Vid ett snitt i huvudlagret under uppspelning* visas sista bildrutan före snittet
 ungefär två bildrutors tid (80–100 ms), nästa klipps första bildruta bara ett ögonblick (15–35 ms), och dess andra saknas
 – i alla tre inspelningarna. Skarvlagret ("klippbyten") visar 24 av 25 bildrutor sin sekund. Ett försök att föra lagrens
 klocka framåt mellan huvudspelarens positionsuppdateringar (den står still 30–45 ms) gjorde det inte bättre – huvudspelaren
 och skarvlagret turades om – och togs bort. Mätmetoden ovan ger ett direkt test för en framtida rättning. Det tidigare
 rapporterade *svarta* blinket syntes inte i någon inspelning (inga svarta bildrutor).
+
+## PR 8.7 – Ojämna snitt (2026-11-12, vivo X300 Ultra, testversion 28–34)
+
+**Metod.** `CutTrace` (monoton klocka `System.nanoTime` för båda spelarna, lagrets synlighet, videokedjans bildrutor via
+`KlippPrecision.frameTrace`; läses över agentbryggan, verktyget `cut_trace`) plus skärminspelning av bildrutekodade klipp.
+Diagnoslägen: 0 normal, 1 utan skarvlager, 2 skarvlagret spelar men tar aldrig över, 3 normal med röd markering på
+skarvlagret. Projekt 1920×1080, 25 fps, snitt i V1 vid 50 s (förväntat 1249 → 1500).
+
+**Orsak (korrelerad logg + bildnummer).**
+1. *Eget fel från PR 4a:* under förrullningen var skarvlagrets mål konstant (`Seg.sourceAt` är null före segmentet), så
+   en synksökning med försprång lade lagret två bildrutor före. Rättat: `LayerSync.targetMs` (test).
+2. *Huvudspelaren stannar vid objektbytet:* kedjan lämnar 49,960 och sedan inget på ~130 ms, därefter 50,001/50,041/50,081
+   inom 4 ms med redan passerade visningstider – skärmen visar 1249 i 80–100 ms och hoppar till 1501. Lika i alla tre
+   lägen (60 omgångar), alltså inte skarvlagret.
+3. *Skarvlagret täckte inte stoppet:* det var i takt (pos 247 mot mål 250 vid snittet) men blev synligt först när
+   huvudspelarens **rapporterade** position passerat 50,0 – och den stod still under stoppet. Markeringen (läge 3) syntes
+   först på 1501/1502. Dess egen bildruta 1500 låg klar i TextureView 20–35 ms tidigare.
+
+**Rättning.** Skarvlagret visas när dess TextureView håller segmentets första bildruta (se avsnitt 5). Inga trösklar
+ändrade, ingen extrapolering av klockan.
+
+**Resultat** (inspelning, bildrutor kring snittet; "kvar" = sista bildrutan före snittet > 60 ms):
+
+| | omgångar | hoppade bildrutor | 1249 kvar > 60 ms |
+|---|---|---|---|
+| Före (testversion 29, alla lägen) | 60 | nästan varje gång (1500 saknas eller 15 ms) | alla (65–101 ms) |
+| Efter, utan färgsättning | 20 | 0 | 3 (63–67 ms, en skärmuppdatering) |
+| Efter, med film (Portra 400, live) | 20 | 0 | 3 (65–67 ms; två av dem vid avlösningen, 1507) |
+
+Varje bildruta ligger inom ±26 ms från en jämn 25 fps-linje. Regression: pausat 11/11 tider exakt rätt med film,
+export 2500/2500 bildrutor rätt (med film, och igen i testversion 34), helt utan att exporten ändrats.
+
+**Övergångar (2026-11-12).** Alla nio, pausat mot export bildruta för bildruta (bildkod + pixlar, skärmbilden i Display
+P3 – telefonens skärmbilder är P3, exportens Rec.709 räknas om först) och uppspelning (hela bilden, uppehåll > 55 ms):
+- Pausat: alla inom ~5 nivåer i medel per kanal (samma som utanför övergången); tona når 9 mitt i.
+- *Whip lämnade ett streck vid kanten* (användarens rapport): den inkommande bildens mjuka kant var fast 40 % av
+  bredden, centrerad på bildkanten, hela landningen – den utgående bilden syntes halvt blandad i vänsterkanten tills
+  övergångens sista bildruta och försvann sedan på en gång. Nu smalnar kanten med farten som rörelseoskärpan
+  (`WHIP_SOFT · v`, test). Gäller förhandsvisning och export (samma `Geom`).
+- *Zoom, rotera, vertikal whip, toningar via svart/vitt, ljusläcka frös 83–152 ms vid snittet* (skarvlagret hoppade
+  över dem). Nu täckta (se avsnitt 5): största uppehåll 50–68 ms (en gång 83). Bilden från skarvlagret under
+  uppspelning mot exporten: 2,7–5,7 i medel, samma som efter övergången. Tona, skjut och whip var redan jämna.
 
 **Inte gjort:** HDR-material, svagare telefoner, skarvlagrets klocka för stabiliserade klipp (risk 6), att pausa
 kodningen av proxy och nodcache under uppspelning.

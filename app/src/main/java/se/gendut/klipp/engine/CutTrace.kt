@@ -8,7 +8,7 @@ import androidx.compose.runtime.setValue
  * Diagnostics for edit points in playback (plan PR 8.7). Off unless the app is started with the intent extras below –
  * not a user setting:
  *
- *   adb shell am start -n <package>/se.gendut.klipp.MainActivity --ez klipp_cuttrace true --ei klipp_cutdiag 0|1|2
+ *   adb shell am start -n <package>/se.gendut.klipp.MainActivity --ez klipp_cuttrace true --ei klipp_cutdiag 0|1|2|3
  *
  * Every event goes to logcat (tag `KlippCut`) and to a buffer the agent bridge reads (tool `cut_trace`), with [System.nanoTime] – the same monotonic clock as
  * `adb logcat -v monotonic` – so events from the main player, the edit point layer and the video chain line up.
@@ -22,7 +22,8 @@ object CutTrace {
         private set
 
     /**
-     * 0 = normal; 1 = no edit point layer (the main player alone); 2 = the edit point layer plays but never takes over.
+     * 0 = normal; 1 = no edit point layer (the main player alone); 2 = the edit point layer plays but never takes over;
+     * 3 = normal, and the edit point layer shows a red mark (where it is seen).
      * (Compose state: a change takes the edit point layer away or brings it back at once.)
      */
     var mode by androidx.compose.runtime.mutableIntStateOf(0)
@@ -30,7 +31,7 @@ object CutTrace {
 
     fun configure(trace: Boolean, diagMode: Int) {
         on = trace
-        mode = diagMode.coerceIn(0, 2)
+        mode = diagMode.coerceIn(0, 3)
         androidx.media3.effect.KlippPrecision.frameTrace = if (trace) androidx.media3.effect.KlippPrecision.FrameTrace { chain, ptsUs, presentNs, dropped ->
             log("gl", "chain=$chain pts=$ptsUs ${if (dropped) "DROPPED" else "present=$presentNs"} thread=${Thread.currentThread().name}")
         } else null

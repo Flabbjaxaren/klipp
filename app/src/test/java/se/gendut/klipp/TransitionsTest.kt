@@ -227,12 +227,23 @@ class TransitionsTest {
     @Test fun whipFadesTheUpperClipIntoTheLowerAndPushMovesTheSameWithoutBlur() {
         val up = fx(TransitionType.WHIP, true, true).at(2.6)
         val low = fx(TransitionType.WHIP, false, false).at(2.6)
-        assertEquals(SegFx.WHIP_SOFT, up.soft, 1e-4f)
+        assertEquals(SegFx.WHIP_SOFT * up.blurX / SegFx.WHIP_BLUR, up.soft, 1e-4f)
+        assertTrue(up.soft > 0f)
         assertEquals(0f, low.soft, 1e-4f)
         assertTrue(up.mirror && low.mirror)
         val push = fx(TransitionType.PUSH, true, true).at(2.6)
         assertEquals(up.dx, push.dx, 1e-4f)
         assertEquals(0f, push.blurX, 1e-4f)
+    }
+
+    @Test fun theWhipsFadeLeavesNoBandAtTheEdgeAsItLands() {
+        val f = fx(TransitionType.WHIP, true, true)
+        // the edge's fade, full at the edit point, narrows with the landing: the last part of the transition shows no band
+        // of the other clip at the frame's edge (it was 40 % of the width wide, half of it inside the frame, to the end)
+        assertEquals(SegFx.WHIP_SOFT, f.at(3.0).soft, 1e-3f)
+        val late = f.at(3.0 + (f.t1 - 3.0) * 0.8)
+        assertTrue("soft ${late.soft}", late.soft < 0.01f)
+        assertTrue(f.at(f.t1 - 1e-6).soft < 1e-3f)
     }
 
     @Test fun theZoomIsOneMoveInward() {

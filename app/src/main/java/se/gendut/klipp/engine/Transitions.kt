@@ -34,6 +34,12 @@ enum class TransitionType(val effect: String, @StringRes val labelRes: Int, val 
     /** User-visible name, resolved at use (follows the current locale). */
     val label: String get() = Str.t(labelRes)
 
+    /**
+     * One picture at a time: the outgoing clip's part ends at the edit point and the incoming one's begins there (no overlap
+     * layer is seen) – the main player draws both, and the edit point layer may cover the switch (see Handoff).
+     */
+    val sequential: Boolean get() = this == DIP_BLACK || this == DIP_WHITE || this == ZOOM || this == ROTATE || this == WHIP_VERTICAL || this == LIGHT_LEAK
+
     /** Has motion blur (the amount can be set per transition). */
     val blurs: Boolean get() = this == WHIP || this == ZOOM || this == ROTATE || this == WHIP_VERTICAL
 
@@ -112,10 +118,12 @@ data class SegFx(
                 zoomed(u, (logSpeed * SHUTTER_S).coerceAtMost(MAX_ZOOM_BLUR), 1f)
             }
             // whip: the push's movement, smeared as fast as it moves. Instead of a line between the clips the upper one fades
-            // into the lower one around its edge, both continuing mirrored beyond their edges
+            // into the lower one around its edge, both continuing mirrored beyond their edges. The fade narrows with the
+            // speed, like the smear: a fixed one stayed at the frame's edge through the slow landing – a band of the other
+            // clip at the edge until the transition's last frame, then gone at once
             TransitionType.WHIP -> thrown(p, pc).let { (e, v) ->
                 val dx = if (incoming) sign * (1f - e) else -sign * e
-                Geom(dx = dx, blurX = WHIP_BLUR * v, mirror = true, soft = if (over) WHIP_SOFT else 0f)
+                Geom(dx = dx, blurX = WHIP_BLUR * v, mirror = true, soft = if (over) WHIP_SOFT * v else 0f)
             }
             // rotate: no zoom, only the turn – the outgoing clip spins ever faster a third of the way round, the incoming one
             // takes over a quarter turn behind and settles level (the picture mirrored around the frame), smeared as by a 300°
@@ -153,7 +161,7 @@ data class SegFx(
         Geom(scale = kotlin.math.exp(if (incoming) ZOOM_IN * (u - 1f) else ZOOM_OUT * u), blurZoom = blur * speed, mirror = true)
 
     /** Whether the piece is visible at all (for the dips through a color and the zoom the overlap layer is hidden: they cut at the edit point). */
-    val visible get() = !(over && (type == TransitionType.DIP_BLACK || type == TransitionType.DIP_WHITE || type == TransitionType.ZOOM || type == TransitionType.ROTATE || type == TransitionType.WHIP_VERTICAL || type == TransitionType.LIGHT_LEAK))
+    val visible get() = !(over && type.sequential)
 
     companion object {
         /** The zoom as logarithms: the outgoing clip grows to ×2.46 at the edit point, the incoming one starts there from ×0.65. */
@@ -218,10 +226,13 @@ data class SegFx(
  * Outside the frame and outside the mask it becomes transparent – the compositor then shows the layer below.
  */
 @OptIn(UnstableApi::class)
-class TransitionFxEffect(private val seg: Seg, private val time: TimeBase) : GlEffect {
-    override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(seg, time, useHdr)
+class TransitionFxEffect(private val seg: Seg, private val timeOf: (Long) -> Double?) : GlEffect {
+    /** In a composition: a frame's timeline time from its timestamp via [time]. */
+    constructor(seg: Seg, time: TimeBase) : this(seg, time::seconds)
 
-    private class Program(private val seg: Seg, private val time: TimeBase, useHdr: Boolean) : BaseGlShaderProgram(useHdr, 1) {
+    override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(seg, timeOf, useHdr)
+
+    private class Program(private val seg: Seg, private val timeOf: (Long) -> Double?, useHdr: Boolean) : BaseGlShaderProgram(useHdr, 1) {
         private fun build(fragment: String) = GlProgram(TetraShaders.VERTEX, fragment).apply {
             setBufferAttribute("aFramePosition", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
         }
@@ -249,7 +260,7 @@ class TransitionFxEffect(private val seg: Seg, private val time: TimeBase) : GlE
             try {
                 // unknown time: frame unchanged (like the other time-dependent effects – never an empty frame from a time error)
                 // outside the transition's window: unchanged
-                val g = time.seconds(presentationTimeUs)?.let { seg.geomAt(it) } ?: Geom()
+                val g = timeOf(presentationTimeUs)?.let { seg.geomAt(it) } ?: Geom()
                 val heavy = g.heavy
                 val program = if (heavy) blurred ?: built().also { blurred = it } else plain
                 program.use()

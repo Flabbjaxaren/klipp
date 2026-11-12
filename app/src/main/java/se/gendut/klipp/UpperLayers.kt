@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -83,6 +84,8 @@ fun UpperLayers(
                     val u = controller.uriOf(s.src.item) ?: return@layer false
                     // a stabilized clip stays in the main player: in this one its first second was corrected wrongly (motion blur follows the same path)
                     if (s.clip?.id in stabilized) return@layer false
+                    // a transition is drawn in the sequence frame (as the export): only where the picture is that frame
+                    if (s.hasFx && !fillsFrame(s, u, plan)) return@layer false
                     // HDR originals without a proxy are tone mapped differently in the two players – no handoff there
                     !(se.gendut.klipp.engine.Proxies.videoUri(u) == u && se.gendut.klipp.engine.Perf.cachedHdr(u) == true)
                 }
@@ -144,6 +147,9 @@ private fun LayerVideo(
         }
     }
     DisposableEffect(player) { onDispose { player.release() } }
+    // which frame the layer's TextureView holds: the video chain's frames by the time they are released at
+    // (SurfaceTexture.timestamp), see the edit point layer's start below
+    val released = remember(player) { ReleasedFrames().also { player.setVideoFrameMetadataListener(it) } }
     val segs = remember(layer) { layer.segs.filter { controller.uriOf(it.src.item) != null } }
     // the edit point layer starts each segment a little early, unseen (see HANDOFF_PREROLL_S): source ms before the
     // segment's start, per segment (0 = none)
@@ -315,6 +321,20 @@ private fun LayerVideo(
             }
             // (in a segment's pre-roll the layer plays unseen)
             preRolling = i >= 0 && t < segs[i].start
+            // the edit point layer goes by its own player's clock at the edit point: it plays in step from the pre-roll on,
+            // while the main player's reported position stands still exactly while its decoder switches at the cut – going
+            // by that, the layer was seen only after the main player had held its last frame (~80 ms) and skipped the next
+            // clip's first one (measured with CutTrace, a mark on the layer and frame-coded clips)
+            if (handoff && preRolling && state.playing && player.isPlaying && player.currentMediaItemIndex == i) {
+                // seen as soon as its view holds the segment's first frame (the item begins preMs before the segment) –
+                // the player's reported position comes ~20 ms after the frame; it starts the layer if the frame's
+                // time can't be told
+                val shown = view?.surfaceTexture?.timestamp?.let { released.ptsAt(it) }
+                if ((shown != null && shown >= preMs[i] * 1000 - 1000) || player.currentPosition >= preMs[i]) {
+                    preRolling = false
+                    TRACE.log("handStart", "seg=$i t=$t shown=$shown pos=${player.currentPosition}")
+                }
+            }
             // the main player fell behind while a pre-roll ran (a heavier picture, a slower phone): it stops right away
             // and isn't used again this session – the layer then starts on the frame itself, as before
             // (not when playback itself just started – the main player's own start can be late)
@@ -431,7 +451,11 @@ private fun LayerVideo(
         if (pv <= 0) null else se.gendut.klipp.engine.CompositionBuilder.previewSize(plan.width, plan.height, pv)
             .let { (pw, ph) -> se.gendut.klipp.engine.CompositionBuilder.previewShortSide(short, pw, ph) }
     }
-    LaunchedEffect(gc?.id, structure, look, scaleShort) {
+    // the edit point layer over a transition showing one picture at a time (see Handoff): the export's effect for it, in its
+    // chain, at the frame's own timeline time
+    val cueFx = segs.getOrNull(cue)?.takeIf { handoff && it.hasFx }
+    val cuePre = cueFx?.let { preMs.getOrNull(cue) } ?: 0L
+    LaunchedEffect(gc?.id, structure, look, scaleShort, cueFx, cuePre) {
         if (gc != null && grade != null) se.gendut.klipp.engine.LiveGrades.publish(mapOf(gc.id to grade))
         // tracked windows: the frame's source time (see LayerClock)
         // always (live): a window tracked afterwards follows along without the effects being rebuilt
@@ -440,7 +464,8 @@ private fun LayerVideo(
         val layer = grade?.layer?.takeIf { it.hasAlpha }
         val keyFx = gc?.let { cl -> layer?.key?.let { se.gendut.klipp.engine.LayerFxEffect(layer, cl.id, se.gendut.klipp.engine.LayerFxEffect.KEY, se.gendut.klipp.engine.LayerFxEffect.STRAIGHT) } }
         val maskFx = gc?.let { cl -> layer?.let { se.gendut.klipp.engine.LayerFxEffect(it, cl.id, se.gendut.klipp.engine.LayerFxEffect.MASK, se.gendut.klipp.engine.LayerFxEffect.PREMULTIPLIED, src) } }
-        val fx = listOfNotNull(keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)
+        val transition = cueFx?.let { sg -> (sg.src as? SegSrc.Media)?.let { m -> se.gendut.klipp.engine.TransitionFxEffect(sg) { pts -> clock.timelineOf(pts, sg.start, m.speed, cuePre) } } }
+        val fx = listOfNotNull(keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx, transition)
         // (no effects: none – the downscale alone would add a pass the plain picture doesn't need)
         val down = scaleShort?.takeIf { fx.isNotEmpty() }?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
         runCatching { player.setVideoEffects(listOfNotNull(down) + fx) }
@@ -482,7 +507,8 @@ private fun LayerVideo(
                         rotationZ = c.rotation.toFloat()
                     }
                     // the transition (push, whip): same geometry as the export's TransitionFxEffect
-                    val g = seg?.geomAt(state.playhead.toDouble())
+                    // (the edit point layer: in its video chain, as the export – see cueFx)
+                    val g = if (handoff) null else seg?.geomAt(state.playhead.toDouble())
                     if (g != null && !g.identity) {
                         // a mirrored picture is moved in the shader: it has to reach beyond its own edges
                         val shaded = g.mirror && blurShader != null && android.os.Build.VERSION.SDK_INT >= 33
@@ -501,6 +527,8 @@ private fun LayerVideo(
                 modifier = Modifier.fillMaxSize(),
                 onRelease = { v -> player.clearVideoTextureView(v) },
             )
+            // diagnostics mode 3 (CutTrace): the edit point layer marks itself, so a screen recording shows when it is seen
+            if (handoff && se.gendut.klipp.engine.CutTrace.mode == 3) Box(Modifier.align(Alignment.TopStart).size(androidx.compose.ui.unit.Dp(24f)).then(androidx.compose.ui.Modifier.drawBehind { drawRect(androidx.compose.ui.graphics.Color.Red) }))
         }
     }
 }
@@ -660,14 +688,17 @@ internal object Handoff {
     fun layer(base: Layer, usable: (Seg) -> Boolean): Layer? {
         val out = ArrayList<Seg>()
         for (s in base.segs) {
-            // the start of the timeline (no edit point), transitions (their geometry isn't drawn here, and with the overlap's
-            // player and the main one this would be a third video playing at once), fades (the opacity follows the ramp in the main player) and
-            // transparent clips (would be doubled on top of the main player's image) are skipped
-            if (s.start <= 1e-6 || s.ramp != null || s.hasFx || s.src !is SegSrc.Media || s.dur <= 1e-6) continue
+            // the start of the timeline (no edit point), transitions with an overlap (with the overlap's player and the main one
+            // this would be a third video playing at once), fades (the opacity follows the ramp in the main player) and
+            // transparent clips (would be doubled on top of the main player's image) are skipped. Transitions showing one
+            // picture at a time (zoom, rotate, dips…) are covered: the layer draws them with the export's effect – the
+            // main player froze ~0.1–0.2 s at their edit point too
+            val oneAtATime = s.fx == null && s.windows.isNotEmpty() && s.windows.all { it.type.sequential && !it.over }
+            if (s.start <= 1e-6 || s.ramp != null || (s.hasFx && !oneAtATime) || s.src !is SegSrc.Media || s.dur <= 1e-6) continue
             val c = s.clip
             if (c != null && ((c.at(s.start).opacity) < 99.95 || (c.at(minOf(s.end, s.start + SEC)).opacity) < 99.95)) continue
             if (!usable(s)) continue
-            out += Seg(s.start, minOf(SEC, s.dur), s.src, s.clip, null)
+            out += Seg(s.start, minOf(SEC, s.dur), s.src, s.clip, null, windows = s.windows)
         }
         return if (out.isEmpty()) null else Layer("klippbyten", out)
     }
@@ -827,11 +858,53 @@ private suspend fun repaint(player: ExoPlayer) {
  * timestamps count either in the file's time or from the segment's start (the clipping); the interpretation closest
  * to the player's last known position is chosen.
  */
+/** Whether segment [s]'s picture is the sequence frame: the clip untransformed and the file in the frame's shape (known). */
+private fun fillsFrame(s: Seg, u: android.net.Uri, plan: LayerPlan): Boolean {
+    val c = s.clip?.at(s.start)
+    if (c != null && (abs(c.scale - 100.0) > 0.01 || abs(c.rotation) > 0.01 ||
+            abs((c.x ?: (plan.width / 2.0)) - plan.width / 2.0) > 0.5 || abs((c.y ?: (plan.height / 2.0)) - plan.height / 2.0) > 0.5)) return false
+    val k = se.gendut.klipp.engine.Perf.cachedCodec(u) ?: return false
+    if (k.width <= 0 || k.height <= 0) return false
+    val f = plan.width.toDouble() / plan.height
+    return abs(k.width.toDouble() / k.height - f) < 0.01 * f
+}
+
+/** The last frames a layer player released: their presentation time (µs, the item's) by release time (ns). */
+private class ReleasedFrames : androidx.media3.exoplayer.video.VideoFrameMetadataListener {
+    private val pts = LongArray(16)
+    private val at = LongArray(16)
+    @Volatile private var n = 0
+
+    @Synchronized override fun onVideoFrameAboutToBeRendered(presentationTimeUs: Long, releaseTimeNs: Long, format: androidx.media3.common.Format, mediaFormat: android.media.MediaFormat?) {
+        if (releaseTimeNs == androidx.media3.common.C.TIME_UNSET) return
+        val k = n % 16; pts[k] = presentationTimeUs; at[k] = releaseTimeNs; n++
+        if (TRACE.on) TRACE.log("released", "pts=$presentationTimeUs at=$releaseTimeNs")
+    }
+
+    /** The presentation time of the frame released for [releaseNs] (a SurfaceTexture's timestamp); null = not among the last ones. */
+    @Synchronized fun ptsAt(releaseNs: Long): Long? {
+        if (releaseNs == 0L) return null
+        for (j in 0 until minOf(n, 16)) if (at[j] == releaseNs) return pts[j]
+        return null
+    }
+}
+
 private class LayerClock {
     @Volatile var srcIn = 0.0
     @Volatile var posSec = 0.0
     /** The file being played (a reversed file: the original's time is computed, see Reversals.originalTime). */
     @Volatile var item = 0L
+
+    /**
+     * Timeline time of a frame of the item now playing, for a segment from [segStart] at [speed] whose item begins [preMs]
+     * (source ms) before it: its timestamp read as the item's own time or the file's, whichever lies nearer the position.
+     */
+    fun timelineOf(pts: Long, segStart: Double, speed: Double, preMs: Long): Double? {
+        if (speed <= 0.0) return null
+        val p = pts / 1e6
+        val inItem = if (abs(p - (srcIn + posSec)) <= abs(srcIn + p - (srcIn + posSec))) p - srcIn else p
+        return segStart + (inItem * 1000.0 - preMs) / (speed * 1000.0)
+    }
 
     fun source(pts: Long): Double {
         val p = pts / 1e6
