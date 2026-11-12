@@ -308,14 +308,20 @@ object RenderCache {
                         muxer.start()
                     }
                     val off = Math.round(offset * 1e6)
+                    var count = 0; var firstPts = Long.MAX_VALUE; var lastPts = Long.MIN_VALUE; var maxPts = Long.MIN_VALUE
                     while (true) {
                         buf.clear()
                         val n = ex.readSampleData(buf, 0)
                         if (n < 0) break
-                        info.set(0, n, ex.sampleTime + off, if (ex.sampleFlags and android.media.MediaExtractor.SAMPLE_FLAG_SYNC != 0) android.media.MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
+                        val pts = ex.sampleTime
+                        if (count == 0) firstPts = pts
+                        lastPts = pts; maxPts = maxOf(maxPts, pts); count++
+                        info.set(0, n, pts + off, if (ex.sampleFlags and android.media.MediaExtractor.SAMPLE_FLAG_SYNC != 0) android.media.MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
                         muxer.writeSampleData(track, buf, info)
                         ex.advance()
                     }
+                    // (what each piece holds against its place: a frame at or past the next piece's start shows twice)
+                    se.gendut.klipp.CrashReport.note("pre-render: join piece at ${"%.3f".format(java.util.Locale.ROOT, offset)} s: $count frames, first ${firstPts} µs, last ${lastPts} µs, max ${maxPts} µs")
                 } finally {
                     ex.release()
                 }

@@ -81,6 +81,7 @@ fun UpperLayers(
         // CutTrace.stabHandoff). Stabilized clips are covered since the layer's clock was fixed (plan risk 6, measured with
         // a shaking frame-coded clip: the background stands within 2 px through the layer's second, as in the main player)
         val stabilized = plan.layers.lastOrNull()?.segs.orEmpty().mapNotNull { it.clip?.id }.filter { id -> gradeOf(id)?.mblur != null }
+        if (TRACE.on) for (l in plan.layers) TRACE.log("plan", "layer=${l.name} " + l.segs.joinToString(" ") { sg -> "%.2f+%.2f:%d%s%s".format(java.util.Locale.ROOT, sg.start, sg.dur, sg.src.item, if (sg.hasFx) "fx" else "", if (sg.ramp != null) "ramp" else "") })
         val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized, se.gendut.klipp.engine.CutTrace.stabHandoff) {
             plan.layers.lastOrNull()?.let { base ->
                 Handoff.layer(base) { s ->
@@ -143,7 +144,7 @@ private fun LayerVideo(
         // a TextureView shows a frame as soon as it arrives (a SurfaceView waits for the frame's time): released up to
         // 50 ms early (Media3's default) the layer's frames were seen about one frame before the main player's at 30 fps
         // (measured with frame-coded clips) – here at most LAYER_EARLY_US before their time
-        val renderers = androidx.media3.exoplayer.DefaultRenderersFactory(ctx).setVideoRendererEarlySchedulingThresholdUs(LAYER_EARLY_US)
+        val renderers = LayerRenderersFactory(ctx)
         ExoPlayer.Builder(ctx, renderers).setLoadControl(se.gendut.klipp.engine.Perf.editingLoadControl()).build().apply {
             volume = 0f // audio comes from the main player
             // the audio track isn't decoded at all in the layer players (saves power, and speed adjustments come for free)
@@ -172,6 +173,10 @@ private fun LayerVideo(
     DisposableEffect(player) {
         val l = object : Player.Listener {
             override fun onVideoSizeChanged(v: VideoSize) { videoSize = v }
+            // (a layer player that fails shows nothing – in the trail, with the file)
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                se.gendut.klipp.CrashReport.note("layer ${layer.name}: ${error.errorCodeName} ${error.message} (${error.cause?.javaClass?.simpleName}: ${error.cause?.message}) item ${player.currentMediaItemIndex} ${player.currentMediaItem?.localConfiguration?.uri?.lastPathSegment}")
+            }
             override fun onRenderedFirstFrame() {
                 drawnIndex = player.currentMediaItemIndex
                 TRACE.log("firstFrame", "layer=${layer.name} idx=${player.currentMediaItemIndex} pos=${player.currentPosition}")
@@ -255,6 +260,7 @@ private fun LayerVideo(
     // proxyRev: when a proxy is swapped in the segments are reloaded (the player then starts from the beginning) – sync
     // restarts and seeks to the playhead right away, even when it is standing still
     LaunchedEffect(segs, main, proxyRev, preMs) {
+        if (TRACE.on) TRACE.log("segs", "layer=${layer.name} starts=${segs.map { "%.2f".format(java.util.Locale.ROOT, it.start) }} pre=$preMs prerollOff=${Preroll.off}")
         var lastSeek = 0L
         var lastMainMs = -1L
         val stats = SyncStats.forLayer(layer.name)
@@ -468,7 +474,7 @@ private fun LayerVideo(
                 // show the main player's picture without film – it stands down instead, still showing, see above
                 if (handReadyAt == 0L) { handReadyAt = now; unhide(); handFilmBase = filmedOf(handHid) }
                 handForced = true
-            } else d.seekMs?.let { seekLayer(i, it); lastSeek = now; stats.seeks++; TRACE.log("seek", "layer=${layer.name} sync idx=$i ms=$it t=$t cur=${player.currentMediaItemIndex}/${player.currentPosition}") }
+            } else d.seekMs?.let { seekLayer(i, it); lastSeek = now; stats.seeks++; TRACE.log("seek", "layer=${layer.name} sync idx=$i ms=$it t=$t cur=${player.currentMediaItemIndex}/${player.currentPosition} state=${player.playbackState} drawn=$drawnIndex err=${player.playerError?.errorCodeName}") }
             if (player.playWhenReady != run) player.playWhenReady = run
             if (run && player.isPlaying && d.seekMs == null) stats.record(player.currentPosition - target)
             if (!state.playing && d.seekMs == null && player.playbackState != Player.STATE_BUFFERING) idle()
@@ -572,6 +578,41 @@ private fun LayerVideo(
             if (handoff && se.gendut.klipp.engine.CutTrace.mode == 3) Box(Modifier.align(Alignment.TopStart).size(androidx.compose.ui.unit.Dp(24f)).then(androidx.compose.ui.Modifier.drawBehind { drawRect(androidx.compose.ui.graphics.Color.Red) }))
         }
     }
+}
+
+/**
+ * The layer players' renderers: frames handed out at most [LAYER_EARLY_US] early (see the player), and a video chain
+ * whose output is always SDR – HDR tone mapped with OpenGL, as the export does. Media3 otherwise takes the output's
+ * colors from the first file: a layer that began with an HDR original could then not take an SDR file (its proxy, or an
+ * SDR clip after it) – "SDR to HDR" isn't a conversion it has, the player failed and the layer stayed empty.
+ */
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private class LayerRenderersFactory(context: android.content.Context) : androidx.media3.exoplayer.DefaultRenderersFactory(context) {
+    override fun buildVideoRenderers(
+        context: android.content.Context, extensionRendererMode: Int, mediaCodecSelector: androidx.media3.exoplayer.mediacodec.MediaCodecSelector,
+        enableDecoderFallback: Boolean, eventHandler: android.os.Handler, eventListener: androidx.media3.exoplayer.video.VideoRendererEventListener,
+        allowedVideoJoiningTimeMs: Long, out: java.util.ArrayList<androidx.media3.exoplayer.Renderer>,
+    ) {
+        out.add(LayerVideoRenderer(
+            androidx.media3.exoplayer.video.MediaCodecVideoRenderer.Builder(context)
+                .setCodecAdapterFactory(codecAdapterFactory)
+                .setMediaCodecSelector(mediaCodecSelector)
+                .setAllowedJoiningTimeMs(allowedVideoJoiningTimeMs)
+                .setEnableDecoderFallback(enableDecoderFallback)
+                .setEventHandler(eventHandler)
+                .setEventListener(eventListener)
+                .setMaxDroppedFramesToNotify(MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
+                .setEarlySchedulingThresholdUs(LAYER_EARLY_US),
+        ))
+    }
+}
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private class LayerVideoRenderer(b: androidx.media3.exoplayer.video.MediaCodecVideoRenderer.Builder) : androidx.media3.exoplayer.video.MediaCodecVideoRenderer(b) {
+    override fun createPlaybackVideoGraphWrapper(
+        context: android.content.Context, videoFrameReleaseControl: androidx.media3.exoplayer.video.VideoFrameReleaseControl,
+    ): androidx.media3.exoplayer.video.PlaybackVideoGraphWrapper =
+        super.createPlaybackVideoGraphWrapper(context, videoFrameReleaseControl).also { it.setRequestOpenGlToneMapping(true) }
 }
 
 /** How early (µs) a layer player hands a frame to its TextureView at most (Media3's default: 50 000). */

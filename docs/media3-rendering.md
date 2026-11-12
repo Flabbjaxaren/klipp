@@ -553,6 +553,28 @@ Tidslinjens Look "Film" plus LUT "Bleach" (kraftigt olinjär), pausat mot export
 (som utan Look). V2 överst (Look på hela den staplade bilden): 6–11 per pixel men 2–3,5 lågpassat – skillnaden är fin
 detalj i brusklippet (förhandsvisningen ritas mindre), inte färg.
 
+## HDR i övre lager (risk 10, 2026-11-12, testversion 40–45)
+
+Syntetiskt HLG-klipp (10-bit HEVC, BT.2020/HLG) med gråskaleramp och bildkod på V2, exporten SDR (projektet graderat).
+**Fel hittat:** lagerspelarens videokedja tar sina utfärger från den *första* filen. Började V2 med HDR-originalet (ingen
+proxy ännu) blev kedjan HDR ut; när proxyn (10-bit SDR) kom – eller ett SDR-klipp efter ett HDR-klipp på samma spår –
+kastade Media3 `IllegalArgumentException` i `checkColors` ("SDR till HDR" finns inte), spelaren dog och V2 förblev tomt
+tills appen startades om. **Rättning:** lagerspelarna har en egen videorenderare vars kedja alltid ger SDR (HDR
+tonmappas med OpenGL, som exporten; `LayerRenderersFactory`, `setRequestOpenGlToneMapping`). Fel i lagerspelare skrivs
+nu i händelsespåret. Efter: V2 lever genom byte original → proxy; rampen lika exporten i mellan- och högdagrar
+(38/51/63/…/252 – förut 33 mot 38 i skuggorna); kvar: de djupaste skuggorna (5/10 mot 13/26 i rampens nedersta sjättedel),
+lika med och utan proxy.
+
+## Övriga fynd 2026-11-12 (inte rättade)
+
+- **Förrenderad uppspelning hackar vid den ursprungliga skarven:** i den sammanfogade förrenderade filen hålls sista
+  bildrutan före snittet 65–99 ms, de två följande blinkar förbi, ibland i fel ordning (1501 → 1500 → 1501). Bitarnas
+  tider är exakta (loggat vid sammanfogningen: 1250 bildrutor 0…49,96 s, sedan 1000 från 0) – troligen startar
+  avkodaren om vid bitgränsen (varje bit är en egen kodarsession). Gäller bara förhandsvisningen.
+- **"pre-render: could not save"** och dubbla sammanfogningar: tecken på två förrenderingsarbetare samtidigt.
+- **Slut på avkodare** efter en lång session med många HDR-, proxy- och förrenderingsexperiment
+  (`DECODER_INIT_FAILED` i huvudspelaren); borta efter omstart.
+
 ## Resurssamordning under export (risk 9, 2026-11-12)
 
 `engine/BackgroundWork`: när en export startar pausas uppspelningen, proxy- och nodcachekodning som pågår avbryts och

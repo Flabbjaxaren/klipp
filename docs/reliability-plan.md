@@ -452,3 +452,4 @@ och harness; 8.5 samordnas med foreground-exporten), och sist PR 5–6.
 | Bildfrekvenser 25/30/29,97 (2026-11-12) | Klar: lagerspelarnas bildrutor kom upp till en bildruta för tidigt (TextureView); nu högst 35 ms före tiden. 30 fps: upprepad bildruta vid avlösning 8/10 → 0/10; 25 fps: 10/10 rena. | på vivo |
 | 10-bit mot 8-bitsreferens (2026-11-12) | Klar: 80 nivåer i 10-bit, 21–25 i 8-bit; med kontrast 124 mot 42. | på vivo, gradientklipp |
 | Look rumsligt/per kanal (2026-11-12) | Klar: kraftigt olinjär Look lika i förhandsvisning och export (2–3,5 per kanal lågpassat), även staplat. | på vivo |
+| HDR i övre lager, risk 10 (2026-11-12) | Rättat: V2 dog vid byte HDR-original → SDR-proxy (Media3 tar utfärg från första filen); lagerkedjan ger nu alltid SDR (OpenGL-tonmappning som exporten). Kvar: djupaste skuggor ljusare i exporten. Nya fynd: hack i förrenderad fil vid bitgräns, två förrenderingsarbetare, slut på avkodare i lång session. | på vivo, syntetiskt HLG |
