@@ -536,6 +536,13 @@ experimentella val; 20 ms gav en bildruta för sent – TextureView och Compose 
 | 25 fps, före | −27…+10 ms | 15–66 ms | 5/10 |
 | 25 fps, efter | −1…+2 ms | 32–49 ms | 0/10 (10/10 rena) |
 
+**Övre lager (V2/V3) mot huvudbilden** (bildkodat klipp i halv storlek på V2 över bildkodat V1, båda koderna ur samma
+skärmbild, 8 omgångar à 2 500 bildrutor): V2 låg efter V1 – med 50 ms samma bildruta 42 %, en efter 55 %; med 35 ms
+15 % / 80 %. Ett övre lager följer huvudspelarens rapporterade position och behöver lämna ut tidigare än skarvlagret
+(som startar från sin egen bildruta): skarvlagret 35 ms, övriga lager **65 ms → samma bildruta 84 %**, en efter 14 %,
+en före 2 %. Vid uppspelningsstart hoppar V2 ibland över sin första bildruta (3–4 av 8, även med Medias standard 50 ms –
+lagret startar när huvudspelaren redan rört sig); inte rättat.
+
 29,97 fps: inga hoppade bildrutor; mätningen där har en egenhet från testet (källan 60,0 s ligger inte på 29,97-rutnätet,
 så första bildrutan efter snittet har sin tid 27 ms senare – huvudspelaren visar den då, och skarvlagret följer nu med).
 

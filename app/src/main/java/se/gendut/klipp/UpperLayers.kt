@@ -144,7 +144,7 @@ private fun LayerVideo(
         // a TextureView shows a frame as soon as it arrives (a SurfaceView waits for the frame's time): released up to
         // 50 ms early (Media3's default) the layer's frames were seen about one frame before the main player's at 30 fps
         // (measured with frame-coded clips) – here at most LAYER_EARLY_US before their time
-        val renderers = LayerRenderersFactory(ctx)
+        val renderers = LayerRenderersFactory(ctx, if (handoff) HANDOFF_EARLY_US else LAYER_EARLY_US)
         ExoPlayer.Builder(ctx, renderers).setLoadControl(se.gendut.klipp.engine.Perf.editingLoadControl()).build().apply {
             volume = 0f // audio comes from the main player
             // the audio track isn't decoded at all in the layer players (saves power, and speed adjustments come for free)
@@ -587,7 +587,7 @@ private fun LayerVideo(
  * SDR clip after it) – "SDR to HDR" isn't a conversion it has, the player failed and the layer stayed empty.
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
-private class LayerRenderersFactory(context: android.content.Context) : androidx.media3.exoplayer.DefaultRenderersFactory(context) {
+private class LayerRenderersFactory(context: android.content.Context, private val earlyUs: Long) : androidx.media3.exoplayer.DefaultRenderersFactory(context) {
     override fun buildVideoRenderers(
         context: android.content.Context, extensionRendererMode: Int, mediaCodecSelector: androidx.media3.exoplayer.mediacodec.MediaCodecSelector,
         enableDecoderFallback: Boolean, eventHandler: android.os.Handler, eventListener: androidx.media3.exoplayer.video.VideoRendererEventListener,
@@ -602,7 +602,7 @@ private class LayerRenderersFactory(context: android.content.Context) : androidx
                 .setEventHandler(eventHandler)
                 .setEventListener(eventListener)
                 .setMaxDroppedFramesToNotify(MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
-                .setEarlySchedulingThresholdUs(LAYER_EARLY_US),
+                .setEarlySchedulingThresholdUs(earlyUs),
         ))
     }
 }
@@ -615,8 +615,14 @@ private class LayerVideoRenderer(b: androidx.media3.exoplayer.video.MediaCodecVi
         super.createPlaybackVideoGraphWrapper(context, videoFrameReleaseControl).also { it.setRequestOpenGlToneMapping(true) }
 }
 
-/** How early (µs) a layer player hands a frame to its TextureView at most (Media3's default: 50 000). */
-private const val LAYER_EARLY_US = 35_000L
+/**
+ * How early (µs) a layer player hands a frame to its TextureView at most (Media3's default: 50 000). The edit point layer
+ * starts from its own frame at the cut: 35 ms put it within 2 ms of the main player (measured against the frame line).
+ * An upper layer follows the main player's reported position: it was 0–2 frames behind the main picture (V1 against V2
+ * read from the same screen frames) – it hands its frames out earlier.
+ */
+private const val HANDOFF_EARLY_US = 35_000L
+private const val LAYER_EARLY_US = 65_000L
 /** A layer player waiting for its next segment stands at most this far (ms) into it. */
 private const val PREPARED_MS = 20L
 /** Main chain frames of the new clip before the edit point layer stands down, and the wait after that (ms). */
