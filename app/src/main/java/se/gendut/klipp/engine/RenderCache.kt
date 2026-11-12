@@ -1,5 +1,7 @@
 package se.gendut.klipp.engine
 
+import kotlinx.coroutines.sync.withLock
+
 import android.content.Context
 import android.net.Uri
 import androidx.annotation.OptIn
@@ -275,7 +277,9 @@ object RenderCache {
      * Join ready chunks that sit edge to edge into one file (the frames are copied – no re-encoding; every chunk starts on
      * a keyframe with the same format). The chunks' files remain (a change in one chunk only redoes the join).
      */
-    fun joinRuns(chunks: List<Chunk>) {
+    fun joinRuns(chunks: List<Chunk>) = synchronized(joinLock) { joinRunsLocked(chunks) }
+
+    private fun joinRunsLocked(chunks: List<Chunk>) {
         val d = dir ?: return
         for (run in runs(chunks.filter { exists(it.hash) })) {
             if (run.size < 2) continue
@@ -388,6 +392,19 @@ object RenderCache {
     @Volatile var generation = 0
 
     suspend fun render(
+        context: Context, s: Snapshot, uriOf: (Long) -> Uri?, grades: Map<Long, ClipGrade>, todo: List<Chunk>,
+        canWork: () -> Boolean, onChunk: () -> Unit,
+    ): Result<Int> = renderLock.withLock { renderLocked(context, s, uriOf, grades, todo, canWork, onChunk) }
+
+    /**
+     * One render at a time, and never beside a join: two at once wrote the same temporary file – a chunk then failed
+     * with "could not save", and two joins of the same run made one file from two muxers (in playback: the frames at
+     * the join out of order, the last one before it held).
+     */
+    private val renderLock = kotlinx.coroutines.sync.Mutex()
+    private val joinLock = Any()
+
+    private suspend fun renderLocked(
         context: Context, s: Snapshot, uriOf: (Long) -> Uri?, grades: Map<Long, ClipGrade>, todo: List<Chunk>,
         canWork: () -> Boolean, onChunk: () -> Unit,
     ): Result<Int> {

@@ -567,11 +567,12 @@ lika med och utan proxy.
 
 ## Övriga fynd 2026-11-12 (inte rättade)
 
-- **Förrenderad uppspelning hackar vid den ursprungliga skarven:** i den sammanfogade förrenderade filen hålls sista
-  bildrutan före snittet 65–99 ms, de två följande blinkar förbi, ibland i fel ordning (1501 → 1500 → 1501). Bitarnas
-  tider är exakta (loggat vid sammanfogningen: 1250 bildrutor 0…49,96 s, sedan 1000 från 0) – troligen startar
-  avkodaren om vid bitgränsen (varje bit är en egen kodarsession). Gäller bara förhandsvisningen.
-- **"pre-render: could not save"** och dubbla sammanfogningar: tecken på två förrenderingsarbetare samtidigt.
+- **[Rättat] Förrenderad uppspelning hackade vid den ursprungliga skarven:** sista bildrutan före snittet hölls 65–99 ms,
+  de två följande blinkade förbi, ibland i fel ordning (1501 → 1500 → 1501). Bitarnas tider var exakta (loggat vid
+  sammanfogningen); orsaken var att sammanfogningen kunde köra två gånger samtidigt (från schemaläggningen – blockerande
+  på IO-tråden, avbryts inte av `collectLatest` – och från renderingsjobbet) och två muxrar skrev samma temporära fil.
+  Samma sak gav "pre-render: could not save" (två renderingar av samma bit). Nu en rendering och en sammanfogning i
+  taget (`RenderCache.renderLock`, `joinLock`). Efter: 8/8 helt jämna över snittet i den förrenderade filen.
 - **Slut på avkodare** efter en lång session med många HDR-, proxy- och förrenderingsexperiment
   (`DECODER_INIT_FAILED` i huvudspelaren); borta efter omstart.
 
