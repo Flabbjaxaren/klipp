@@ -220,6 +220,8 @@ object CompositionBuilder {
          * 60 fps timeline: the whip moved at 30 frames a second).
          */
         fillSlots: Boolean = false,
+        /** Where segments begin before a part is cut out (timeline µs): a segment starting elsewhere was cut. */
+        realStarts: Set<Long>? = null,
     ): EditedMediaItemSequence? {
         val previewDownscale = outW > 0 && outH > 0
         val fw = if (previewDownscale) outW else plan.width
@@ -315,7 +317,8 @@ object CompositionBuilder {
             val fill = if (fillSlots && transition != null && still == null && fps > 0.0)
                 androidx.media3.effect.KlippFrameFill(FillPlanner(fps, Math.round(plan.origin * 1e6), Math.round(seg.end * 1e6),
                     (seg.windows + listOfNotNull(seg.fx)).map { w -> Math.round(w.t0 * 1e6)..Math.round(w.t1 * 1e6) },
-                    Math.round(seg.start * 1e6), nominalUs(itemUri, src.speed), Math.round((seg.end + tail(index)) * 1e6))) else null
+                    Math.round(seg.start * 1e6), nominalUs(itemUri, src.speed), Math.round((seg.end + tail(index)) * 1e6),
+                    pinFirst = realStarts == null || Math.round(seg.start * 1e6) in realStarts)) else null
             // green screen before the grade (the source's colors), the mask after, in the clip's own frame (follows its
             // motion); without a layer below the transparent parts become black
             val layer = c?.let { cl -> grades[cl.id]?.layer?.takeIf { it.hasAlpha } }
@@ -487,6 +490,8 @@ object CompositionBuilder {
         var plan = LayerPlanner.plan(s, transitions, md)
         // layers without a playable file do not count
         plan = plan?.copy(layers = plan.layers.filter { l -> l.segs.any { seg -> videoUriOf(seg.src.item) != null } })
+        // where segments really begin (a render of a part cuts the ones running across its start: those aren't pinned)
+        val realStarts = plan?.layers.orEmpty().flatMap { l -> l.segs.map { Math.round(it.start * 1e6) } }.toSet()
         if (plan != null && range != null) plan = LayerPlanner.slice(plan, range.start, range.endInclusive)
         if (plan != null && planTransform != null) plan = planTransform(plan)
         if (plan != null && forceSingle && plan.layers.size > 1) {
@@ -498,7 +503,7 @@ object CompositionBuilder {
         val times = ArrayList<TimeBase>()
         val clipTime = TimeBase(plan?.length ?: total, plan?.origin ?: 0.0).also { times += it } // time for keyframes on the clips (simple path)
         val (pw, ph) = if (plan == null || previewShort <= 0) 0 to 0 else previewSize(plan.width, plan.height, previewShort)
-        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, s.fps, fillSlots = output != null)?.let { seqs += it } }
+        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, s.fps, fillSlots = output != null, realStarts = realStarts)?.let { seqs += it } }
         val hasVideo = seqs.isNotEmpty()
         // export without audio (and pre-render): no audio sequences
         val audio = if (output?.audio == false || range != null) emptyList() else q.audio.take(3)
@@ -542,7 +547,8 @@ object CompositionBuilder {
             if (output != null) {
                 // always: clips can have a different (or variable) frame rate than the project – the file gets a constant one
                 val outFps = output.outputFps(s.fps)
-                if (outFps > 0.0) fx += FrameRateEffect(outFps, starts, nominals, itemEnds = false, originUs = Math.round(plan.origin * 1e6))
+                val cut = range != null && plan.layers.lastOrNull()?.segs?.firstOrNull()?.let { Math.round(it.start * 1e6) !in realStarts } == true
+                if (outFps > 0.0) fx += FrameRateEffect(outFps, starts, nominals, itemEnds = false, originUs = Math.round(plan.origin * 1e6), cutAtStart = cut)
                 // a part of the timeline (pre-rendering): its first frame on its first slot (see StartPinPlanner)
                 if (outFps > 0.0 && range != null) fx += androidx.media3.effect.KlippFrameFill(
                     StartPinPlanner(outFps, Math.round(plan.origin * 1e6), Math.round((visibleFrom ?: plan.origin) * 1e6)))

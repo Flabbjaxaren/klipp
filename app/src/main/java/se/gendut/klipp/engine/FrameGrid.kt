@@ -112,15 +112,20 @@ class SourceSampler(fps: Double) {
     private var k0 = Long.MIN_VALUE
     private var nominal = 0L
     private var first = true
+    private var pin = true
     private var lastSlot = Long.MIN_VALUE
 
     /**
      * A segment begins at [segStartUs] (timeline); its source frames last [nominalUs] each on the timeline (0: not known);
      * it ends at [segEndUs] (Long.MAX_VALUE: not known) – the next segment's first frame takes the slot there.
+     * [pinFirst] false: the segment only begins here in this render (a pre-rolled part cut into it, see RenderCache) –
+     * its first frame isn't the segment's first and keeps its own slot, as in the whole timeline (pinned to the cut, it
+     * changed the choice for the frame after it: with a long gap in a variable-frame-rate file, inside the part).
      */
-    fun startSegment(segStartUs: Long, nominalUs: Long, segEndUs: Long = Long.MAX_VALUE) {
+    fun startSegment(segStartUs: Long, nominalUs: Long, segEndUs: Long = Long.MAX_VALUE, pinFirst: Boolean = true) {
         segStart = segStartUs
         segEnd = segEndUs
+        pin = pinFirst
         k0 = grid.slotAtOrAfter(segStartUs - FrameGrid.LEAD_US)
         nominal = nominalUs
         reset()
@@ -138,8 +143,8 @@ class SourceSampler(fps: Double) {
         if (k0 != Long.MIN_VALUE) {
             // the segment's first frame shows from its first slot
             val firstTime = if (nominal > 0) nominal else Math.round(grid.stepUs)
-            if (first && c > k0 && tauUs < segStart + firstTime) c = k0
-            if (c < k0) c = k0
+            if (pin && first && c > k0 && tauUs < segStart + firstTime) c = k0
+            if (pin && c < k0) c = k0
         }
         first = false
         // a later frame of a slot already shown (slots only rise with τ: the frame before had this one)
@@ -217,9 +222,11 @@ class FillPlanner(
      * frame takes that slot).
      */
     private val itemEndUs: Long = endUs,
+    /** False: the segment only begins at [segStartUs] in this render (see SourceSampler.startSegment). */
+    private val pinFirst: Boolean = true,
 ) : androidx.media3.effect.KlippFrameFill.Planner {
     private val grid = FrameGrid(fps)
-    private val sampler = SourceSampler(fps).also { if (segStartUs != Long.MIN_VALUE) it.startSegment(segStartUs, nominalUs, itemEndUs) }
+    private val sampler = SourceSampler(fps).also { if (segStartUs != Long.MIN_VALUE) it.startSegment(segStartUs, nominalUs, itemEndUs, pinFirst) }
     private var last = Long.MIN_VALUE
     private var started = segStartUs != Long.MIN_VALUE
 
@@ -227,7 +234,7 @@ class FillPlanner(
 
     override fun next(ptsUs: Long): LongArray {
         val tl = ptsUs + originUs
-        if (!started) { sampler.startSegment(tl, nominalUs, itemEndUs); started = true }
+        if (!started) { sampler.startSegment(tl, nominalUs, itemEndUs, pinFirst); started = true }
         val at = sampler.next(tl) ?: return LongArray(0)
         val slot = Math.round(at / grid.stepUs)
         val out = ArrayList<Long>()

@@ -186,9 +186,11 @@ class FrameRateEffect(
      * changed to 60) got a grid of its own, offset, and a frame more than its slots.
      */
     val originUs: Long = 0L,
+    /** See [Streams]. */
+    val cutAtStart: Boolean = false,
 ) : androidx.media3.effect.GlEffect {
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram =
-        Program(Streams(fps, startsUs, originUs, nominalUs, itemEnds && startsUs.isNotEmpty()))
+        Program(Streams(fps, startsUs, originUs, nominalUs, itemEnds && startsUs.isNotEmpty(), cutAtStart))
 
     /**
      * Frames that aren't needed are handed back at once – as Media3's own frame dropping does: the input texture is
@@ -223,6 +225,8 @@ class FrameRateEffect(
         private val nominalUs: LongArray = LongArray(0),
         /** Playback: an item's last frames are kept for Media3's end of item (FrameGrid.nearEnd); the export doesn't need it. */
         private val itemEnds: Boolean = startsUs.isNotEmpty(),
+        /** A pre-rolled part cut into a segment at the composition's start: that segment isn't pinned (SourceSampler). */
+        private val cutAtStart: Boolean = false,
     ) {
         private val grid = FrameGrid(fps)
         private val sampler = SourceSampler(fps)
@@ -239,7 +243,7 @@ class FrameRateEffect(
             if (i != seg) {
                 val fresh = seg != Int.MIN_VALUE
                 sampler.startSegment((if (i < 0) 0L else startsUs[i]) + originUs, nominalUs.getOrElse(i + 1) { 0L },
-                    if (i + 1 < startsUs.size) startsUs[i + 1] + originUs else Long.MAX_VALUE)
+                    if (i + 1 < startsUs.size) startsUs[i + 1] + originUs else Long.MAX_VALUE, pinFirst = !(cutAtStart && i < 0))
                 // (after a seek the stream picks up inside its segment: no frame before it – see SourceSampler)
                 if (fresh) prevIn = Long.MIN_VALUE
                 seg = i
