@@ -163,6 +163,8 @@ private fun LayerVideo(
     // (SurfaceTexture.timestamp), see the edit point layer's start below
     val released = remember(player) { ReleasedFrames(ramp).also { player.setVideoFrameMetadataListener(it) } }
     val clock = remember { LayerClock() }
+    // whether the layer's frames go through the timeline grid (LayerGridEffect): then they are shown at slot times
+    val gridOn = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
     val segs = remember(layer) { layer.segs.filter { controller.uriOf(it.src.item) != null } }
     // the edit point layer starts each segment a little early, unseen (see HANDOFF_PREROLL_S): source ms before the
     // segment's start, per segment (0 = none)
@@ -375,8 +377,14 @@ private fun LayerVideo(
                 // … the frame that covers the edit point, that is: with the clip's frames off the main player's grid (a
                 // pre-rendered piece at the project rate, then 4K 120 fps at 25 %: a frame every 33 ms that began 0–33 ms
                 // after the cut) waiting for one that begins at the cut held the main player's last frame for 80–100 ms
-                val shown = view?.surfaceTexture?.timestamp?.let { released.ptsAt(it) }?.let { clock.itemUs(it, clipStartMs[i]) }
-                if ((shown != null && EditPointFrame.covers(shown, released.stepUs(), preMs[i] * 1000)) || player.currentPosition >= preMs[i]) {
+                // On the timeline grid the segment's first frame is shown at its slot and every pre-roll frame before it
+                // (LayerGrid): seen from that slot on – the time a frame is shown at, mapped back by the clock
+                val shownPts = view?.surfaceTexture?.timestamp?.let { released.ptsAt(it) }
+                val segUs = Math.round(segs[i].start * 1e6)
+                val atCut = if (gridOn.get()) shownPts?.let { clock.timelineUs(it) }?.let { it >= se.gendut.klipp.engine.FrameGrid(controller.snapshot.fps).earliestUs(segUs) - 500 }
+                    else shownPts?.let { clock.itemUs(it, clipStartMs[i]) }?.let { EditPointFrame.covers(it, released.stepUs(), preMs[i] * 1000) }
+                val shown = shownPts?.let { clock.itemUs(it, clipStartMs[i]) }
+                if (atCut == true || player.currentPosition >= preMs[i]) {
                     preRolling = false
                     TRACE.log("handStart", "seg=$i t=$t shown=$shown pos=${player.currentPosition}")
                 }
@@ -452,6 +460,7 @@ private fun LayerVideo(
                     val ns = segs[next]
                     clock.srcIn = (ns.src as? SegSrc.Media)?.let { it.srcIn - preMs[next] / 1000.0 } ?: (ns.src as? SegSrc.Still)?.sec ?: 0.0
                     clock.posSec = waitMs(next) / 1000.0; clock.item = ns.src.item
+                    clock.seg = (ns.src as? SegSrc.Media)?.let { m -> LayerClock.SegTime(ns.start, m.srcIn, m.speed) }
                 }
                 if (!state.playing && !sought) idle()
                 continue
@@ -469,6 +478,7 @@ private fun LayerVideo(
             // measured with CutTrace and frame-coded clips: at the cut a frame was skipped)
             val target = if (media == null) 0L else LayerSync.targetMs(t, seg, preMs[i])
             clock.srcIn = media?.let { it.srcIn - preMs[i] / 1000.0 } ?: (seg.src as SegSrc.Still).sec; clock.posSec = target / 1000.0; clock.item = seg.src.item
+            clock.seg = media?.let { LayerClock.SegTime(seg.start, it.srcIn, it.speed) }
             // (once going it keeps going while the main player plays: its reported position often stands still for a few
             // display frames although it plays on – the layer was paused, and often sought, at each of those)
             val run = media != null && state.playing && (main == null || advancing || player.playWhenReady && main.isPlaying)
@@ -505,7 +515,18 @@ private fun LayerVideo(
         if (pv <= 0) null else se.gendut.klipp.engine.CompositionBuilder.previewSize(plan.width, plan.height, pv)
             .let { (pw, ph) -> se.gendut.klipp.engine.CompositionBuilder.previewShortSide(short, pw, ph) }
     }
-    LaunchedEffect(gc?.id, structure, look, scaleShort) {
+    // the grid where the layer's frames can fall off it: a changed speed or a clip at another rate than the timeline's;
+    // with effects always (they are drawn anyway). Without either the decoder draws straight onto the view, no GL pass
+    val projectFps = controller.snapshot.fps
+    val offGrid = remember(segs, projectFps) {
+        projectFps > 0.0 && segs.any { sg ->
+            val m = sg.src as? SegSrc.Media ?: return@any false
+            val f = controller.snapshot.media.firstOrNull { it.id == m.item }?.fps ?: 0.0
+            abs(m.speed - 1.0) > 1e-3 || (f > 0.0 && abs(f - projectFps) > 0.01)
+        }
+    }
+    val layerName = layer.name
+    LaunchedEffect(gc?.id, structure, look, scaleShort, offGrid) {
         if (gc != null && grade != null) se.gendut.klipp.engine.LiveGrades.publish(mapOf(gc.id to grade))
         // tracked windows: the frame's source time (see LayerClock)
         // always (live): a window tracked afterwards follows along without the effects being rebuilt
@@ -517,7 +538,17 @@ private fun LayerVideo(
         val fx = listOfNotNull(keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)
         // (no effects: none – the downscale alone would add a pass the plain picture doesn't need)
         val down = scaleShort?.takeIf { fx.isNotEmpty() }?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
-        runCatching { player.setVideoEffects(listOfNotNull(down) + fx) }
+        // on the timeline's frame grid, as the main player and the export (see LayerGridEffect): a slowed 120 fps clip gave
+        // 30 frames a second here – off the grid next to the main player's (after a pre-rendered whip the first frame was
+        // nearly the file's last one, a visible pause). The choice first (the effects read the frames' own times), the
+        // move to the slot last
+        val gridFps = projectFps.takeIf { it > 0.0 && (offGrid || fx.isNotEmpty()) }
+        val grid = gridFps?.let { f ->
+            se.gendut.klipp.engine.LayerGridEffect(f, clock::timelineUs, { clock.seg?.let { Math.round(it.startSec * 1e6) } }, { clock.seg?.speed ?: 1.0 },
+                { line: String -> TRACE.log("grid", "layer=$layerName $line") }, { TRACE.on })
+        }
+        gridOn.set(grid != null)
+        runCatching { player.setVideoEffects(listOfNotNull(grid?.select, down) + fx + listOfNotNull(grid?.present)) }
         repaint(player)
     }
     LaunchedEffect(grade) {
@@ -1033,6 +1064,14 @@ private class ReleasedFrames(private val ramp: EarlyRamp? = null) : androidx.med
 }
 
 private class LayerClock {
+    /** The segment being played (or waited on): where it begins on the timeline, its source time there and its speed. */
+    class SegTime(val startSec: Double, val srcSec: Double, val speed: Double)
+    /** One reference, so the chain's thread reads one segment's values together (null: a still, or nothing yet). */
+    @Volatile var seg: SegTime? = null
+
+    /** A frame's time on the timeline (µs), from its time in the file; null when no media segment is set. */
+    fun timelineUs(pts: Long): Long? = seg?.takeIf { it.speed > 0.0 }?.let { g -> Math.round((g.startSec + (fileSec(pts) - g.srcSec) / g.speed) * 1e6) }
+
     @Volatile var srcIn = 0.0
     @Volatile var posSec = 0.0
     /** The file being played (a reversed file: the original's time is computed, see Reversals.originalTime). */

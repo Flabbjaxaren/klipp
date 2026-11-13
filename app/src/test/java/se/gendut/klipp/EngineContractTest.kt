@@ -158,10 +158,13 @@ class EngineContractTest {
         // the look sits on the whole composition (once), not on the clips
         assertTrue(v.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty())
         // RGB + contrast + saturation in a single pass (LookEffect); without it: Media3's three effects
-        assertEquals(1, comp.effects.videoEffects.size)
-        assertTrue(comp.effects.videoEffects[0] is se.gendut.klipp.engine.LookEffect)
+        // (and the timeline's frame grid last, as in the export)
+        val own = comp.effects.videoEffects.filterNot { it is se.gendut.klipp.engine.FrameRateEffect }
+        assertTrue(comp.effects.videoEffects.last() is se.gendut.klipp.engine.FrameRateEffect)
+        assertEquals(1, own.size)
+        assertTrue(own[0] is se.gendut.klipp.engine.LookEffect)
         val std = CompositionBuilder.build(s, { Uri.parse("file:///m/$it.mp4") }, look.copy(tetra = false))!!
-        assertEquals("fallback: RGB + contrast + saturation", 3, std.effects.videoEffects.size)
+        assertEquals("fallback: RGB + contrast + saturation", 3, std.effects.videoEffects.filterNot { it is se.gendut.klipp.engine.FrameRateEffect }.size)
         val a = comp.sequences[1].editedMediaItems.first { it.mediaItem.localConfiguration != null }
         assertEquals("A1 at −6 dB gets a volume processor (and the stereo upmix last)", 1, a.effects.audioProcessors.dropLast(1).size)
         assertTrue(a.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty())

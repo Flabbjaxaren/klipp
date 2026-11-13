@@ -114,7 +114,7 @@ class LutTest {
         )
         val uri = { _: Long -> android.net.Uri.parse("file:///a.mp4") }
         val tetra = CompositionBuilder.build(snap, uri, Look(lut = lut, lutMix = 0.8f))!!
-        val fx = tetra.effects.videoEffects
+        val fx = tetra.effects.videoEffects.filterNot { it is se.gendut.klipp.engine.FrameRateEffect }
         // the LUT is part of the look's single pass (tetrahedral), with its strength
         val le = fx.single() as se.gendut.klipp.engine.LookEffect
         assertEquals(lut, le.look.lut)

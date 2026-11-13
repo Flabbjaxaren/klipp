@@ -162,73 +162,65 @@ object EncoderCaps {
 }
 
 /**
- * Export frame rate: at most one frame per slot in a grid of [fps] frames/s, and the timestamp is snapped to the slot
- * (at most half a frame from the source time). Gives a constant frame rate in the file even from variable-frame-rate
- * clips.
+ * The timeline's frame rate: at most one frame per slot of [fps] frames a second, its timestamp moved to the slot (at most
+ * half a frame from the source time) – the rule is [FrameGrid]. Gives the export a constant frame rate even from
+ * variable-frame-rate clips; playback's main player gets it too, so it shows the frames the export has.
+ *
+ * Each item is a stream of its own: the export rebuilds its effect chain for every item (the effects differ) and so starts
+ * over; in playback the chain may run on across items, so [startsUs] (the items' starts on the timeline, µs) start it
+ * over there. A seek (flush) starts it over as well.
  *
  * Media3's own FrameDropEffect.createDefaultFrameDropEffect keeps the frame closest to the target spacing from the
  * previous one, so 30 → 24 or 25 → 24 drops almost nothing at all.
  */
 @OptIn(UnstableApi::class)
-class FrameRateEffect(val fps: Double) : androidx.media3.effect.GlEffect {
-    override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram = Program(fps)
+class FrameRateEffect(val fps: Double, val startsUs: LongArray = LongArray(0)) : androidx.media3.effect.GlEffect {
+    override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram = Program(fps, startsUs)
 
-    /** Frames that aren't needed are released immediately; the others pass through unchanged (only the timestamp changes). */
-    private class Program(fps: Double) : androidx.media3.effect.PassthroughShaderProgram() {
-        private val stepUs = 1_000_000.0 / fps.coerceAtLeast(1.0)
-        private var slots = Slots(stepUs)
+    /**
+     * Frames that aren't needed are handed back at once – as Media3's own frame dropping does: the input texture is
+     * released to the stage before and the next frame is asked for (the frame never reaches the output, so this stage
+     * holds nothing). The others pass through unchanged (only the timestamp changes).
+     */
+    private class Program(fps: Double, startsUs: LongArray) : androidx.media3.effect.PassthroughShaderProgram() {
+        private val rule = Streams(fps, startsUs)
 
         override fun queueInputFrame(gl: androidx.media3.common.GlObjectsProvider, tex: androidx.media3.common.GlTextureInfo, presentationTimeUs: Long) {
-            val slot = slots.next(presentationTimeUs)
-            if (slot == null) {
+            val out = rule.next(presentationTimeUs)
+            if (out == null) {
                 inputListener.onInputFrameProcessed(tex)
                 inputListener.onReadyToAcceptInputFrame()
                 return
             }
-            super.queueInputFrame(gl, tex, Math.round(slot * stepUs))
+            super.queueInputFrame(gl, tex, out)
         }
 
         override fun flush() {
-            slots = Slots(stepUs)
+            rule.reset()
             super.flush()
         }
     }
 
-    /**
-     * The grid's slots, frame by frame. Each clip is a new stream: its first frame takes the slot of the cut (up to a
-     * source frame before it) and the rest are counted from that frame, so a clip that starts between two slots or has
-     * uneven times leaves no slot empty. A slower source has empty slots of its own.
-     */
-    private class Slots(private val step: Double) {
-        private var first = Long.MIN_VALUE
-        private var base = 0L
-        private var last = Long.MIN_VALUE
-        private var prev = Long.MIN_VALUE
+    /** The rule over items (pure, for tests): a frame's new time (µs), or null when it is dropped. */
+    class Streams(fps: Double, private val startsUs: LongArray) {
+        private val grid = FrameGrid(fps)
+        private var nextStart = -1
 
-        /** The slot of the frame at [t] µs, null = the slot is taken (the frame is dropped). */
-        fun next(t: Long): Long? {
-            // time went backwards (new stream): start over
-            if (t < prev) first = Long.MIN_VALUE
-            prev = t
-            if (first == Long.MIN_VALUE) {
-                first = t
-                base = Math.floor((t + 1000) / step).toLong()
-                last = base
-                return base
+        fun reset() { grid.reset(); nextStart = -1 }
+
+        fun next(tUs: Long): Long? {
+            // the next item's start: its first frame (read up to LEAD early) begins a new stream
+            if (nextStart < 0) nextStart = startsUs.indexOfFirst { it - FrameGrid.LEAD_US > tUs }.let { if (it < 0) startsUs.size else it }
+            else if (nextStart < startsUs.size && tUs >= startsUs[nextStart] - FrameGrid.LEAD_US) {
+                grid.reset()
+                while (nextStart < startsUs.size && tUs >= startsUs[nextStart] - FrameGrid.LEAD_US) nextStart++
             }
-            val s = base + Math.round((t - first) / step)
-            if (s <= last) return null
-            last = s
-            return s
+            return grid.next(tUs)?.let { grid.timeOf(it) }
         }
     }
 
     companion object {
         /** The times (µs) of [timesUs] that are kept – same rule as the effect, for tests. */
-        fun keep(timesUs: List<Long>, fps: Double): List<Long> {
-            val step = 1_000_000.0 / fps.coerceAtLeast(1.0)
-            val slots = Slots(step)
-            return timesUs.mapNotNull { t -> slots.next(t)?.let { Math.round(it * step) } }
-        }
+        fun keep(timesUs: List<Long>, fps: Double): List<Long> = FrameGrid.keep(timesUs, fps)
     }
 }

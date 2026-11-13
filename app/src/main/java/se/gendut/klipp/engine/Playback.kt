@@ -491,6 +491,15 @@ object CompositionBuilder {
                 val titles = overlayLanes(plan.overlays.filter { it.overlay !is Overlay.Caption }).map { TimedOverlay(it, false, plan.width, plan.height, tb) }
                 fx += androidx.media3.effect.OverlayEffect(titles + TimedOverlay(plan.overlays, true, plan.width, plan.height, tb))
             }
+            // the timeline's frame rate in the preview too: a slowed 120 fps clip (30 frames a second at 25 %) played every
+            // decoded frame – more than the timeline has, and off its grid next to the pre-rendered pieces (a hitch at
+            // each switch); the export has always kept one frame per slot. Its items' starts (and ends: a gap is an
+            // item too) start the rule over, as the export's rebuilt chain does (composition time = timeline − origin)
+            if (output == null && s.fps > 0.0) {
+                val bottom = plan.layers.lastOrNull()?.segs.orEmpty()
+                val starts = (bottom.map { it.start } + bottom.map { it.end }).map { Math.round((it - plan.origin) * 1e6) }.filter { it > 0 }.distinct().sorted()
+                fx += FrameRateEffect(s.fps, starts.toLongArray())
+            }
             // the export's frame rate and size last (titles and captions are already drawn at the project size)
             if (output != null) {
                 // always: clips can have a different (or variable) frame rate than the project – the file gets a constant one
