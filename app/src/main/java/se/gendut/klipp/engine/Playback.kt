@@ -339,13 +339,13 @@ object CompositionBuilder {
                 .setEffects(androidx.media3.transformer.Effects(emptyList(), effects))
                 .apply { if (speed != null) setSpeed(speed) }
                 .build()
-            if (seg.start > t + 0.001) videoGap(b, seg.start - t, multi, fps)
+            if (seg.start > t + 0.001) videoGap(b, seg.start - t, multi, fps, fit)
             b.addItem(edited)
             t = seg.end + (if (still == null) tail(index) else 0.0)
             any = true
         }
         if (!any) return null
-        if (plan.total > t + 0.001) videoGap(b, plan.total - t, multi, fps)
+        if (plan.total > t + 0.001) videoGap(b, plan.total - t, multi, fps, fit)
         return b.build()
     }
 
@@ -355,13 +355,21 @@ object CompositionBuilder {
      * frame times – at 25 fps every fifth frame of the clips below was repeated and the next one skipped (measured with
      * frame-coded clips). Without the compositor, or before [BlankFrame] is ready: Media3's gap.
      */
-    private fun videoGap(b: EditedMediaItemSequence.Builder, sec: Double, multi: Boolean, fps: Double) {
+    /**
+     * An empty stretch of a layer: the blank image, at the layer's frame size ([fit], as its clips). Smaller (the image's
+     * own 16 px), the layer's last effect stage (Media3's FinalShaderProgramWrapper) rebuilt its texture pool when the
+     * next clip came, while the compositor still held the blank frame – the stale entry then freed a texture the
+     * compositor was still using, and a later frame was drawn into it (traced on the vivo: a push's outgoing picture
+     * missing for up to 5 frames in 2 of 6 renders, depending on timing). One size per layer, the pool is never rebuilt.
+     */
+    private fun videoGap(b: EditedMediaItemSequence.Builder, sec: Double, multi: Boolean, fps: Double, fit: androidx.media3.common.Effect) {
         val f = if (multi) BlankFrame.file() else null
         if (f == null) { b.addGap(us(sec)); return }
         b.addItem(
             EditedMediaItem.Builder(MediaItem.Builder().setUri(Uri.fromFile(f)).setImageDurationMs(Math.round(sec * 1000).coerceAtLeast(1)).build())
                 .setDurationUs(us(sec).coerceAtLeast(1))
                 .setFrameRate(fps.takeIf { it.isFinite() && it >= 1.0 }?.let { Math.round(it).toInt() } ?: 25)
+                .setEffects(androidx.media3.transformer.Effects(emptyList(), listOf(fit)))
                 .build()
         )
     }
