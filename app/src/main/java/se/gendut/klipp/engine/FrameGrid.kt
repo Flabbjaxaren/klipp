@@ -1,51 +1,18 @@
 package se.gendut.klipp.engine
 
 /**
- * The timeline's frame grid: at most one frame per slot of [fps] frames a second – the export's frame rate rule
- * ([FrameRateEffect]), shared with playback's main player and its layers so all three pick the same frames.
- *
- * The slots are the timeline's own (slot k is at k / fps on the timeline – never counted from a clip's start). Which
- * frame takes which slot is counted from a stream's first frame: it takes the slot it falls in (read up to [LEAD_US]
- * early), and the rest are rounded from it. Counting from a frame rather than rounding each time on its own matters:
- * phone clips have uneven times (39.9–40.1 ms), and a clip whose frames sit half a slot off the grid would otherwise
- * round some frames up and some down – two frames in one slot and an empty one next to it.
- *
- * Times are µs on the timeline. A stream is one item (the export rebuilds its effect chain for each, so the rule starts
- * over there): callers [reset] at an item's start, a seek and a new chain. Pure – tested in FrameGridTest.
+ * The timeline's frame grid: slot k is at k / [fps] on the timeline (µs), never counted from a clip's or a render's
+ * start. Which source frame each slot shows is [SourceSampler]'s rule.
  */
 class FrameGrid(fps: Double) {
     val stepUs = 1_000_000.0 / fps.coerceAtLeast(1.0)
-    private var first = Long.MIN_VALUE
-    private var base = 0L
-    private var last = Long.MIN_VALUE
-    private var prev = Long.MIN_VALUE
-
-    /** The next frame begins a new stream. */
-    fun reset() {
-        first = Long.MIN_VALUE
-        last = Long.MIN_VALUE
-        prev = Long.MIN_VALUE
-    }
-
-    /** The slot of the frame at [tUs], or null when its slot already has a frame (the frame is dropped). */
-    fun next(tUs: Long): Long? {
-        // time went backwards (a new stream the caller didn't announce): start over
-        if (prev != Long.MIN_VALUE && tUs < prev) first = Long.MIN_VALUE
-        prev = tUs
-        if (first == Long.MIN_VALUE) {
-            first = tUs
-            base = Math.floor((tUs + LEAD_US) / stepUs).toLong()
-            last = base
-            return base
-        }
-        val s = base + Math.round((tUs - first) / stepUs)
-        if (s <= last) return null
-        last = s
-        return s
-    }
+    private val fpsV = fps.coerceAtLeast(1.0)
 
     /** Where slot [slot] is on the timeline (µs). */
     fun timeOf(slot: Long): Long = Math.round(slot * stepUs)
+
+    /** The first slot at or after [tUs] (timeline µs). */
+    fun slotAtOrAfter(tUs: Long): Long = Math.ceil(tUs * fpsV / 1e6 - 1e-6).toLong()
 
     /** The earliest slot time (µs) a stream starting at [startUs] can show its first frame at. */
     fun earliestUs(startUs: Long): Long = timeOf(Math.floor(startUs / stepUs).toLong())
@@ -67,8 +34,8 @@ class FrameGrid(fps: Double) {
          * or after the next item's start [endUs] (that slot is the next item's first frame), and after the frame before
          * ([lastOut]). Within that, on the grid: its own slot when that isn't earlier than itself, otherwise the next one.
          * When no slot is left before the next item (the last decoded frame lies after the last slot but before the next
-         * item's start), it is an end-of-item frame only: 1 µs before the next item's start, where the next item's first
-         * frame replaces it at once. Before, these frames were shown at their own times – off the grid next to the next
+         * item's start), it is an end-of-item frame only: 2 µs before the next item's start (a second one 1 µs), where the
+         * next item's first frame replaces it at once. Before, these frames were shown at their own times – off the grid next to the next
          * item's (APV proxies at 119.94 fps: 6.197 s and 6.230 s, the latter 3 ms before a pre-rendered whip's first frame;
          * a 16–41 ms hold just before the whip, measured on the vivo).
          */
@@ -79,7 +46,9 @@ class FrameGrid(fps: Double) {
             fun ceilSlot(t: Long) = Math.round(Math.ceil((t + originUs - 0.5) / stepUs) * stepUs) - originUs
             var g = if (out != null && out >= tUs) out else ceilSlot(tUs)
             if (g < after) g = ceilSlot(after)
-            return if (g <= cap) g else maxOf(tUs, after, cap)
+            // (no slot left: 2 µs before the next item, a second such frame 1 µs – a frame belongs to the first slot at or
+            // after it, so both of an item's last two frames can find the next item's slot; times must keep rising)
+            return if (g <= cap) g else maxOf(tUs, after, cap - 1)
         }
 
         fun nearEnd(tUs: Long, endUs: Long, stepUs: Long): Boolean =
@@ -101,11 +70,83 @@ class FrameGrid(fps: Double) {
         /** A clip's video is read this much before its start (Playback's VIDEO_LEAD_US): its first frame may sit there. */
         const val LEAD_US = 1_000L
 
-        /** The kept frames' slot times for one stream of frame times – the export's result, for tests. */
-        fun keep(timesUs: List<Long>, fps: Double): List<Long> {
-            val g = FrameGrid(fps)
-            return timesUs.mapNotNull { t -> g.next(t)?.let { g.timeOf(it) } }
+        /**
+         * The shown frames' slot times for one segment's frame times ([SourceSampler] from the segment's start
+         * [segStartUs], nominal frame time [nominalUs]) – the reference for tests.
+         */
+        fun keep(timesUs: List<Long>, fps: Double, segStartUs: Long = timesUs.firstOrNull() ?: 0L, nominalUs: Long = 0L, segEndUs: Long = Long.MAX_VALUE): List<Long> {
+            val g = SourceSampler(fps)
+            g.startSegment(segStartUs, nominalUs, segEndUs)
+            return timesUs.mapNotNull { g.next(it) }
         }
+    }
+}
+
+/**
+ * Which source frame each slot of the timeline shows – one rule for the export, pre-rendering, playback's main player
+ * and its layers, so the same slot shows the same frame however the timeline is rendered (whole, in chunks, a transition
+ * window alone).
+ *
+ * Time bases: a decoded frame's **source time** (its buffer timestamp in the file – real times, so variable frame rates
+ * and 119.94 fps keep theirs) is mapped through the clip's own placement, in point and speed to its **timeline time** τ
+ * (in the effects: composition time + the composition's start). A rendered part maps by the same line (a slice only
+ * moves the in point along it), so τ doesn't depend on where a render begins. Slot k is at T_k = k / fps. A frame's
+ * **presentation time** is the slot it is first shown on; it holds until the next frame's.
+ *
+ * The rule: a frame belongs to the first slot at or after it (τ ≤ T_k + [FrameGrid.LEAD_US], the read-ahead), and slot k
+ * shows the first frame that belongs to it; a slot no frame belongs to (a source slower than the timeline) holds the
+ * frame before. So a frame is never shown before its time, at most one source frame older than the latest at the slot,
+ * and the decision for a frame depends only on its own τ and the frame before it (the later frames of a slot are
+ * dropped) – exact for any timestamps, no frame time guessed. Every render that has the frame before decides alike; a
+ * rendered part therefore reads from before its visible start (RenderCache's pre-roll).
+ *
+ * A segment's first frame (one less than a source frame time – [startSegment]'s nominal, or a slot – after the segment's
+ * start: at a clip's in point between two source frames nothing before the in point is read, in any render) shows from
+ * the segment's first slot. A frame whose slot is the segment's end or later shows on none of its own.
+ */
+class SourceSampler(fps: Double) {
+    private val grid = FrameGrid(fps)
+    val stepUs get() = grid.stepUs
+    private var segStart = Long.MIN_VALUE
+    private var segEnd = Long.MAX_VALUE
+    private var k0 = Long.MIN_VALUE
+    private var nominal = 0L
+    private var first = true
+    private var lastSlot = Long.MIN_VALUE
+
+    /**
+     * A segment begins at [segStartUs] (timeline); its source frames last [nominalUs] each on the timeline (0: not known);
+     * it ends at [segEndUs] (Long.MAX_VALUE: not known) – the next segment's first frame takes the slot there.
+     */
+    fun startSegment(segStartUs: Long, nominalUs: Long, segEndUs: Long = Long.MAX_VALUE) {
+        segStart = segStartUs
+        segEnd = segEndUs
+        k0 = grid.slotAtOrAfter(segStartUs - FrameGrid.LEAD_US)
+        nominal = nominalUs
+        reset()
+    }
+
+    /** A seek: the next frame has no frame before it. */
+    fun reset() {
+        first = true
+        lastSlot = Long.MIN_VALUE
+    }
+
+    /** The frame at [tauUs] (timeline): its presentation time (a slot, µs), or null when it is shown on no slot. */
+    fun next(tauUs: Long): Long? {
+        var c = grid.slotAtOrAfter(tauUs - FrameGrid.LEAD_US)
+        if (k0 != Long.MIN_VALUE) {
+            // the segment's first frame shows from its first slot
+            val firstTime = if (nominal > 0) nominal else Math.round(grid.stepUs)
+            if (first && c > k0 && tauUs < segStart + firstTime) c = k0
+            if (c < k0) c = k0
+        }
+        first = false
+        // a later frame of a slot already shown (slots only rise with τ: the frame before had this one)
+        if (lastSlot != Long.MIN_VALUE && c <= lastSlot) return null
+        if (segEnd != Long.MAX_VALUE && grid.timeOf(c) >= segEnd - FrameGrid.LEAD_US) return null
+        lastSlot = c
+        return grid.timeOf(c)
     }
 }
 
@@ -122,27 +163,31 @@ class FrameGrid(fps: Double) {
  */
 class LayerGrid(fps: Double) {
     private val grid = FrameGrid(fps)
+    private val sampler = SourceSampler(fps)
     private var segStart = Long.MIN_VALUE
     private var prevIn = Long.MIN_VALUE
     private var lastOut = Long.MIN_VALUE
 
     /** A seek, a new chain: the next frame starts over. */
     fun reset() {
-        grid.reset()
+        sampler.reset()
         segStart = Long.MIN_VALUE
         prevIn = Long.MIN_VALUE
         lastOut = Long.MIN_VALUE
     }
 
-    /** [segEndUs]: where the segment's item ends (Long.MAX_VALUE: not known) – its last frames are kept (FrameGrid.nearEnd). */
-    fun next(tUs: Long, segStartUs: Long, segEndUs: Long = Long.MAX_VALUE): Long? {
+    /**
+     * [segEndUs]: where the segment's item ends (Long.MAX_VALUE: not known) – its last frames are kept (FrameGrid.nearEnd);
+     * [nominalUs]: the segment's source frame time on the timeline (0: not known).
+     */
+    fun next(tUs: Long, segStartUs: Long, segEndUs: Long = Long.MAX_VALUE, nominalUs: Long = 0L): Long? {
         // another segment: its own stream (its pre-roll's times run on from the last one's, so time needn't go back)
-        if (segStartUs != segStart) { grid.reset(); segStart = segStartUs; lastOut = Long.MIN_VALUE }
+        if (segStartUs != segStart) { sampler.startSegment(segStartUs, nominalUs, segEndUs); segStart = segStartUs; lastOut = Long.MIN_VALUE }
         val step = if (prevIn != Long.MIN_VALUE && tUs > prevIn) tUs - prevIn else 0L
         prevIn = tUs
         val last = step > 0 && FrameGrid.nearEnd(tUs, segEndUs, step)
         val out = if (tUs < segStartUs - FrameGrid.LEAD_US) { if (tUs < grid.earliestUs(segStartUs) - grid.stepUs / 2) tUs else null }
-            else grid.next(tUs)?.let { grid.timeOf(it) }
+            else sampler.next(tUs)
         // the item's last frames: never dropped, never earlier than their own time
         val at = if (last) FrameGrid.lastFrameAt(tUs, out, segEndUs, lastOut, grid.stepUs) else out
         if (at != null) lastOut = at
@@ -163,17 +208,31 @@ class FillPlanner(
     fps: Double, private val originUs: Long, private val endUs: Long,
     /** Where slots are filled (timeline µs, the transitions' windows); elsewhere the frames are only kept or dropped. */
     private val windows: List<LongRange> = listOf(Long.MIN_VALUE..Long.MAX_VALUE),
+    /** The segment's start on the timeline and its source frame time (SourceSampler). */
+    private val segStartUs: Long = Long.MIN_VALUE, private val nominalUs: Long = 0L,
+    /**
+     * Where the item's frames end (timeline µs): an upper layer's piece plays on past [endUs] (Playback's UPPER_TAIL,
+     * hidden by the compositor), and the compositor's output follows those frames – they must come out (dropped, the
+     * timeline lost 0.2 s after a transition). Frames whose slot lies at or past it are dropped (the next item's first
+     * frame takes that slot).
+     */
+    private val itemEndUs: Long = endUs,
 ) : androidx.media3.effect.KlippFrameFill.Planner {
     private val grid = FrameGrid(fps)
+    private val sampler = SourceSampler(fps).also { if (segStartUs != Long.MIN_VALUE) it.startSegment(segStartUs, nominalUs, itemEndUs) }
     private var last = Long.MIN_VALUE
+    private var started = segStartUs != Long.MIN_VALUE
 
-    private fun filled(k: Long) = grid.timeOf(k).let { t -> windows.any { t in it } }
+    private fun filled(t: Long) = windows.any { t in it }
 
     override fun next(ptsUs: Long): LongArray {
-        val slot = grid.next(ptsUs + originUs) ?: return LongArray(0)
+        val tl = ptsUs + originUs
+        if (!started) { sampler.startSegment(tl, nominalUs, itemEndUs); started = true }
+        val at = sampler.next(tl) ?: return LongArray(0)
+        val slot = Math.round(at / grid.stepUs)
         val out = ArrayList<Long>()
-        if (last != Long.MIN_VALUE) for (k in last + 1 until slot) if (filled(k)) out += grid.timeOf(k) - originUs
-        out += grid.timeOf(slot) - originUs
+        if (last != Long.MIN_VALUE) for (k in last + 1 until slot) grid.timeOf(k).let { if (filled(it)) out += it - originUs }
+        out += at - originUs
         last = slot
         return out.toLongArray()
     }
@@ -183,13 +242,13 @@ class FillPlanner(
         val out = ArrayList<Long>()
         var k = last + 1
         // (slots strictly before the item's end: the next item's first frame takes the slot at it)
-        while (grid.timeOf(k) < endUs - FrameGrid.LEAD_US) { if (filled(k)) out += grid.timeOf(k) - originUs; k++ }
+        while (grid.timeOf(k) < endUs - FrameGrid.LEAD_US) { if (filled(grid.timeOf(k))) out += grid.timeOf(k) - originUs; k++ }
         last = Long.MIN_VALUE
         return out.toLongArray()
     }
 
     override fun reset() {
-        grid.reset()
+        sampler.reset()
         last = Long.MIN_VALUE
     }
 }
@@ -197,20 +256,26 @@ class FillPlanner(
 /**
  * A pre-rendered part's first frame on its first slot (KlippFrameFill, last in the chain): the muxer puts a file's
  * first frame at 0, so a part whose first frame came a slot after its start (a 30 fps source in a 60 fps timeline) was
- * played a slot early, all of it – and the frame rendered past its end was kept (measured on the vivo: a whip's chunk one
- * slot ahead of the export throughout). The first frame is also shown on the slots from the part's start [originUs]
- * (the timeline) up to its own – the export shows the frame before there, which the part doesn't have; the same frame
- * held. Once per render (an item's end doesn't start it over). Pure – tested in FrameGridTest.
+ * played a slot early, all of it. The part is read from before its start (RenderCache's pre-roll, [originUs] = where its
+ * composition begins); what the frame rate presents before the part's start [visibleUs] (timeline) is kept unseen
+ * (KlippFrameFill.UNSEEN), and the slots from the part's start up to its first own frame show the frame kept before –
+ * the frame the whole timeline holds there (a source slower than the timeline) – or, without one, the first frame
+ * itself. Once per render (an item's end doesn't start it over). Pure – tested in FrameGridTest.
  */
-class StartPinPlanner(fps: Double, private val originUs: Long) : androidx.media3.effect.KlippFrameFill.Planner {
+class StartPinPlanner(
+    fps: Double, private val originUs: Long,
+    /** Where the part is shown from (timeline µs; after a pre-roll later than [originUs]). */
+    private val visibleUs: Long = originUs,
+) : androidx.media3.effect.KlippFrameFill.Planner {
     private val stepUs = 1_000_000.0 / fps.coerceAtLeast(1.0)
-    private var first = true
+    private var shown = false
 
     override fun next(ptsUs: Long): LongArray {
-        if (!first) return longArrayOf(ptsUs)
-        first = false
+        if (shown) return longArrayOf(ptsUs)
+        if (ptsUs + originUs < visibleUs - FrameGrid.LEAD_US) return longArrayOf(androidx.media3.effect.KlippFrameFill.UNSEEN)
+        shown = true
         // the part's first slot, in the composition's time
-        val k0 = Math.ceil((originUs - 0.5) / stepUs).toLong()
+        val k0 = Math.ceil((visibleUs - 0.5) / stepUs).toLong()
         val out = ArrayList<Long>()
         var k = k0
         while (true) {

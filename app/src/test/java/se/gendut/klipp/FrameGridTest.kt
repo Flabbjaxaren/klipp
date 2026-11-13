@@ -47,16 +47,46 @@ class FrameGridTest {
     }
 
     private fun assertMatchesExport(c: Clip) {
-        val export = FrameGrid.keep(c.itemFrames, fps)
-        val (shown, all) = layer(c)
+        val export = FrameGrid.keep(c.itemFrames, fps, c.segStartUs, segEndUs = c.segEndUs)
+        val (shownAll, all) = layer(c)
+        // (the layer isn't told the segment's end here: a frame whose slot is the next segment's passes; the export drops it)
+        val shown = shownAll.filter { it < c.segEndUs - FrameGrid.LEAD_US }
         assertEquals("the export's frames, at the export's times", export, shown)
         // the timeline's common grid: every shown time a whole slot – also when the segment starts between two
         shown.forEach { assertEquals("on the grid: $it", 0L, it % step) }
         // pre-roll before the segment's first frame, everything rising (the video sink needs rising times)
         assertTrue("rising: $all", all.zipWithNext().all { (a, b) -> b > a })
-        // no slot skipped while the source has frames for it (a slower source leaves its own gaps)
-        val srcStepTl = 1e6 / (c.srcFps / c.speed)
-        if (srcStepTl <= step) assertTrue("no gaps: $shown", shown.zipWithNext().all { (a, b) -> b - a == step })
+        // the rule itself: every slot of the segment shows the latest source frame at or before it
+        assertSlotsHold(c.itemFrames, c.segStartUs, c.segEndUs, fps) { frames -> sampled(frames, fps, c.segStartUs, c.segEndUs) }
+    }
+
+    /** Each source frame with its presentation time (null: dropped), by the rule. */
+    private fun sampled(frames: List<Long>, rate: Double, segStart: Long, segEnd: Long): List<Pair<Long, Long?>> {
+        val g = se.gendut.klipp.engine.SourceSampler(rate)
+        g.startSegment(segStart, 0L, segEnd)
+        return frames.map { it to g.next(it) }
+    }
+
+    /**
+     * The reference, by brute force: slot k (T_k ≥ the segment's start, < its end) shows the first frame with
+     * T_k−1 + LEAD < τ ≤ T_k + LEAD; none there: the frame before (the segment's first slot: its first frame). The
+     * rule's frames held from their presentation time on must show exactly that in every slot – none missing, none extra.
+     */
+    private fun assertSlotsHold(frames: List<Long>, segStart: Long, segEnd: Long, rate: Double, rule: (List<Long>) -> List<Pair<Long, Long?>>) {
+        val st = 1e6 / rate
+        val out = rule(frames).filter { it.second != null }.map { it.first to it.second!! }
+        var k = Math.ceil((segStart - FrameGrid.LEAD_US) / st - 1e-6).toLong()
+        var want0: Long? = null
+        while (Math.round(k * st) < segEnd - FrameGrid.LEAD_US) {
+            val t = Math.round(k * st)
+            val prevT = Math.round((k - 1) * st)
+            val own = frames.firstOrNull { it > prevT + FrameGrid.LEAD_US && it <= t + FrameGrid.LEAD_US }
+            val want = if (t < segStart - FrameGrid.LEAD_US + st && want0 == null) frames.first() else own ?: want0
+            val got = out.lastOrNull { it.second <= t }?.first
+            assertEquals("slot $t", want, got)
+            want0 = want
+            k++
+        }
     }
 
     @Test fun normalSpeedAtTheTimelinesRate() = assertMatchesExport(Clip(4.48, 2.0, 3.28, 1.0, 25.0))
@@ -88,8 +118,8 @@ class FrameGridTest {
         val g = LayerGrid(fps)
         val a = Clip(4.48, 2.0, 1.5, 0.25, 120.0)
         val b = Clip(7.76, 7.0313, 2.0, 0.25, 120.0)
-        assertEquals(FrameGrid.keep(a.itemFrames, fps), layer(a, g).first)
-        assertEquals(FrameGrid.keep(b.itemFrames, fps), layer(b, g).first)
+        assertEquals(FrameGrid.keep(a.itemFrames, fps, a.segStartUs, segEndUs = a.segEndUs), layer(a, g).first.filter { it < a.segEndUs - FrameGrid.LEAD_US })
+        assertEquals(FrameGrid.keep(b.itemFrames, fps, b.segStartUs, segEndUs = b.segEndUs), layer(b, g).first.filter { it < b.segEndUs - FrameGrid.LEAD_US })
     }
 
     @Test fun aSeekStartsOverOnTheCommonGrid() {
@@ -129,7 +159,7 @@ class FrameGridTest {
         val rule = FrameRateEffect.Streams(fps, edges)
         val played = items.map { it.map { t -> t to rule.next(t) } }
         for ((k, item) in played.withIndex()) {
-            val export = FrameGrid.keep(items[k], fps)
+            val export = FrameGrid.keep(items[k], fps, if (k == 0) 0L else edges[k - 1], segEndUs = edges[k])
             // the item's last frame always comes out, at or after its own time (the player's end of item)
             val (lastIn, lastOut) = item.last()
             assertTrue("item $k: last frame out at $lastOut, in at $lastIn", lastOut != null && lastOut >= lastIn)
@@ -197,6 +227,17 @@ class FrameGridTest {
         assertTrue(out.containsAll(FrameGrid.keep(src, fps60)))
     }
 
+    @Test fun anUpperPiecesTailFramesPassTheFill() {
+        // an upper layer's transition piece plays 0.2 s past its end (UPPER_TAIL, hidden by the compositor), and the
+        // compositor's output follows its frames: they must come out, one per slot (build 89 dropped them – the 25 fps
+        // test timeline lost 5 slots after a push)
+        val src = (0 until 40).map { 3_680_000L + Math.round(it * 1e6 / 30) }.filter { it < 4_480_000L }
+        val p = se.gendut.klipp.engine.FillPlanner(fps, 0L, 4_280_000L, listOf(3_680_000L..4_280_000L), 3_680_000L, itemEndUs = 4_480_000L)
+        val out = src.flatMap { p.next(it).toList() } + p.end().toList()
+        // (the last source frame, at 4.447 s, belongs to 4.48 – the item's end: the next item's slot)
+        assertEquals((92L..111L).toList(), out.map { it / step })
+    }
+
     @Test fun aSourceAsFastAsTheTimelineNeedsNoFill() {
         val src = (0 until 30).map { 7_000_000L + it * step }
         val p = se.gendut.klipp.engine.FillPlanner(fps, 0L, 8_200_000L, listOf(7_000_000L..8_200_000L))
@@ -212,9 +253,10 @@ class FrameGridTest {
         // its own slot earlier than itself: the next slot instead (on the grid, not before its own time)
         val a = FrameGrid.lastFrameAt(6_196_667L, 6_183_333L, end, 6_150_000L, step60)
         assertTrue("$a", a >= 6_196_667L && slotOk(a) && a < end)
-        // after the last slot before the next item: the end-of-item frame, 1 µs before the next item's first
+        // after the last slot before the next item: the end-of-item frame, 2 µs before the next item's first (a second 1 µs)
         val b = FrameGrid.lastFrameAt(6_230_000L, null, end, a, step60)
-        assertEquals(end - 1, b)
+        assertEquals(end - 2, b)
+        assertEquals(end - 1, FrameGrid.lastFrameAt(6_231_000L, null, end, b, step60))
         // never before its own time, never at the next item's start (Media3: a frame at or after the last decoded one)
         assertTrue(b >= 6_230_000L && b < end)
         // the main player's rule over such an item: rising, every output on the grid but the last, which ends the item

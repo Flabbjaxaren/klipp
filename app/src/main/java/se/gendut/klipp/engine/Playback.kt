@@ -314,7 +314,8 @@ object CompositionBuilder {
             val transition = if (seg.hasFx) TransitionFxEffect(seg, time) else null
             val fill = if (fillSlots && transition != null && still == null && fps > 0.0)
                 androidx.media3.effect.KlippFrameFill(FillPlanner(fps, Math.round(plan.origin * 1e6), Math.round(seg.end * 1e6),
-                    (seg.windows + listOfNotNull(seg.fx)).map { w -> Math.round(w.t0 * 1e6)..Math.round(w.t1 * 1e6) })) else null
+                    (seg.windows + listOfNotNull(seg.fx)).map { w -> Math.round(w.t0 * 1e6)..Math.round(w.t1 * 1e6) },
+                    Math.round(seg.start * 1e6), nominalUs(itemUri, src.speed), Math.round((seg.end + tail(index)) * 1e6))) else null
             // green screen before the grade (the source's colors), the mask after, in the clip's own frame (follows its
             // motion); without a layer below the transparent parts become black
             val layer = c?.let { cl -> grades[cl.id]?.layer?.takeIf { it.hasAlpha } }
@@ -436,13 +437,43 @@ object CompositionBuilder {
         planTransform: ((LayerPlan) -> LayerPlan)? = null,
         /** Draw the transitions between two clips (export, pre-render); playback: false, see [playPlan]. */
         transitions: Boolean = true,
-    ): Built? = buildPlayable(s.playable(), uriOf, look, master, overlays, forceSingle, grades, fx, meters, hdrMode, videoUriOf, liveGrades, output, nodeCache, previewShort, range, planTransform, transitions)
+        /**
+         * A pre-rendered part read from before its start ([range] begins earlier – RenderCache's pre-roll): only frames
+         * from this timeline time on come out (seconds; null: all of [range]).
+         */
+        visibleFrom: Double? = null,
+    ): Built? = buildPlayable(s.playable(), uriOf, look, master, overlays, forceSingle, grades, fx, meters, hdrMode, videoUriOf, liveGrades, output, nodeCache, previewShort, range, planTransform, transitions, visibleFrom)
+
+    /** A source frame's time on the timeline (µs) for a file played at [speed] (0: the file's rate not known). */
+    private fun nominalUs(uri: Uri?, speed: Double): Long {
+        val f = uri?.let { MediaProbe.cached(it)?.fps }?.takeIf { it > 0.0 } ?: return 0L
+        val sp = kotlin.math.abs(speed).takeIf { it > 1e-6 } ?: return 0L
+        return Math.round(1e6 / (f * sp))
+    }
+
+    /**
+     * The bottom layer's segments for the frame rate (FrameRateEffect.Streams): their starts and ends in the composition's
+     * time (an end is a gap's start), and each one's source frame time – [0] for the stream from the composition's start.
+     */
+    private fun streamSegments(plan: LayerPlan, videoUriOf: (Long) -> Uri?): Pair<LongArray, LongArray> {
+        val bottom = plan.layers.lastOrNull()?.segs.orEmpty()
+        fun comp(t: Double) = Math.round((t - plan.origin) * 1e6)
+        val starts = (bottom.map { it.start } + bottom.map { it.end }).map(::comp).filter { it > 0 }.distinct().sorted()
+        fun nominalAt(c: Long): Long {
+            val seg = bottom.firstOrNull { comp(it.start) <= c && c < comp(it.end) } ?: return 0L
+            val m = seg.src as? SegSrc.Media ?: return 0L
+            return nominalUs(videoUriOf(m.item), m.speed)
+        }
+        val nominals = LongArray(starts.size + 1) { i -> nominalAt(if (i == 0) 0L else starts[i - 1]) }
+        return starts.toLongArray() to nominals
+    }
 
     private fun buildPlayable(
         s: Snapshot, uriOf: (Long) -> Uri?, look: Look, master: Float, overlays: Boolean, forceSingle: Boolean,
         grades: Map<Long, ClipGrade>, fx: FxRegistry?, meters: Boolean, hdrMode: Int, videoUriOf: (Long) -> Uri?,
         liveGrades: Boolean, output: ExportSettings?, nodeCache: Boolean, previewShort: Int,
         range: ClosedFloatingPointRange<Double>? = null, planTransform: ((LayerPlan) -> LayerPlan)? = null, transitions: Boolean = true,
+        visibleFrom: Double? = null,
     ): Built? {
         val q = s.sequence ?: return null
         val total = q.duration
@@ -504,18 +535,17 @@ object CompositionBuilder {
             // decoded frame – more than the timeline has, and off its grid next to the pre-rendered pieces (a hitch at
             // each switch); the export has always kept one frame per slot. Its items' starts (and ends: a gap is an
             // item too) start the rule over, as the export's rebuilt chain does (composition time = timeline − origin)
-            if (output == null && s.fps > 0.0) {
-                val bottom = plan.layers.lastOrNull()?.segs.orEmpty()
-                val starts = (bottom.map { it.start } + bottom.map { it.end }).map { Math.round((it - plan.origin) * 1e6) }.filter { it > 0 }.distinct().sorted()
-                fx += FrameRateEffect(s.fps, starts.toLongArray(), Math.round(plan.origin * 1e6))
-            }
+            // (the segments, with their source frame times, are the same in the export: one rule, see SourceSampler)
+            val (starts, nominals) = streamSegments(plan, videoUriOf)
+            if (output == null && s.fps > 0.0) fx += FrameRateEffect(s.fps, starts, nominals, itemEnds = true, originUs = Math.round(plan.origin * 1e6))
             // the export's frame rate and size last (titles and captions are already drawn at the project size)
             if (output != null) {
                 // always: clips can have a different (or variable) frame rate than the project – the file gets a constant one
                 val outFps = output.outputFps(s.fps)
-                if (outFps > 0.0) fx += FrameRateEffect(outFps, originUs = Math.round(plan.origin * 1e6))
+                if (outFps > 0.0) fx += FrameRateEffect(outFps, starts, nominals, itemEnds = false, originUs = Math.round(plan.origin * 1e6))
                 // a part of the timeline (pre-rendering): its first frame on its first slot (see StartPinPlanner)
-                if (outFps > 0.0 && range != null) fx += androidx.media3.effect.KlippFrameFill(StartPinPlanner(outFps, Math.round(plan.origin * 1e6)))
+                if (outFps > 0.0 && range != null) fx += androidx.media3.effect.KlippFrameFill(
+                    StartPinPlanner(outFps, Math.round(plan.origin * 1e6), Math.round((visibleFrom ?: plan.origin) * 1e6)))
                 val (ow, oh) = output.outputSize(plan.width, plan.height)
                 if (ow != plan.width || oh != plan.height) fx += androidx.media3.effect.Presentation.createForWidthAndHeight(ow, oh, androidx.media3.effect.Presentation.LAYOUT_SCALE_TO_FIT)
             }

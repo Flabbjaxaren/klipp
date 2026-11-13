@@ -31,6 +31,12 @@ import java.util.ArrayDeque;
 @UnstableApi
 public final class KlippFrameFill implements GlEffect {
 
+  /**
+   * A planner's answer for a frame kept but not shown ({@code [UNSEEN]}): it becomes the frame repeated into the slots
+   * before the next one (a pre-rendered part's pre-roll – see Klipp's StartPinPlanner).
+   */
+  public static final long UNSEEN = Long.MIN_VALUE;
+
   /** Where each source frame is shown (presentation times, µs). */
   public interface Planner {
     /** The times for the frame at {@code ptsUs}: the slots repeating the kept frame before, then its own; empty: dropped. */
@@ -109,8 +115,13 @@ public final class KlippFrameFill implements GlEffect {
     }
 
     private void drain() {
-      while (!pending.isEmpty() && sink.outputFree()) {
+      while (!pending.isEmpty() && (pending.peek()[1] == UNSEEN || sink.outputFree())) {
         long[] p = pending.poll();
+        if (p[1] == UNSEEN) {
+          sink.keepCurrent();
+          hasKept = true;
+          continue;
+        }
         sink.emit(p[0] == 1 || !hasKept, p[1]);
         if (p[2] == 1) {
           sink.keepCurrent();

@@ -31,6 +31,8 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
 - `KlippFrameFill.java` (new): a frame for every slot of the timeline's frame rate before a transition is drawn, in
   the export and pre-rendering (a whip over a 30 fps source in a 60 fps timeline moved at 30). Uses
   `FrameCacheGlShaderProgram` (package-private, hence here); its bookkeeping (`Queue`) is plain and tested in the app.
+  A planner may answer `UNSEEN` for a frame: it is kept (repeated into the slots before the next one) but not shown –
+  a pre-rendered part's pre-roll, so the part's first slots hold the frame the whole timeline holds there.
 
 The resources (`res/raw`, shaders) and the manifest come from the AAR file of the same version.
 

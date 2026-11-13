@@ -81,17 +81,18 @@ class ExportSettingsTest {
         assertEquals(250, FrameRateEffect.keep(frames(25.0, 10.0), 25.0).size)
         // variable (25 and 30 mixed, like the test clip) → increasing, unique, no gaps under one frame
         val vfr = frames(25.0, 3.0) + frames(30.0, 3.0).map { it + 3_000_000 }
-        val out = FrameRateEffect.keep(vfr, 25.0)
+        val out = se.gendut.klipp.engine.FrameGrid.keep(vfr, 25.0, segStartUs = 0L, segEndUs = 6_000_000L)
         assertTrue(out.zipWithNext().all { (a, b) -> b - a == 40_000L })
         assertEquals(150, out.size)
     }
 
     @Test
     fun `a clip's first frame takes the slot of the cut`() {
-        // a 30 fps clip in 25 fps whose first frame comes 30 ms after the cut: no slot stays empty
+        // a 30 fps clip in 25 fps whose first frame comes 30 ms after the cut: the cut's slot shows it (and the slot after,
+        // 1.04 s, too: the next frame comes at 1.063 s – each slot the latest frame at or before it, see SourceSampler)
         val b = (0 until 30).map { 1_030_000L + it * 1_000_000L / 30 }
-        val out = FrameRateEffect.keep(b, 25.0).map { it / 40_000 }
-        assertEquals((25L until 25L + out.size).toList(), out)
+        val out = se.gendut.klipp.engine.FrameGrid.keep(b, 25.0, segStartUs = 1_000_000L).map { it / 40_000 }
+        assertEquals(listOf(25L) + (27L until 26L + out.size).toList(), out)
         // a slower source keeps its own empty slots
         assertEquals(240, FrameRateEffect.keep((0 until 240).map { it * 1_000_000L / 24 }, 25.0).size)
     }

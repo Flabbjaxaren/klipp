@@ -73,7 +73,7 @@ object RenderCache {
         val longer: List<Pair<String, Double>> = emptyList(),
     )
 
-    private const val VERSION = 7
+    private const val VERSION = 8
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
     /** The disk space for the files. */
@@ -340,6 +340,31 @@ object RenderCache {
      * Media3's encoder path loses a final frame sent just before the end of input (seen on the vivo: a 60 fps whip's
      * outgoing chunk without its last slot, a 17 ms hold at the cut in every playback).
      */
+    /**
+     * How far before a part starting at [a] it is read (s): the frame rate's rule chooses a frame by its time and the
+     * frame before it (SourceSampler), and a slot no frame belongs to holds the frame before, so a part starting inside
+     * a clip needs the source frames before its start – read there, its first slots get the frames the whole timeline
+     * has there (before, the stream began with the part: another source frame on its first slots than in the export).
+     * Two and a half source frames of the slowest clip playing at [a] and a slot more; nothing at the timeline's start.
+     * The frames before [a] are kept unseen (StartPinPlanner).
+     */
+    internal fun preRoll(s: Snapshot, a: Double): Double {
+        if (a <= 1e-9) return 0.0
+        val q = s.sequence ?: return 0.0
+        val slot = 1.0 / (s.fps.takeIf { it > 0.0 } ?: 25.0)
+        var p = 0.0
+        for (t in q.video) for (c in t.clips) {
+            if (!c.enabled || c.start > a + 1e-9 || c.start + c.duration <= a + 1e-9) continue
+            val f = s.media.firstOrNull { it.id == c.item }?.fps?.takeIf { it > 0.0 }
+            val sp = kotlin.math.abs(c.speed).takeIf { it > 1e-6 } ?: 1.0
+            p = maxOf(p, if (f == null) PRE_ROLL_UNKNOWN else 2.5 / (f * sp) + slot)
+        }
+        return minOf(p, PRE_ROLL_MAX, a)
+    }
+
+    private const val PRE_ROLL_UNKNOWN = 0.25
+    private const val PRE_ROLL_MAX = 1.0
+
     private fun renderEnd(s: Snapshot, c: Chunk): Double {
         val total = s.sequence?.duration ?: return c.b
         val f = s.fps.takeIf { it > 0.0 } ?: return c.b
@@ -413,16 +438,24 @@ object RenderCache {
     ): Result<Unit> {
         val short = VideoPipeline.previewShort
         val settings = export ?: renderSettings(s, short)
+        // the same reading as a chunk's: from before [a] and one frame past [b] when the timeline goes on
+        val end = renderEnd(s, Chunk(a, b, "", false))
         FrameHolds.await(context, FrameHolds.holdsOf(s, uriOf))
         Reversals.await(context, s, uriOf)
         val anyHdr = withContext(Dispatchers.IO) { CompositionBuilder.anyHdr(context, s, probe = true, uriOf = uriOf) }
         val built = CompositionBuilder.buildFull(
             s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
             videoUriOf = { id -> uriOf(id)?.let { if (export == null) Proxies.videoUri(it) else it } },
-            previewShort = if (export == null) short else 0, range = a..b, output = settings,
+            previewShort = if (export == null) short else 0, range = (a - preRoll(s, a))..end, visibleFrom = a, output = settings,
         ) ?: return Result.failure(IllegalStateException("nothing to render in $a–$b"))
         out.delete()
-        return Exporter.transform(context, built.composition, out, settings, tenBit = false, note = false) { }
+        if (end <= b) return Exporter.transform(context, built.composition, out, settings, tenBit = false, note = false) { }
+        // as a chunk: one frame past the end, cut away again (see renderEnd)
+        val tmp = File(out.path + ".tmp")
+        tmp.delete()
+        val r = Exporter.transform(context, built.composition, tmp, settings, tenBit = false, note = false) { }
+        if (r.isFailure) { tmp.delete(); return r }
+        return runCatching { concat(listOf(tmp to 0.0), out, limitUs = Math.round((b - a) * 1e6) - 500) }.also { tmp.delete() }
     }
 
     private fun shiftSrc(src: SegSrc, by: Double): SegSrc = when (src) {
@@ -528,8 +561,8 @@ object RenderCache {
                 if (isReady(c)) { done += c.b - c.a; continue }
                 val built = CompositionBuilder.buildFull(
                     s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
-                    videoUriOf = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }, previewShort = short, range = c.a..renderEnd(s, c),
-                    output = renderSettings(s, short),
+                    videoUriOf = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }, previewShort = short,
+                    range = (c.a - preRoll(s, c.a))..renderEnd(s, c), visibleFrom = c.a, output = renderSettings(s, short),
                 ) ?: run { done += c.b - c.a; continue }
                 val tmp = File(d, "${c.hash}.tmp")
                 // one more attempt if it failed (the encoder can be busy for a while, e.g. by an export)

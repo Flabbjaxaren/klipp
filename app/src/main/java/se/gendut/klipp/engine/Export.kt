@@ -176,6 +176,10 @@ object EncoderCaps {
 @OptIn(UnstableApi::class)
 class FrameRateEffect(
     val fps: Double, val startsUs: LongArray = LongArray(0),
+    /** Per segment (see [Streams]): its source frame time on the timeline. */
+    val nominalUs: LongArray = LongArray(0),
+    /** Playback (see [Streams]). */
+    val itemEnds: Boolean = true,
     /**
      * Where the composition's time 0 lies on the timeline (µs): a render of a part (a pre-rendered chunk) has its slots
      * on the timeline's grid, not counted from its own start – a chunk starting between two slots (a 25 fps timeline
@@ -183,16 +187,15 @@ class FrameRateEffect(
      */
     val originUs: Long = 0L,
 ) : androidx.media3.effect.GlEffect {
-    override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram = Program(fps, startsUs, originUs)
+    override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram =
+        Program(Streams(fps, startsUs, originUs, nominalUs, itemEnds && startsUs.isNotEmpty()))
 
     /**
      * Frames that aren't needed are handed back at once – as Media3's own frame dropping does: the input texture is
      * released to the stage before and the next frame is asked for (the frame never reaches the output, so this stage
      * holds nothing). The others pass through unchanged (only the timestamp changes).
      */
-    private class Program(fps: Double, startsUs: LongArray, originUs: Long) : androidx.media3.effect.PassthroughShaderProgram() {
-        private val rule = Streams(fps, startsUs, originUs)
-
+    private class Program(private val rule: Streams) : androidx.media3.effect.PassthroughShaderProgram() {
         override fun queueInputFrame(gl: androidx.media3.common.GlObjectsProvider, tex: androidx.media3.common.GlTextureInfo, presentationTimeUs: Long) {
             val out = rule.next(presentationTimeUs)
             if (out == null) {
@@ -214,27 +217,38 @@ class FrameRateEffect(
      * ([startsUs], playback) an item's last frames are kept at or after their own time (FrameGrid.nearEnd); the export
      * passes none.
      */
-    class Streams(fps: Double, private val startsUs: LongArray, private val originUs: Long = 0L) {
+    class Streams(
+        fps: Double, private val startsUs: LongArray, private val originUs: Long = 0L,
+        /** Each segment's source frame time on the timeline (µs, 0: not known): [0] before the first start, [i + 1] from startsUs[i]. */
+        private val nominalUs: LongArray = LongArray(0),
+        /** Playback: an item's last frames are kept for Media3's end of item (FrameGrid.nearEnd); the export doesn't need it. */
+        private val itemEnds: Boolean = startsUs.isNotEmpty(),
+    ) {
         private val grid = FrameGrid(fps)
-        private var nextStart = -1
+        private val sampler = SourceSampler(fps)
+        private var seg = Int.MIN_VALUE
         private var prevIn = Long.MIN_VALUE
         private var lastOut = Long.MIN_VALUE
 
-        fun reset() { grid.reset(); nextStart = -1; prevIn = Long.MIN_VALUE; lastOut = Long.MIN_VALUE }
+        fun reset() { sampler.reset(); seg = Int.MIN_VALUE; prevIn = Long.MIN_VALUE; lastOut = Long.MIN_VALUE }
 
         fun next(tUs: Long): Long? {
-            // the next item's start: its first frame (read up to LEAD early) begins a new stream
-            if (nextStart < 0) nextStart = startsUs.indexOfFirst { it - FrameGrid.LEAD_US > tUs }.let { if (it < 0) startsUs.size else it }
-            else if (nextStart < startsUs.size && tUs >= startsUs[nextStart] - FrameGrid.LEAD_US) {
-                grid.reset()
-                prevIn = Long.MIN_VALUE
-                while (nextStart < startsUs.size && tUs >= startsUs[nextStart] - FrameGrid.LEAD_US) nextStart++
+            // the segment the frame belongs to (its first frame is read up to LEAD early); a new one starts a new stream
+            var i = -1
+            while (i + 1 < startsUs.size && tUs >= startsUs[i + 1] - FrameGrid.LEAD_US) i++
+            if (i != seg) {
+                val fresh = seg != Int.MIN_VALUE
+                sampler.startSegment((if (i < 0) 0L else startsUs[i]) + originUs, nominalUs.getOrElse(i + 1) { 0L },
+                    if (i + 1 < startsUs.size) startsUs[i + 1] + originUs else Long.MAX_VALUE)
+                // (after a seek the stream picks up inside its segment: no frame before it – see SourceSampler)
+                if (fresh) prevIn = Long.MIN_VALUE
+                seg = i
             }
             val step = if (prevIn != Long.MIN_VALUE && tUs > prevIn) tUs - prevIn else 0L
             prevIn = tUs
-            val end = if (nextStart < startsUs.size) startsUs[nextStart] else Long.MAX_VALUE
-            val out = grid.next(tUs + originUs)?.let { grid.timeOf(it) - originUs }
-            val at = if (step > 0 && FrameGrid.nearEnd(tUs, end, step)) FrameGrid.lastFrameAt(tUs, out, end, lastOut, grid.stepUs, originUs) else out
+            val end = if (i + 1 < startsUs.size) startsUs[i + 1] else Long.MAX_VALUE
+            val out = sampler.next(tUs + originUs)?.let { it - originUs }
+            val at = if (itemEnds && step > 0 && FrameGrid.nearEnd(tUs, end, step)) FrameGrid.lastFrameAt(tUs, out, end, lastOut, grid.stepUs, originUs) else out
             if (at != null) lastOut = at
             return at
         }
