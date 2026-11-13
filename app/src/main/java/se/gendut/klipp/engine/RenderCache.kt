@@ -73,7 +73,7 @@ object RenderCache {
         val longer: List<Pair<String, Double>> = emptyList(),
     )
 
-    private const val VERSION = 4
+    private const val VERSION = 5
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
     /** The disk space for the files. */
@@ -322,7 +322,20 @@ object RenderCache {
     }
 
     /** The files (each with its start time, s) one after another in one file – same codec and format. */
-    private fun concat(parts: List<Pair<File, Double>>, out: File) {
+    /**
+     * Where a chunk is rendered to: one frame past its end [Chunk.b] when the timeline goes on (cut away after, so the
+     * file holds exactly [a, b)). Rendered only to b, the chunk's last item ended the whole render, and the frame the
+     * effects sent last – a transition's frame repeated into the slot before the edit point – didn't reach the file:
+     * Media3's encoder path loses a final frame sent just before the end of input (seen on the vivo: a 60 fps whip's
+     * outgoing chunk without its last slot, a 17 ms hold at the cut in every playback).
+     */
+    private fun renderEnd(s: Snapshot, c: Chunk): Double {
+        val total = s.sequence?.duration ?: return c.b
+        val f = s.fps.takeIf { it > 0.0 } ?: return c.b
+        return if (c.b + 1.0 / f <= total + 1e-9) c.b + 1.0 / f else c.b
+    }
+
+    private fun concat(parts: List<Pair<File, Double>>, out: File, limitUs: Long = Long.MAX_VALUE) {
         var muxer: android.media.MediaMuxer? = null
         var track = -1
         val buf = java.nio.ByteBuffer.allocate(8 * 1024 * 1024)
@@ -346,6 +359,8 @@ object RenderCache {
                         val n = ex.readSampleData(buf, 0)
                         if (n < 0) break
                         val pts = ex.sampleTime
+                        // (a single part cut at its end: frames at or past the limit are left out)
+                        if (pts + Math.round(offset * 1e6) >= limitUs) { ex.advance(); continue }
                         if (count == 0) firstPts = pts
                         lastPts = pts; maxPts = maxOf(maxPts, pts); count++
                         info.set(0, n, pts + off, if (ex.sampleFlags and android.media.MediaExtractor.SAMPLE_FLAG_SYNC != 0) android.media.MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
@@ -502,7 +517,7 @@ object RenderCache {
                 if (isReady(c)) { done += c.b - c.a; continue }
                 val built = CompositionBuilder.buildFull(
                     s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
-                    videoUriOf = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }, previewShort = short, range = c.a..c.b,
+                    videoUriOf = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }, previewShort = short, range = c.a..renderEnd(s, c),
                     output = renderSettings(s, short),
                 ) ?: run { done += c.b - c.a; continue }
                 val tmp = File(d, "${c.hash}.tmp")
@@ -533,6 +548,13 @@ object RenderCache {
                     attempt++
                 }
                 if (r.isFailure) { tmp.delete(); return Result.failure(r.exceptionOrNull()!!) }
+                // the frame rendered past the chunk's end (see renderEnd) is cut away again: the chunk holds [a, b)
+                if (renderEnd(s, c) > c.b) {
+                    val cut = File(d, "${c.hash}.cut")
+                    val ok = runCatching { concat(listOf(tmp to 0.0), cut, limitUs = Math.round((c.b - c.a) * 1e6) - 500) }.isSuccess
+                    tmp.delete()
+                    if (!ok || !cut.renameTo(tmp)) { cut.delete(); return Result.failure(IllegalStateException("could not cut the chunk")) }
+                }
                 val f = File(d, "${c.hash}.mp4")
                 if (!tmp.renameTo(f)) { tmp.delete(); return Result.failure(IllegalStateException("could not save")) }
                 files[idOf(c.hash)] = f
