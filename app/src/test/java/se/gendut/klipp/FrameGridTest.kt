@@ -103,14 +103,18 @@ class FrameGridTest {
         assertTrue(out.map { it.second }.zipWithNext().all { (a, b) -> b - a == step })
     }
 
-    @Test fun preRollNeverReachesTheSegmentsFirstSlot() {
-        // segment starting 10 ms after a slot: pre-roll frames in that slot would come after (or on) the first frame
-        val c = Clip(8.37, 7.03, 1.0, 0.25, 120.0)
-        val g = LayerGrid(fps)
-        val first = g.earliestUs(c.segStartUs)
-        c.frames.filter { it < c.segStartUs - FrameGrid.LEAD_US }.forEach { t ->
-            val at = g.next(t, c.segStartUs)
-            if (t >= first) assertEquals(null, at) else assertEquals(t, at)
+    @Test fun preRollKeepsHalfASlotFromTheSegmentsFirstFrame() {
+        // pre-roll frames close to the first slot would be released for the same refresh as the segment's first frame
+        // (seen on the vivo: 8.0733 s unmoved and 8.1067 s moved to 8.08 s, both for one refresh): dropped
+        for (c in listOf(Clip(8.37, 7.03, 1.0, 0.25, 120.0), Clip(8.08, 7.11, 1.0, 0.25, 120.0), Clip(8.08, 2.0, 1.0, 1.0, 30.0))) {
+            val g = LayerGrid(fps)
+            val first = g.earliestUs(c.segStartUs)
+            c.frames.filter { it < c.segStartUs - FrameGrid.LEAD_US }.forEach { t ->
+                val at = g.next(t, c.segStartUs)
+                if (t >= first - step / 2) assertEquals(null, at) else assertEquals(t, at)
+            }
+            val (_, all) = layer(c)
+            assertTrue("half a slot before the first: $all", all.zipWithNext().all { (a, b) -> b - a >= minOf(step / 2, Math.round(1e6 / (c.srcFps / c.speed)) - 1) })
         }
     }
 
@@ -134,5 +138,20 @@ class FrameGridTest {
         val out = c.itemFrames.filter { it >= 8_000_000L }.mapNotNull { rule.next(it) }
         out.forEach { assertEquals(0L, it % step) }
         assertTrue(out.zipWithNext().all { (a, b) -> b - a == step })
+    }
+
+    @Test fun onlyAClipWhoseFramesAlreadySitOnTheGridSkipsIt() {
+        assertTrue(FrameGrid.onGrid(12.0, 3.0, 1.0, 25.0, fps))
+        assertTrue(FrameGrid.onGrid(12.04, 3.08, 1.0, 25.0, fps))
+        // a start between two slots, an in point between two source frames
+        assertEquals(false, FrameGrid.onGrid(12.02, 3.0, 1.0, 25.0, fps))
+        assertEquals(false, FrameGrid.onGrid(12.0, 3.013, 1.0, 25.0, fps))
+        // another speed or rate, or a rate not known
+        assertEquals(false, FrameGrid.onGrid(12.0, 3.0, 0.25, 25.0, fps))
+        assertEquals(false, FrameGrid.onGrid(12.0, 3.0, 1.0, 120.0, fps))
+        assertEquals(false, FrameGrid.onGrid(12.0, 3.0, 1.0, 0.0, fps))
+        // and where it says on the grid, the rule indeed keeps every frame at its own time
+        val c = Clip(12.04, 3.08, 2.0, 1.0, 25.0, prerollS = 0.0)
+        assertEquals(c.itemFrames, FrameGrid.keep(c.itemFrames, fps))
     }
 }

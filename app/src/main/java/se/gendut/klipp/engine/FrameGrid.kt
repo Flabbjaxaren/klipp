@@ -51,6 +51,19 @@ class FrameGrid(fps: Double) {
     fun earliestUs(startUs: Long): Long = timeOf(Math.floor(startUs / stepUs).toLong())
 
     companion object {
+        /**
+         * Whether a clip's frames already fall on the timeline's grid (then the grid changes nothing): played at speed 1,
+         * at the timeline's rate, with its source frames' phase on the grid's – a segment starting between two slots, or
+         * an in point between two source frames, puts every frame off it. [srcFps] 0 = not known: assumed off the grid.
+         */
+        fun onGrid(segStartS: Double, srcInS: Double, speed: Double, srcFps: Double, fps: Double): Boolean {
+            if (fps <= 0.0) return true
+            if (srcFps <= 0.0 || kotlin.math.abs(speed - 1.0) > 1e-3 || kotlin.math.abs(srcFps - fps) > 0.01) return false
+            // source frame k is at k / srcFps in the file: on the timeline at segStart + k / fps - srcIn
+            val phase = (segStartS - srcInS) * fps
+            return kotlin.math.abs(phase - Math.round(phase)) * 1e6 / fps <= LEAD_US
+        }
+
         /** A clip's video is read this much before its start (Playback's VIDEO_LEAD_US): its first frame may sit there. */
         const val LEAD_US = 1_000L
 
@@ -66,7 +79,9 @@ class FrameGrid(fps: Double) {
  * A layer player's frames on the timeline grid (the edit point layer and the upper tracks). A layer item begins before
  * its segment (the edit point layer's pre-roll, played unseen), so per frame:
  * - before the segment ([FrameGrid.LEAD_US] early, as the export reads it): pre-roll, passed on at its own time – unless
- *   it would reach the segment's first slot, where it would come after (or on) the segment's first frame: dropped;
+ *   it lies within half a slot of the segment's first slot: it would be released for the same display refresh as the
+ *   segment's first frame (moved there from a later source frame), and the layer, reading which frame its view holds
+ *   by release time, took the pre-roll one and showed itself a frame late (vivo, whip at 25 %): dropped;
  * - from the segment on: the [FrameGrid] rule, the grid's stream beginning with the segment's first frame (as the
  *   export's item).
  * [next] gives the frame's presentation time on the timeline, or null to drop it. Pure – tested in FrameGridTest.
@@ -84,7 +99,7 @@ class LayerGrid(fps: Double) {
     fun next(tUs: Long, segStartUs: Long): Long? {
         // another segment: its own stream (its pre-roll's times run on from the last one's, so time needn't go back)
         if (segStartUs != segStart) { grid.reset(); segStart = segStartUs }
-        if (tUs < segStartUs - FrameGrid.LEAD_US) return if (tUs < grid.earliestUs(segStartUs)) tUs else null
+        if (tUs < segStartUs - FrameGrid.LEAD_US) return if (tUs < grid.earliestUs(segStartUs) - grid.stepUs / 2) tUs else null
         return grid.next(tUs)?.let { grid.timeOf(it) }
     }
 

@@ -515,14 +515,14 @@ private fun LayerVideo(
         if (pv <= 0) null else se.gendut.klipp.engine.CompositionBuilder.previewSize(plan.width, plan.height, pv)
             .let { (pw, ph) -> se.gendut.klipp.engine.CompositionBuilder.previewShortSide(short, pw, ph) }
     }
-    // the grid where the layer's frames can fall off it: a changed speed or a clip at another rate than the timeline's;
-    // with effects always (they are drawn anyway). Without either the decoder draws straight onto the view, no GL pass
+    // the grid where the layer's frames can fall off it (FrameGrid.onGrid: speed, rate, a start or in point between
+    // frames); with effects always (they are drawn anyway). Otherwise the decoder draws straight onto the view, no GL pass
     val projectFps = controller.snapshot.fps
     val offGrid = remember(segs, projectFps) {
         projectFps > 0.0 && segs.any { sg ->
             val m = sg.src as? SegSrc.Media ?: return@any false
             val f = controller.snapshot.media.firstOrNull { it.id == m.item }?.fps ?: 0.0
-            abs(m.speed - 1.0) > 1e-3 || (f > 0.0 && abs(f - projectFps) > 0.01)
+            !se.gendut.klipp.engine.FrameGrid.onGrid(sg.start, m.srcIn, m.speed, f, projectFps)
         }
     }
     val layerName = layer.name
@@ -1058,7 +1058,8 @@ private class ReleasedFrames(private val ramp: EarlyRamp? = null) : androidx.med
     /** The presentation time of the frame released for [releaseNs] (a SurfaceTexture's timestamp); null = not among the last ones. */
     @Synchronized fun ptsAt(releaseNs: Long): Long? {
         if (releaseNs == 0L) return null
-        for (j in 0 until minOf(n, 16)) if (at[j] == releaseNs) return pts[j]
+        // newest first: two frames released for the same refresh – the view holds the later one
+        for (k in 1..minOf(n, 16)) { val j = (n - k) % 16; if (at[j] == releaseNs) return pts[j] }
         return null
     }
 }
