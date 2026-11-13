@@ -229,9 +229,11 @@ class TransitionsTest {
         assertEquals(0f, o.at(10.0).dx, 1e-4f)
         assertEquals(-0.0949f, o.at(10.1).dx, 2e-3f)
         assertEquals(-0.1905f, o.at(cut - 1e-9).dx, 2e-3f)
-        assertEquals(46.5f / 1920f, o.at(cut - 1e-9).blurX, 1e-3f)
+        // smear: × √12 (a Gaussian's spread as a box)
+        val box = kotlin.math.sqrt(12f) / 1920f
+        assertEquals(46.5f * box, o.at(cut - 1e-9).blurX, 1e-3f)
         assertEquals(0.3915f, i.at(cut).dx, 2e-3f)
-        assertEquals(100f / 1920f, i.at(cut).blurX, 1e-4f)
+        assertEquals(100f * box, i.at(cut).blurX, 1e-4f)
         assertEquals(0.0667f, i.at(cut + 0.1).dx, 2e-3f)
         assertEquals(0.0107f, i.at(cut + 0.2).dx, 2e-3f)
         assertEquals(0f, i.at(10.0 + WhipCurve.TOTAL_S).dx, 1e-4f)

@@ -170,7 +170,7 @@ data class SegFx(
         /** Exposure time of the zoom's motion blur: a 360° shutter at 25 fps. */
         const val SHUTTER_S = 1f / 25f
         /** The version of the moves above, in the render cache's keys: raise it when a transition's look changes. */
-        const val LOOK = 5
+        const val LOOK = 6
         /** How far the push and the whip have come at the edit point: about where the speeds on either side meet. */
         const val THROWN = 0.7f
         /** The most smear (the zoom's in log scale, the turn's in radians) – short transitions move very fast. */
@@ -222,7 +222,8 @@ data class SegFx(
  * The whip's move (its shift,
  * mirrored edges and smear on the outgoing and incoming clip; 0.5 s, the cut after 0.133 s). The
  * curves are Bézier segments – each [Cubic] is one segment's control points in (seconds, value),
- * positions as a shift of the picture's centre in frame widths, blurs in pixels of a 1920 wide frame.
+ * positions as a shift of the picture's centre in frame widths, blurs as a smear spread in pixels of a 1920 wide
+ * frame (see [SMEAR_PER_PX]).
  *
  * The base move has one length; here it is stretched with the transition's length ([TOTAL_S] = ×1) and laid
  * around the edit point – the outgoing move ends there, the incoming one starts there – and pressed into the part before
@@ -248,6 +249,13 @@ object WhipCurve {
     const val OUT_S = 0.133467
     const val IN_S = 0.367033
     private const val WIDTH_PX = 1920.0
+    /**
+     * A directional blur is a soft (Gaussian-like) smear whose value is its spread, not its length: a
+     * box smear as wide as √12 × that has the same spread. The
+     * smear is 3.4 × the value on every frame, the shift as the
+     * curves say – taking the value as the length gave a third of the intended motion blur.
+     */
+    private val SMEAR_PER_PX = kotlin.math.sqrt(12.0) / WIDTH_PX
 
     // outgoing: from rest to −0.667 over 0.2 s, of which the part to the cut is used; incoming: from +0.464 (a frame before
     // the cut) to 0
@@ -259,10 +267,10 @@ object WhipCurve {
     private val BLUR_IN = Cubic(0.0, 100.0, 0.062416, 19.725776, 0.041557, -0.696822, 0.333669, 0.0)
 
     /** The outgoing clip at [s] seconds of the base move (0..[OUT_S]): its shift (frame widths, left −) and smear (widths). */
-    fun outgoing(s: Double): Pair<Float, Float> = OUT.at(s).toFloat() to (BLUR_OUT.at(s).coerceAtLeast(0.0) / WIDTH_PX).toFloat()
+    fun outgoing(s: Double): Pair<Float, Float> = OUT.at(s).toFloat() to (BLUR_OUT.at(s).coerceAtLeast(0.0) * SMEAR_PER_PX).toFloat()
 
     /** The incoming clip at [s] seconds after the cut (0..[IN_S]). */
-    fun incoming(s: Double): Pair<Float, Float> = IN.at(s).toFloat() to (BLUR_IN.at(s).coerceAtLeast(0.0) / WIDTH_PX).toFloat()
+    fun incoming(s: Double): Pair<Float, Float> = IN.at(s).toFloat() to (BLUR_IN.at(s).coerceAtLeast(0.0) * SMEAR_PER_PX).toFloat()
 
     /** The base move's time for the outgoing clip at timeline time [t] of a transition [t0]–[t1] with its edit point at [cut]. */
     fun outTime(t: Double, t0: Double, t1: Double, cut: Double): Double {
