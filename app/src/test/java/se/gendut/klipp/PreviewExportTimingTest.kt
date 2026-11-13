@@ -80,10 +80,12 @@ class PreviewExportTimingTest {
     }
 
     @Test fun theFloatPlayheadNeedsTheFrameTime() {
-        // the reason for playheadSec: as a Float, 1.52 s lies before a clip starting on frame 38
+        // the reason for playheadSec: as a Float, 1.52 s lies 19 ns before a clip starting on frame 38 – Layer.at takes
+        // edges to the half µs (times are whole µs), so both find the clip; further off it is before it
         val plan = LayerPlanner.plan(snapshot()) { 30.0 }!!
-        assertNull(plan.layers[1].at(1.52f.toDouble()))
+        assertEquals(21L, plan.layers[1].at(1.52f.toDouble())?.clip?.id)
         assertEquals(21L, plan.layers[1].at(playheadSec(1.52f, fps))?.clip?.id)
+        assertNull(plan.layers[1].at(1.52 - 1e-6))
     }
 
     @Test fun theSourceSecondIsTheEnginesForTrimSpeedAndStart() {

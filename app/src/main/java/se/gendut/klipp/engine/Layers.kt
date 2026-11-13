@@ -55,15 +55,24 @@ data class LayerPlan(
 
 /** One layer = one Media3 sequence. */
 data class Layer(val name: String, val segs: List<Seg>) {
-    /** Binary search for the segment visible at [t] seconds. */
+    private companion object {
+        /** Half a µs: times are whole µs, segment edges doubles. */
+        const val EDGE = 5e-7
+    }
+
+    /**
+     * Binary search for the segment visible at [t] seconds. The edges to the µs ([EDGE]): a segment's end is start + dur
+     * in floating point (1.36 + 2.0 = 3.3600000000000003), and a frame on the slot at its end (an upper layer's frames go
+     * on every slot in the export) counted as inside – the layer showed one slot too long.
+     */
     fun at(t: Double): Seg? {
         var lo = 0; var hi = segs.size - 1
         while (lo <= hi) {
             val mid = (lo + hi) ushr 1
             val s = segs[mid]
             when {
-                t < s.start -> hi = mid - 1
-                t >= s.end -> lo = mid + 1
+                t < s.start - EDGE -> hi = mid - 1
+                t >= s.end - EDGE -> lo = mid + 1
                 else -> return s
             }
         }
