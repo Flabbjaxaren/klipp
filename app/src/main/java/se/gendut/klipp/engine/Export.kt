@@ -188,18 +188,27 @@ class FrameRateEffect(
     val originUs: Long = 0L,
     /** See [Streams]. */
     val cutAtStart: Boolean = false,
+    /** Playback: the paused player's frame for the playhead's slot (see PausedPick). */
+    val pick: PausedPick? = null,
 ) : androidx.media3.effect.GlEffect {
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram =
-        Program(Streams(fps, startsUs, originUs, nominalUs, itemEnds && startsUs.isNotEmpty(), cutAtStart))
+        Program(Streams(fps, startsUs, originUs, nominalUs, itemEnds && startsUs.isNotEmpty(), cutAtStart), pick)
 
     /**
      * Frames that aren't needed are handed back at once – as Media3's own frame dropping does: the input texture is
      * released to the stage before and the next frame is asked for (the frame never reaches the output, so this stage
      * holds nothing). The others pass through unchanged (only the timestamp changes).
      */
-    private class Program(private val rule: Streams) : androidx.media3.effect.PassthroughShaderProgram() {
+    private class Program(private val rule: Streams, private val pick: PausedPick?) : androidx.media3.effect.PassthroughShaderProgram() {
         override fun queueInputFrame(gl: androidx.media3.common.GlObjectsProvider, tex: androidx.media3.common.GlTextureInfo, presentationTimeUs: Long) {
-            val out = rule.next(presentationTimeUs)
+            val ruled = rule.next(presentationTimeUs)
+            // a paused seek: the rule runs over every frame, only the slot's frame is shown (at its own presented time);
+            // a held frame goes back without the next one asked for (the seek's flush asks again)
+            val out = if (pick == null || !pick.active) ruled else when (pick.onFrame(presentationTimeUs, ruled)) {
+                PausedPick.SHOW -> ruled ?: presentationTimeUs
+                PausedPick.HOLD -> { inputListener.onInputFrameProcessed(tex); return }
+                else -> null
+            }
             if (out == null) {
                 inputListener.onInputFrameProcessed(tex)
                 inputListener.onReadyToAcceptInputFrame()
@@ -210,6 +219,7 @@ class FrameRateEffect(
 
         override fun flush() {
             rule.reset()
+            pick?.onFlush()
             super.flush()
         }
     }

@@ -447,6 +447,8 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
                 kotlinx.coroutines.withTimeoutOrNull(600) {
                     while (playback.player.playbackState != androidx.media3.common.Player.STATE_READY) kotlinx.coroutines.delay(16)
                 }
+                // a paused pick (the export's frame for the slot) may take a second seek: the still stays until it is done
+                kotlinx.coroutines.withTimeoutOrNull(2500) { snapshotFlow { playback.picking }.first { !it } }
                 kotlinx.coroutines.delay(100)
                 state.scrubbing = false
             }

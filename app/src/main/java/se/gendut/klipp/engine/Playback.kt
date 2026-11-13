@@ -445,7 +445,9 @@ object CompositionBuilder {
          * from this timeline time on come out (seconds; null: all of [range]).
          */
         visibleFrom: Double? = null,
-    ): Built? = buildPlayable(s.playable(), uriOf, look, master, overlays, forceSingle, grades, fx, meters, hdrMode, videoUriOf, liveGrades, output, nodeCache, previewShort, range, planTransform, transitions, visibleFrom)
+        /** Playback: the paused player's frame (see PausedPick). */
+        pick: PausedPick? = null,
+    ): Built? = buildPlayable(s.playable(), uriOf, look, master, overlays, forceSingle, grades, fx, meters, hdrMode, videoUriOf, liveGrades, output, nodeCache, previewShort, range, planTransform, transitions, visibleFrom, pick)
 
     /** A source frame's time on the timeline (µs) for a file played at [speed] (0: the file's rate not known). */
     private fun nominalUs(uri: Uri?, speed: Double): Long {
@@ -477,6 +479,7 @@ object CompositionBuilder {
         liveGrades: Boolean, output: ExportSettings?, nodeCache: Boolean, previewShort: Int,
         range: ClosedFloatingPointRange<Double>? = null, planTransform: ((LayerPlan) -> LayerPlan)? = null, transitions: Boolean = true,
         visibleFrom: Double? = null,
+        pick: PausedPick? = null,
     ): Built? {
         val q = s.sequence ?: return null
         val total = q.duration
@@ -542,7 +545,7 @@ object CompositionBuilder {
             // item too) start the rule over, as the export's rebuilt chain does (composition time = timeline − origin)
             // (the segments, with their source frame times, are the same in the export: one rule, see SourceSampler)
             val (starts, nominals) = streamSegments(plan, videoUriOf)
-            if (output == null && s.fps > 0.0) fx += FrameRateEffect(s.fps, starts, nominals, itemEnds = true, originUs = Math.round(plan.origin * 1e6))
+            if (output == null && s.fps > 0.0) fx += FrameRateEffect(s.fps, starts, nominals, itemEnds = true, originUs = Math.round(plan.origin * 1e6), pick = pick)
             // the export's frame rate and size last (titles and captions are already drawn at the project size)
             if (output != null) {
                 // always: clips can have a different (or variable) frame rate than the project – the file gets a constant one
@@ -952,7 +955,7 @@ class ProgramPlayback(private val context: Context) {
         val videoUri: (Long) -> Uri? = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
         se.gendut.klipp.CrashReport.note("playback building: ${s.sequence?.video?.sumOf { it.clips.size } ?: 0} video clips, hdr=$hdrMode, proxy=${Proxies.enabled}, speed=${s.sequence?.video?.flatMap { it.clips }?.map { it.speed }?.filter { kotlin.math.abs(it - 1.0) > 0.001 }?.distinct()}")
         val built = runCatching { CompositionBuilder.buildFull(s, uriOf, playerLook, master, overlays = false, forceSingle = true, grades = grades, fx = fx, meters = true, hdrMode = hdrMode, videoUriOf = videoUri, liveGrades = true, nodeCache = true, previewShort = VideoPipeline.previewShort,
-            planTransform = { p -> RenderCache.playPlan(p, chunks, windows) }, transitions = false) }.getOrElse {
+            planTransform = { p -> RenderCache.playPlan(p, chunks, windows) }, transitions = false, pick = pick) }.getOrElse {
             keepOld()
             // never an empty error: without text it looked like everything went fine (and then "nothing to play")
             buildProblem = "${it.javaClass.simpleName}: ${it.message ?: Str.t(R.string.playback_no_message)}${where(it)}"
@@ -980,6 +983,8 @@ class ProgramPlayback(private val context: Context) {
             renderedFirstFrame = false
             frameShown = false
             hint(positionSec)
+            playOriginUs = Math.round((built.plan?.origin ?: 0.0) * 1e6)
+            pick.clear(); pausedSec = null; picking = false
             player.setComposition(built.composition, CutSeek.ms(inside(positionSec), cuts, cutFps, wasPlaying))
             // scrubbing mode only applies to the players that existed when it was turned on – the new ones (new build) get it too
             if (player.isScrubbingModeEnabled) { player.isScrubbingModeEnabled = false; player.isScrubbingModeEnabled = true }
@@ -987,6 +992,8 @@ class ProgramPlayback(private val context: Context) {
             player.prepare()
             player.playWhenReady = wasPlaying
             hasContent = true
+            // paused: the slot's frame, as the export has it (the start position above shows the first frame after it)
+            if (!wasPlaying) pausedSeek(positionSec)
             buildProblem = null
             lastKey = key
             freeOld()
@@ -1029,6 +1036,8 @@ class ProgramPlayback(private val context: Context) {
      * the playhead after many changes.
      */
     private fun nudge() {
+        // (a paused pick stands before the playhead on purpose: the pick again, not a step from there)
+        pausedSec?.let { if (!player.playWhenReady) { pausedSeek(it); return } }
         val pos = player.currentPosition
         // (just after an edit point on purpose, see CutSeek.ms: a step back would land on the boundary between the
         // items – forward there, the next frame is a whole frame away)
@@ -1056,7 +1065,8 @@ class ProgramPlayback(private val context: Context) {
         // not a few frames before the end of a piece: there the composition player never starts (see CutSeek.startSec)
         val from = CutSeek.startSec(positionSec, edges)
         if (from != positionSec) se.gendut.klipp.CrashReport.note("start: %.3f s is just before an edge – from %.3f s".format(java.util.Locale.ROOT, positionSec, from))
-        if (ended || from != positionSec || kotlin.math.abs(from - positionSec()) > 0.05) seek(from)
+        // (a paused pick left the player before the playhead: playback starts at the playhead)
+        if (ended || from != positionSec || pausedSec != null || kotlin.math.abs(from - positionSec()) > 0.05) plainSeek(from)
         if (renderedFirstFrame) player.play()
         else {
             se.gendut.klipp.CrashReport.note("start: waits for the first frame after the build")
@@ -1065,6 +1075,11 @@ class ProgramPlayback(private val context: Context) {
             main.postDelayed(deferredPlay, FIRST_FRAME_WAIT_MS)
         }
         return null
+    }
+
+    private companion object {
+        const val MAX_PICK_SEEKS = 6
+        const val PICK_TIMEOUT_MS = 2000L
     }
 
     private var cuts = DoubleArray(0)
@@ -1082,7 +1097,98 @@ class ProgramPlayback(private val context: Context) {
     private fun inside(sec: Double): Double = if (endSec <= 0.0) sec else minOf(sec, endSec - 1.0 / cutFps.coerceAtLeast(1.0)).coerceAtLeast(0.0)
 
     fun seek(sec: Double) {
-        if (hasContent) { hint(sec); player.seekTo(seekMs(sec)) }
+        if (!hasContent) return
+        hint(sec)
+        if (!player.playWhenReady && cutFps > 0.0) pausedSeek(sec) else plainSeek(sec)
+    }
+
+    private fun plainSeek(sec: Double) {
+        pick.clear(); pausedSec = null; picking = false; main.removeCallbacks(pickTimeout)
+        player.seekTo(seekMs(sec))
+    }
+
+    // --- the paused player's frame (see PausedPick): the playhead stays, the decoder is sought before it ---
+    private var playOriginUs = 0L
+    private var pauseGen = 0
+    /** The playhead (s) the paused picture is chosen for; null: none (playing, or a plain seek). */
+    private var pausedSec: Double? = null
+    /** A paused pick is under way (its steps between seeks may show other frames: the app keeps its still up). */
+    var picking by androidx.compose.runtime.mutableStateOf(false)
+        private set
+    private var pausedAttempt = 0
+    private var pausedSeeks = 0
+    private var pickMs = 0L
+    private var pickAtStart = false
+    private var pickSlotUs = 0L
+    private val pick = PausedPick { r -> main.post { onPicked(r) } }.also { p -> p.trace = { CutTrace.log("pick", it) } }
+    private val pickTimeout = Runnable { pickFallback("no frame in time") }
+
+    private fun pausedSeek(sec: Double) {
+        pauseGen++
+        // Media3's scrubbing mode (on while the playhead is dragged) runs a seek only once the one before showed a frame
+        // – a pick shows none until it has the slot's frame, so its next seek waited for ever (measured on the vivo).
+        // Off for the pick; the next drag turns it on again (RealMode)
+        if (runCatching { player.isScrubbingModeEnabled }.getOrDefault(false)) runCatching { player.isScrubbingModeEnabled = false }
+        pausedSec = sec
+        picking = true
+        pausedAttempt = 0
+        pausedSeeks = 0
+        tryPaused()
+    }
+
+    private fun tryPaused() {
+        val sec = pausedSec ?: return
+        val fps = cutFps
+        val g = FrameGrid(fps)
+        val k = Math.round(inside(sec) * fps)
+        val slotSec = g.timeOf(k) / 1e6
+        pickSlotUs = g.timeOf(k) - playOriginUs
+        // the slot's segment in the played plan (an item of the main player) and where a seek lands on its first frame
+        val segStart = cuts.lastOrNull { it <= slotSec + 1e-6 } ?: 0.0
+        val p = PausedSeek.position(slotSec, segStart, pausedAttempt, fps) ?: return pickFallback("no attempt left")
+        var ms = p.first
+        // (a seek to the position the player is at is ignored – no new frames)
+        if (ms == player.currentPosition) ms = if (p.second) ms + 1 else (ms - 1).coerceAtLeast(0)
+        pickMs = ms; pickAtStart = p.second
+        seekPick(PausedPick.Request(pauseGen, pickSlotUs, p.second), ms)
+    }
+
+    private fun seekPick(r: PausedPick.Request, ms: Long) {
+        if (++pausedSeeks > MAX_PICK_SEEKS) return pickFallback("too many seeks")
+        pick.request(r)
+        CutTrace.log("pick", "seek $ms (was ${player.currentPosition}, state ${player.playbackState}, pwr ${player.playWhenReady})")
+        player.seekTo(ms)
+        main.removeCallbacks(pickTimeout)
+        main.postDelayed(pickTimeout, PICK_TIMEOUT_MS)
+    }
+
+    private fun onPicked(r: PausedPick.Result) {
+        CutTrace.log("pick", "result ${r.javaClass.simpleName} gen=${r.gen} (now $pauseGen) pos=${player.currentPosition} state=${player.playbackState}")
+        if (r.gen != pauseGen || pausedSec == null) return
+        when (r) {
+            is PausedPick.Result.Found -> { main.removeCallbacks(pickTimeout); picking = false }
+            is PausedPick.Result.Exact -> {
+                // the slot holds an earlier frame: just before it (the first frame from there is it)
+                var ms = Math.floorDiv(r.frameUs + playOriginUs, 1000L) - 1
+                if (pickAtStart) ms = maxOf(ms, pickMs)
+                if (ms == player.currentPosition) ms = (pickMs - 1).coerceAtLeast(0)
+                seekPick(PausedPick.Request(pauseGen, pickSlotUs, pickAtStart, exactUs = r.frameUs), ms.coerceAtLeast(0))
+            }
+            is PausedPick.Result.Earlier -> { pausedAttempt++; tryPaused() }
+        }
+    }
+
+    /** The defined way out: the first frame at the playhead (as before), noted in the log. */
+    private fun pickFallback(why: String) {
+        val sec = pausedSec ?: return
+        main.removeCallbacks(pickTimeout)
+        pick.clear()
+        pausedSec = null
+        picking = false
+        se.gendut.klipp.CrashReport.note("paused frame at %.3f s: %s – the first frame at the playhead instead".format(java.util.Locale.ROOT, sec, why))
+        // (a seek to where the player stands is ignored – the frames of the scan before would come through)
+        val ms = seekMs(sec)
+        player.seekTo(if (ms == player.currentPosition) ms + 1 else ms)
     }
 
     private fun positionSec(): Double = player.currentPosition / 1000.0
@@ -1091,6 +1197,8 @@ class ProgramPlayback(private val context: Context) {
     fun release() {
         main.removeCallbacks(assumeShown)
         main.removeCallbacks(deferredPlay)
+        main.removeCallbacks(pickTimeout)
+        pick.clear()
         // the player (and its audio thread) first – then the chains it used
         player.release()
         fx.free(fx.takeAll())
