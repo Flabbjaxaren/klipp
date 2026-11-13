@@ -122,7 +122,7 @@ data class SegFx(
                 val logSpeed = if (incoming) ZOOM_IN * SETTLE_SPEED * v / (t1 - cut).toFloat() else ZOOM_OUT * GATHER_SPEED * v / (cut - t0).toFloat()
                 zoomed(u, (logSpeed * SHUTTER_S).coerceAtMost(MAX_ZOOM_BLUR), 1f)
             }
-            // whip (see WhipCurve): one picture at a time, a cut in the middle of the move. The outgoing
+            // whip: the whip curve (see WhipCurve) – one picture at a time, a cut in the middle of the move. The outgoing
             // clip slides off from rest, ever faster, a fifth of the width by the edit point; the incoming one arrives four
             // tenths of the width off and lands almost at once, then settles. Both continue mirrored beyond their edges and
             // are smeared along the move, most just after the edit point
@@ -224,13 +224,13 @@ data class SegFx(
 }
 
 /**
- * The whip's move (its shift,
- * mirrored edges and smear on the outgoing and incoming clip; 0.5 s, the cut after 0.133 s). The
+ * The whip after a whip (shift, mirrored edges and smear on the
+ * outgoing and incoming clip; 0.5 s, the cut after 0.133 s). The
  * curves are Bézier segments – each [Cubic] is one segment's control points in (seconds, value),
  * positions as a shift of the picture's centre in frame widths, blurs as a smear spread in pixels of a 1920 wide
  * frame (see [SMEAR_PER_PX]).
  *
- * The base move has one length; here it is stretched with the transition's length ([TOTAL_S] = ×1) and laid
+ * The reference has one length; here it is stretched with the transition's length ([TOTAL_S] = ×1) and laid
  * around the edit point – the outgoing move ends there, the incoming one starts there – and pressed into the part before
  * or after the edit point when that part is shorter (an aligned or short transition).
  */

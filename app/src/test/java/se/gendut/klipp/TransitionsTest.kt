@@ -218,13 +218,13 @@ class TransitionsTest {
         assertEquals(13L, top.clip?.id); assertTrue(top.fx!!.incoming && top.fx!!.over)
     }
 
-    /** A whip of the base length, its edit point where the base move has it (0.133 s into 0.5 s). */
-    private fun mhWhip(incoming: Boolean, reverse: Boolean = false) =
+    /** A whip of the reference's own length, its edit point where the reference's is (0.133 s into 0.5 s). */
+    private fun refWhip(incoming: Boolean, reverse: Boolean = false) =
         SegFx(TransitionType.WHIP, incoming, false, 10.0, 10.0 + WhipCurve.TOTAL_S, 10.0 + WhipCurve.OUT_S, reverse)
 
-    @Test fun theWhipFollowsItsCurves() {
-        // values of the base move's curves at its own frames, 29.97 fps
-        val o = mhWhip(false); val i = mhWhip(true)
+    @Test fun theWhipFollowsTheReferencePan() {
+        // values read from the reference's keyframes at its own frames, 29.97 fps
+        val o = refWhip(false); val i = refWhip(true)
         val cut = 10.0 + WhipCurve.OUT_S
         assertEquals(0f, o.at(10.0).dx, 1e-4f)
         assertEquals(-0.0949f, o.at(10.1).dx, 2e-3f)
@@ -243,7 +243,7 @@ class TransitionsTest {
         assertFalse(SegFx(TransitionType.ZOOM, true, false, 2.0, 4.0, 3.0, false).at(3.0).softBlur)
         // mirrored edges, both ways; reversed: the other way round
         assertTrue(o.at(10.1).mirror && i.at(cut).mirror)
-        assertEquals(-0.3915f, mhWhip(true, reverse = true).at(cut).dx, 2e-3f)
+        assertEquals(-0.3915f, refWhip(true, reverse = true).at(cut).dx, 2e-3f)
     }
 
     @Test fun theWhipShowsOnePictureAtATime() {
@@ -257,8 +257,8 @@ class TransitionsTest {
         val o = SegFx(TransitionType.WHIP, false, false, t0, t1, cut, false)
         val i = SegFx(TransitionType.WHIP, true, false, t0, t1, cut, false)
         assertEquals(0f, o.at(t0).dx, 1e-6f)
-        assertEquals(mhWhip(false).at(10.1).dx, o.at(cut - 2 * (10.0 + WhipCurve.OUT_S - 10.1)).dx, 1e-4f)
-        assertEquals(mhWhip(true).at(10.0 + WhipCurve.OUT_S + 0.1).dx, i.at(cut + 0.2).dx, 1e-4f)
+        assertEquals(refWhip(false).at(10.1).dx, o.at(cut - 2 * (10.0 + WhipCurve.OUT_S - 10.1)).dx, 1e-4f)
+        assertEquals(refWhip(true).at(10.0 + WhipCurve.OUT_S + 0.1).dx, i.at(cut + 0.2).dx, 1e-4f)
         // centred, twice as long: the outgoing clip stands still until its move begins
         val c = SegFx(TransitionType.WHIP, false, false, t0, t1, (t0 + t1) / 2, false)
         assertEquals(0f, c.at((t0 + t1) / 2 - 2 * WhipCurve.OUT_S - 0.01).dx, 1e-6f)
