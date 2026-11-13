@@ -31,6 +31,8 @@ class LayerGridEffect(
     /** Diagnostics: a line per frame while [traceOn]. */
     private val trace: ((String) -> Unit)? = null,
     private val traceOn: () -> Boolean = { false },
+    /** Whether the playing segment begins at a cut (Seg.cut): its first frame isn't pinned. */
+    private val segmentCut: () -> Boolean = { false },
 ) {
     // input timestamp → shown timestamp, for the frames select kept (both stages run on the chain's GL thread)
     private val moves = object : LinkedHashMap<Long, Long>() {
@@ -57,7 +59,7 @@ class LayerGridEffect(
             val tl = timelineUs(presentationTimeUs)
             val seg = segmentUs()
             if (tl == null || seg == null) { super.queueInputFrame(gl, tex, presentationTimeUs); return }
-            val at = rule.next(tl, seg, segmentEndUs())
+            val at = rule.next(tl, seg, segmentEndUs(), pinFirst = !segmentCut())
             if (trace != null && traceOn()) trace.invoke("grid in=$presentationTimeUs tl=$tl seg=$seg out=${at ?: "drop"}")
             if (at == null) {
                 inputListener.onInputFrameProcessed(tex)

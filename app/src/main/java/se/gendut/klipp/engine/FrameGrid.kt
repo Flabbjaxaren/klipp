@@ -185,9 +185,9 @@ class LayerGrid(fps: Double) {
      * [segEndUs]: where the segment's item ends (Long.MAX_VALUE: not known) – its last frames are kept (FrameGrid.nearEnd);
      * [nominalUs]: the segment's source frame time on the timeline (0: not known).
      */
-    fun next(tUs: Long, segStartUs: Long, segEndUs: Long = Long.MAX_VALUE, nominalUs: Long = 0L): Long? {
+    fun next(tUs: Long, segStartUs: Long, segEndUs: Long = Long.MAX_VALUE, nominalUs: Long = 0L, pinFirst: Boolean = true): Long? {
         // another segment: its own stream (its pre-roll's times run on from the last one's, so time needn't go back)
-        if (segStartUs != segStart) { sampler.startSegment(segStartUs, nominalUs, segEndUs); segStart = segStartUs; lastOut = Long.MIN_VALUE }
+        if (segStartUs != segStart) { sampler.startSegment(segStartUs, nominalUs, segEndUs, pinFirst); segStart = segStartUs; lastOut = Long.MIN_VALUE }
         val step = if (prevIn != Long.MIN_VALUE && tUs > prevIn) tUs - prevIn else 0L
         prevIn = tUs
         val last = step > 0 && FrameGrid.nearEnd(tUs, segEndUs, step)

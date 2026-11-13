@@ -260,8 +260,8 @@ object RenderCache {
      * whole – all chunks over its window ready – otherwise it stays a cut (half of one rendered and the other half a cut
      * would jump). The main player and the upper layers both play this, so they always agree.
      */
-    fun playPlan(cuts: LayerPlan, chunks: List<Chunk>, windows: List<ClosedFloatingPointRange<Double>>): LayerPlan =
-        substituteReady(cuts, playable(chunks, windows))
+    fun playPlan(cuts: LayerPlan, chunks: List<Chunk>, windows: List<ClosedFloatingPointRange<Double>>, fps: Double = 0.0): LayerPlan =
+        substituteReady(cuts, playable(chunks, windows), fps)
 
     /** The ready chunks playback may use: none of a transition that isn't ready all over. */
     fun playable(chunks: List<Chunk>, windows: List<ClosedFloatingPointRange<Double>>, ready: (Chunk) -> Boolean = ::isReady): List<Chunk> {
@@ -270,7 +270,7 @@ object RenderCache {
         return chunks.filter { c -> ready(c) && incomplete.none { w -> over(c, w) } }
     }
 
-    private fun substituteReady(plan: LayerPlan, ready: List<Chunk>): LayerPlan {
+    private fun substituteReady(plan: LayerPlan, ready: List<Chunk>, fps: Double = 0.0): LayerPlan {
         if (ready.isEmpty() || plan.layers.isEmpty()) return plan
         // adjacent ready chunks merge into one interval (but play as separate files)
         val ranges = ready.map { it.a..it.b }
@@ -294,10 +294,39 @@ object RenderCache {
         val layers = plan.layers.map { it.copy(segs = cut(it.segs)) }.toMutableList()
         val rendered = renderedSegs(ready)
         val bottom = layers.removeAt(layers.lastIndex)
-        val base = bottom.copy(segs = (bottom.segs + rendered).sortedBy { it.start })
+        val base = bottom.copy(segs = liveAfterChunks((bottom.segs + rendered).sortedBy { it.start }, rendered, fps))
         val kept = layers.filter { it.segs.isNotEmpty() } + base
         val fades = if (kept.size == 1) base.segs.mapNotNull { it.ramp }.distinct() else emptyList()
         return plan.copy(layers = kept, blackFades = fades, rendered = ranges)
+    }
+
+    /**
+     * A live clip right after a pre-rendered piece begins a little earlier, inside the piece's last slot: just after
+     * the point from which a source frame belongs to the slot at the piece's end (SourceSampler: frames after the slot
+     * before, + LEAD) – its in point moves along by the same, so every frame keeps its time, and the piece plays that
+     * much less (its last frame lies on the slot before, it stays). Cut at the piece's end, the clip lacked the source
+     * frame lying between those two points – the export's frame for that slot: the first slot after a piece showed the
+     * next source frame (on the vivo: 4.28 s on the 25p test timeline, 6.317 and 6.333 s on the 60p one, in playback
+     * and paused). The rule pins the clip's first frame on the piece's end slot, as the export shows it.
+     */
+    internal fun liveAfterChunks(segs: List<Seg>, rendered: List<Seg>, fps: Double): List<Seg> {
+        if (fps <= 0.0 || rendered.isEmpty()) return segs
+        val g = FrameGrid(fps)
+        val out = segs.toMutableList()
+        for (i in 0 until out.size - 1) {
+            val piece = out[i]; val next = out[i + 1]
+            if (rendered.none { it === piece }) continue
+            val src = next.src as? SegSrc.Media ?: continue
+            if (rendered.any { it === next } || kotlin.math.abs(next.start - piece.end) > 1e-6 || src.speed <= 1e-6) continue
+            val endUs = Math.round(piece.end * 1e6)
+            val k = g.slotAtOrAfter(endUs - FrameGrid.LEAD_US)
+            val from = (g.timeOf(k - 1) + FrameGrid.LEAD_US + 2) / 1e6
+            val shift = piece.end - from
+            if (shift <= 1e-6 || from <= piece.start + 1e-6 || shift >= next.dur) continue
+            out[i] = piece.copy(dur = piece.dur - shift)
+            out[i + 1] = next.copy(start = from, dur = next.dur + shift, src = src.copy(srcIn = src.srcIn - shift * src.speed), cut = true)
+        }
+        return out
     }
 
     /** Runs of chunks that sit edge to edge (in time order). */

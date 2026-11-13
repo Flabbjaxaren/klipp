@@ -108,6 +108,11 @@ data class Ramp(val t0: Double, val t1: Double, val a0: Float, val a1: Float) {
 data class Seg(
     val start: Double, val dur: Double, val src: SegSrc, val clip: ClipSnap?, val ramp: Ramp? = null, val fx: SegFx? = null,
     val windows: List<SegFx> = emptyList(),
+    /**
+     * The segment begins at a cut, not at its clip's own start (a live clip moved into a pre-rendered piece's last slot,
+     * RenderCache.liveAfterChunks): its first frame isn't pinned to its first slot (SourceSampler).
+     */
+    val cut: Boolean = false,
 ) {
     val end get() = start + dur
     /** The transition's geometry at timeline time [t] (null = no transition). */

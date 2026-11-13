@@ -190,9 +190,11 @@ class FrameRateEffect(
     val cutAtStart: Boolean = false,
     /** Playback: the paused player's frame for the playhead's slot (see PausedPick). */
     val pick: PausedPick? = null,
+    /** See [Streams]. */
+    val cutsUs: LongArray = LongArray(0),
 ) : androidx.media3.effect.GlEffect {
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram =
-        Program(Streams(fps, startsUs, originUs, nominalUs, itemEnds && startsUs.isNotEmpty(), cutAtStart), pick)
+        Program(Streams(fps, startsUs, originUs, nominalUs, itemEnds && startsUs.isNotEmpty(), cutAtStart, cutsUs), pick)
 
     /**
      * Frames that aren't needed are handed back at once – as Media3's own frame dropping does: the input texture is
@@ -237,6 +239,8 @@ class FrameRateEffect(
         private val itemEnds: Boolean = startsUs.isNotEmpty(),
         /** A pre-rolled part cut into a segment at the composition's start: that segment isn't pinned (SourceSampler). */
         private val cutAtStart: Boolean = false,
+        /** Segment starts (composition µs) that are cuts, not a clip's own start – not pinned either (a live clip after a pre-rendered piece). */
+        private val cutsUs: LongArray = LongArray(0),
     ) {
         private val grid = FrameGrid(fps)
         private val sampler = SourceSampler(fps)
@@ -253,7 +257,7 @@ class FrameRateEffect(
             if (i != seg) {
                 val fresh = seg != Int.MIN_VALUE
                 sampler.startSegment((if (i < 0) 0L else startsUs[i]) + originUs, nominalUs.getOrElse(i + 1) { 0L },
-                    if (i + 1 < startsUs.size) startsUs[i + 1] + originUs else Long.MAX_VALUE, pinFirst = !(cutAtStart && i < 0))
+                    if (i + 1 < startsUs.size) startsUs[i + 1] + originUs else Long.MAX_VALUE, pinFirst = !(cutAtStart && i < 0) && !(i >= 0 && startsUs[i] in cutsUs))
                 // (after a seek the stream picks up inside its segment: no frame before it – see SourceSampler)
                 if (fresh) prevIn = Long.MIN_VALUE
                 seg = i

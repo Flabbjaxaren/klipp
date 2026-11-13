@@ -400,7 +400,7 @@ object CompositionBuilder {
      * chunks of [previewPlan].
      */
     fun playPlan(s: Snapshot, uriOf: (Long) -> Uri?, chunks: List<RenderCache.Chunk>): LayerPlan? =
-        previewPlan(s, uriOf, transitions = false)?.let { RenderCache.playPlan(it, chunks, RenderCache.transitionWindows(s)) }
+        previewPlan(s, uriOf, transitions = false)?.let { RenderCache.playPlan(it, chunks, RenderCache.transitionWindows(s), s.fps) }
 
     /** Is there 10-bit material among the video clips (the original files)? Probes the files – not on the main thread. */
     fun anyTenBit(context: Context, s: Snapshot, uriOf: (Long) -> Uri?): Boolean {
@@ -553,7 +553,9 @@ object CompositionBuilder {
             // item too) start the rule over, as the export's rebuilt chain does (composition time = timeline − origin)
             // (the segments, with their source frame times, are the same in the export: one rule, see SourceSampler)
             val (starts, nominals) = streamSegments(plan, videoUriOf)
-            if (output == null && s.fps > 0.0) fx += FrameRateEffect(s.fps, starts, nominals, itemEnds = true, originUs = Math.round(plan.origin * 1e6), pick = pick)
+            // (a live clip after a pre-rendered piece begins at a cut: not pinned, see Seg.cut)
+            val cutStarts = plan.layers.lastOrNull()?.segs.orEmpty().filter { it.cut }.map { Math.round((it.start - plan.origin) * 1e6) }.toLongArray()
+            if (output == null && s.fps > 0.0) fx += FrameRateEffect(s.fps, starts, nominals, itemEnds = true, originUs = Math.round(plan.origin * 1e6), pick = pick, cutsUs = cutStarts)
             // the export's frame rate and size last (titles and captions are already drawn at the project size)
             if (output != null) {
                 // always: clips can have a different (or variable) frame rate than the project – the file gets a constant one
@@ -963,7 +965,7 @@ class ProgramPlayback(private val context: Context) {
         val videoUri: (Long) -> Uri? = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
         se.gendut.klipp.CrashReport.note("playback building: ${s.sequence?.video?.sumOf { it.clips.size } ?: 0} video clips, hdr=$hdrMode, proxy=${Proxies.enabled}, speed=${s.sequence?.video?.flatMap { it.clips }?.map { it.speed }?.filter { kotlin.math.abs(it - 1.0) > 0.001 }?.distinct()}")
         val built = runCatching { CompositionBuilder.buildFull(s, uriOf, playerLook, master, overlays = false, forceSingle = true, grades = grades, fx = fx, meters = true, hdrMode = hdrMode, videoUriOf = videoUri, liveGrades = true, nodeCache = true, previewShort = VideoPipeline.previewShort,
-            planTransform = { p -> RenderCache.playPlan(p, chunks, windows) }, transitions = false, pick = pick) }.getOrElse {
+            planTransform = { p -> RenderCache.playPlan(p, chunks, windows, s.fps) }, transitions = false, pick = pick) }.getOrElse {
             keepOld()
             // never an empty error: without text it looked like everything went fine (and then "nothing to play")
             buildProblem = "${it.javaClass.simpleName}: ${it.message ?: Str.t(R.string.playback_no_message)}${where(it)}"
