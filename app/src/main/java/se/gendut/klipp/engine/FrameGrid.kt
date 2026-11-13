@@ -140,3 +140,44 @@ class LayerGrid(fps: Double) {
     /** The earliest time the segment's own frames are shown at (pre-roll frames all come before it). */
     fun earliestUs(segStartUs: Long): Long = grid.earliestUs(segStartUs)
 }
+
+/**
+ * Which slots each source frame of an item is shown in when every slot needs a frame of its own (KlippFrameFill: the
+ * effects after it draw a transition per slot). Timestamps are the composition's (timeline = timestamp + [originUs]);
+ * the frames kept are FrameGrid's (as the export's frame rate keeps them), and the slots between two kept frames, and
+ * after the last one up to the item's end [endUs] (timeline), repeat the frame before. Pure – tested in FrameGridTest.
+ */
+class FillPlanner(
+    fps: Double, private val originUs: Long, private val endUs: Long,
+    /** Where slots are filled (timeline µs, the transitions' windows); elsewhere the frames are only kept or dropped. */
+    private val windows: List<LongRange> = listOf(Long.MIN_VALUE..Long.MAX_VALUE),
+) : androidx.media3.effect.KlippFrameFill.Planner {
+    private val grid = FrameGrid(fps)
+    private var last = Long.MIN_VALUE
+
+    private fun filled(k: Long) = grid.timeOf(k).let { t -> windows.any { t in it } }
+
+    override fun next(ptsUs: Long): LongArray {
+        val slot = grid.next(ptsUs + originUs) ?: return LongArray(0)
+        val out = ArrayList<Long>()
+        if (last != Long.MIN_VALUE) for (k in last + 1 until slot) if (filled(k)) out += grid.timeOf(k) - originUs
+        out += grid.timeOf(slot) - originUs
+        last = slot
+        return out.toLongArray()
+    }
+
+    override fun end(): LongArray {
+        if (last == Long.MIN_VALUE) return LongArray(0)
+        val out = ArrayList<Long>()
+        var k = last + 1
+        // (slots strictly before the item's end: the next item's first frame takes the slot at it)
+        while (grid.timeOf(k) < endUs - FrameGrid.LEAD_US) { if (filled(k)) out += grid.timeOf(k) - originUs; k++ }
+        last = Long.MIN_VALUE
+        return out.toLongArray()
+    }
+
+    override fun reset() {
+        grid.reset()
+        last = Long.MIN_VALUE
+    }
+}

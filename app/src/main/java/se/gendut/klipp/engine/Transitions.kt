@@ -175,7 +175,7 @@ data class SegFx(
         /** Exposure time of the zoom's motion blur: a 360° shutter at 25 fps. */
         const val SHUTTER_S = 1f / 25f
         /** The version of the moves above, in the render cache's keys: raise it when a transition's look changes. */
-        const val LOOK = 7
+        const val LOOK = 8
         /** How far the push and the whip have come at the edit point: about where the speeds on either side meet. */
         const val THROWN = 0.7f
         /** The most smear (the zoom's in log scale, the turn's in radians) – short transitions move very fast. */

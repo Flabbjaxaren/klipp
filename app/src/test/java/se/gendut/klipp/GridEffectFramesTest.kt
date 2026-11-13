@@ -92,4 +92,49 @@ class GridEffectFramesTest {
         rig.queue(2, 1_000_000L)
         assertEquals(2, rig.out.size)
     }
+
+    @Test fun theFillEmitsEverySlotAndEndsTheItemAfterIt() {
+        // the fill's bookkeeping with a stand-in for the GL side: one output texture, released by the next stage at once
+        // or later (both); 30 frames a second into a 60 fps grid, the item ending at 1.0 s
+        for (late in listOf(false, true)) {
+            val planner = se.gendut.klipp.engine.FillPlanner(60.0, 0L, 1_000_000L)
+            var free = true; var ready = 1; var maxReady = 1; var processed = 0; var copied = -1L; var kept = -1L
+            val out = ArrayList<Pair<Long, Long>>(); var ended = false; var outAfterEnd = false
+            var queue: androidx.media3.effect.KlippFrameFill.Queue? = null
+            var inputNow = -1L
+            val held = ArrayList<Unit>()
+            val sink = object : androidx.media3.effect.KlippFrameFill.Sink {
+                override fun copyCurrent() { copied = inputNow }
+                override fun emit(current: Boolean, timeUs: Long) {
+                    if (ended) outAfterEnd = true
+                    assertTrue("a free texture", free); free = false
+                    out += (if (current) copied else kept) to timeUs
+                    if (!late) { free = true } else held += Unit
+                }
+                override fun keepCurrent() { kept = copied }
+                override fun outputFree() = free
+                override fun inputProcessed() { processed++ }
+                override fun readyForInput() { ready++; maxReady = maxOf(maxReady, ready) }
+                override fun endOfStream() { ended = true }
+            }
+            queue = androidx.media3.effect.KlippFrameFill.Queue(planner, sink)
+            fun release() { while (held.isNotEmpty()) { held.removeAt(0); free = true; queue.released() } }
+            val times = (0 until 30).map { Math.round(it * 1e6 / 30) }
+            for (t in times) {
+                if (late) release()
+                assertTrue("asked for the frame at $t", ready > 0); ready--
+                inputNow = t; queue.input(t)
+            }
+            queue.end()
+            release()
+            assertEquals(30, processed)
+            assertEquals(1, maxReady)
+            // a frame for every slot of 60 fps up to the end, each the latest source frame at or before it
+            assertEquals(60, out.size)
+            assertTrue(out.map { it.second }.zipWithNext().all { (a, b) -> b > a })
+            out.forEach { (src, t) -> assertTrue("$src at $t", src <= t + 1000 && t - src < 1e6 / 30 + 1000) }
+            assertTrue(ended && !outAfterEnd)
+        }
+    }
 }
+

@@ -214,6 +214,12 @@ object CompositionBuilder {
         outW: Int = 0, outH: Int = 0,
         /** The project frame rate (freeze frames are shown as images at that rate). */
         fps: Double = 25.0,
+        /**
+         * The export and pre-rendering: a transition's piece gets a frame for every slot of [fps] before the transition
+         * is drawn (KlippFrameFill) – it moves at the timeline's rate, also over a slower source (120 fps at 25 % in a
+         * 60 fps timeline: the whip moved at 30 frames a second).
+         */
+        fillSlots: Boolean = false,
     ): EditedMediaItemSequence? {
         val previewDownscale = outW > 0 && outH > 0
         val fw = if (previewDownscale) outW else plan.width
@@ -306,13 +312,16 @@ object CompositionBuilder {
             // computed at preview size instead of 4K)
             // the transition (wipe, push, slide, zoom, iris, dip through a color) last, in the sequence frame
             val transition = if (seg.hasFx) TransitionFxEffect(seg, time) else null
+            val fill = if (fillSlots && transition != null && still == null && fps > 0.0)
+                androidx.media3.effect.KlippFrameFill(FillPlanner(fps, Math.round(plan.origin * 1e6), Math.round(seg.end * 1e6),
+                    (seg.windows + listOfNotNull(seg.fx)).map { w -> Math.round(w.t0 * 1e6)..Math.round(w.t1 * 1e6) })) else null
             // green screen before the grade (the source's colors), the mask after, in the clip's own frame (follows its
             // motion); without a layer below the transparent parts become black
             val layer = c?.let { cl -> grades[cl.id]?.layer?.takeIf { it.hasAlpha } }
             val liveId = if (liveGrades) c?.id else null
             val keyFx = layer?.key?.let { LayerFxEffect(layer, liveId, LayerFxEffect.KEY, LayerFxEffect.STRAIGHT) }
             val maskFx = layer?.let { LayerFxEffect(it, liveId, LayerFxEffect.MASK, if (upper) LayerFxEffect.STRAIGHT else LayerFxEffect.FLATTEN, clock) }
-            val effects = listOfNotNull(scaleDown, decodeFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(transition)
+            val effects = listOfNotNull(scaleDown, decodeFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(fill, transition)
             val edited = if (still != null) {
                 EditedMediaItem.Builder(MediaItem.Builder().setUri(Uri.fromFile(still)).setImageDurationMs(Math.round(seg.dur * 1000).coerceAtLeast(1)).build())
                     .setDurationUs(us(seg.dur).coerceAtLeast(1))
@@ -458,7 +467,7 @@ object CompositionBuilder {
         val times = ArrayList<TimeBase>()
         val clipTime = TimeBase(plan?.length ?: total, plan?.origin ?: 0.0).also { times += it } // time for keyframes on the clips (simple path)
         val (pw, ph) = if (plan == null || previewShort <= 0) 0 to 0 else previewSize(plan.width, plan.height, previewShort)
-        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, s.fps)?.let { seqs += it } }
+        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, s.fps, fillSlots = output != null)?.let { seqs += it } }
         val hasVideo = seqs.isNotEmpty()
         // export without audio (and pre-render): no audio sequences
         val audio = if (output?.audio == false || range != null) emptyList() else q.audio.take(3)

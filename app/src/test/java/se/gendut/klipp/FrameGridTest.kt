@@ -177,4 +177,31 @@ class FrameGridTest {
         val c = Clip(12.04, 3.08, 2.0, 1.0, 25.0, prerollS = 0.0)
         assertEquals(c.itemFrames, FrameGrid.keep(c.itemFrames, fps))
     }
+
+    @Test fun aTransitionGetsAFrameForEverySlotOfTheTimeline() {
+        // 120 fps at 25 % = 30 frames a second in a 60 fps timeline; the whip's window 7.44–8.08 s, the piece ends at 8.08
+        val fps60 = 60.0; val step60 = 1e6 / fps60
+        val src = (0 until 40).map { 7_000_000L + Math.round(it * 1e6 / 30) }.filter { it < 8_080_000L }
+        val p = se.gendut.klipp.engine.FillPlanner(fps60, 0L, 8_080_000L, listOf(7_440_000L..8_080_000L))
+        val out = src.flatMap { p.next(it).toList() } + p.end().toList()
+        // rising, every time on the 60 fps grid
+        assertTrue(out.zipWithNext().all { (a, b) -> b > a })
+        out.forEach { assertTrue("$it", kotlin.math.abs(it / step60 - Math.round(it / step60)) < 1e-3) }
+        // inside the window every slot has a frame, up to the piece's end; before it only the source's own frames
+        val inside = out.filter { it >= 7_440_000L }
+        assertEquals(Math.round((8_080_000L - 7_440_000L) / step60).toInt(), inside.size)
+        assertTrue(out.last() < 8_080_000L)
+        val before = out.filter { it < 7_440_000L - 1 }
+        assertEquals(FrameGrid.keep(src, fps60).filter { it < 7_440_000L - 1 }, before)
+        // the frames kept are the export's (FrameGrid), the rest repeats
+        assertTrue(out.containsAll(FrameGrid.keep(src, fps60)))
+    }
+
+    @Test fun aSourceAsFastAsTheTimelineNeedsNoFill() {
+        val src = (0 until 30).map { 7_000_000L + it * step }
+        val p = se.gendut.klipp.engine.FillPlanner(fps, 0L, 8_200_000L, listOf(7_000_000L..8_200_000L))
+        assertEquals(FrameGrid.keep(src, fps), src.flatMap { p.next(it).toList() })
+        assertEquals(0, p.end().size)
+    }
 }
+

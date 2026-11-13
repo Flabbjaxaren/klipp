@@ -28,6 +28,10 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
 - `KlippPriority.java` (new) and `DefaultGlObjectsProvider.java`: the video processing contexts are created with low
   GPU priority (EGL_IMG_context_priority) when the driver offers it, so the app's UI isn't queued behind heavy effects.
 
+- `KlippFrameFill.java` (new): a frame for every slot of the timeline's frame rate before a transition is drawn, in
+  the export and pre-rendering (a whip over a 30 fps source in a 60 fps timeline moved at 30). Uses
+  `FrameCacheGlShaderProgram` (package-private, hence here); its bookkeeping (`Queue`) is plain and tested in the app.
+
 The resources (`res/raw`, shaders) and the manifest come from the AAR file of the same version.
 
 To update: unpack `media3-effect-<version>-sources.jar` and the AAR's `res/` here and redo the changes above.
