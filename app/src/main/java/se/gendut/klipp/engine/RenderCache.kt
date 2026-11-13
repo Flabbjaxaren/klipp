@@ -363,6 +363,42 @@ object RenderCache {
         }
     }
 
+    /**
+     * Diagnostics (the agent bridge): the files that exist for [chunks] – each chunk's own ("chunk") and each run's joined
+     * one ("join") – with where they begin on the timeline.
+     */
+    fun diagFiles(chunks: List<Chunk>): List<Triple<String, Double, File>> {
+        val out = ArrayList<Triple<String, Double, File>>()
+        for (c in chunks.sortedBy { it.a }) fileOf(c.hash)?.takeIf { it.exists() && it.length() > 0 }?.let { out += Triple("chunk", c.a, it) }
+        for (run in runs(chunks.filter { exists(it.hash) })) {
+            if (run.size < 2) continue
+            fileOf(joinHash(run))?.takeIf { it.exists() && it.length() > 0 }?.let { out += Triple("join", run.first().a, it) }
+        }
+        return out
+    }
+
+    /**
+     * Diagnostics: [a, b] of [s] rendered into [out] as one file, without the cache – with a chunk's settings (preview
+     * size, from the proxies) or, with [export], those settings from the originals.
+     */
+    suspend fun renderRange(
+        context: Context, s: Snapshot, uriOf: (Long) -> Uri?, grades: Map<Long, ClipGrade>, a: Double, b: Double, out: File,
+        export: se.gendut.klipp.engine.ExportSettings? = null,
+    ): Result<Unit> {
+        val short = VideoPipeline.previewShort
+        val settings = export ?: renderSettings(s, short)
+        FrameHolds.await(context, FrameHolds.holdsOf(s, uriOf))
+        Reversals.await(context, s, uriOf)
+        val anyHdr = withContext(Dispatchers.IO) { CompositionBuilder.anyHdr(context, s, probe = true, uriOf = uriOf) }
+        val built = CompositionBuilder.buildFull(
+            s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
+            videoUriOf = { id -> uriOf(id)?.let { if (export == null) Proxies.videoUri(it) else it } },
+            previewShort = if (export == null) short else 0, range = a..b, output = settings,
+        ) ?: return Result.failure(IllegalStateException("nothing to render in $a–$b"))
+        out.delete()
+        return Exporter.transform(context, built.composition, out, settings, tenBit = false, note = false) { }
+    }
+
     private fun shiftSrc(src: SegSrc, by: Double): SegSrc = when (src) {
         is SegSrc.Media -> src.copy(srcIn = src.srcIn + by * src.speed)
         is SegSrc.Still -> src

@@ -48,6 +48,8 @@ object McpBridge {
     @Volatile private var state: EditorState? = null
     @Volatile private var ui: AppUi? = null
     @Volatile private var controller: ProjectController? = null
+    /** The clips' grades (for the render diagnostics: a chunk's key holds them). */
+    @Volatile var gradesOf: (() -> Map<Long, se.gendut.klipp.engine.ClipGrade>)? = null
     @Volatile private var server: LocalServerSocket? = null
     private val conns = java.util.Collections.synchronizedSet(HashSet<LocalSocket>())
 
@@ -289,6 +291,39 @@ object McpBridge {
             texts("selected $id")
         },
         Tool("logs", "The app's recent event trail (the same as in crash reports).") { texts(CrashReport.trail().joinToString("\n")) },
+        Tool("import_files", "Import files by path (e.g. the app's external files dir) through the app's own import, as the picker does.",
+            JSONObject().put("paths", JSONObject().put("type", "array").put("items", prop("string", "absolute path")))) { a ->
+            val arr = a.getJSONArray("paths")
+            val uris = (0 until arr.length()).map { android.net.Uri.fromFile(java.io.File(arr.getString(it))) }
+            ctl().import(uris)
+            texts("importing ${uris.size} files")
+        },
+        Tool("render_diag", "Pre-render diagnostics: op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals).",
+            JSONObject().put("op", prop("string", "chunks | copy | render")).put("a", prop("number", "s")).put("b", prop("number", "s"))
+                .put("mode", prop("string", "chunk | export")).put("name", prop("string", "file name"))) { a ->
+            val c = ctl(); val ctx = activity ?: error("no activity")
+            val snap = c.snapshot; val grades = gradesOf?.invoke().orEmpty()
+            val dirOut = java.io.File(ctx.getExternalFilesDir(null), "diag").apply { mkdirs() }
+            val chunks = se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, c::uriOf)
+                ?.let { p -> se.gendut.klipp.engine.RenderCache.chunks(p, { id -> grades[id] }, c::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort) }.orEmpty()
+            when (a.optString("op")) {
+                "chunks" -> texts(chunks.joinToString("\n") { k -> "%.4f–%.4f ready=%s heavy=%s %s".format(java.util.Locale.ROOT, k.a, k.b, se.gendut.klipp.engine.RenderCache.isReady(k), k.heavy, k.hash.take(12)) })
+                "copy" -> {
+                    dirOut.listFiles()?.filter { it.name.startsWith("chunk_") || it.name.startsWith("join_") }?.forEach { it.delete() }
+                    val files = se.gendut.klipp.engine.RenderCache.diagFiles(chunks)
+                    texts(files.joinToString("\n") { (kind, at, f) ->
+                        val to = java.io.File(dirOut, "%s_%08.4f.mp4".format(java.util.Locale.ROOT, kind, at)); f.copyTo(to, overwrite = true); to.path })
+                }
+                "render" -> {
+                    val from = a.getDouble("a"); val to = a.getDouble("b")
+                    val out = java.io.File(dirOut, a.optString("name", "range") + ".mp4")
+                    val exp = if (a.optString("mode") == "export") se.gendut.klipp.engine.ExportSettings(codec = androidx.media3.common.MimeTypes.VIDEO_H264, audio = false, hdr = false, bitDepth = 8) else null
+                    val r = runBlocking { se.gendut.klipp.engine.RenderCache.renderRange(ctx, snap, c::uriOf, grades, from, to, out, exp) }
+                    texts(r.fold({ "rendered ${out.path} (${out.length()} bytes)" }, { "failed: ${it.message}" }))
+                }
+                else -> error("op is chunks, copy or render")
+            }
+        },
         Tool("cut_trace", "Edit point diagnostics (CutTrace): configure it (trace, mode 0–3, stab), or read and clear its lines.",
             JSONObject().put("trace", prop("boolean", "turn the trace on/off")).put("mode", prop("number", "0 normal, 1 no edit point layer, 2 layer without takeover, 3 layer marked red"))
                 .put("read", prop("boolean", "return the lines collected since the last read and clear them"))

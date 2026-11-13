@@ -198,6 +198,8 @@ fun KlippApp(
     val captionPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) controller?.importCaptionsFrom(uri)
     }
+    // (the agent bridge's render diagnostics read the grades as the pre-render does)
+    LaunchedEffect(gs) { McpBridge.gradesOf = { HashMap(gs.grades) } }
     LaunchedEffect(controller) { controller?.captionPicker = { captionPicker.launch(arrayOf("application/x-subrip", "text/vtt", "text/*", "application/octet-stream", "*/*")) } }
     // nothing selected: properties close; a clip is selected: the caption is deselected (one selection at a time)
     LaunchedEffect(state.selected) { if (state.selected == null) state.inspecting = false else state.selectedCaption = null }
