@@ -236,6 +236,19 @@ object CompositionBuilder {
         // frames with black if the decoder dropped them at the cut (B-frames: the last 2 frames of a transition showed
         // as black) – an upper layer's video clip therefore gets a bit more material after its end, hidden by the compositor
         val upper = multi && layer !== plan.layers.lastOrNull()
+        /**
+         * The export and pre-rendering with layers: every item of every layer (clips, freeze frames, empty stretches) gives
+         * one frame per slot of the timeline, the rule's (SourceSampler, held frames repeated) – the compositor pairs each
+         * layer's frame with the primary (top) layer's by time, the closest; with frames off the slots or a slot held, it
+         * paired another source frame than the rule's (measured: a 60 fps bottom layer under a second layer on 25p, all 33
+         * slots one or two source frames off the single-layer export). The fill is last in each chain: the clips' own
+         * effects run per source frame, the compositor's motion and opacity, the transitions and the titles per slot. The
+         * file then has a frame on every slot (constant frame rate); a single layer is unchanged.
+         */
+        val fillAll = fillSlots && multi && fps > 0.0
+        fun gapFill(from: Double, to: Double): androidx.media3.common.Effect? = if (!fillAll) null else
+            androidx.media3.effect.KlippFrameFill(FillPlanner(fps, Math.round(plan.origin * 1e6), Math.round(to * 1e6),
+                listOf(Long.MIN_VALUE..Long.MAX_VALUE), Math.round(from * 1e6)))
         fun tail(i: Int): Double {
             if (!upper) return 0.0
             val next = layer.segs.getOrNull(i + 1)?.start ?: plan.total
@@ -314,9 +327,10 @@ object CompositionBuilder {
             // computed at preview size instead of 4K)
             // the transition (wipe, push, slide, zoom, iris, dip through a color) last, in the sequence frame
             val transition = if (seg.hasFx) TransitionFxEffect(seg, time) else null
-            val fill = if (fillSlots && transition != null && still == null && fps > 0.0)
+            // with layers, every slot (see fillAll); otherwise a transition's window
+            val fill = if (fillSlots && fps > 0.0 && (fillAll || transition != null && still == null))
                 androidx.media3.effect.KlippFrameFill(FillPlanner(fps, Math.round(plan.origin * 1e6), Math.round(seg.end * 1e6),
-                    (seg.windows + listOfNotNull(seg.fx)).map { w -> Math.round(w.t0 * 1e6)..Math.round(w.t1 * 1e6) },
+                    if (fillAll) listOf(Long.MIN_VALUE..Long.MAX_VALUE) else (seg.windows + listOfNotNull(seg.fx)).map { w -> Math.round(w.t0 * 1e6)..Math.round(w.t1 * 1e6) },
                     Math.round(seg.start * 1e6), nominalUs(itemUri, src.speed), Math.round((seg.end + tail(index)) * 1e6),
                     pinFirst = realStarts == null || Math.round(seg.start * 1e6) in realStarts)) else null
             // green screen before the grade (the source's colors), the mask after, in the clip's own frame (follows its
@@ -339,13 +353,13 @@ object CompositionBuilder {
                 .setEffects(androidx.media3.transformer.Effects(emptyList(), effects))
                 .apply { if (speed != null) setSpeed(speed) }
                 .build()
-            if (seg.start > t + 0.001) videoGap(b, seg.start - t, multi, fps, fit)
+            if (seg.start > t + 0.001) videoGap(b, seg.start - t, multi, fps, fit, gapFill(t, seg.start))
             b.addItem(edited)
             t = seg.end + (if (still == null) tail(index) else 0.0)
             any = true
         }
         if (!any) return null
-        if (plan.total > t + 0.001) videoGap(b, plan.total - t, multi, fps, fit)
+        if (plan.total > t + 0.001) videoGap(b, plan.total - t, multi, fps, fit, gapFill(t, plan.total))
         return b.build()
     }
 
@@ -362,14 +376,14 @@ object CompositionBuilder {
      * compositor was still using, and a later frame was drawn into it (traced on the vivo: a push's outgoing picture
      * missing for up to 5 frames in 2 of 6 renders, depending on timing). One size per layer, the pool is never rebuilt.
      */
-    private fun videoGap(b: EditedMediaItemSequence.Builder, sec: Double, multi: Boolean, fps: Double, fit: androidx.media3.common.Effect) {
+    private fun videoGap(b: EditedMediaItemSequence.Builder, sec: Double, multi: Boolean, fps: Double, fit: androidx.media3.common.Effect, fill: androidx.media3.common.Effect? = null) {
         val f = if (multi) BlankFrame.file() else null
         if (f == null) { b.addGap(us(sec)); return }
         b.addItem(
             EditedMediaItem.Builder(MediaItem.Builder().setUri(Uri.fromFile(f)).setImageDurationMs(Math.round(sec * 1000).coerceAtLeast(1)).build())
                 .setDurationUs(us(sec).coerceAtLeast(1))
                 .setFrameRate(fps.takeIf { it.isFinite() && it >= 1.0 }?.let { Math.round(it).toInt() } ?: 25)
-                .setEffects(androidx.media3.transformer.Effects(emptyList(), listOf(fit)))
+                .setEffects(androidx.media3.transformer.Effects(emptyList(), listOfNotNull(fit, fill)))
                 .build()
         )
     }
