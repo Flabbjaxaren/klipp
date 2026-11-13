@@ -298,11 +298,15 @@ object McpBridge {
             ctl().import(uris)
             texts("importing ${uris.size} files")
         },
-        Tool("render_diag", "Pre-render diagnostics: op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals).",
+        Tool("render_diag", "Pre-render diagnostics: op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals; grades: overrides for this render only).",
             JSONObject().put("op", prop("string", "chunks | copy | render")).put("a", prop("number", "s")).put("b", prop("number", "s"))
-                .put("mode", prop("string", "chunk | export")).put("name", prop("string", "file name"))) { a ->
+                .put("mode", prop("string", "chunk | export")).put("name", prop("string", "file name"))
+                .put("grades", prop("object", "op=render: grades for this render only, clip id → grade JSON (the project's grades are left as they are)"))) { a ->
             val c = ctl(); val ctx = activity ?: error("no activity")
-            val snap = c.snapshot; val grades = gradesOf?.invoke().orEmpty()
+            val snap = c.snapshot
+            val grades = gradesOf?.invoke().orEmpty().toMutableMap().also { g ->
+                a.optJSONObject("grades")?.let { o -> o.keys().forEach { k -> k.toLongOrNull()?.let { id -> g[id] = se.gendut.klipp.engine.ClipGrade.fromJson(o.optJSONObject(k)) } } }
+            }
             val dirOut = java.io.File(ctx.getExternalFilesDir(null), "diag").apply { mkdirs() }
             val chunks = se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, c::uriOf)
                 ?.let { p -> se.gendut.klipp.engine.RenderCache.chunks(p, { id -> grades[id] }, c::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort) }.orEmpty()
