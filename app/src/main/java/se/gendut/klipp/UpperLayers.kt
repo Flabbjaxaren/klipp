@@ -1076,7 +1076,12 @@ private class LayerClock {
     @Volatile var seg: SegTime? = null
 
     /** A frame's time on the timeline (µs), from its time in the file; null when no media segment is set. */
-    fun timelineUs(pts: Long): Long? = seg?.takeIf { it.speed > 0.0 }?.let { g -> Math.round((g.startSec + (fileSec(pts) - g.srcSec) / g.speed) * 1e6) }
+    fun timelineUs(pts: Long): Long? = seg?.takeIf { it.speed > 0.0 }?.let { g ->
+        // (in the main player's and the export's time base: they read a clip 1 ms of its file early, so each of its frames
+        // comes 1 ms / speed after its own timeline time – without it, a frame on a slot's edge fell on another slot here
+        // than there: 120 fps at 25 % on 25p, the edit point layer skipped every fifth source frame the export shows)
+        Math.round((g.startSec + (fileSec(pts) - g.srcSec) / g.speed) * 1e6 + se.gendut.klipp.engine.FrameGrid.LEAD_US / g.speed)
+    }
 
     @Volatile var srcIn = 0.0
     @Volatile var posSec = 0.0
