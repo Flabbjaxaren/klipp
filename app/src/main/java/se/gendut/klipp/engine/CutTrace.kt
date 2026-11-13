@@ -42,6 +42,7 @@ object CutTrace {
         androidx.media3.effect.KlippPrecision.frameTrace = if (trace) androidx.media3.effect.KlippPrecision.FrameTrace { chain, ptsUs, presentNs, dropped ->
             log("gl", "chain=$chain pts=$ptsUs ${if (dropped) "DROPPED" else "present=$presentNs"} thread=${Thread.currentThread().name}")
         } else null
+        androidx.media3.effect.KlippPrecision.compositeTrace = if (trace) androidx.media3.effect.KlippPrecision.CompositeTrace { line -> log("comp", line) } else null
         log("config", "trace=$trace mode=$mode")
     }
 

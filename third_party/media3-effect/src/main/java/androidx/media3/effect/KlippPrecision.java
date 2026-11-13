@@ -37,6 +37,19 @@ public final class KlippPrecision {
     if (t != null) t.onFrame(chain, ptsUs, presentNs, dropped);
   }
 
+  /** Klipp: the compositor's frames per input – queued, released, composited (the app's cut trace). */
+  public interface CompositeTrace {
+    void log(String line);
+  }
+
+  /** Set only while a trace runs (null otherwise: no cost). */
+  @androidx.annotation.Nullable public static volatile CompositeTrace compositeTrace;
+
+  static void composite(String line) {
+    CompositeTrace t = compositeTrace;
+    if (t != null) t.log(line);
+  }
+
   /** Number of pools that got floating point and 8 bits, respectively (diagnostics). */
   public static volatile int floatPools;
   public static volatile int bytePools;

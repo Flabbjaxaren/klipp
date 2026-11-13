@@ -235,12 +235,13 @@ class FillPlanner(
     override fun next(ptsUs: Long): LongArray {
         val tl = ptsUs + originUs
         if (!started) { sampler.startSegment(tl, nominalUs, itemEndUs, pinFirst); started = true }
-        val at = sampler.next(tl) ?: return LongArray(0)
+        val at = sampler.next(tl) ?: return LongArray(0).also { CutTrace.log("fill", "seg=$segStartUs in=$ptsUs drop") }
         val slot = Math.round(at / grid.stepUs)
         val out = ArrayList<Long>()
         if (last != Long.MIN_VALUE) for (k in last + 1 until slot) grid.timeOf(k).let { if (filled(it)) out += it - originUs }
         out += at - originUs
         last = slot
+        CutTrace.log("fill", "seg=$segStartUs in=$ptsUs out=$out")
         return out.toLongArray()
     }
 
@@ -251,6 +252,7 @@ class FillPlanner(
         // (slots strictly before the item's end: the next item's first frame takes the slot at it)
         while (grid.timeOf(k) < endUs - FrameGrid.LEAD_US) { if (filled(grid.timeOf(k))) out += grid.timeOf(k) - originUs; k++ }
         last = Long.MIN_VALUE
+        CutTrace.log("fill", "seg=$segStartUs end out=$out")
         return out.toLongArray()
     }
 

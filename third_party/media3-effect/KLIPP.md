@@ -28,6 +28,13 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
 - `KlippPriority.java` (new) and `DefaultGlObjectsProvider.java`: the video processing contexts are created with low
   GPU priority (EGL_IMG_context_priority) when the driver offers it, so the app's UI isn't queued behind heavy effects.
 
+- `DefaultVideoCompositor.java`, `FinalShaderProgramWrapper.java`: diagnostics only – with
+  `KlippPrecision.compositeTrace` set (the app's cut trace) the compositor logs each queued, released and composited
+  frame per input (texture ids), the final stage each output texture rendered, released and the pool's reconfiguration;
+  no change otherwise. Known Media3 issue they showed: the final stage rebuilds its output texture pool when its input
+  size changes while the consumer (the compositor) still holds a texture, and its timestamp queue then frees a texture
+  still in use – Klipp keeps every layer at one size (blank gaps at the layer's size) so it never happens.
+
 - `KlippFrameFill.java` (new): a frame for every slot of the timeline's frame rate before a transition is drawn, in
   the export and pre-rendering (a whip over a 30 fps source in a 60 fps timeline moved at 30). Uses
   `FrameCacheGlShaderProgram` (package-private, hence here); its bookkeeping (`Queue`) is plain and tested in the app.

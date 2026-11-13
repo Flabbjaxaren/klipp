@@ -155,6 +155,7 @@ public final class DefaultVideoCompositor implements VideoCompositor {
     checkState(contains(inputSources, inputIndex));
     checkState(primaryInputIndex != C.INDEX_UNSET);
     inputSources.get(inputIndex).isInputEnded = true;
+    if (KlippPrecision.compositeTrace != null) KlippPrecision.composite("end i=" + inputIndex);
     boolean allInputsEnded = true;
     for (int i = 0; i < inputSources.size(); i++) {
       if (!inputSources.valueAt(i).isInputEnded) {
@@ -204,6 +205,12 @@ public final class DefaultVideoCompositor implements VideoCompositor {
             new TimedGlTextureInfo(inputTexture, presentationTimeUs),
             videoCompositorSettings.getOverlaySettings(inputIndex, presentationTimeUs));
     inputSource.frameInfos.add(frameInfo);
+    // Klipp: diagnostics (see KlippPrecision.compositeTrace)
+    if (KlippPrecision.compositeTrace != null) {
+      KlippPrecision.composite(
+          "in i=" + inputIndex + " pts=" + presentationTimeUs + " tex=" + inputTexture.texId + " fbo=" + inputTexture.fboId + " a=" + frameInfo.overlaySettings.getAlphaScale()
+              + " queued=" + inputSource.frameInfos.size());
+    }
 
     if (inputIndex == primaryInputIndex) {
       releaseExcessFramesInAllSecondaryStreams();
@@ -277,6 +284,9 @@ public final class DefaultVideoCompositor implements VideoCompositor {
   private synchronized void releaseFrames(InputSource inputSource, int numberOfFramesToRelease) {
     for (int i = 0; i < numberOfFramesToRelease; i++) {
       FrameInfo frameInfoToRelease = inputSource.frameInfos.remove();
+      if (KlippPrecision.compositeTrace != null) {
+        KlippPrecision.composite("rel i=" + inputSources.keyAt(inputSources.indexOfValue(inputSource)) + " pts=" + frameInfoToRelease.timedGlTextureInfo.presentationTimeUs);
+      }
       checkNotNull(frameInfoToRelease.textureProducer)
           .releaseOutputTexture(frameInfoToRelease.timedGlTextureInfo.presentationTimeUs);
     }
@@ -322,6 +332,15 @@ public final class DefaultVideoCompositor implements VideoCompositor {
               framesToComposite.get(i).overlaySettings));
     }
     compositorGlProgram.drawFrame(glProgramInput.build(), outputTexture);
+    if (KlippPrecision.compositeTrace != null) {
+      StringBuilder sb = new StringBuilder("out pts=").append(outputPresentationTimestampUs).append(" sel=");
+      for (int i = 0; i < framesToComposite.size(); i++) {
+        sb.append('[').append(framesToComposite.get(i).timedGlTextureInfo.presentationTimeUs)
+            .append(" tex=").append(framesToComposite.get(i).timedGlTextureInfo.glTextureInfo.texId)
+            .append(" a=").append(framesToComposite.get(i).overlaySettings.getAlphaScale()).append(']');
+      }
+      KlippPrecision.composite(sb.toString());
+    }
 
     long syncObject = GlUtil.createGlSyncFence();
     syncObjects.add(syncObject);

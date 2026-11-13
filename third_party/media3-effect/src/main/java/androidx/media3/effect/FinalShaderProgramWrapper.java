@@ -166,8 +166,12 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
   private void releaseOutputTextureInternal(long presentationTimeUs) throws GlUtil.GlException {
     checkState(textureOutputListener != null);
+    if (KlippPrecision.compositeTrace != null) {
+      KlippPrecision.composite("fsw" + System.identityHashCode(this) + " release upTo=" + presentationTimeUs + " free=" + outputTexturePool.freeTextureCount() + " queue=" + outputTextureTimestamps.size());
+    }
     while (outputTexturePool.freeTextureCount() < outputTexturePool.capacity()
         && outputTextureTimestamps.element() <= presentationTimeUs) {
+      if (KlippPrecision.compositeTrace != null) KlippPrecision.composite("fsw" + System.identityHashCode(this) + " freed ts=" + outputTextureTimestamps.element());
       outputTexturePool.freeTexture();
       outputTextureTimestamps.remove();
       GlUtil.deleteSyncObject(syncObjects.remove());
@@ -326,6 +330,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     // downstream consumer may not have called releaseOutputTexture on all these textures. Release
     // all output textures that aren't already released.
     if (textureOutputListener != null) {
+      if (KlippPrecision.compositeTrace != null) KlippPrecision.composite("fsw" + System.identityHashCode(this) + " flushFinished");
       outputTexturePool.freeAllTextures();
       outputTextureTimestamps.clear();
       syncObjects.clear();
@@ -548,6 +553,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       throws GlUtil.GlException, VideoFrameProcessingException {
     GlTextureInfo outputTexture = outputTexturePool.useTexture();
     outputTextureTimestamps.add(presentationTimeUs);
+    if (KlippPrecision.compositeTrace != null) {
+      KlippPrecision.composite("fsw" + System.identityHashCode(this) + " render tex=" + outputTexture.texId + " pts=" + presentationTimeUs + " free=" + outputTexturePool.freeTextureCount());
+    }
     GlUtil.focusFramebufferUsingCurrentContext(
         outputTexture.fboId, outputTexture.width, outputTexture.height);
     GlUtil.clearFocusedBuffers();
@@ -618,6 +626,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
               outputSurfaceInfo.isEncoderInputSurface);
     }
     if (textureOutputListener != null) {
+      if (KlippPrecision.compositeTrace != null && inputSizeChanged) KlippPrecision.composite("fsw" + System.identityHashCode(this) + " configure " + outputWidth + "x" + outputHeight);
       outputTexturePool.ensureConfigured(glObjectsProvider, outputWidth, outputHeight);
     }
 
