@@ -372,8 +372,11 @@ private fun LayerVideo(
                 // seen as soon as its view holds the segment's first frame (the item begins preMs before the segment) –
                 // the player's reported position comes ~20 ms after the frame; it starts the layer if the frame's
                 // time can't be told
+                // … the frame that covers the edit point, that is: with the clip's frames off the main player's grid (a
+                // pre-rendered piece at the project rate, then 4K 120 fps at 25 %: a frame every 33 ms that began 0–33 ms
+                // after the cut) waiting for one that begins at the cut held the main player's last frame for 80–100 ms
                 val shown = view?.surfaceTexture?.timestamp?.let { released.ptsAt(it) }?.let { clock.itemUs(it, clipStartMs[i]) }
-                if ((shown != null && shown >= preMs[i] * 1000 - 1000) || player.currentPosition >= preMs[i]) {
+                if ((shown != null && EditPointFrame.covers(shown, released.stepUs(), preMs[i] * 1000)) || player.currentPosition >= preMs[i]) {
                     preRolling = false
                     TRACE.log("handStart", "seg=$i t=$t shown=$shown pos=${player.currentPosition}")
                 }
@@ -811,6 +814,16 @@ private object OverlayBitmaps {
  * separate player, which takes over the image for the first [SEC] seconds after the switch while the main player
  * gets going underneath. Preview only – export is not affected.
  */
+/** Whether the edit point layer's frame covers the edit point (pure logic, testable). */
+internal object EditPointFrame {
+    /**
+     * A frame beginning at [shownUs] (item time) and lasting [stepUs] is on screen at the edit point [cutUs] once it begins
+     * at it or ends after it (half a millisecond of rounding either way). Without a known step: from the cut on.
+     */
+    fun covers(shownUs: Long, stepUs: Long?, cutUs: Long): Boolean =
+        shownUs >= cutUs - 1000 || (stepUs != null && shownUs + stepUs > cutUs + 500)
+}
+
 internal object Handoff {
     const val SEC = 1.0
 
@@ -1002,6 +1015,13 @@ private class ReleasedFrames(private val ramp: EarlyRamp? = null) : androidx.med
         val k = n % 16; pts[k] = presentationTimeUs; at[k] = releaseTimeNs; n++
         ramp?.released(releaseTimeNs, System.nanoTime())
         if (TRACE.on) TRACE.log("released", "pts=$presentationTimeUs at=$releaseTimeNs")
+    }
+
+    /** The time between the last two frames released (µs; null = not known yet). */
+    @Synchronized fun stepUs(): Long? {
+        if (n < 2) return null
+        val d = pts[(n - 1) % 16] - pts[(n - 2) % 16]
+        return d.takeIf { it in 1..200_000 }
     }
 
     /** The presentation time of the frame released for [releaseNs] (a SurfaceTexture's timestamp); null = not among the last ones. */
