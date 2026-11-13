@@ -73,7 +73,7 @@ object RenderCache {
         val longer: List<Pair<String, Double>> = emptyList(),
     )
 
-    private const val VERSION = 9
+    private const val VERSION = 10
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
     /** The disk space for the files. */
@@ -362,6 +362,71 @@ object RenderCache {
         return minOf(p, PRE_ROLL_MAX, a)
     }
 
+    /**
+     * The pre-roll from the clips' real frame times (PreRollRule): reading begins at the frame before the one the whole
+     * timeline shows on the part's first slot – after a long gap in a variable-frame-rate file, or with a slow source,
+     * well before the part (a fixed pre-roll from the nominal rate missed it: the part's first slots showed the frame
+     * after the gap early). The times come from the played file's sample table (no decoding; a gap has no frames, so a
+     * long one costs nothing to read through). Bounded: [PRE_ROLL_SYNC_STEPS] steps back from key frame to key frame
+     * and [PRE_ROLL_LIMIT] seconds; a clip that can't be read, a reversed one or a freeze frame: [preRoll]'s estimate.
+     */
+    internal fun preRollFor(context: Context, s: Snapshot, uriOf: (Long) -> Uri?, a: Double, export: Boolean): Double {
+        if (a <= 1e-9) return 0.0
+        val q = s.sequence ?: return 0.0
+        val fps = s.fps.takeIf { it > 0.0 } ?: return preRoll(s, a)
+        val g = FrameGrid(fps)
+        val visibleUs = Math.round(a * 1e6)
+        val slotEnd = g.timeOf(g.slotAtOrAfter(visibleUs - FrameGrid.LEAD_US)) + FrameGrid.LEAD_US
+        var p = 0.0
+        for (t in q.video) for (c in t.clips) {
+            if (!c.enabled || c.text != null || c.start > a + 1e-9 || c.start + c.duration <= a + 1e-9) continue
+            val sp = c.speed
+            val uri = uriOf(c.item)?.let { if (export) it else Proxies.videoUri(it) }
+            if (uri == null || c.reverse || c.hold != null || sp <= 1e-6) { p = maxOf(p, preRoll(s, a)); continue }
+            val need = runCatching { readStartTau(context, uri, c, sp, slotEnd, visibleUs, fps) }.getOrNull()
+            p = maxOf(p, if (need == null) preRoll(s, a) else a - (need - g.stepUs) / 1e6)
+        }
+        // (the reading starts on a slot: an upper layer's empty stretch from there gives the compositor's primary frames,
+        // one per 1/fps from its start – off the grid, the compositor paired the bottom layer's frames with other times
+        // than the whole timeline does: a part from 1.52 s showed the frame before on every slot to the next cut)
+        val from = a - p.coerceIn(0.0, minOf(a, PRE_ROLL_LIMIT))
+        return (a - Math.floor(from * fps + 1e-6) / fps).coerceIn(0.0, a)
+    }
+
+    /** The timeline time (µs) a part showing from [visibleUs] must read clip [c] from, or null when it can't be told. */
+    private fun readStartTau(context: Context, uri: Uri, c: ClipSnap, speed: Double, slotEndUs: Long, visibleUs: Long, fps: Double): Long? {
+        fun tau(fileUs: Long) = Math.round((c.start + (fileUs / 1e6 - c.sourceIn) / speed) * 1e6)
+        val clipStartUs = Math.round(c.start * 1e6)
+        val untilFileUs = Math.round((c.sourceIn + ((slotEndUs - clipStartUs) / 1e6) * speed) * 1e6)
+        val ex = android.media.MediaExtractor()
+        try {
+            ex.setDataSource(context, uri, null)
+            val track = (0 until ex.trackCount).firstOrNull { ex.getTrackFormat(it).getString(android.media.MediaFormat.KEY_MIME)?.startsWith("video/") == true } ?: return null
+            ex.selectTrack(track)
+            val times = java.util.TreeSet<Long>()
+            var from = untilFileUs
+            repeat(PRE_ROLL_SYNC_STEPS) {
+                ex.seekTo(from, android.media.MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+                val sync = ex.sampleTime
+                if (sync < 0) return null
+                // (in decode order: with B-frames a later sample can carry an earlier time – read a little past the end)
+                while (ex.sampleTime >= 0 && ex.sampleTime <= untilFileUs + 500_000) { if (ex.sampleTime <= untilFileUs) times += ex.sampleTime; if (!ex.advance()) break }
+                // the clip's frames on the timeline (the export reads none before its in point, read 1 ms early)
+                val taus = times.map(::tau).filter { it >= clipStartUs - FrameGrid.LEAD_US }
+                PreRollRule.startTau(taus, visibleUs, fps)?.let { return it }
+                // reached the clip's first frame: the part reads from the clip's start (its first frame is pinned there)
+                if (taus.size < times.size || sync <= 0L) return clipStartUs
+                if (tau(sync) < visibleUs - Math.round(PRE_ROLL_LIMIT * 1e6)) return null
+                from = sync - 1
+            }
+            return null
+        } finally {
+            ex.release()
+        }
+    }
+
+    private const val PRE_ROLL_SYNC_STEPS = 8
+    private const val PRE_ROLL_LIMIT = 30.0
     private const val PRE_ROLL_UNKNOWN = 0.25
     private const val PRE_ROLL_MAX = 1.0
 
@@ -446,7 +511,7 @@ object RenderCache {
         val built = CompositionBuilder.buildFull(
             s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
             videoUriOf = { id -> uriOf(id)?.let { if (export == null) Proxies.videoUri(it) else it } },
-            previewShort = if (export == null) short else 0, range = (a - preRoll(s, a))..end, visibleFrom = a, output = settings,
+            previewShort = if (export == null) short else 0, range = (a - preRollFor(context, s, uriOf, a, export = export != null))..end, visibleFrom = a, output = settings,
         ) ?: return Result.failure(IllegalStateException("nothing to render in $a–$b"))
         out.delete()
         if (end <= b) return Exporter.transform(context, built.composition, out, settings, tenBit = false, note = false) { }
@@ -562,7 +627,7 @@ object RenderCache {
                 val built = CompositionBuilder.buildFull(
                     s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
                     videoUriOf = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }, previewShort = short,
-                    range = (c.a - preRoll(s, c.a))..renderEnd(s, c), visibleFrom = c.a, output = renderSettings(s, short),
+                    range = (c.a - preRollFor(context, s, uriOf, c.a, export = false))..renderEnd(s, c), visibleFrom = c.a, output = renderSettings(s, short),
                 ) ?: run { done += c.b - c.a; continue }
                 val tmp = File(d, "${c.hash}.tmp")
                 // one more attempt if it failed (the encoder can be busy for a while, e.g. by an export)

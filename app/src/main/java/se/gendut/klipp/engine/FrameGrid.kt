@@ -263,6 +263,30 @@ class FillPlanner(
 }
 
 /**
+ * Where a pre-rendered part must begin reading so its first slot gets the whole timeline's frame (SourceSampler): the
+ * slot shows the first frame of the last slot at or before it that has a frame of its own – after a long gap in a
+ * variable-frame-rate file, or for a slow source, a frame from well before the part. The rule decides that frame by
+ * the frame before it, so reading begins there. Pure (the times come from the file's sample table, see RenderCache).
+ */
+object PreRollRule {
+    /**
+     * [tausUs]: a clip's source frames on the timeline (µs, rising); the part is shown from [visibleUs]. The time of the
+     * frame reading must begin at, or null when [tausUs] begins too late to tell (read further back) or has no frame
+     * at or before the part's first slot.
+     */
+    fun startTau(tausUs: List<Long>, visibleUs: Long, fps: Double): Long? {
+        val g = FrameGrid(fps)
+        val ka = g.slotAtOrAfter(visibleUs - FrameGrid.LEAD_US)
+        fun slot(t: Long) = g.slotAtOrAfter(t - FrameGrid.LEAD_US)
+        val last = tausUs.indexOfLast { slot(it) <= ka }
+        if (last < 0) return null
+        val j = slot(tausUs[last])
+        val first = tausUs.indexOfFirst { slot(it) == j }
+        return if (first <= 0) null else tausUs[first - 1]
+    }
+}
+
+/**
  * A pre-rendered part's first frame on its first slot (KlippFrameFill, last in the chain): the muxer puts a file's
  * first frame at 0, so a part whose first frame came a slot after its start (a 30 fps source in a 60 fps timeline) was
  * played a slot early, all of it. The part is read from before its start (RenderCache's pre-roll, [originUs] = where its
@@ -275,13 +299,16 @@ class StartPinPlanner(
     fps: Double, private val originUs: Long,
     /** Where the part is shown from (timeline µs; after a pre-roll later than [originUs]). */
     private val visibleUs: Long = originUs,
+    /** The composition's item edges (composition µs, rising): where the item of a frame kept unseen ends. */
+    private val edgesUs: LongArray = LongArray(0),
 ) : androidx.media3.effect.KlippFrameFill.Planner {
     private val stepUs = 1_000_000.0 / fps.coerceAtLeast(1.0)
     private var shown = false
+    private var keptAt = Long.MIN_VALUE
 
     override fun next(ptsUs: Long): LongArray {
         if (shown) return longArrayOf(ptsUs)
-        if (ptsUs + originUs < visibleUs - FrameGrid.LEAD_US) return longArrayOf(androidx.media3.effect.KlippFrameFill.UNSEEN)
+        if (ptsUs + originUs < visibleUs - FrameGrid.LEAD_US) { keptAt = ptsUs; return longArrayOf(androidx.media3.effect.KlippFrameFill.UNSEEN) }
         shown = true
         // the part's first slot, in the composition's time
         val k0 = Math.ceil((visibleUs - 0.5) / stepUs).toLong()
@@ -296,7 +323,19 @@ class StartPinPlanner(
         return out.toLongArray()
     }
 
-    override fun end() = LongArray(0)
+    /**
+     * An item ends. A part held all through by a frame from before it (a slow source, a long gap in a variable-frame-
+     * rate file) has no frame of its own: when the item of the frame kept unseen reaches past the part's start, that
+     * frame is shown from the part's first slot – before, such a part came out without any frame.
+     */
+    override fun end(): LongArray {
+        if (shown || keptAt == Long.MIN_VALUE) return LongArray(0)
+        val itemEnd = edgesUs.firstOrNull { it > keptAt } ?: Long.MAX_VALUE
+        val first = Math.round(Math.ceil((visibleUs - 0.5) / stepUs) * stepUs) - originUs
+        if (itemEnd <= first) return LongArray(0)
+        shown = true
+        return longArrayOf(first)
+    }
 
     // (not at an item's end: the pin is the render's start only)
     override fun reset() {}

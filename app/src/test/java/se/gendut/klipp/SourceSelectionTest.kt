@@ -50,7 +50,8 @@ class SourceSelectionTest {
             val s0 = maxOf(c.start, from); val s1 = minOf(c.end, to)
             if (s1 - s0 <= 1e-9) null else Triple(s0, s1, c)
         }
-        val frames = parts.flatMap { (s0, s1, c) -> c.decoded(s0, s1) }
+        val perItem = parts.map { (s0, s1, c) -> c.decoded(s0, s1) }
+        val frames = perItem.flatten()
         val edges = (parts.map { it.first } + parts.map { it.second }).map { Math.round(it * 1e6) - origin }.filter { it > 0 }.distinct().sorted()
         // (a part cut into a clip: that segment isn't pinned at the cut – as Playback passes it)
         val cut = clips.any { it.start < from - 1e-9 && it.end > from + 1e-9 }
@@ -59,7 +60,7 @@ class SourceSelectionTest {
         // the start pin (a part), through the fill's queue: what goes into the file
         val file = ArrayList<Pair<Long, Long>>()
         if (visible == null) file += presented else {
-            val pin = StartPinPlanner(fps, origin, Math.round(visible * 1e6))
+            val pin = StartPinPlanner(fps, origin, Math.round(visible * 1e6), edges.toLongArray())
             var cur = -1L; var kept = -1L; var now = -1L
             val q = androidx.media3.effect.KlippFrameFill.Queue(pin, object : androidx.media3.effect.KlippFrameFill.Sink {
                 override fun copyCurrent() { cur = now }
@@ -70,7 +71,12 @@ class SourceSelectionTest {
                 override fun readyForInput() {}
                 override fun endOfStream() {}
             })
-            for ((t, id) in presented) { now = id; q.input(t) }
+            // item by item, each ended (the export's chain gets an end per item)
+            val rule2 = FrameRateEffect.Streams(fps, edges.toLongArray(), origin, itemEnds = false, cutAtStart = cut)
+            for (item in perItem) {
+                for ((t, id) in item) rule2.next(t - origin)?.let { now = id; q.input(it) }
+                q.end()
+            }
         }
         val st = 1e6 / fps
         val shownFrom = visible ?: from
@@ -91,8 +97,20 @@ class SourceSelectionTest {
         return render(clips, fps, maxOf(0.0, a - pre), end, a).filterKeys { Math.round(it * 1e6 / fps) < Math.round(b * 1e6) - 500 }
     }
 
+    /** As RenderCache.preRollFor: from the clips' frame times (PreRollRule), the clip's start when it reaches back to it. */
     private fun preRoll(clips: List<Clip>, fps: Double, a: Double): Double {
         if (a <= 1e-9) return 0.0
+        val step = 1e6 / fps
+        val p = clips.filter { it.start <= a + 1e-9 && it.end > a + 1e-9 }.maxOfOrNull { c ->
+            val taus = c.decoded(c.start, a + 1.0 / fps).map { it.first }
+            val need = se.gendut.klipp.engine.PreRollRule.startTau(taus, Math.round(a * 1e6), fps) ?: Math.round(c.start * 1e6)
+            a - (need - step) / 1e6
+        } ?: 0.0
+        return minOf(p, a)
+    }
+
+    /** The old pre-roll: two and a half nominal source frames and a slot. */
+    private fun nominalPreRoll(clips: List<Clip>, fps: Double, a: Double): Double {
         val p = clips.filter { it.start <= a + 1e-9 && it.end > a + 1e-9 }.maxOfOrNull { 2.5 / (it.srcFps * it.speed) + 1 / fps } ?: 0.0
         return minOf(p, 1.0, a)
     }
@@ -150,26 +168,26 @@ class SourceSelectionTest {
         assertEquals((0L until 75L).map { it + 25L }, (0L until 75L).map { whole[it]!! })
     }
 
-    @Test fun aLongGapBetweenTwoSourceFramesNeedsThePreRollToReachTheFrameBefore() {
-        // a 30 fps file with no frames for 0.6 s of source (1.0–1.6 s) at speed 1 on a 25p timeline: the timeline's
-        // slots 0.52–1.08 s hold the frame before the gap. A part starting inside the gap (0.8 s)...
+    @Test fun aLongGapBetweenTwoSourceFrames() {
+        // a 30 fps file with no frames for 0.6 s of source (1.0–1.6 s) at speed 1 on a 25p timeline: slots 0.52–1.08 s
+        // hold the frame before the gap
         val clips = listOf(Clip(0.0, 3.0, 0.48, 1.0, 30.0, gapUs = 1_000_001L..1_599_999L))
         val whole = render(clips, 25.0, 0.0, 3.0, null)
-        val a = 0.8
-        // ...with the pre-roll from the nominal rate (2.5 source frames and a slot, 0.12 s) reads no frame before its
-        // start: its first slots show the frame after the gap early – the limit of the pre-roll for such files
-        val short = part(clips, 25.0, a, 3.0, preRoll(clips, 25.0, a))
-        val wrong = short.filter { (k, id) -> whole[k] != id }.keys.sorted()
-        assertEquals((20L..27L).toList(), wrong)
-        // read back to the frame before the gap (the source's previous frame time, here 0.4 s of timeline), the part
-        // is the whole timeline's, slot for slot
-        assertEquals(whole.filterKeys { it >= 20L }, part(clips, 25.0, a, 3.0, 0.4))
-        // a gap inside the pre-roll's reach is covered as it is
-        val near = listOf(Clip(0.0, 3.0, 0.48, 1.0, 30.0, gapUs = 1_000_001L..1_066_699L))
-        assertSameEverywhere(near, 25.0, splits(25.0, 0.54, 0.68, 1.2))
-        // a limit: a part with no frame of its own (all of it held from before its start) gets no frame at all – the
-        // start pin shows the held frame only before a frame of the part's own
-        assertEquals(emptyMap<Long, Long>(), part(near, 25.0, 0.56, 0.6, preRoll(near, 25.0, 0.56)))
+        // the old pre-roll from the nominal rate read no frame before a part starting in the gap: 8 slots showed the frame
+        // after the gap early
+        val old = part(clips, 25.0, 0.8, 3.0, nominalPreRoll(clips, 25.0, 0.8))
+        assertEquals((20L..27L).toList(), old.filter { (k, id) -> whole[k] != id }.keys.sorted())
+        // from the frame times: parts starting before, in and after the gap, and the timeline cut there
+        assertSameEverywhere(clips, 25.0, splits(25.0, 0.48, 0.52, 0.56, 0.8, 1.0, 1.08, 1.12, 1.16, 2.0))
+    }
+
+    @Test fun aPartWhollyInsideAHeldFrame() {
+        // parts that are all held by a frame from before them – they had no frame at all
+        val gap = listOf(Clip(0.0, 3.0, 0.48, 1.0, 30.0, gapUs = 1_000_001L..1_599_999L))
+        assertSameEverywhere(gap, 25.0, splits(25.0, 0.56, 0.6, 0.72, 0.8, 0.88, 1.0))
+        // a slow source: 30 fps at 5 % – a frame every 0.67 s on a 60p timeline, parts of a few slots between two
+        val slow = listOf(Clip(0.0, 4.0, 0.4, 0.05, 30.0))
+        assertSameEverywhere(slow, 60.0, splits(60.0, 0.1, 0.15, 0.2, 0.9, 0.95, 1.5, 1.55, 2.2))
     }
 
     @Test fun aSlowerSourceHoldsAcrossAPartsStart() {

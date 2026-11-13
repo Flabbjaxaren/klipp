@@ -562,7 +562,7 @@ object CompositionBuilder {
                 if (outFps > 0.0) fx += FrameRateEffect(outFps, starts, nominals, itemEnds = false, originUs = Math.round(plan.origin * 1e6), cutAtStart = cut)
                 // a part of the timeline (pre-rendering): its first frame on its first slot (see StartPinPlanner)
                 if (outFps > 0.0 && range != null) fx += androidx.media3.effect.KlippFrameFill(
-                    StartPinPlanner(outFps, Math.round(plan.origin * 1e6), Math.round((visibleFrom ?: plan.origin) * 1e6)))
+                    StartPinPlanner(outFps, Math.round(plan.origin * 1e6), Math.round((visibleFrom ?: plan.origin) * 1e6), starts))
                 val (ow, oh) = output.outputSize(plan.width, plan.height)
                 if (ow != plan.width || oh != plan.height) fx += androidx.media3.effect.Presentation.createForWidthAndHeight(ow, oh, androidx.media3.effect.Presentation.LAYOUT_SCALE_TO_FIT)
             }
