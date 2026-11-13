@@ -472,19 +472,20 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
                     } else if (android.os.SystemClock.uptimeMillis() - pressed < 3000) continue
                     else started = true
                 }
-                kotlinx.coroutines.delay(500)
+                kotlinx.coroutines.delay(100)
                 val p = playback.player
                 val now = p.currentPosition
                 if (now == last) still++ else still = 0
                 last = now
-                // (real buffering always loads – buffering without loading for a second is the stall)
-                if (still == 2 && p.playbackState == androidx.media3.common.Player.STATE_BUFFERING && p.playWhenReady && !p.isLoading) {
+                // (real buffering always loads – buffering without loading is the stall: 0.3 s of it is enough to tell,
+                // a second cost a visible hitch every time, seen on the vivo with 4K APV just after a cut)
+                if (still == 3 && p.playbackState == androidx.media3.common.Player.STATE_BUFFERING && p.playWhenReady && !p.isLoading) {
                     CrashReport.note("stall: buffering without loading at $now ms (buffered ${p.bufferedPosition}) – a frame on")
                     p.seekTo(now + 40)
                     still = 0
                     continue
                 }
-                if (still == 4) CrashReport.note("stall: pos $now state ${p.playbackState} pwr ${p.playWhenReady} playing ${p.isPlaying} loading ${p.isLoading} buffered ${p.bufferedPosition} suppress ${p.playbackSuppressionReason} frames ${playback.framesShown} shown ${androidx.media3.effect.KlippPrecision.framesShown} late ${androidx.media3.effect.KlippPrecision.framesLate} heap ${Runtime.getRuntime().let { r -> "${(r.totalMemory() - r.freeMemory()) shr 20}/${r.maxMemory() shr 20} MB" }}")
+                if (still == 20) CrashReport.note("stall: pos $now state ${p.playbackState} pwr ${p.playWhenReady} playing ${p.isPlaying} loading ${p.isLoading} buffered ${p.bufferedPosition} suppress ${p.playbackSuppressionReason} frames ${playback.framesShown} shown ${androidx.media3.effect.KlippPrecision.framesShown} late ${androidx.media3.effect.KlippPrecision.framesLate} heap ${Runtime.getRuntime().let { r -> "${(r.totalMemory() - r.freeMemory()) shr 20}/${r.maxMemory() shr 20} MB" }}")
             }
         }
     }

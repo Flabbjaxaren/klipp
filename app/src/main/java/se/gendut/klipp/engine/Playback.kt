@@ -571,18 +571,20 @@ object CutSeek {
      * one of its pieces (measured on the vivo: 1–4 frames before the piece where a transition began, ready and "playing"
      * with all of it loaded, the position stood still; 5 frames before or on the edge itself played). So a start less than
      * [STALL_WINDOW] before an edge begins [PRE_ROLL] before that edge instead – the moment that follows is seen whole.
+     * The window grew with heavier files (2026-11-13, vivo, 4K APV at 25 % on proxies: 0.20–0.22 s before a cut stood
+     * still 5 of 5 times, 0.24 s and further played; on the OnePlus, slower, up to about 0.5 s stood still).
      */
     fun startSec(sec: Double, edges: DoubleArray): Double {
         var p = sec
-        // (a step back can land just before an earlier edge: a few rounds at most)
-        repeat(3) {
-            val e = edges.firstOrNull { it - p > 1e-6 && it - p <= STALL_WINDOW } ?: return p
+        // (a step back can land just before an earlier edge – short pieces, e.g. a transition's: until it doesn't)
+        repeat(10) {
+            val e = edges.firstOrNull { it - p > 1e-6 && it - p <= STALL_WINDOW + 1e-6 } ?: return p
             p = (e - PRE_ROLL).coerceAtLeast(0.0)
         }
         return p
     }
-    const val STALL_WINDOW = 0.2
-    const val PRE_ROLL = 0.3
+    const val STALL_WINDOW = 0.5
+    const val PRE_ROLL = 0.6
 
     /** Every place a piece of the composition ends: clips and sound clips, transitions and the pre-rendered chunks. */
     fun edgesOf(s: Snapshot, chunks: List<RenderCache.Chunk>): DoubleArray {
