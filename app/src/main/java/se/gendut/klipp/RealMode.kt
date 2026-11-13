@@ -394,7 +394,8 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
                 if (p.playbackState == Player.STATE_READY || p.playbackState == Player.STATE_ENDED) { state.playhead = pos.toFloat(); loopHead[0] = state.playhead }
                 when {
                     p.playbackState == Player.STATE_ENDED -> state.playing = false
-                    !p.playWhenReady -> state.playing = false // the player paused itself (e.g. headphones unplugged)
+                    // the player paused itself (e.g. headphones unplugged) – not while its start waits for the first frame
+                    !p.playWhenReady -> if (!playback.startPending) state.playing = false
                     // after a reload the player is idle for a moment before it starts buffering – that is not a
                     // stop (a real error stops via onError). Stopping here used to leave just one frame.
                     p.playbackState == Player.STATE_IDLE -> if (++idleFrames > 120) state.playing = false
@@ -406,11 +407,11 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
                 } else stuckFrames = 0
                 lastPos = pos
             }
-            playback.player.pause()
+            playback.pause()
         } else {
             // (the effect that played is cancelled when playing turns off – the pause is handled here)
             val wasPlaying = playback.player.playWhenReady
-            playback.player.pause()
+            playback.pause()
             if (wasPlaying && playback.hasContent && state.playhead == loopHead[0]) {
                 // the picture where the playhead stands: when paused, the player had already released frames up to 1–3 ahead
                 // of the position the loop last read (measured with frame-coded clips: 14 of 15 pauses showed a later frame

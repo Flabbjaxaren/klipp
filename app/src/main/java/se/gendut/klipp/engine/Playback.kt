@@ -620,6 +620,24 @@ class ProgramPlayback(private val context: Context) {
     /** Counted up for every frame the player shows after a seek/reload. */
     var framesShown by androidx.compose.runtime.mutableIntStateOf(0)
         private set
+    /**
+     * Play was pressed before the player showed its first frame after a build: it starts once that frame is out (or after
+     * [FIRST_FRAME_WAIT_MS]). Started at once, a player built a moment before stood still for good with 4K APV originals
+     * at 25 % (vivo: 3 of 3 starts within 0.1 s of a rebuild – READY and "playing", the position frozen, every reload the
+     * same; 0.2 s later always played).
+     */
+    var startPending = false
+        private set
+    private val deferredPlay = Runnable { if (startPending) { startPending = false; player.play() } }
+    private val FIRST_FRAME_WAIT_MS = 1500L
+
+    /** Pause, a pending start included. */
+    fun pause() {
+        startPending = false
+        main.removeCallbacks(deferredPlay)
+        player.pause()
+    }
+
     /** If the phone never reports the first frame: assume it shows a while after the player became ready. */
     private val assumeShown = Runnable { if (player.playbackState == androidx.media3.common.Player.STATE_READY) { frameShown = true; framesShown++ } }
 
@@ -681,6 +699,7 @@ class ProgramPlayback(private val context: Context) {
             main.removeCallbacks(assumeShown)
             firstFrameAt = android.os.SystemClock.elapsedRealtime()
             CutTrace.log("firstFrame", "layer=main pos=${player.currentPosition}")
+            if (startPending) { main.removeCallbacks(deferredPlay); main.post(deferredPlay) }
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) { CutTrace.log("isPlaying", "layer=main $isPlaying pos=${player.currentPosition}") }
@@ -982,7 +1001,13 @@ class ProgramPlayback(private val context: Context) {
         val from = CutSeek.startSec(positionSec, edges)
         if (from != positionSec) se.gendut.klipp.CrashReport.note("start: %.3f s is just before an edge – from %.3f s".format(java.util.Locale.ROOT, positionSec, from))
         if (ended || from != positionSec || kotlin.math.abs(from - positionSec()) > 0.05) seek(from)
-        player.play()
+        if (renderedFirstFrame) player.play()
+        else {
+            se.gendut.klipp.CrashReport.note("start: waits for the first frame after the build")
+            startPending = true
+            main.removeCallbacks(deferredPlay)
+            main.postDelayed(deferredPlay, FIRST_FRAME_WAIT_MS)
+        }
         return null
     }
 
@@ -1009,6 +1034,7 @@ class ProgramPlayback(private val context: Context) {
 
     fun release() {
         main.removeCallbacks(assumeShown)
+        main.removeCallbacks(deferredPlay)
         // the player (and its audio thread) first – then the chains it used
         player.release()
         fx.free(fx.takeAll())
