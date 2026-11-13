@@ -74,6 +74,11 @@ data class Geom(
     val turn: Float = 0f, val blurY: Float = 0f, val blurTurn: Float = 0f, val leak: Float = 0f,
     /** How far the light leak's clouds have drifted (the transition's progress, 0..1). */
     val drift: Float = 0f,
+    /**
+     * The smear soft (Gaussian, as a directional blur) instead of even (a camera's shutter): the same spread,
+     * reaching √3 times as far and fading out – no hard edges or copies of the picture at the smear's ends.
+     */
+    val softBlur: Boolean = false,
 ) {
     val identity get() = dx == 0f && dy == 0f && scale == 1f && mask == null && tint == 0f && blurX == 0f && blurZoom == 0f && turn == 0f && blurY == 0f && blurTurn == 0f && leak == 0f
     /** Needs the expensive shader. */
@@ -123,7 +128,7 @@ data class SegFx(
             // are smeared along the move, most just after the edit point
             TransitionType.WHIP -> {
                 val (shift, blur) = if (incoming) WhipCurve.incoming(WhipCurve.inTime(t, t0, t1, cut)) else WhipCurve.outgoing(WhipCurve.outTime(t, t0, t1, cut))
-                Geom(dx = sign * shift, blurX = blur, mirror = true)
+                Geom(dx = sign * shift, blurX = blur, mirror = true, softBlur = true)
             }
             // rotate: no zoom, only the turn – the outgoing clip spins ever faster a third of the way round, the incoming one
             // takes over a quarter turn behind and settles level (the picture mirrored around the frame), smeared as by a 300°
@@ -170,7 +175,7 @@ data class SegFx(
         /** Exposure time of the zoom's motion blur: a 360° shutter at 25 fps. */
         const val SHUTTER_S = 1f / 25f
         /** The version of the moves above, in the render cache's keys: raise it when a transition's look changes. */
-        const val LOOK = 6
+        const val LOOK = 7
         /** How far the push and the whip have come at the edit point: about where the speeds on either side meet. */
         const val THROWN = 0.7f
         /** The most smear (the zoom's in log scale, the turn's in radians) – short transitions move very fast. */
@@ -349,6 +354,7 @@ class TransitionFxEffect(private val seg: Seg, private val timeOf: (Long) -> Dou
                     program.setFloatUniform("uBlurTurn", g.blurTurn)
                     program.setFloatUniform("uLeak", g.leak)
                     program.setFloatUniform("uDrift", g.drift)
+                    program.setFloatUniform("uBlurSoft", if (g.softBlur) 1f else 0f)
                 }
                 program.bindAttributesAndUniforms()
                 GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
@@ -418,6 +424,7 @@ uniform float uBlurY;
 uniform float uBlurTurn;
 uniform float uLeak;
 uniform float uDrift;
+uniform float uBlurSoft;
 varying vec2 vTexSamplingCoord;
 vec2 turned(vec2 p, float a) {
   vec2 v = (p - vec2(0.5)) * vec2(uAspect, 1.0);
@@ -465,13 +472,19 @@ void main() {
     // each pixel's taps start a little apart (interleaved gradient noise): a long smear turns into a soft streak instead
     // of 32 faint copies of the picture
     float j = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
+    // soft: the taps reach √3 times as far (±3 σ of a Gaussian with the even smear's spread) and are weighted by it
+    float reach = uBlurSoft > 0.5 ? 1.7320508 : 1.0;
+    float wsum = 0.0;
     for (int i = 0; i < 32; i++) {
       float f = (float(i) + j) / 32.0 - 0.5;
-      vec2 v = (src + vec2(uBlurX, uBlurY) * f + (src - vec2(0.5)) * uBlurZoom * f - vec2(0.5)) * aspect;
-      color += texture2D(uTexSampler, tap(vec2(r.x * v.x - r.y * v.y, r.y * v.x + r.x * v.y) / aspect + vec2(0.5))).rgb;
+      float w = uBlurSoft > 0.5 ? exp(-18.0 * f * f) : 1.0;
+      float g = f * reach;
+      vec2 v = (src + vec2(uBlurX, uBlurY) * g + (src - vec2(0.5)) * uBlurZoom * g - vec2(0.5)) * aspect;
+      color += w * texture2D(uTexSampler, tap(vec2(r.x * v.x - r.y * v.y, r.y * v.x + r.x * v.y) / aspect + vec2(0.5))).rgb;
+      wsum += w;
       r = vec2(r.x * dr.x - r.y * dr.y, r.y * dr.x + r.x * dr.y);
     }
-    color /= 32.0;
+    color /= wsum;
   }
   vec3 rgb = mix(color, vec3(uTintWhite), uTint);
   if (uLeak > 0.0) {

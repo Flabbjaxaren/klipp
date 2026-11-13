@@ -238,6 +238,9 @@ class TransitionsTest {
         assertEquals(0.0107f, i.at(cut + 0.2).dx, 2e-3f)
         assertEquals(0f, i.at(10.0 + WhipCurve.TOTAL_S).dx, 1e-4f)
         assertEquals(0f, i.at(10.0 + WhipCurve.TOTAL_S).blurX, 1e-4f)
+        // a soft smear, as a directional blur (the zoom keeps a shutter's even one)
+        assertTrue(o.at(10.1).softBlur && i.at(cut).softBlur)
+        assertFalse(SegFx(TransitionType.ZOOM, true, false, 2.0, 4.0, 3.0, false).at(3.0).softBlur)
         // mirrored edges, both ways; reversed: the other way round
         assertTrue(o.at(10.1).mirror && i.at(cut).mirror)
         assertEquals(-0.3915f, mhWhip(true, reverse = true).at(cut).dx, 2e-3f)
