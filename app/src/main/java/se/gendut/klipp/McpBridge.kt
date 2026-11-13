@@ -301,7 +301,8 @@ object McpBridge {
         Tool("render_diag", "Pre-render diagnostics: op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals; grades: overrides for this render only).",
             JSONObject().put("op", prop("string", "chunks | copy | render")).put("a", prop("number", "s")).put("b", prop("number", "s"))
                 .put("mode", prop("string", "chunk | export")).put("name", prop("string", "file name"))
-                .put("grades", prop("object", "op=render: grades for this render only, clip id → grade JSON (the project's grades are left as they are)"))) { a ->
+                .put("grades", prop("object", "op=render: grades for this render only, clip id → grade JSON (the project's grades are left as they are)"))
+                .put("passes", prop("boolean", "op=render: count Klipp's GPU stages (nodes, film, …) during the render – glFinish around each, so not for timing"))) { a ->
             val c = ctl(); val ctx = activity ?: error("no activity")
             val snap = c.snapshot
             val grades = gradesOf?.invoke().orEmpty().toMutableMap().also { g ->
@@ -322,8 +323,15 @@ object McpBridge {
                     val from = a.getDouble("a"); val to = a.getDouble("b")
                     val out = java.io.File(dirOut, a.optString("name", "range") + ".mp4")
                     val exp = if (a.optString("mode") == "export") se.gendut.klipp.engine.ExportSettings(codec = androidx.media3.common.MimeTypes.VIDEO_H264, audio = false, hdr = false, bitDepth = 8) else null
-                    val r = runBlocking { se.gendut.klipp.engine.RenderCache.renderRange(ctx, snap, c::uriOf, grades, from, to, out, exp) }
-                    texts(r.fold({ "rendered ${out.path} (${out.length()} bytes)" }, { "failed: ${it.message}" }))
+                    val count = a.optBoolean("passes")
+                    val was = se.gendut.klipp.engine.PassTimes.enabled
+                    if (count) { se.gendut.klipp.engine.PassTimes.resetCounts(); se.gendut.klipp.engine.PassTimes.enabled = true }
+                    val t0 = android.os.SystemClock.elapsedRealtime()
+                    val r = try { runBlocking { se.gendut.klipp.engine.RenderCache.renderRange(ctx, snap, c::uriOf, grades, from, to, out, exp) } }
+                        finally { if (count) se.gendut.klipp.engine.PassTimes.enabled = was }
+                    val ms = android.os.SystemClock.elapsedRealtime() - t0
+                    val passes = if (count) " passes ${se.gendut.klipp.engine.PassTimes.counts().toSortedMap()}" else ""
+                    texts(r.fold({ "rendered ${out.path} (${out.length()} bytes) in $ms ms$passes" }, { "failed: ${it.message}" }))
                 }
                 else -> error("op is chunks, copy or render")
             }

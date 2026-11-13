@@ -34,6 +34,10 @@ object PassTimes {
         s.calls++
     }
 
+    /** Diagnostics: calls per stage since [resetCounts]. */
+    fun counts(): Map<String, Long> = stats.mapValues { it.value.calls }
+    fun resetCounts() = stats.clear()
+
     fun noteSize(w: Int, h: Int) { if (w > 0 && h > 0) size = "${w}×$h" }
 
     private var lastAt = 0L
