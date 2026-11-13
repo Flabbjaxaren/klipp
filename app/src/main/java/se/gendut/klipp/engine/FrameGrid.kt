@@ -229,6 +229,14 @@ class FillPlanner(
     private val sampler = SourceSampler(fps).also { if (segStartUs != Long.MIN_VALUE) it.startSegment(segStartUs, nominalUs, itemEndUs, pinFirst) }
     private var last = Long.MIN_VALUE
     private var started = segStartUs != Long.MIN_VALUE
+    // which source frame (its time) each slot shows: the frame itself, or the one kept before it (held)
+    private var keptPts = Long.MIN_VALUE
+    private val sources = object : LinkedHashMap<Long, Long>() {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, Long>?) = size > 512
+    }
+
+    /** The source frame's own time (composition µs) the frame at [slotPts] carries – held frames give the frame they repeat. */
+    fun sourceOf(slotPts: Long): Long? = synchronized(sources) { sources[slotPts] }
 
     private fun filled(t: Long) = windows.any { t in it }
 
@@ -240,6 +248,11 @@ class FillPlanner(
         val out = ArrayList<Long>()
         if (last != Long.MIN_VALUE) for (k in last + 1 until slot) grid.timeOf(k).let { if (filled(it)) out += it - originUs }
         out += at - originUs
+        synchronized(sources) {
+            // (before the first kept frame the fill repeats the frame itself, see KlippFrameFill.Queue)
+            for (t in out) sources[t] = if (t == at - originUs || keptPts == Long.MIN_VALUE) ptsUs else keptPts
+        }
+        keptPts = ptsUs
         last = slot
         CutTrace.log("fill", "seg=$segStartUs in=$ptsUs out=$out")
         return out.toLongArray()
@@ -251,6 +264,7 @@ class FillPlanner(
         var k = last + 1
         // (slots strictly before the item's end: the next item's first frame takes the slot at it)
         while (grid.timeOf(k) < endUs - FrameGrid.LEAD_US) { if (filled(grid.timeOf(k))) out += grid.timeOf(k) - originUs; k++ }
+        synchronized(sources) { for (t in out) sources[t] = keptPts }
         last = Long.MIN_VALUE
         CutTrace.log("fill", "seg=$segStartUs end out=$out")
         return out.toLongArray()
@@ -259,6 +273,7 @@ class FillPlanner(
     override fun reset() {
         sampler.reset()
         last = Long.MIN_VALUE
+        keptPts = Long.MIN_VALUE
     }
 }
 

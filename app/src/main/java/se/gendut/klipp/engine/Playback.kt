@@ -237,16 +237,18 @@ object CompositionBuilder {
         // as black) – an upper layer's video clip therefore gets a bit more material after its end, hidden by the compositor
         val upper = multi && layer !== plan.layers.lastOrNull()
         /**
-         * The export and pre-rendering with layers: every item of every layer (clips, freeze frames, empty stretches) gives
-         * one frame per slot of the timeline, the rule's (SourceSampler, held frames repeated) – the compositor pairs each
-         * layer's frame with the primary (top) layer's by time, the closest; with frames off the slots or a slot held, it
-         * paired another source frame than the rule's (measured: a 60 fps bottom layer under a second layer on 25p, all 33
-         * slots one or two source frames off the single-layer export). The fill is last in each chain: the clips' own
-         * effects run per source frame, the compositor's motion and opacity, the transitions and the titles per slot. The
-         * file then has a frame on every slot (constant frame rate); a single layer is unchanged.
+         * The export and pre-rendering: every item of every layer (clips, freeze frames, empty stretches) gives one frame per
+         * slot of the timeline, the rule's (SourceSampler, held frames repeated) – the file has a frame on every slot
+         * (constant frame rate) and the whole composition is computed on each: the fill comes first in each clip's chain, so
+         * the clip's effects, the compositor's motion and opacity, the transitions and the titles all run per slot.
+         * Effects that read a frame's source time (stabilization, motion blur, tracked windows, masks – keyed to the
+         * picture) get the held frame's own (FillPlanner.sourceOf): during a hold they hold with the picture. Before, with
+         * layers the compositor paired each layer's frames by the closest time (a 60 fps bottom layer under a second layer on
+         * 25p: all slots one or two source frames off the single-layer export), and a single layer gave a frame per source
+         * frame only (variable frame rate, animation only where the source had a frame).
          */
-        val fillAll = fillSlots && multi && fps > 0.0
-        fun gapFill(from: Double, to: Double): androidx.media3.common.Effect? = if (!fillAll) null else
+        val cfr = fillSlots && fps > 0.0
+        fun gapFill(from: Double, to: Double): androidx.media3.common.Effect? = if (!cfr) null else
             androidx.media3.effect.KlippFrameFill(FillPlanner(fps, Math.round(plan.origin * 1e6), Math.round(to * 1e6),
                 listOf(Long.MIN_VALUE..Long.MAX_VALUE), Math.round(from * 1e6)))
         fun tail(i: Int): Double {
@@ -299,10 +301,15 @@ object CompositionBuilder {
                 cachedPoint = req.point
                 decodeFix = NodeCache.correction(e)?.let { DecodeCalibration.CorrectionEffect(it) }
             }
+            // the export's fill (see cfr): a frame for every slot, first in the chain
+            val planner = if (!cfr) null else FillPlanner(fps, Math.round(plan.origin * 1e6), Math.round(seg.end * 1e6),
+                listOf(Long.MIN_VALUE..Long.MAX_VALUE), Math.round(seg.start * 1e6), nominalUs(itemUri, src.speed),
+                Math.round((seg.end + tail(index)) * 1e6), pinFirst = realStarts == null || Math.round(seg.start * 1e6) in realStarts)
             // playback (live): always the clock – a window tracked afterwards then follows without a rebuild
+            // (the source time of the picture: with the fill, the held frame's own – not the slot's)
             val clock: ((Long) -> Double?)? = c?.let { cl ->
                 val g = grades[cl.id] ?: return@let null
-                if (g.needsClock || liveGrades) { pts: Long -> time.seconds(pts)?.let { t -> Reversals.originalTime(cl.item, cl.sourceAt(t)) } } else null
+                if (g.needsClock || liveGrades) { pts: Long -> time.seconds(planner?.sourceOf(pts) ?: pts)?.let { t -> Reversals.originalTime(cl.item, cl.sourceAt(t)) } } else null
             }
             val grade = c?.let { cl ->
                 val g = grades[cl.id] ?: return@let null
@@ -327,19 +334,15 @@ object CompositionBuilder {
             // computed at preview size instead of 4K)
             // the transition (wipe, push, slide, zoom, iris, dip through a color) last, in the sequence frame
             val transition = if (seg.hasFx) TransitionFxEffect(seg, time) else null
-            // with layers, every slot (see fillAll); otherwise a transition's window
-            val fill = if (fillSlots && fps > 0.0 && (fillAll || transition != null && still == null))
-                androidx.media3.effect.KlippFrameFill(FillPlanner(fps, Math.round(plan.origin * 1e6), Math.round(seg.end * 1e6),
-                    if (fillAll) listOf(Long.MIN_VALUE..Long.MAX_VALUE) else (seg.windows + listOfNotNull(seg.fx)).map { w -> Math.round(w.t0 * 1e6)..Math.round(w.t1 * 1e6) },
-                    Math.round(seg.start * 1e6), nominalUs(itemUri, src.speed), Math.round((seg.end + tail(index)) * 1e6),
-                    pinFirst = realStarts == null || Math.round(seg.start * 1e6) in realStarts)) else null
+            val fill = planner?.let { androidx.media3.effect.KlippFrameFill(it) }
             // green screen before the grade (the source's colors), the mask after, in the clip's own frame (follows its
             // motion); without a layer below the transparent parts become black
             val layer = c?.let { cl -> grades[cl.id]?.layer?.takeIf { it.hasAlpha } }
             val liveId = if (liveGrades) c?.id else null
             val keyFx = layer?.key?.let { LayerFxEffect(layer, liveId, LayerFxEffect.KEY, LayerFxEffect.STRAIGHT) }
             val maskFx = layer?.let { LayerFxEffect(it, liveId, LayerFxEffect.MASK, if (upper) LayerFxEffect.STRAIGHT else LayerFxEffect.FLATTEN, clock) }
-            val effects = listOfNotNull(scaleDown, decodeFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(fill, transition)
+            // (the fill after the downscale – it only resizes – and before everything that depends on the time)
+            val effects = listOfNotNull(scaleDown, fill, decodeFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(transition)
             val edited = if (still != null) {
                 EditedMediaItem.Builder(MediaItem.Builder().setUri(Uri.fromFile(still)).setImageDurationMs(Math.round(seg.dur * 1000).coerceAtLeast(1)).build())
                     .setDurationUs(us(seg.dur).coerceAtLeast(1))
@@ -353,13 +356,13 @@ object CompositionBuilder {
                 .setEffects(androidx.media3.transformer.Effects(emptyList(), effects))
                 .apply { if (speed != null) setSpeed(speed) }
                 .build()
-            if (seg.start > t + 0.001) videoGap(b, seg.start - t, multi, fps, fit, gapFill(t, seg.start))
+            if (seg.start > t + 0.001) videoGap(b, seg.start - t, multi || cfr, fps, fit, gapFill(t, seg.start))
             b.addItem(edited)
             t = seg.end + (if (still == null) tail(index) else 0.0)
             any = true
         }
         if (!any) return null
-        if (plan.total > t + 0.001) videoGap(b, plan.total - t, multi, fps, fit, gapFill(t, plan.total))
+        if (plan.total > t + 0.001) videoGap(b, plan.total - t, multi || cfr, fps, fit, gapFill(t, plan.total))
         return b.build()
     }
 
@@ -528,7 +531,7 @@ object CompositionBuilder {
         val times = ArrayList<TimeBase>()
         val clipTime = TimeBase(plan?.length ?: total, plan?.origin ?: 0.0).also { times += it } // time for keyframes on the clips (simple path)
         val (pw, ph) = if (plan == null || previewShort <= 0) 0 to 0 else previewSize(plan.width, plan.height, previewShort)
-        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, s.fps, fillSlots = output != null, realStarts = realStarts)?.let { seqs += it } }
+        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, output?.outputFps(s.fps)?.takeIf { it > 0.0 } ?: s.fps, fillSlots = output != null, realStarts = realStarts)?.let { seqs += it } }
         val hasVideo = seqs.isNotEmpty()
         // export without audio (and pre-render): no audio sequences
         val audio = if (output?.audio == false || range != null) emptyList() else q.audio.take(3)

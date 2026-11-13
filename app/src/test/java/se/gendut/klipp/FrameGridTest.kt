@@ -238,6 +238,23 @@ class FrameGridTest {
         assertEquals((92L..111L).toList(), out.map { it / step })
     }
 
+    @Test fun theFillTellsEachSlotsSourceFrame() {
+        // 30 frames a second into 60 fps slots, the item ending at 1.0 s: every slot's frame is the source frame it shows
+        // (held: the one kept before) – the time the effects reading source time (stabilization, masks) get
+        val fps60 = 60.0; val st = 1e6 / fps60
+        val src = (0 until 30).map { Math.round(it * 1e6 / 30) }
+        val p = se.gendut.klipp.engine.FillPlanner(fps60, 0L, 1_000_000L, listOf(Long.MIN_VALUE..Long.MAX_VALUE), 0L)
+        val shown = ArrayList<Pair<Long, Long>>()
+        var kept = -1L
+        for (t in src) { val outs = p.next(t); outs.forEachIndexed { i, o -> shown += o to (if (i == outs.size - 1 || kept < 0) t else kept) }; if (outs.isNotEmpty()) kept = t }
+        p.end().forEach { shown += it to kept }
+        assertEquals(60, shown.size)
+        shown.forEach { (slot, frame) -> assertEquals("slot $slot", frame, p.sourceOf(slot)) }
+        // and each is the latest source frame at or before its slot (within the 1 ms read-ahead)
+        shown.forEach { (slot, frame) -> assertEquals("slot $slot", src.last { it <= slot + FrameGrid.LEAD_US }, frame) }
+        assertTrue(shown.map { it.first }.zipWithNext().all { (a, b) -> Math.round((b - a) / st) == 1L })
+    }
+
     @Test fun aSourceAsFastAsTheTimelineNeedsNoFill() {
         val src = (0 until 30).map { 7_000_000L + it * step }
         val p = se.gendut.klipp.engine.FillPlanner(fps, 0L, 8_200_000L, listOf(7_000_000L..8_200_000L))
