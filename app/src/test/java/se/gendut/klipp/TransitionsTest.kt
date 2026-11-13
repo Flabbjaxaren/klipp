@@ -12,6 +12,7 @@ import org.robolectric.annotation.Config
 import se.gendut.klipp.engine.LayerPlanner
 import se.gendut.klipp.engine.Mask
 import se.gendut.klipp.engine.SegFx
+import se.gendut.klipp.engine.WhipCurve
 import se.gendut.klipp.engine.SegSrc
 import se.gendut.klipp.engine.Snapshot
 import se.gendut.klipp.engine.TransitionType
@@ -102,7 +103,8 @@ class TransitionsTest {
     }
 
     @Test fun aFrozenClipStaysInTheTrackForTheWholeTransition() {
-        for (effect in listOf("push", "whip", "cross_dissolve")) for (holdFrom in listOf(true, false)) {
+        // (two pictures at once: push and the dissolve – the whip shows one at a time, see theWhipShowsOnePictureAtATime)
+        for (effect in listOf("push", "cross_dissolve")) for (holdFrom in listOf(true, false)) {
             val s = holdSnap(effect, holdFrom)
             val x = s.sequence!!.video[0].transitions.single()
             val still = if (holdFrom) x.from else x.to
@@ -216,34 +218,50 @@ class TransitionsTest {
         assertEquals(13L, top.clip?.id); assertTrue(top.fx!!.incoming && top.fx!!.over)
     }
 
-    @Test fun whipMovesBothClipsAndSmearsMostAtTheMiddle() {
-        val start = fx(TransitionType.WHIP, true, true).at(0.0)
-        assertEquals(1f, start.dx, 1e-4f)
-        assertEquals(0f, start.blurX, 1e-4f)
-        val mid = fx(TransitionType.WHIP, true, true).at(3.0)
-        assertEquals(SegFx.WHIP_BLUR, mid.blurX, 1e-3f)
+    /** A whip of the base length, its edit point where the base move has it (0.133 s into 0.5 s). */
+    private fun mhWhip(incoming: Boolean, reverse: Boolean = false) =
+        SegFx(TransitionType.WHIP, incoming, false, 10.0, 10.0 + WhipCurve.TOTAL_S, 10.0 + WhipCurve.OUT_S, reverse)
+
+    @Test fun theWhipFollowsItsCurves() {
+        // values of the base move's curves at its own frames, 29.97 fps
+        val o = mhWhip(false); val i = mhWhip(true)
+        val cut = 10.0 + WhipCurve.OUT_S
+        assertEquals(0f, o.at(10.0).dx, 1e-4f)
+        assertEquals(-0.0949f, o.at(10.1).dx, 2e-3f)
+        assertEquals(-0.1905f, o.at(cut - 1e-9).dx, 2e-3f)
+        assertEquals(46.5f / 1920f, o.at(cut - 1e-9).blurX, 1e-3f)
+        assertEquals(0.3915f, i.at(cut).dx, 2e-3f)
+        assertEquals(100f / 1920f, i.at(cut).blurX, 1e-4f)
+        assertEquals(0.0667f, i.at(cut + 0.1).dx, 2e-3f)
+        assertEquals(0.0107f, i.at(cut + 0.2).dx, 2e-3f)
+        assertEquals(0f, i.at(10.0 + WhipCurve.TOTAL_S).dx, 1e-4f)
+        assertEquals(0f, i.at(10.0 + WhipCurve.TOTAL_S).blurX, 1e-4f)
+        // mirrored edges, both ways; reversed: the other way round
+        assertTrue(o.at(10.1).mirror && i.at(cut).mirror)
+        assertEquals(-0.3915f, mhWhip(true, reverse = true).at(cut).dx, 2e-3f)
     }
 
-    @Test fun whipFadesTheUpperClipIntoTheLowerAndPushMovesTheSameWithoutBlur() {
-        val up = fx(TransitionType.WHIP, true, true).at(2.6)
-        val low = fx(TransitionType.WHIP, false, false).at(2.6)
-        assertEquals(SegFx.WHIP_SOFT * up.blurX / SegFx.WHIP_BLUR, up.soft, 1e-4f)
-        assertTrue(up.soft > 0f)
-        assertEquals(0f, low.soft, 1e-4f)
-        assertTrue(up.mirror && low.mirror)
-        val push = fx(TransitionType.PUSH, true, true).at(2.6)
-        assertEquals(up.dx, push.dx, 1e-4f)
-        assertEquals(0f, push.blurX, 1e-4f)
+    @Test fun theWhipShowsOnePictureAtATime() {
+        assertTrue(TransitionType.WHIP.sequential)
+        assertFalse(SegFx(TransitionType.WHIP, true, true, 2.0, 4.0, 3.0, false).visible)
     }
 
-    @Test fun theWhipsFadeLeavesNoBandAtTheEdgeAsItLands() {
-        val f = fx(TransitionType.WHIP, true, true)
-        // the edge's fade, full at the edit point, narrows with the landing: the last part of the transition shows no band
-        // of the other clip at the frame's edge (it was 40 % of the width wide, half of it inside the frame, to the end)
-        assertEquals(SegFx.WHIP_SOFT, f.at(3.0).soft, 1e-3f)
-        val late = f.at(3.0 + (f.t1 - 3.0) * 0.8)
-        assertTrue("soft ${late.soft}", late.soft < 0.01f)
-        assertTrue(f.at(f.t1 - 1e-6).soft < 1e-3f)
+    @Test fun aLongerWhipIsTheSameMoveStretchedAroundTheEditPoint() {
+        // twice the base length, the edit point where the base move has it: the moves take twice as long, around it
+        val t0 = 10.0; val t1 = t0 + 2 * WhipCurve.TOTAL_S; val cut = t0 + 2 * WhipCurve.OUT_S
+        val o = SegFx(TransitionType.WHIP, false, false, t0, t1, cut, false)
+        val i = SegFx(TransitionType.WHIP, true, false, t0, t1, cut, false)
+        assertEquals(0f, o.at(t0).dx, 1e-6f)
+        assertEquals(mhWhip(false).at(10.1).dx, o.at(cut - 2 * (10.0 + WhipCurve.OUT_S - 10.1)).dx, 1e-4f)
+        assertEquals(mhWhip(true).at(10.0 + WhipCurve.OUT_S + 0.1).dx, i.at(cut + 0.2).dx, 1e-4f)
+        // centred, twice as long: the outgoing clip stands still until its move begins
+        val c = SegFx(TransitionType.WHIP, false, false, t0, t1, (t0 + t1) / 2, false)
+        assertEquals(0f, c.at((t0 + t1) / 2 - 2 * WhipCurve.OUT_S - 0.01).dx, 1e-6f)
+        // a short part is pressed: the move still ends exactly at the edit point and lands exactly at the end
+        val s = SegFx(TransitionType.WHIP, false, false, 10.0, 10.4, 10.05, false)
+        assertEquals(-0.1905f, s.at(10.05 - 1e-9).dx, 2e-3f)
+        assertEquals(0f, s.at(10.0).dx, 1e-6f)
+        assertEquals(0f, SegFx(TransitionType.WHIP, true, false, 10.0, 10.4, 10.35, false).at(10.4).dx, 1e-6f)
     }
 
     @Test fun theZoomIsOneMoveInward() {

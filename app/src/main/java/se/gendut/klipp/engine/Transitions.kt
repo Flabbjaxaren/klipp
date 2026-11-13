@@ -38,7 +38,7 @@ enum class TransitionType(val effect: String, @StringRes val labelRes: Int, val 
      * One picture at a time: the outgoing clip's part ends at the edit point and the incoming one's begins there (no overlap
      * layer is seen) – the main player draws both, and the edit point layer may cover the switch (see Handoff).
      */
-    val sequential: Boolean get() = this == DIP_BLACK || this == DIP_WHITE || this == ZOOM || this == ROTATE || this == WHIP_VERTICAL || this == LIGHT_LEAK
+    val sequential: Boolean get() = this == DIP_BLACK || this == DIP_WHITE || this == ZOOM || this == ROTATE || this == WHIP || this == WHIP_VERTICAL || this == LIGHT_LEAK
 
     /** Has motion blur (the amount can be set per transition). */
     val blurs: Boolean get() = this == WHIP || this == ZOOM || this == ROTATE || this == WHIP_VERTICAL
@@ -117,13 +117,13 @@ data class SegFx(
                 val logSpeed = if (incoming) ZOOM_IN * SETTLE_SPEED * v / (t1 - cut).toFloat() else ZOOM_OUT * GATHER_SPEED * v / (cut - t0).toFloat()
                 zoomed(u, (logSpeed * SHUTTER_S).coerceAtMost(MAX_ZOOM_BLUR), 1f)
             }
-            // whip: the push's movement, smeared as fast as it moves. Instead of a line between the clips the upper one fades
-            // into the lower one around its edge, both continuing mirrored beyond their edges. The fade narrows with the
-            // speed, like the smear: a fixed one stayed at the frame's edge through the slow landing – a band of the other
-            // clip at the edge until the transition's last frame, then gone at once
-            TransitionType.WHIP -> thrown(p, pc).let { (e, v) ->
-                val dx = if (incoming) sign * (1f - e) else -sign * e
-                Geom(dx = dx, blurX = WHIP_BLUR * v, mirror = true, soft = if (over) WHIP_SOFT * v else 0f)
+            // whip (see WhipCurve): one picture at a time, a cut in the middle of the move. The outgoing
+            // clip slides off from rest, ever faster, a fifth of the width by the edit point; the incoming one arrives four
+            // tenths of the width off and lands almost at once, then settles. Both continue mirrored beyond their edges and
+            // are smeared along the move, most just after the edit point
+            TransitionType.WHIP -> {
+                val (shift, blur) = if (incoming) WhipCurve.incoming(WhipCurve.inTime(t, t0, t1, cut)) else WhipCurve.outgoing(WhipCurve.outTime(t, t0, t1, cut))
+                Geom(dx = sign * shift, blurX = blur, mirror = true)
             }
             // rotate: no zoom, only the turn – the outgoing clip spins ever faster a third of the way round, the incoming one
             // takes over a quarter turn behind and settles level (the picture mirrored around the frame), smeared as by a 300°
@@ -170,7 +170,7 @@ data class SegFx(
         /** Exposure time of the zoom's motion blur: a 360° shutter at 25 fps. */
         const val SHUTTER_S = 1f / 25f
         /** The version of the moves above, in the render cache's keys: raise it when a transition's look changes. */
-        const val LOOK = 4
+        const val LOOK = 5
         /** How far the push and the whip have come at the edit point: about where the speeds on either side meet. */
         const val THROWN = 0.7f
         /** The most smear (the zoom's in log scale, the turn's in radians) – short transitions move very fast. */
@@ -214,10 +214,69 @@ data class SegFx(
         /** One coordinate of a cubic from 0 to 1 with inner points [a] and [b], and its derivative. */
         private fun bez(s: Float, a: Float, b: Float): Float { val r = 1f - s; return 3f * r * r * s * a + 3f * r * s * s * b + s * s * s }
         private fun bezD(s: Float, a: Float, b: Float): Float { val r = 1f - s; return 3f * r * r * a + 6f * r * s * (b - a) + 3f * s * s * (1f - b) }
-        const val WHIP_BLUR = 0.9f
-        const val WHIP_SOFT = 0.4f
         const val PAN_BLUR = 0.8f
     }
+}
+
+/**
+ * The whip's move (its shift,
+ * mirrored edges and smear on the outgoing and incoming clip; 0.5 s, the cut after 0.133 s). The
+ * curves are Bézier segments – each [Cubic] is one segment's control points in (seconds, value),
+ * positions as a shift of the picture's centre in frame widths, blurs in pixels of a 1920 wide frame.
+ *
+ * The base move has one length; here it is stretched with the transition's length ([TOTAL_S] = ×1) and laid
+ * around the edit point – the outgoing move ends there, the incoming one starts there – and pressed into the part before
+ * or after the edit point when that part is shorter (an aligned or short transition).
+ */
+object WhipCurve {
+    /** One keyframe pair: a cubic Bézier from ([t0], [v0]) to ([t3], [v3]) with control points 1 and 2. */
+    class Cubic(private val t0: Double, private val v0: Double, private val t1: Double, private val v1: Double,
+                private val t2: Double, private val v2: Double, private val t3: Double, private val v3: Double) {
+        /** The value at time [t] (held before the first keyframe and after the second; the times rise along the curve). */
+        fun at(t: Double): Double {
+            if (t <= t0) return v0
+            if (t >= t3) return v3
+            var lo = 0.0; var hi = 1.0
+            repeat(40) { val m = (lo + hi) / 2; if (b(m, t0, t1, t2, t3) < t) lo = m else hi = m }
+            return b((lo + hi) / 2, v0, v1, v2, v3)
+        }
+        private fun b(s: Double, a: Double, c1: Double, c2: Double, d: Double): Double { val r = 1 - s; return r * r * r * a + 3 * r * r * s * c1 + 3 * r * s * s * c2 + s * s * s * d }
+    }
+
+    /** The base length, its outgoing part (up to the cut) and its incoming one (the cut to the landing). */
+    const val TOTAL_S = 0.5005
+    const val OUT_S = 0.133467
+    const val IN_S = 0.367033
+    private const val WIDTH_PX = 1920.0
+
+    // outgoing: from rest to −0.667 over 0.2 s, of which the part to the cut is used; incoming: from +0.464 (a frame before
+    // the cut) to 0
+    private val OUT = Cubic(0.0, 0.0, 0.171919, -0.015807, 0.183133, -0.575350, 0.200200, -0.666667)
+    private val IN = Cubic(-0.016105, 0.463542, 0.079814, 0.041571, 0.056152, 0.0, 0.367033, 0.0)
+    // directional blur (px): rising to 70 at 0.167 s on the outgoing clip (of which the part to the cut is used); 100 at the
+    // cut on the incoming one, gone after a third of a second
+    private val BLUR_OUT = Cubic(0.0, 0.0, 0.096867, -1.246381, 0.147405, 63.481342, 0.166833, 70.0)
+    private val BLUR_IN = Cubic(0.0, 100.0, 0.062416, 19.725776, 0.041557, -0.696822, 0.333669, 0.0)
+
+    /** The outgoing clip at [s] seconds of the base move (0..[OUT_S]): its shift (frame widths, left −) and smear (widths). */
+    fun outgoing(s: Double): Pair<Float, Float> = OUT.at(s).toFloat() to (BLUR_OUT.at(s).coerceAtLeast(0.0) / WIDTH_PX).toFloat()
+
+    /** The incoming clip at [s] seconds after the cut (0..[IN_S]). */
+    fun incoming(s: Double): Pair<Float, Float> = IN.at(s).toFloat() to (BLUR_IN.at(s).coerceAtLeast(0.0) / WIDTH_PX).toFloat()
+
+    /** The base move's time for the outgoing clip at timeline time [t] of a transition [t0]–[t1] with its edit point at [cut]. */
+    fun outTime(t: Double, t0: Double, t1: Double, cut: Double): Double {
+        val len = minOf(cut - t0, OUT_S * scale(t0, t1)).coerceAtLeast(1e-6)
+        return OUT_S * ((t - (cut - len)) / len).coerceIn(0.0, 1.0)
+    }
+
+    /** The base move's time after the cut for the incoming clip at [t]. */
+    fun inTime(t: Double, t0: Double, t1: Double, cut: Double): Double {
+        val len = minOf(t1 - cut, IN_S * scale(t0, t1)).coerceAtLeast(1e-6)
+        return IN_S * ((t - cut) / len).coerceIn(0.0, 1.0)
+    }
+
+    private fun scale(t0: Double, t1: Double) = ((t1 - t0) / TOTAL_S).coerceAtLeast(1e-6)
 }
 
 /**
