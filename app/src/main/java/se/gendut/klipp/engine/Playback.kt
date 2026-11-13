@@ -311,6 +311,10 @@ object CompositionBuilder {
                 val g = grades[cl.id] ?: return@let null
                 if (g.needsClock || liveGrades) { pts: Long -> time.seconds(planner?.sourceOf(pts) ?: pts)?.let { t -> Reversals.originalTime(cl.item, cl.sourceAt(t)) } } else null
             }
+            // the source time at the slot itself: manual mask keyframes (animation) are taken there (LayerMask.atFor)
+            val slotClock: ((Long) -> Double?)? = if (clock == null || planner == null) null else c?.let { cl ->
+                { pts: Long -> time.seconds(pts)?.let { t -> Reversals.originalTime(cl.item, cl.sourceAt(t)) } }
+            }
             val grade = c?.let { cl ->
                 val g = grades[cl.id] ?: return@let null
                 if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades)
@@ -340,7 +344,7 @@ object CompositionBuilder {
             val layer = c?.let { cl -> grades[cl.id]?.layer?.takeIf { it.hasAlpha } }
             val liveId = if (liveGrades) c?.id else null
             val keyFx = layer?.key?.let { LayerFxEffect(layer, liveId, LayerFxEffect.KEY, LayerFxEffect.STRAIGHT) }
-            val maskFx = layer?.let { LayerFxEffect(it, liveId, LayerFxEffect.MASK, if (upper) LayerFxEffect.STRAIGHT else LayerFxEffect.FLATTEN, clock) }
+            val maskFx = layer?.let { LayerFxEffect(it, liveId, LayerFxEffect.MASK, if (upper) LayerFxEffect.STRAIGHT else LayerFxEffect.FLATTEN, clock, slotClock) }
             // (the fill after the downscale – it only resizes – and before everything that depends on the time)
             val effects = listOfNotNull(scaleDown, fill, decodeFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(transition)
             val edited = if (still != null) {

@@ -150,6 +150,27 @@ data class LayerMask(
         return copy(cx = l(a.cx, b.cx), cy = l(a.cy, b.cy), w = l(a.w, b.w), h = l(a.h, b.h), keys = emptyList())
     }
 
+    /**
+     * The mask for a frame: [imageSrc] is the source time of the picture shown (a held frame's own), [slotSrc] the source
+     * time at the slot's timeline time. Between two tracked keyframes (and before the first or after the last when it is
+     * tracked) the mask follows the picture – [imageSrc]; manual keyframes are animation – [slotSrc], so a manually
+     * animated mask moves on every slot of a constant-frame-rate export also while the source frame is held. Either
+     * missing: the other.
+     */
+    fun atFor(imageSrc: Double?, slotSrc: Double?): LayerMask {
+        if (keys.isEmpty()) return this
+        val probe = slotSrc ?: imageSrc ?: return at(null)
+        val k = keys
+        val tracked = when {
+            probe <= k.first().t -> k.first().tracked
+            probe >= k.last().t -> k.last().tracked
+            else -> { var lo = 0; var hi = k.size - 1
+                while (hi - lo > 1) { val m = (lo + hi) ushr 1; if (k[m].t <= probe) lo = m else hi = m }
+                k[lo].tracked && k[hi].tracked }
+        }
+        return at(if (tracked) imageSrc ?: slotSrc else slotSrc ?: imageSrc)
+    }
+
     /** The keyframe at source time [src] (within [tol] seconds), or null. */
     fun keyAt(src: Double, tol: Double): MaskKey? = keys.minByOrNull { abs(it.t - src) }?.takeIf { abs(it.t - src) <= tol }
 
@@ -237,10 +258,14 @@ data class LayerMask(
     }
 }
 
-/** A mask keyframe: source time [t] (seconds in the clip's file), position and size, interpolation to the next. */
-data class MaskKey(val t: Double, val cx: Float, val cy: Float, val w: Float, val h: Float, val interp: Int = LINEAR) {
+/**
+ * A mask keyframe: source time [t] (seconds in the clip's file), position and size, interpolation to the next.
+ * [tracked]: made by tracking (MaskTrack) – it follows the picture, so between two such keyframes the mask is taken at the
+ * shown frame's own source time; a manual keyframe is animation, taken at the slot's time (see LayerMask.atFor).
+ */
+data class MaskKey(val t: Double, val cx: Float, val cy: Float, val w: Float, val h: Float, val interp: Int = LINEAR, val tracked: Boolean = false) {
     fun toJson(): org.json.JSONArray = org.json.JSONArray().put(r(t, 1e6)).put(r(cx.toDouble(), 1e5)).put(r(cy.toDouble(), 1e5))
-        .put(r(w.toDouble(), 1e5)).put(r(h.toDouble(), 1e5)).put(interp)
+        .put(r(w.toDouble(), 1e5)).put(r(h.toDouble(), 1e5)).put(interp).apply { if (tracked) put(1) }
 
     companion object {
         const val LINEAR = 0
@@ -253,8 +278,9 @@ data class MaskKey(val t: Double, val cx: Float, val cy: Float, val w: Float, va
             if (a == null || a.length() < 5) return null
             val t = a.optDouble(0, Double.NaN)
             if (!t.isFinite()) return null
+            // (no 7th element – projects from before build 102, or a manual keyframe: manual)
             return MaskKey(t, a.optDouble(1, 0.5).toFloat(), a.optDouble(2, 0.5).toFloat(), a.optDouble(3, 0.6).toFloat(), a.optDouble(4, 0.6).toFloat(),
-                a.optInt(5, LINEAR).coerceIn(LINEAR, HOLD))
+                a.optInt(5, LINEAR).coerceIn(LINEAR, HOLD), a.optInt(6, 0) == 1)
         }
 
         /**
@@ -269,7 +295,7 @@ data class MaskKey(val t: Double, val cx: Float, val cy: Float, val w: Float, va
             val dense = List(n) { i ->
                 val t = if (n == 1) a else a + (b - a) * i / (n - 1)
                 val m = track.at(t)
-                MaskKey(t, base.cx + m[0], base.cy + m[1], base.w * m[2], base.h * m[2])
+                MaskKey(t, base.cx + m[0], base.cy + m[1], base.w * m[2], base.h * m[2], tracked = true)
             }
             if (dense.size <= 2) return dense
             val keep = BooleanArray(dense.size).also { it[0] = true; it[it.size - 1] = true }
@@ -330,8 +356,14 @@ private fun smoothstep(e0: Float, e1: Float, x: Float): Float {
  * (Android blends that way).
  */
 @OptIn(UnstableApi::class)
-class LayerFxEffect(private val fx: LayerFx, private val clip: Long?, private val part: Int, private val out: Int, private val clock: ((Long) -> Double?)? = null) : GlEffect {
-    override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(fx, clip, part, out, clock, useHdr)
+class LayerFxEffect(
+    private val fx: LayerFx, private val clip: Long?, private val part: Int, private val out: Int,
+    /** The picture's source time (a held frame's own, see FillPlanner.sourceOf). */
+    private val clock: ((Long) -> Double?)? = null,
+    /** The source time at the frame's slot (manual keyframes – animation – are taken there; see LayerMask.atFor). Null: [clock]. */
+    private val slotClock: ((Long) -> Double?)? = null,
+) : GlEffect {
+    override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(fx, clip, part, out, clock, slotClock ?: clock, useHdr)
 
     companion object {
         const val KEY = 0
@@ -341,7 +373,7 @@ class LayerFxEffect(private val fx: LayerFx, private val clip: Long?, private va
         const val PREMULTIPLIED = 2
     }
 
-    private class Program(private val fx0: LayerFx, private val clip: Long?, private val part: Int, private val out: Int, private val clock: ((Long) -> Double?)?, useHdr: Boolean) : BaseGlShaderProgram(useHdr, 1) {
+    private class Program(private val fx0: LayerFx, private val clip: Long?, private val part: Int, private val out: Int, private val clock: ((Long) -> Double?)?, private val slotClock: ((Long) -> Double?)?, useHdr: Boolean) : BaseGlShaderProgram(useHdr, 1) {
         private val program = GlProgram(TetraShaders.VERTEX, Shaders.FRAGMENT).apply {
             setBufferAttribute("aFramePosition", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
         }
@@ -366,7 +398,8 @@ class LayerFxEffect(private val fx: LayerFx, private val clip: Long?, private va
                 program.setFloatUniform("uSpill", k?.spill ?: 0f)
                 program.setFloatUniform("uDom", (k?.dominant ?: 1).toFloat())
                 // animated: the position at the frame's source time (without a clock, the first keyframe's)
-                val m = fx.mask?.takeIf { part == MASK }?.let { if (it.animated) it.at(clock?.invoke(presentationTimeUs) ?: it.keys.first().t) else it }
+                val img = clock?.invoke(presentationTimeUs); val slot = slotClock?.invoke(presentationTimeUs)
+                val m = fx.mask?.takeIf { part == MASK }?.let { if (it.animated) (if (img == null && slot == null) it.at(it.keys.first().t) else it.atFor(img, slot)) else it }
                 program.setFloatUniform("uMaskOn", if (m != null) 1f else 0f)
                 program.setFloatUniform("uShape", (m?.shape ?: 0).toFloat())
                 program.setFloatsUniform("uC", floatArrayOf(m?.cx ?: 0.5f, m?.cy ?: 0.5f))
@@ -374,7 +407,7 @@ class LayerFxEffect(private val fx: LayerFx, private val clip: Long?, private va
                 program.setFloatUniform("uFeather", m?.feather ?: 0f)
                 program.setFloatUniform("uInvert", if (m?.invert == true) 1f else 0f)
                 program.setFloatUniform("uAspect", aspect)
-                val cr = fx.crop?.takeIf { part == MASK }?.let { (if (it.animated) it.at(clock?.invoke(presentationTimeUs) ?: it.keys.first().t) else it).cropDrawn(aspect) }
+                val cr = fx.crop?.takeIf { part == MASK }?.let { (if (it.animated) (if (img == null && slot == null) it.at(it.keys.first().t) else it.atFor(img, slot)) else it).cropDrawn(aspect) }
                 program.setFloatUniform("uCropOn", if (cr != null) 1f else 0f)
                 program.setFloatsUniform("uCropC", floatArrayOf(cr?.cx ?: 0.5f, cr?.cy ?: 0.5f))
                 program.setFloatsUniform("uCropSize", floatArrayOf(cr?.w ?: 1f, cr?.h ?: 1f))
