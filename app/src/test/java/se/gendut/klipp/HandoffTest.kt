@@ -33,6 +33,13 @@ class HandoffTest {
         assertNull(Handoff.layer(Layer("V1", listOf(seg(0.0, 5.0, 1)))) { true })
     }
 
+    @Test fun aPreRenderedPieceIsLeftToTheMainPlayer() {
+        // (its id is below the render cache's base; the layer waited on a clip's frames there and covered the whole piece)
+        val chunk = -(1L shl 52) - 12345L
+        val base = Layer("V1", listOf(seg(0.0, 5.0, 1), seg(5.0, 0.6, chunk), seg(5.6, 3.0, 2)))
+        assertEquals(listOf(5.6), Handoff.layer(base) { true }!!.segs.map { it.start })
+    }
+
     @Test fun aClipWithATransitionIsLeftToTheMainPlayer() {
         val fx = se.gendut.klipp.engine.SegFx(se.gendut.klipp.engine.TransitionType.WHIP, true, false, 4.5, 5.5, 5.0, false)
         val base = Layer("V1", listOf(seg(0.0, 5.0, 1), seg(5.0, 3.0, 2).copy(windows = listOf(fx))))

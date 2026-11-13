@@ -25,6 +25,8 @@ class LayerGridEffect(
     val fps: Double,
     private val timelineUs: (Long) -> Long?,
     private val segmentUs: () -> Long?,
+    /** Where the playing segment's item ends on the timeline (µs; Long.MAX_VALUE: not known) – see FrameGrid.nearEnd. */
+    private val segmentEndUs: () -> Long,
     private val speed: () -> Double,
     /** Diagnostics: a line per frame while [traceOn]. */
     private val trace: ((String) -> Unit)? = null,
@@ -55,7 +57,7 @@ class LayerGridEffect(
             val tl = timelineUs(presentationTimeUs)
             val seg = segmentUs()
             if (tl == null || seg == null) { super.queueInputFrame(gl, tex, presentationTimeUs); return }
-            val at = rule.next(tl, seg)
+            val at = rule.next(tl, seg, segmentEndUs())
             if (trace != null && traceOn()) trace.invoke("grid in=$presentationTimeUs tl=$tl seg=$seg out=${at ?: "drop"}")
             if (at == null) {
                 inputListener.onInputFrameProcessed(tex)

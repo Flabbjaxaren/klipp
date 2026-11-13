@@ -52,6 +52,28 @@ class FrameGrid(fps: Double) {
 
     companion object {
         /**
+         * Whether the frame at [tUs] may be the last of its item ending at [endUs] (µs): within one and a half source frames
+         * ([stepUs], the time since the frame before) of the end, read [LEAD_US] early. Playback's video sink ends an item
+         * only once a frame at or after the item's last decoded frame comes out of the effects (Media3's
+         * PlaybackVideoGraphWrapper: finalFramePresentationTimeUs) – and it waits for that before it changes decoders (a
+         * proxy's HEVC to a pre-rendered piece's AVC). A last frame dropped, or moved to an earlier slot, never came: the
+         * player stood still at the edit point until a seek (0.7–1.1 s before a whip at 25 %). Such a frame is therefore
+         * never dropped and never moved earlier. The export ends its items otherwise and doesn't need this.
+         */
+        /**
+         * Where an item's last frame (at [tUs], its grid time [out] or dropped) is shown: never before its own time (the
+         * end of item), never on or after the next item's start [endUs] (its first frame is shown there), after the frame
+         * before ([lastOut]).
+         */
+        fun lastFrameAt(tUs: Long, out: Long?, endUs: Long, lastOut: Long): Long {
+            val cap = if (endUs == Long.MAX_VALUE) Long.MAX_VALUE else endUs - 1
+            return maxOf(tUs, minOf(out ?: tUs, cap), if (lastOut == Long.MIN_VALUE) tUs else lastOut + 1)
+        }
+
+        fun nearEnd(tUs: Long, endUs: Long, stepUs: Long): Boolean =
+            endUs != Long.MAX_VALUE && tUs + Math.round(1.5 * stepUs.coerceIn(1_000L, 200_000L)) >= endUs - LEAD_US
+
+        /**
          * Whether a clip's frames already fall on the timeline's grid (then the grid changes nothing): played at speed 1,
          * at the timeline's rate, with its source frames' phase on the grid's – a segment starting between two slots, or
          * an in point between two source frames, puts every frame off it. [srcFps] 0 = not known: assumed off the grid.
@@ -89,18 +111,30 @@ class FrameGrid(fps: Double) {
 class LayerGrid(fps: Double) {
     private val grid = FrameGrid(fps)
     private var segStart = Long.MIN_VALUE
+    private var prevIn = Long.MIN_VALUE
+    private var lastOut = Long.MIN_VALUE
 
     /** A seek, a new chain: the next frame starts over. */
     fun reset() {
         grid.reset()
         segStart = Long.MIN_VALUE
+        prevIn = Long.MIN_VALUE
+        lastOut = Long.MIN_VALUE
     }
 
-    fun next(tUs: Long, segStartUs: Long): Long? {
+    /** [segEndUs]: where the segment's item ends (Long.MAX_VALUE: not known) – its last frames are kept (FrameGrid.nearEnd). */
+    fun next(tUs: Long, segStartUs: Long, segEndUs: Long = Long.MAX_VALUE): Long? {
         // another segment: its own stream (its pre-roll's times run on from the last one's, so time needn't go back)
-        if (segStartUs != segStart) { grid.reset(); segStart = segStartUs }
-        if (tUs < segStartUs - FrameGrid.LEAD_US) return if (tUs < grid.earliestUs(segStartUs) - grid.stepUs / 2) tUs else null
-        return grid.next(tUs)?.let { grid.timeOf(it) }
+        if (segStartUs != segStart) { grid.reset(); segStart = segStartUs; lastOut = Long.MIN_VALUE }
+        val step = if (prevIn != Long.MIN_VALUE && tUs > prevIn) tUs - prevIn else 0L
+        prevIn = tUs
+        val last = step > 0 && FrameGrid.nearEnd(tUs, segEndUs, step)
+        val out = if (tUs < segStartUs - FrameGrid.LEAD_US) { if (tUs < grid.earliestUs(segStartUs) - grid.stepUs / 2) tUs else null }
+            else grid.next(tUs)?.let { grid.timeOf(it) }
+        // the item's last frames: never dropped, never earlier than their own time
+        val at = if (last) FrameGrid.lastFrameAt(tUs, out, segEndUs, lastOut) else out
+        if (at != null) lastOut = at
+        return at
     }
 
     /** The earliest time the segment's own frames are shown at (pre-roll frames all come before it). */

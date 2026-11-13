@@ -201,21 +201,34 @@ class FrameRateEffect(val fps: Double, val startsUs: LongArray = LongArray(0)) :
         }
     }
 
-    /** The rule over items (pure, for tests): a frame's new time (µs), or null when it is dropped. */
+    /**
+     * The rule over items (pure, for tests): a frame's new time (µs), or null when it is dropped. With item edges
+     * ([startsUs], playback) an item's last frames are kept at or after their own time (FrameGrid.nearEnd); the export
+     * passes none.
+     */
     class Streams(fps: Double, private val startsUs: LongArray) {
         private val grid = FrameGrid(fps)
         private var nextStart = -1
+        private var prevIn = Long.MIN_VALUE
+        private var lastOut = Long.MIN_VALUE
 
-        fun reset() { grid.reset(); nextStart = -1 }
+        fun reset() { grid.reset(); nextStart = -1; prevIn = Long.MIN_VALUE; lastOut = Long.MIN_VALUE }
 
         fun next(tUs: Long): Long? {
             // the next item's start: its first frame (read up to LEAD early) begins a new stream
             if (nextStart < 0) nextStart = startsUs.indexOfFirst { it - FrameGrid.LEAD_US > tUs }.let { if (it < 0) startsUs.size else it }
             else if (nextStart < startsUs.size && tUs >= startsUs[nextStart] - FrameGrid.LEAD_US) {
                 grid.reset()
+                prevIn = Long.MIN_VALUE
                 while (nextStart < startsUs.size && tUs >= startsUs[nextStart] - FrameGrid.LEAD_US) nextStart++
             }
-            return grid.next(tUs)?.let { grid.timeOf(it) }
+            val step = if (prevIn != Long.MIN_VALUE && tUs > prevIn) tUs - prevIn else 0L
+            prevIn = tUs
+            val end = if (nextStart < startsUs.size) startsUs[nextStart] else Long.MAX_VALUE
+            val out = grid.next(tUs)?.let { grid.timeOf(it) }
+            val at = if (step > 0 && FrameGrid.nearEnd(tUs, end, step)) FrameGrid.lastFrameAt(tUs, out, end, lastOut) else out
+            if (at != null) lastOut = at
+            return at
         }
     }
 

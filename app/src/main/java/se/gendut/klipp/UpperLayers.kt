@@ -460,7 +460,7 @@ private fun LayerVideo(
                     val ns = segs[next]
                     clock.srcIn = (ns.src as? SegSrc.Media)?.let { it.srcIn - preMs[next] / 1000.0 } ?: (ns.src as? SegSrc.Still)?.sec ?: 0.0
                     clock.posSec = waitMs(next) / 1000.0; clock.item = ns.src.item
-                    clock.seg = (ns.src as? SegSrc.Media)?.let { m -> LayerClock.SegTime(ns.start, m.srcIn, m.speed) }
+                    clock.seg = (ns.src as? SegSrc.Media)?.let { m -> LayerClock.SegTime(ns.start, m.srcIn, m.speed, ns.end) }
                 }
                 if (!state.playing && !sought) idle()
                 continue
@@ -478,7 +478,7 @@ private fun LayerVideo(
             // measured with CutTrace and frame-coded clips: at the cut a frame was skipped)
             val target = if (media == null) 0L else LayerSync.targetMs(t, seg, preMs[i])
             clock.srcIn = media?.let { it.srcIn - preMs[i] / 1000.0 } ?: (seg.src as SegSrc.Still).sec; clock.posSec = target / 1000.0; clock.item = seg.src.item
-            clock.seg = media?.let { LayerClock.SegTime(seg.start, it.srcIn, it.speed) }
+            clock.seg = media?.let { LayerClock.SegTime(seg.start, it.srcIn, it.speed, seg.end) }
             // (once going it keeps going while the main player plays: its reported position often stands still for a few
             // display frames although it plays on – the layer was paused, and often sought, at each of those)
             val run = media != null && state.playing && (main == null || advancing || player.playWhenReady && main.isPlaying)
@@ -544,7 +544,8 @@ private fun LayerVideo(
         // move to the slot last
         val gridFps = projectFps.takeIf { it > 0.0 && (offGrid || fx.isNotEmpty()) }
         val grid = gridFps?.let { f ->
-            se.gendut.klipp.engine.LayerGridEffect(f, clock::timelineUs, { clock.seg?.let { Math.round(it.startSec * 1e6) } }, { clock.seg?.speed ?: 1.0 },
+            se.gendut.klipp.engine.LayerGridEffect(f, clock::timelineUs, { clock.seg?.let { Math.round(it.startSec * 1e6) } },
+                { clock.seg?.endSec?.takeIf { it < 1e9 }?.let { Math.round(it * 1e6) } ?: Long.MAX_VALUE }, { clock.seg?.speed ?: 1.0 },
                 { line: String -> TRACE.log("grid", "layer=$layerName $line") }, { TRACE.on })
         }
         gridOn.set(grid != null)
@@ -866,6 +867,10 @@ internal object Handoff {
             // transparent clips (would be doubled on top of the main player's image) are skipped. Transitions between two
             // clips never reach here: playback shows them pre-rendered, as a file of their own (see RenderCache.playPlan)
             if (s.start <= 1e-6 || s.ramp != null || s.hasFx || s.src !is SegSrc.Media || s.dur <= 1e-6) continue
+            // a pre-rendered piece: the layer's hand-back waits on the main player's frames of a clip, so it covered the
+            // whole piece and the main picture showed through stale when it ended (a whip at 25 %: the frame before the
+            // whip for 150 ms after it)
+            if (se.gendut.klipp.engine.RenderCache.isChunk(s.src.item)) continue
             val c = s.clip
             if (c != null && ((c.at(s.start).opacity) < 99.95 || (c.at(minOf(s.end, s.start + SEC)).opacity) < 99.95)) continue
             if (!usable(s)) continue
@@ -1066,7 +1071,7 @@ private class ReleasedFrames(private val ramp: EarlyRamp? = null) : androidx.med
 
 private class LayerClock {
     /** The segment being played (or waited on): where it begins on the timeline, its source time there and its speed. */
-    class SegTime(val startSec: Double, val srcSec: Double, val speed: Double)
+    class SegTime(val startSec: Double, val srcSec: Double, val speed: Double, val endSec: Double = Double.MAX_VALUE)
     /** One reference, so the chain's thread reads one segment's values together (null: a still, or nothing yet). */
     @Volatile var seg: SegTime? = null
 

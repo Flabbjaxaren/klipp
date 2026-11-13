@@ -131,7 +131,7 @@ class RenderCacheTest {
         val dir = RenderCache::class.java.getDeclaredField("dir").apply { isAccessible = true }.get(RenderCache) as File
         File(dir, rendered.last().hash + ".mp4").writeBytes(ByteArray(10))
         // B (3–6 s) was rendered as a whole; the transition 2.6–3.4 leaves 3.4–6 unchanged
-        val plan = LayerPlanner.plan(snap("whip")) { 30.0 }!!
+        val plan = LayerPlanner.plan(snap("push")) { 30.0 }!!
         val chunks = RenderCache.chunks(plan, grades, uriOf, 30.0, 1080)
         assertTrue(RenderCache.isReady(chunks.last()))
         assertFalse(chunks.dropLast(1).any { RenderCache.isReady(it) })
@@ -142,6 +142,22 @@ class RenderCacheTest {
         val other = ClipGrade(listOf(GradeNode(1, "Primär", contrast = 1.5f)))
         assertFalse(RenderCache.isReady(RenderCache.chunks(plan, { id -> if (id == 13L) other else null }, uriOf, 30.0, 1080).last()))
         RenderCache.clear()
+    }
+
+    @Test fun aTransitionShowingOnePictureAtATimeIsAChunkOfItsOwn() {
+        // A (0–3 s) | B (3–6 s), a whip 2.6–3.4 (one picture at a time: no pieces of its own in the plan) – its window is
+        // a chunk of its own on either side of the cut, and the rest of B keeps the key it had without the transition
+        for (effect in listOf("whip", "cross_zoom", "dip_to_black")) {
+            val plan = LayerPlanner.plan(snap(effect)) { 30.0 }!!
+            val c = RenderCache.chunks(plan, { null }, uriOf, 30.0, 1080)
+            assertEquals(effect, listOf(0.0, 2.6, 3.0, 3.4), c.map { Math.round(it.a * 10) / 10.0 })
+            val o = JSONObject(javaClass.classLoader!!.getResource("snapshot_fx.json")!!.readText())
+            o.getJSONObject("sequence").getJSONArray("video").getJSONObject(0).put("transitions", org.json.JSONArray())
+            val bare = RenderCache.chunks(LayerPlanner.plan(Snapshot.parse(o)) { 30.0 }!!, { null }, uriOf, 30.0, 1080)
+            // (the bare B starts at 3.0: the rest from 3.4 is a new slice of it, keyed by its own range)
+            assertEquals(effect, 3.4, c.last().a, 1e-9)
+            assertFalse(effect, c.last().hash == bare.last().hash && bare.last().a != 3.4)
+        }
     }
 
     @Test fun aRenderInProgressStopsWhenPlaybackStarts() {

@@ -101,6 +101,9 @@ object RenderCache {
 
     private fun idOf(hash: String): Long = ID_BASE - (hash.take(10).toLong(16) and 0xFF_FFFF_FFFFL)
 
+    /** Whether [item] is a pre-rendered chunk's file (their ids lie below [ID_BASE]'s range, never a project item's). */
+    fun isChunk(item: Long): Boolean = item <= ID_BASE
+
     private fun fileOf(hash: String): File? = dir?.let { File(it, "$hash.mp4") }
 
     private fun exists(hash: String) = fileOf(hash)?.let { it.exists() && it.length() > 0 } == true
@@ -117,6 +120,13 @@ object RenderCache {
     fun chunks(plan: LayerPlan, gradeOf: (Long) -> ClipGrade?, uriOf: (Long) -> Uri?, fps: Double, short: Int): List<Chunk> {
         val edges = sortedSetOf(plan.origin, plan.total)
         for (l in plan.layers) for (sg in l.segs) { edges += sg.start; edges += sg.end }
+        // a transition window is a chunk of its own, also where it lies inside one piece (the transitions that show one
+        // picture at a time: zoom, whip, rotate, dips): only it has to be rendered before the transition shows – the rest
+        // of the clip keeps its key and its file (a whip into a 98 s clip waited for all 98 s to render)
+        for (l in plan.layers) for (sg in l.segs) for (w in sg.windows) {
+            if (w.t0 > sg.start + 1e-6 && w.t0 < sg.end - 1e-6) edges += w.t0
+            if (w.t1 > sg.start + 1e-6 && w.t1 < sg.end - 1e-6) edges += w.t1
+        }
         val e = edges.filter { it >= plan.origin - 1e-9 && it <= plan.total + 1e-9 }.toMutableList()
         // too-short chunks: the edge is removed (the chunk merges with the one before)
         var i = 1

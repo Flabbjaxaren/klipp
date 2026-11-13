@@ -64,7 +64,7 @@ class GridEffectFramesTest {
     @Test fun layerStagesSelectThenPresent() {
         // the layer's clock: timestamps in file µs (120 fps), the segment at 7.76 s from 7.03 s in the file, at 25 %
         val tl = { pts: Long -> 7_760_000L + Math.round((pts - 7_030_000L) / 0.25) }
-        val fx = LayerGridEffect(25.0, tl, { 7_760_000L }, { 0.25 })
+        val fx = LayerGridEffect(25.0, tl, { 7_760_000L }, { Long.MAX_VALUE }, { 0.25 })
         val select = Rig(fx.select.toGlShaderProgram(ctx, false))
         val present = Rig(fx.present.toGlShaderProgram(ctx, false))
         val pts = (0 until 30).map { 6_970_000L + Math.round(it * 1e6 / 120) } // pre-roll 60 ms of file, then the segment

@@ -124,11 +124,32 @@ class FrameGridTest {
         val chunk = (0 until 70).map { 4_480_000L + it * step }.filter { it < 7_240_000L }
         val c = Clip(7.24, 7.03, 0.52, 0.25, 120.0, prerollS = 0.0)
         val d = Clip(7.76, 7.0313, 1.0, 0.25, 119.4, jitterUs = 300, prerollS = 0.0)
-        val stream = chunk + c.itemFrames + d.itemFrames
-        val rule = FrameRateEffect.Streams(fps, longArrayOf(7_240_000L, 7_760_000L))
-        val played = stream.mapNotNull { rule.next(it) }
-        val export = FrameGrid.keep(chunk, fps) + FrameGrid.keep(c.itemFrames, fps) + FrameGrid.keep(d.itemFrames, fps)
-        assertEquals(export, played)
+        val items = listOf(chunk, c.itemFrames, d.itemFrames)
+        val edges = longArrayOf(7_240_000L, 7_760_000L, 8_760_000L)
+        val rule = FrameRateEffect.Streams(fps, edges)
+        val played = items.map { it.map { t -> t to rule.next(t) } }
+        for ((k, item) in played.withIndex()) {
+            val export = FrameGrid.keep(items[k], fps)
+            // the item's last frame always comes out, at or after its own time (the player's end of item)
+            val (lastIn, lastOut) = item.last()
+            assertTrue("item $k: last frame out at $lastOut, in at $lastIn", lastOut != null && lastOut >= lastIn)
+            // everything else as the export – the frames before the item's last source frame and a half
+            val body = item.filter { (t, _) -> t + 2 * (item[1].first - item[0].first) < edges[k] - FrameGrid.LEAD_US }
+            assertEquals("item $k", export.take(body.mapNotNull { it.second }.size), body.mapNotNull { it.second })
+        }
+        val all = played.flatten().mapNotNull { it.second }
+        assertTrue("rising: $all", all.zipWithNext().all { (a, b) -> b > a })
+    }
+
+    @Test fun aLayerSegmentsLastFrameAlwaysComesOut() {
+        for (c in listOf(Clip(7.76, 7.03, 0.52, 0.25, 120.0), Clip(8.08, 2.0, 0.6, 1.0, 30.0), Clip(4.48, 2.0, 1.0, 1.0, 25.0, jitterUs = 100))) {
+            val g = LayerGrid(fps)
+            val ins = c.frames.filter { it < c.segEndUs }
+            val outs = ins.map { g.next(it, c.segStartUs, c.segEndUs) }
+            assertTrue("${c.segStartUs}: last ${ins.last()} -> ${outs.last()}", outs.last() != null && outs.last()!! >= ins.last())
+            val kept = outs.filterNotNull()
+            assertTrue("rising: $kept", kept.zipWithNext().all { (a, b) -> b > a })
+        }
     }
 
     @Test fun mainPlayerAfterASeekFindsItsItem() {
@@ -136,8 +157,10 @@ class FrameGridTest {
         val rule = FrameRateEffect.Streams(fps, longArrayOf(7_760_000L, 9_760_000L))
         rule.reset()
         val out = c.itemFrames.filter { it >= 8_000_000L }.mapNotNull { rule.next(it) }
-        out.forEach { assertEquals(0L, it % step) }
-        assertTrue(out.zipWithNext().all { (a, b) -> b - a == step })
+        // (the item's last frame at its own time, see mainPlayerStartsOverAtEachItemAsTheExport)
+        out.dropLast(1).forEach { assertEquals(0L, it % step) }
+        assertTrue(out.dropLast(1).zipWithNext().all { (a, b) -> b - a == step })
+        assertTrue(out.last() > out[out.size - 2] && out.last() < 9_760_000L)
     }
 
     @Test fun onlyAClipWhoseFramesAlreadySitOnTheGridSkipsIt() {
