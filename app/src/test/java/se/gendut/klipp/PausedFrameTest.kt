@@ -136,8 +136,10 @@ class PausedFrameTest {
         assertEquals(PausedPick.DROP, pick.onFrame(760_000L, 760_000L))
         assertEquals(PausedPick.SHOW, pick.onFrame(787_000L, 800_000L))
         assertEquals(listOf(2), results.map { it.gen })
-        // after the pick the frames pass (playback starts with a plain seek)
-        assertEquals(PausedPick.SHOW, pick.onFrame(820_000L, 840_000L))
+        // after the pick the frames are held back (paused, nothing else may show); playback clears the pick
+        assertEquals(PausedPick.HOLD, pick.onFrame(820_000L, 840_000L))
+        pick.clear()
+        assertEquals(PausedPick.SHOW, pick.onFrame(860_000L, 880_000L))
     }
 
     @Test fun attemptsAreBounded() {

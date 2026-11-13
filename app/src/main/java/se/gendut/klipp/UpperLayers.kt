@@ -165,6 +165,15 @@ private fun LayerVideo(
     val clock = remember { LayerClock() }
     // whether the layer's frames go through the timeline grid (LayerGridEffect): then they are shown at slot times
     val gridOn = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    // paused: the layer's frame for the playhead's slot (as the main player's, see PausedPick) – chosen in the grid's
+    // select stage, the results read by the sync loop below
+    val pickResult = remember { java.util.concurrent.atomic.AtomicReference<se.gendut.klipp.engine.PausedPick.Result?>(null) }
+    val pick = remember(player) { se.gendut.klipp.engine.PausedPick { r -> pickResult.set(r) }.also { p -> p.trace = { TRACE.log("pick", "layer $it") } } }
+    // a pick stands the player before the slot on purpose: a repaint (new effects, a changed grade) picks again instead of
+    // stepping a millisecond from there (that showed the first frame after the pick's position – measured on the vivo)
+    val pickActive = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    val repick = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    suspend fun repaintLayer() { if (pickActive.get()) repick.intValue++ else repaint(player) }
     val segs = remember(layer) { layer.segs.filter { controller.uriOf(it.src.item) != null } }
     // the edit point layer starts each segment a little early, unseen (see HANDOFF_PREROLL_S): source ms before the
     // segment's start, per segment (0 = none)
@@ -268,6 +277,9 @@ private fun LayerVideo(
     LaunchedEffect(segs, main, proxyRev, preMs) {
         if (TRACE.on) TRACE.log("segs", "layer=${layer.name} starts=${segs.map { "%.2f".format(java.util.Locale.ROOT, it.start) }} pre=$preMs prerollOff=${Preroll.off}")
         var lastSeek = 0L
+        // the paused pick (see the pick above): which segment and slot it is for, its attempts and seeks
+        var pickKey = Long.MIN_VALUE; var pickGen = 0; var pickAttempt = 0; var pickSeeks = 0; var pickAt = 0L
+        var pickDone = false; var pickSlotUs = 0L; var pickFromStart = false; var seenRepick = repick.intValue
         var lastMainMs = -1L
         val stats = SyncStats.forLayer(layer.name)
         // the edit point layer: the segment it is covering, the main chain's frames of that clip when it began, and
@@ -296,7 +308,8 @@ private fun LayerVideo(
         // paused and done seeking: sleep until playback starts or the playhead moves (no needless frame loop)
         suspend fun idle() {
             val ph = state.playhead
-            snapshotFlow { state.playing || state.playhead != ph }.first { it }
+            val rp = repick.intValue
+            snapshotFlow { state.playing || state.playhead != ph || repick.intValue != rp }.first { it }
             lastMainMs = -1L
         }
         // (marks left by the edit point layer are lifted right away when it stops, not after they lapse)
@@ -482,6 +495,70 @@ private fun LayerVideo(
             // (once going it keeps going while the main player plays: its reported position often stands still for a few
             // display frames although it plays on – the layer was paused, and often sought, at each of those)
             val run = media != null && state.playing && (main == null || advancing || player.playWhenReady && main.isPlaying)
+            // paused on a layer drawn through the grid: the slot's frame as the export has it, not the first frame at the
+            // position (Media3 shows that one – the next slot's frame, measured on the vivo). The playhead stays; the layer
+            // is sought before the slot and its grid shows only the slot's frame; the sync below stays out of it meanwhile
+            val fpsP = controller.snapshot.fps
+            if (!state.playing && media != null && gridOn.get() && fpsP > 0.0 && !handoff && t >= seg.start - 1e-6) {
+                val g = se.gendut.klipp.engine.FrameGrid(fpsP)
+                val k = Math.round(t * fpsP)
+                val key = i * 1_000_000_000L + k
+                val itemStart = seg.start - preS(i)
+                // (a seek to where the player stands is ignored – no flush, no frames: first a millisecond away)
+                fun pickSeek(r: se.gendut.klipp.engine.PausedPick.Request, ms: Long) {
+                    val same = player.currentMediaItemIndex == i && player.currentPosition == ms
+                    pick.request(if (same) r.copy(flushes = 2) else r)
+                    if (same) seekLayer(i, ms + 1)
+                    seekLayer(i, ms); lastSeek = now
+                }
+                fun fallback(why: String) {
+                    pick.clear(); pickDone = true
+                    TRACE.log("pick", "layer=${layer.name} fallback $why")
+                    seekLayer(i, target); lastSeek = now
+                }
+                fun attempt(): Boolean {
+                    val backs = se.gendut.klipp.engine.PausedSeek.backs(fpsP)
+                    val slotSec = g.timeOf(k) / 1e6
+                    // the attempts' starts before the slot, never before the layer's item (its pre-roll included), the
+                    // item's start once and within reach
+                    val starts = backs.map { slotSec - it }.filter { it > itemStart + 1e-6 } +
+                        listOfNotNull(itemStart.takeIf { slotSec - it <= se.gendut.klipp.engine.PausedSeek.MAX_BACK_S })
+                    val from = starts.getOrNull(pickAttempt) ?: return false
+                    pickFromStart = from <= itemStart + 1e-6
+                    pickSeek(se.gendut.klipp.engine.PausedPick.Request(pickGen, pickSlotUs, pickFromStart), LayerSync.targetMs(from, seg, preMs[i]).coerceAtLeast(0)); pickSeeks++
+                    return true
+                }
+                if (repick.intValue != seenRepick) { seenRepick = repick.intValue; pickKey = Long.MIN_VALUE }
+                if (key != pickKey) {
+                    pickActive.set(true)
+                    pickKey = key; pickGen++; pickAttempt = 0; pickSeeks = 0; pickDone = false; pickSlotUs = g.timeOf(k); pickAt = now
+                    pickResult.set(null)
+                    if (player.playWhenReady) player.playWhenReady = false
+                    if (!attempt()) fallback("no attempt")
+                } else if (!pickDone) {
+                    val r = pickResult.getAndSet(null)
+                    when {
+                        r != null && r.gen != pickGen -> {}
+                        r is se.gendut.klipp.engine.PausedPick.Result.Found -> pickDone = true
+                        r is se.gendut.klipp.engine.PausedPick.Result.Exact -> {
+                            // just before that frame in the item (its timeline time less the read-ahead, see LayerClock)
+                            val sp = media.speed.coerceAtLeast(1e-6)
+                            val ms = Math.floor(((r.frameUs / 1e6 - se.gendut.klipp.engine.FrameGrid.LEAD_US / 1e6 / sp) - seg.start) * sp * 1000).toLong() + preMs[i] - 1
+                            if (++pickSeeks > 6) fallback("too many seeks") else {
+                                pickSeek(se.gendut.klipp.engine.PausedPick.Request(pickGen, pickSlotUs, pickFromStart, exactUs = r.frameUs), ms.coerceAtLeast(0))
+                            }
+                        }
+                        r is se.gendut.klipp.engine.PausedPick.Result.Earlier -> { pickAttempt++; if (pickSeeks > 6 || !attempt()) fallback("no attempt left") }
+                        now - pickAt > 2000 -> fallback("no frame in time")
+                    }
+                }
+                if (pickDone) idle()
+                continue
+            } else if (pickKey != Long.MIN_VALUE) {
+                // left the paused pick (playing, or a still): the layer stood before the slot – back to the playhead
+                pick.clear(); pickKey = Long.MIN_VALUE; pickActive.set(false)
+                if (media != null) { seekLayer(i, target); lastSeek = now }
+            }
             val d = LayerSync.decide(
                 curIndex = player.currentMediaItemIndex, curMs = player.currentPosition, wantIndex = i, wantMs = target,
                 running = run, ready = player.playbackState == Player.STATE_READY, msSinceSeek = now - lastSeek,
@@ -546,16 +623,16 @@ private fun LayerVideo(
         val grid = gridFps?.let { f ->
             se.gendut.klipp.engine.LayerGridEffect(f, clock::timelineUs, { clock.seg?.let { Math.round(it.startSec * 1e6) } },
                 { clock.seg?.endSec?.takeIf { it < 1e9 }?.let { Math.round(it * 1e6) } ?: Long.MAX_VALUE }, { clock.seg?.speed ?: 1.0 },
-                { line: String -> TRACE.log("grid", "layer=$layerName $line") }, { TRACE.on }, { clock.seg?.cut == true })
+                { line: String -> TRACE.log("grid", "layer=$layerName $line") }, { TRACE.on }, { clock.seg?.cut == true }, pick)
         }
         gridOn.set(grid != null)
         runCatching { player.setVideoEffects(listOfNotNull(grid?.select, down) + fx + listOfNotNull(grid?.present)) }
-        repaint(player)
+        repaintLayer()
     }
     LaunchedEffect(grade) {
         if (gc == null || grade == null) return@LaunchedEffect
         se.gendut.klipp.engine.LiveGrades.publish(mapOf(gc.id to grade))
-        repaint(player)
+        repaintLayer()
     }
     val density = LocalDensity.current
     val blurShader = remember { if (android.os.Build.VERSION.SDK_INT >= 33) android.graphics.RuntimeShader(TRANSITION_BLUR) else null }

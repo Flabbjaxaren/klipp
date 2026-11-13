@@ -32,19 +32,31 @@ class PausedPick(private val post: (Result) -> Unit) {
      * A request: show slot [slotUs] (composition µs). [atSegmentStart]: the seek goes to the start of the slot's segment
      * (its first frame is the segment's). [exactUs]: show exactly the frame at that time (the second seek of a hold).
      */
-    data class Request(val gen: Int, val slotUs: Long, val atSegmentStart: Boolean, val exactUs: Long = Long.MIN_VALUE)
+    data class Request(
+        val gen: Int, val slotUs: Long, val atSegmentStart: Boolean, val exactUs: Long = Long.MIN_VALUE,
+        /**
+         * How many flushes come before the scan's frames: 2 when the position is first sought a millisecond away (a seek
+         * to where a player already stands is ignored – no flush, no frames; the layer's pick waited for ever).
+         */
+        val flushes: Int = 1,
+    )
 
-    private enum class State { IDLE, WAIT_FLUSH, SCAN, PASS, DROP }
+    /**
+     * DONE: the slot's frame is out; the frames after it are held back (not shown) until the next seek or [clear] – a
+     * layer's paused ExoPlayer showed a later frame passed on after the pick a moment later (measured on the vivo).
+     */
+    private enum class State { IDLE, WAIT_FLUSH, SCAN, DONE, DROP }
 
     private var req: Request? = null
     private var state = State.IDLE
+    private var flushesLeft = 0
     private var seen = 0
     private var keptUs = Long.MIN_VALUE
     private var keptIsFirst = false
 
     /** A new request (before the seek it goes with): frames until the seek's flush are old ones. */
     @Synchronized fun request(r: Request) {
-        req = r; state = State.WAIT_FLUSH; seen = 0; keptUs = Long.MIN_VALUE; keptIsFirst = false
+        req = r; state = State.WAIT_FLUSH; seen = 0; keptUs = Long.MIN_VALUE; keptIsFirst = false; flushesLeft = r.flushes
         trace("request $r")
     }
 
@@ -55,11 +67,12 @@ class PausedPick(private val post: (Result) -> Unit) {
     @Synchronized fun clear() { if (state != State.IDLE) trace("clear from $state"); req = null; state = State.IDLE }
 
     /** Whether frames are being chosen here (the effect drops what [onFrame] doesn't show). */
-    val active: Boolean @Synchronized get() = state != State.IDLE && state != State.PASS
+    val active: Boolean @Synchronized get() = state != State.IDLE
 
     /** The effect was flushed (a seek): the scan begins. */
     @Synchronized fun onFlush() {
         trace("flush in $state")
+        if (state == State.WAIT_FLUSH && --flushesLeft > 0) return
         if (state == State.WAIT_FLUSH || state == State.SCAN || state == State.DROP) { state = State.SCAN; seen = 0; keptUs = Long.MIN_VALUE; keptIsFirst = false }
     }
 
@@ -77,20 +90,20 @@ class PausedPick(private val post: (Result) -> Unit) {
         val show = synchronized(this) {
             val r = req
             when {
-                state == State.IDLE || state == State.PASS -> SHOW
+                state == State.IDLE -> SHOW
                 r == null || state != State.SCAN -> HOLD
                 else -> {
                     seen++
                     if (r.exactUs != Long.MIN_VALUE) {
                         when {
-                            kotlin.math.abs(tUs - r.exactUs) <= MATCH_US -> { state = State.PASS; out = Result.Found(r.gen, tUs); SHOW }
+                            kotlin.math.abs(tUs - r.exactUs) <= MATCH_US -> { state = State.DONE; out = Result.Found(r.gen, tUs); SHOW }
                             tUs > r.exactUs + MATCH_US -> { state = State.DROP; out = Result.Earlier(r.gen); HOLD }
                             else -> DROP
                         }
                     } else if (presentedUs == null) DROP
                     else if (presentedUs < r.slotUs - SLOT_US) { keptUs = tUs; keptIsFirst = seen == 1; DROP }
                     else if (presentedUs <= r.slotUs + SLOT_US) {
-                        if (seen > 1 || r.atSegmentStart) { state = State.PASS; out = Result.Found(r.gen, tUs); SHOW }
+                        if (seen > 1 || r.atSegmentStart) { state = State.DONE; out = Result.Found(r.gen, tUs); SHOW }
                         else { state = State.DROP; out = Result.Earlier(r.gen); HOLD }
                     } else {
                         state = State.DROP

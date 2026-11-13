@@ -33,6 +33,8 @@ class LayerGridEffect(
     private val traceOn: () -> Boolean = { false },
     /** Whether the playing segment begins at a cut (Seg.cut): its first frame isn't pinned. */
     private val segmentCut: () -> Boolean = { false },
+    /** Paused: the layer's frame for the playhead's slot, as the main player's (see PausedPick; times on the timeline). */
+    private val pick: PausedPick? = null,
 ) {
     // input timestamp → shown timestamp, for the frames select kept (both stages run on the chain's GL thread)
     private val moves = object : LinkedHashMap<Long, Long>() {
@@ -59,8 +61,17 @@ class LayerGridEffect(
             val tl = timelineUs(presentationTimeUs)
             val seg = segmentUs()
             if (tl == null || seg == null) { super.queueInputFrame(gl, tex, presentationTimeUs); return }
-            val at = rule.next(tl, seg, segmentEndUs(), pinFirst = !segmentCut())
+            var at = rule.next(tl, seg, segmentEndUs(), pinFirst = !segmentCut())
             if (trace != null && traceOn()) trace.invoke("grid in=$presentationTimeUs tl=$tl seg=$seg out=${at ?: "drop"}")
+            if (pick != null && pick.active) {
+                // (pre-roll frames lie before the segment: never the slot's frame)
+                val pre = tl < seg - FrameGrid.LEAD_US
+                when (pick.onFrame(tl, if (pre) null else at)) {
+                    PausedPick.SHOW -> if (at == null) at = tl
+                    PausedPick.HOLD -> { inputListener.onInputFrameProcessed(tex); return }
+                    else -> { inputListener.onInputFrameProcessed(tex); inputListener.onReadyToAcceptInputFrame(); return }
+                }
+            }
             if (at == null) {
                 inputListener.onInputFrameProcessed(tex)
                 inputListener.onReadyToAcceptInputFrame()
@@ -72,6 +83,7 @@ class LayerGridEffect(
 
         override fun flush() {
             rule.reset()
+            pick?.onFlush()
             synchronized(moves) { moves.clear() }
             super.flush()
         }
