@@ -61,13 +61,25 @@ class FrameGrid(fps: Double) {
          * never dropped and never moved earlier. The export ends its items otherwise and doesn't need this.
          */
         /**
-         * Where an item's last frame (at [tUs], its grid time [out] or dropped) is shown: never before its own time (the
-         * end of item), never on or after the next item's start [endUs] (its first frame is shown there), after the frame
-         * before ([lastOut]).
+         * Where one of an item's last frames (at [tUs], its grid time [out] or dropped) is shown. Media3 needs a frame at
+         * or after the item's last decoded frame (see [nearEnd]) – compared in the composition's time base (µs), the
+         * effects' output against the decoded buffer's time. So such a frame is never earlier than its own time, never on
+         * or after the next item's start [endUs] (that slot is the next item's first frame), and after the frame before
+         * ([lastOut]). Within that, on the grid: its own slot when that isn't earlier than itself, otherwise the next one.
+         * When no slot is left before the next item (the last decoded frame lies after the last slot but before the next
+         * item's start), it is an end-of-item frame only: 1 µs before the next item's start, where the next item's first
+         * frame replaces it at once. Before, these frames were shown at their own times – off the grid next to the next
+         * item's (APV proxies at 119.94 fps: 6.197 s and 6.230 s, the latter 3 ms before a pre-rendered whip's first frame;
+         * a 16–41 ms hold just before the whip, measured on the vivo).
          */
-        fun lastFrameAt(tUs: Long, out: Long?, endUs: Long, lastOut: Long): Long {
+        fun lastFrameAt(tUs: Long, out: Long?, endUs: Long, lastOut: Long, stepUs: Double, originUs: Long = 0L): Long {
             val cap = if (endUs == Long.MAX_VALUE) Long.MAX_VALUE else endUs - 1
-            return maxOf(tUs, minOf(out ?: tUs, cap), if (lastOut == Long.MIN_VALUE) tUs else lastOut + 1)
+            val after = if (lastOut == Long.MIN_VALUE) Long.MIN_VALUE else lastOut + 1
+            // (the slots are the timeline's: times here are [originUs] earlier)
+            fun ceilSlot(t: Long) = Math.round(Math.ceil((t + originUs - 0.5) / stepUs) * stepUs) - originUs
+            var g = if (out != null && out >= tUs) out else ceilSlot(tUs)
+            if (g < after) g = ceilSlot(after)
+            return if (g <= cap) g else maxOf(tUs, after, cap)
         }
 
         fun nearEnd(tUs: Long, endUs: Long, stepUs: Long): Boolean =
@@ -132,7 +144,7 @@ class LayerGrid(fps: Double) {
         val out = if (tUs < segStartUs - FrameGrid.LEAD_US) { if (tUs < grid.earliestUs(segStartUs) - grid.stepUs / 2) tUs else null }
             else grid.next(tUs)?.let { grid.timeOf(it) }
         // the item's last frames: never dropped, never earlier than their own time
-        val at = if (last) FrameGrid.lastFrameAt(tUs, out, segEndUs, lastOut) else out
+        val at = if (last) FrameGrid.lastFrameAt(tUs, out, segEndUs, lastOut, grid.stepUs) else out
         if (at != null) lastOut = at
         return at
     }
@@ -180,4 +192,38 @@ class FillPlanner(
         grid.reset()
         last = Long.MIN_VALUE
     }
+}
+
+/**
+ * A pre-rendered part's first frame on its first slot (KlippFrameFill, last in the chain): the muxer puts a file's
+ * first frame at 0, so a part whose first frame came a slot after its start (a 30 fps source in a 60 fps timeline) was
+ * played a slot early, all of it – and the frame rendered past its end was kept (measured on the vivo: a whip's chunk one
+ * slot ahead of the export throughout). The first frame is also shown on the slots from the part's start [originUs]
+ * (the timeline) up to its own – the export shows the frame before there, which the part doesn't have; the same frame
+ * held. Once per render (an item's end doesn't start it over). Pure – tested in FrameGridTest.
+ */
+class StartPinPlanner(fps: Double, private val originUs: Long) : androidx.media3.effect.KlippFrameFill.Planner {
+    private val stepUs = 1_000_000.0 / fps.coerceAtLeast(1.0)
+    private var first = true
+
+    override fun next(ptsUs: Long): LongArray {
+        if (!first) return longArrayOf(ptsUs)
+        first = false
+        // the part's first slot, in the composition's time
+        val k0 = Math.ceil((originUs - 0.5) / stepUs).toLong()
+        val out = ArrayList<Long>()
+        var k = k0
+        while (true) {
+            val t = Math.round(k * stepUs) - originUs
+            if (t >= ptsUs - stepUs / 2) break
+            out += t; k++
+        }
+        out += ptsUs
+        return out.toLongArray()
+    }
+
+    override fun end() = LongArray(0)
+
+    // (not at an item's end: the pin is the render's start only)
+    override fun reset() {}
 }

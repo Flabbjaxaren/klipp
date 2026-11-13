@@ -507,13 +507,15 @@ object CompositionBuilder {
             if (output == null && s.fps > 0.0) {
                 val bottom = plan.layers.lastOrNull()?.segs.orEmpty()
                 val starts = (bottom.map { it.start } + bottom.map { it.end }).map { Math.round((it - plan.origin) * 1e6) }.filter { it > 0 }.distinct().sorted()
-                fx += FrameRateEffect(s.fps, starts.toLongArray())
+                fx += FrameRateEffect(s.fps, starts.toLongArray(), Math.round(plan.origin * 1e6))
             }
             // the export's frame rate and size last (titles and captions are already drawn at the project size)
             if (output != null) {
                 // always: clips can have a different (or variable) frame rate than the project – the file gets a constant one
                 val outFps = output.outputFps(s.fps)
-                if (outFps > 0.0) fx += FrameRateEffect(outFps)
+                if (outFps > 0.0) fx += FrameRateEffect(outFps, originUs = Math.round(plan.origin * 1e6))
+                // a part of the timeline (pre-rendering): its first frame on its first slot (see StartPinPlanner)
+                if (outFps > 0.0 && range != null) fx += androidx.media3.effect.KlippFrameFill(StartPinPlanner(outFps, Math.round(plan.origin * 1e6)))
                 val (ow, oh) = output.outputSize(plan.width, plan.height)
                 if (ow != plan.width || oh != plan.height) fx += androidx.media3.effect.Presentation.createForWidthAndHeight(ow, oh, androidx.media3.effect.Presentation.LAYOUT_SCALE_TO_FIT)
             }

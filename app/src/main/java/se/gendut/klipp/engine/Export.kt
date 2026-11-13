@@ -174,16 +174,24 @@ object EncoderCaps {
  * previous one, so 30 → 24 or 25 → 24 drops almost nothing at all.
  */
 @OptIn(UnstableApi::class)
-class FrameRateEffect(val fps: Double, val startsUs: LongArray = LongArray(0)) : androidx.media3.effect.GlEffect {
-    override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram = Program(fps, startsUs)
+class FrameRateEffect(
+    val fps: Double, val startsUs: LongArray = LongArray(0),
+    /**
+     * Where the composition's time 0 lies on the timeline (µs): a render of a part (a pre-rendered chunk) has its slots
+     * on the timeline's grid, not counted from its own start – a chunk starting between two slots (a 25 fps timeline
+     * changed to 60) got a grid of its own, offset, and a frame more than its slots.
+     */
+    val originUs: Long = 0L,
+) : androidx.media3.effect.GlEffect {
+    override fun toGlShaderProgram(context: Context, useHdr: Boolean): androidx.media3.effect.GlShaderProgram = Program(fps, startsUs, originUs)
 
     /**
      * Frames that aren't needed are handed back at once – as Media3's own frame dropping does: the input texture is
      * released to the stage before and the next frame is asked for (the frame never reaches the output, so this stage
      * holds nothing). The others pass through unchanged (only the timestamp changes).
      */
-    private class Program(fps: Double, startsUs: LongArray) : androidx.media3.effect.PassthroughShaderProgram() {
-        private val rule = Streams(fps, startsUs)
+    private class Program(fps: Double, startsUs: LongArray, originUs: Long) : androidx.media3.effect.PassthroughShaderProgram() {
+        private val rule = Streams(fps, startsUs, originUs)
 
         override fun queueInputFrame(gl: androidx.media3.common.GlObjectsProvider, tex: androidx.media3.common.GlTextureInfo, presentationTimeUs: Long) {
             val out = rule.next(presentationTimeUs)
@@ -206,7 +214,7 @@ class FrameRateEffect(val fps: Double, val startsUs: LongArray = LongArray(0)) :
      * ([startsUs], playback) an item's last frames are kept at or after their own time (FrameGrid.nearEnd); the export
      * passes none.
      */
-    class Streams(fps: Double, private val startsUs: LongArray) {
+    class Streams(fps: Double, private val startsUs: LongArray, private val originUs: Long = 0L) {
         private val grid = FrameGrid(fps)
         private var nextStart = -1
         private var prevIn = Long.MIN_VALUE
@@ -225,8 +233,8 @@ class FrameRateEffect(val fps: Double, val startsUs: LongArray = LongArray(0)) :
             val step = if (prevIn != Long.MIN_VALUE && tUs > prevIn) tUs - prevIn else 0L
             prevIn = tUs
             val end = if (nextStart < startsUs.size) startsUs[nextStart] else Long.MAX_VALUE
-            val out = grid.next(tUs)?.let { grid.timeOf(it) }
-            val at = if (step > 0 && FrameGrid.nearEnd(tUs, end, step)) FrameGrid.lastFrameAt(tUs, out, end, lastOut) else out
+            val out = grid.next(tUs + originUs)?.let { grid.timeOf(it) - originUs }
+            val at = if (step > 0 && FrameGrid.nearEnd(tUs, end, step)) FrameGrid.lastFrameAt(tUs, out, end, lastOut, grid.stepUs, originUs) else out
             if (at != null) lastOut = at
             return at
         }

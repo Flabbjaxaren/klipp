@@ -203,5 +203,83 @@ class FrameGridTest {
         assertEquals(FrameGrid.keep(src, fps), src.flatMap { p.next(it).toList() })
         assertEquals(0, p.end().size)
     }
+
+    @Test fun anItemsLastFramesStayOnTheGridWhereTheyCanAndAreOnlyInternalWhereTheyCant() {
+        // the vivo's case: 60 fps, APV proxy at 119.94 fps at 25 % (a frame every 33.35 ms), the next item (a pre-rendered
+        // whip) at 6.2333 s; the last frames decoded at 6.1967 and 6.2300 s
+        val step60 = 1e6 / 60; val end = 6_233_333L
+        fun slotOk(t: Long) = kotlin.math.abs(t / step60 - Math.round(t / step60)) < 1e-3
+        // its own slot earlier than itself: the next slot instead (on the grid, not before its own time)
+        val a = FrameGrid.lastFrameAt(6_196_667L, 6_183_333L, end, 6_150_000L, step60)
+        assertTrue("$a", a >= 6_196_667L && slotOk(a) && a < end)
+        // after the last slot before the next item: the end-of-item frame, 1 µs before the next item's first
+        val b = FrameGrid.lastFrameAt(6_230_000L, null, end, a, step60)
+        assertEquals(end - 1, b)
+        // never before its own time, never at the next item's start (Media3: a frame at or after the last decoded one)
+        assertTrue(b >= 6_230_000L && b < end)
+        // the main player's rule over such an item: rising, every output on the grid but the last, which ends the item
+        val src = (0 until 60).map { Math.round(4_233_333L + it * 1e6 / (119.94 * 0.25)) }.filter { it < end }
+        val rule = FrameRateEffect.Streams(60.0, longArrayOf(end, 9_000_000L))
+        val outs = src.mapNotNull { rule.next(it) }
+        assertTrue(outs.zipWithNext().all { (x, y) -> y > x })
+        outs.dropLast(1).forEach { assertTrue("$it", slotOk(it)) }
+        assertTrue(outs.last() >= src.last() && outs.last() < end)
+    }
+
+    @Test fun aChunkStartingBetweenSlotsKeepsTheTimelinesGrid() {
+        // a 60 fps timeline whose cut lies at 6.56 s (made at 25 fps): the chunk [6.56, 6.8333) is rendered with its
+        // composition starting there – its frames must sit on the timeline's slots (6.5667 …), one per slot, not on a grid
+        // counted from 6.56 (17 frames for 16 slots, each 6.7 ms off)
+        val step60 = 1e6 / 60; val origin = 6_560_000L; val end = 6_833_333L
+        // the chunk's frames as it receives them (composition time): every slot of the transition, from the fill
+        val ins = (394 until 410).map { Math.round(it * step60) - origin }
+        val rule = FrameRateEffect.Streams(60.0, LongArray(0), origin)
+        val outs = ins.mapNotNull { rule.next(it) }.map { it + origin }
+        assertEquals(16, outs.size)
+        outs.forEach { assertTrue("$it", kotlin.math.abs(it / step60 - Math.round(it / step60)) < 1e-3) }
+        assertTrue(outs.first() >= origin && outs.last() < end)
+        // a chunk on the grid is as before
+        val on = FrameRateEffect.Streams(60.0, LongArray(0), 6_233_333L)
+        assertEquals(listOf(0L, 16_667L), listOf(0L, 16_667L).mapNotNull { on.next(it) })
+    }
+
+    @Test fun aPartsFirstFrameIsPinnedToItsFirstSlot() {
+        // a 60 fps part from 5.6833 s whose first frame comes at 5.70 s (a 30 fps source): the frame on 5.6833 too, so the
+        // file's first frame (moved to 0 by the muxer) is the part's start
+        val step60 = 1e6 / 60; val origin = 5_683_333L
+        val p = se.gendut.klipp.engine.StartPinPlanner(60.0, origin)
+        val first = p.next(5_700_000L - origin)
+        assertEquals(listOf(0L, 16_667L), first.toList().map { Math.round((it + origin) / step60) - 341L }.map { it * 16_667L })
+        assertEquals(listOf(33_333L), p.next(33_333L).toList())
+        // on its slot already: nothing added; and never again after
+        val q = se.gendut.klipp.engine.StartPinPlanner(60.0, origin)
+        assertEquals(listOf(0L), q.next(0L).toList())
+        q.reset(); assertEquals(listOf(50_000L), q.next(50_000L).toList())
+    }
+
+    @Test fun rationalRatesKeepTheGridToTheMicrosecond() {
+        // 29.97 and 59.94 fps (30000/1001, 60000/1001): a slot isn't a whole number of µs – times on the grid within 1 µs
+        for (rate in listOf(30000.0 / 1001, 60000.0 / 1001)) {
+            val st = 1e6 / rate
+            fun onGrid(t: Long) = kotlin.math.abs(t - Math.round(t / st) * st) <= 1.0
+            // a 120 fps source at 25 % through a transition window (fill), the part starting between slots
+            val origin = Math.round(4_000_000.0 + st / 3)
+            val p = se.gendut.klipp.engine.FillPlanner(rate, origin, 5_000_000L)
+            val src = (0 until 40).map { Math.round(it * 1e6 / 30) }.filter { it + origin < 5_000_000L }
+            val out = src.flatMap { p.next(it).toList() } + p.end().toList()
+            assertTrue(out.zipWithNext().all { (x, y) -> y > x })
+            out.forEach { assertTrue("$rate: $it", onGrid(it + origin)) }
+            // every slot of the window filled, none at or past its end
+            val slots = out.map { Math.round((it + origin) / st) }
+            assertEquals((slots.first()..slots.last()).toList(), slots)
+            assertTrue((out.last() + origin) < 5_000_000L)
+            // the main player's rule over a rendered part from between two slots: its output on the timeline's grid
+            val rule = FrameRateEffect.Streams(rate, LongArray(0), origin)
+            out.mapNotNull { rule.next(it) }.forEach { assertTrue("$rate: $it", onGrid(it + origin)) }
+            // chunk edges: a cut between slots moves up to the next slot
+            val e = Math.ceil(4.5 * rate - 1e-6) / rate
+            assertTrue(onGrid(Math.round(e * 1e6)) && e >= 4.5 && e - 4.5 < 1 / rate)
+        }
+    }
 }
 

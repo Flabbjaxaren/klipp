@@ -73,7 +73,7 @@ object RenderCache {
         val longer: List<Pair<String, Double>> = emptyList(),
     )
 
-    private const val VERSION = 5
+    private const val VERSION = 7
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
     /** The disk space for the files. */
@@ -127,7 +127,18 @@ object RenderCache {
             if (w.t0 > sg.start + 1e-6 && w.t0 < sg.end - 1e-6) edges += w.t0
             if (w.t1 > sg.start + 1e-6 && w.t1 < sg.end - 1e-6) edges += w.t1
         }
-        val e = edges.filter { it >= plan.origin - 1e-9 && it <= plan.total + 1e-9 }.toMutableList()
+        // on the timeline's grid: an edge between two slots moves up to the next slot, so a chunk holds exactly the slots
+        // of [a, b) and begins on one. A chunk beginning between slots (a cut at 6.56 s in a 60 fps timeline made at 25)
+        // was rendered on its own grid – the muxer puts a file's first frame at 0 – a frame more than its slots, the
+        // last one where the next chunk's first goes (measured on the vivo: 17 frames for 16 slots)
+        // a transition window is one chunk: no edge inside it (its pieces are only ever played together, and a join inside
+        // it put a keyframe at the cut – the picture there stood one display refresh too long on the vivo, every time,
+        // though the frames went out evenly)
+        val inside = plan.layers.flatMap { l -> l.segs.flatMap { sg -> sg.windows + listOfNotNull(sg.fx) } }.map { it.t0 to it.t1 }.distinct()
+        val e = edges.filter { it >= plan.origin - 1e-9 && it <= plan.total + 1e-9 }
+            .filter { x -> inside.none { (t0, t1) -> x > t0 + 1e-6 && x < t1 - 1e-6 } }
+            .map { x -> if (fps <= 0.0 || x <= plan.origin + 1e-9) x else minOf(plan.total, Math.ceil(x * fps - 1e-6) / fps) }
+            .distinct().sorted().toMutableList()
         // too-short chunks: the edge is removed (the chunk merges with the one before)
         var i = 1
         while (i < e.size) {

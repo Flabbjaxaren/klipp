@@ -32,19 +32,19 @@ class RenderCacheTest {
     private val uriOf: (Long) -> Uri? = { id -> Uri.parse("file:///media/$id.mp4") }
 
     @Test fun chunksSplitAtEveryEdgeAndKnowWhatIsHeavy() {
-        // A (0–3 s) | B (3–6 s) with a transition 2.6–3.4
+        // A (0–3 s) | B (3–6 s) with a transition 2.6–3.4: the transition is one chunk (no edge inside its window)
         val plan = LayerPlanner.plan(snap("wipe")) { 30.0 }!!
         val c = RenderCache.chunks(plan, { null }, uriOf, 30.0, 1080)
-        assertEquals(listOf(0.0, 2.6, 3.0, 3.4), c.map { Math.round(it.a * 10) / 10.0 })
+        assertEquals(listOf(0.0, 2.6, 3.4), c.map { Math.round(it.a * 10) / 10.0 })
         assertEquals(6.0, c.last().b, 1e-9)
         // A is moved, scaled, rotated and semi-transparent: heavy; B is an ordinary clip – heavy only in the transition
-        assertEquals(listOf(true, true, true, false), c.map { it.heavy })
+        assertEquals(listOf(true, true, false), c.map { it.heavy })
         // a grade on B makes B's part heavy and only changes the keys where B is visible
         val g = ClipGrade(listOf(GradeNode(1, "Primär", contrast = 1.2f)))
         val c2 = RenderCache.chunks(plan, { id -> if (id == 13L) g else null }, uriOf, 30.0, 1080)
-        assertTrue(c2[3].heavy)
+        assertTrue(c2[2].heavy)
         assertEquals(c[0].hash, c2[0].hash)
-        assertNotEquals(c[1].hash, c2[1].hash); assertNotEquals(c[2].hash, c2[2].hash); assertNotEquals(c[3].hash, c2[3].hash)
+        assertNotEquals(c[1].hash, c2[1].hash); assertNotEquals(c[2].hash, c2[2].hash)
         // same timeline: same keys (the files stay valid even after a restart)
         assertEquals(c.map { it.hash }, RenderCache.chunks(LayerPlanner.plan(snap("wipe")) { 30.0 }!!, { null }, uriOf, 30.0, 1080).map { it.hash })
         // another preview size or another transition: other files
@@ -68,7 +68,7 @@ class RenderCacheTest {
         val after = RenderCache.chunks(plan, { id -> if (id == 13L) g else null }, uriOf, 30.0, 1080)
         // where B (with the LUT) is seen, the keys change; the part with only A stays
         assertEquals(before[0].hash, after[0].hash)
-        assertNotEquals(before[3].hash, after[3].hash)
+        assertNotEquals(before[2].hash, after[2].hash)
     }
 
     @Test fun readyChunksReplaceAllLayersThere() {
@@ -77,29 +77,29 @@ class RenderCacheTest {
         val plan = LayerPlanner.plan(snap("wipe")) { 30.0 }!!
         val chunks = RenderCache.chunks(plan, { null }, uriOf, 30.0, 1080)
         assertTrue(RenderCache.substitute(plan, chunks) === plan)
-        // the transition's two chunks (2.6–3.4) are rendered
+        // the transition's chunk (2.6–3.4) is rendered
         val dir = File(ApplicationProvider.getApplicationContext<android.content.Context>().filesDir, "render")
-        for (c in chunks.subList(1, 3)) File(dir, c.hash + ".mp4").writeBytes(ByteArray(10))
+        for (c in chunks.subList(1, 2)) File(dir, c.hash + ".mp4").writeBytes(ByteArray(10))
         val sub = RenderCache.substitute(plan, chunks)
         // no upper layer left (the transition's layer was only there) – the compositor is not needed
         assertEquals(1, sub.layers.size)
         val segs = sub.layers.single().segs
-        assertEquals(listOf(0.0 to 2.6, 2.6 to 3.0, 3.0 to 3.4, 3.4 to 6.0), segs.map { Math.round(it.start * 10) / 10.0 to Math.round(it.end * 10) / 10.0 })
-        // the rendered chunks play from their files, without clipping (no effects on top)
-        for (r in segs.subList(1, 3)) {
+        assertEquals(listOf(0.0 to 2.6, 2.6 to 3.4, 3.4 to 6.0), segs.map { Math.round(it.start * 10) / 10.0 to Math.round(it.end * 10) / 10.0 })
+        // the rendered chunk plays from its file, without clipping (no effects on top)
+        for (r in segs.subList(1, 2)) {
             assertTrue(r.clip == null && r.windows.isEmpty() && r.fx == null)
             assertEquals(0.0, (r.src as SegSrc.Media).srcIn, 0.0)
             assertTrue(RenderCache.uriOf(r.src.item)!!.path!!.endsWith(".mp4"))
         }
         // B continues after the transition at the right place in the source (5.0 + 0.4)
-        assertEquals(5.4, (segs[3].src as SegSrc.Media).srcIn, 1e-9)
+        assertEquals(5.4, (segs[2].src as SegSrc.Media).srcIn, 1e-9)
         assertEquals(1.0, (segs[0].src as SegSrc.Media).srcIn, 1e-9)
-        assertEquals(listOf(2.6..3.0, 3.0..3.4).map { Math.round(it.start * 10) to Math.round(it.endInclusive * 10) },
+        assertEquals(listOf(2.6..3.4).map { Math.round(it.start * 10) to Math.round(it.endInclusive * 10) },
             sub.rendered.map { Math.round(it.start * 10) to Math.round(it.endInclusive * 10) })
         // a change in the chunk: the file is no longer valid
         val g = ClipGrade(listOf(GradeNode(1, "Primär", contrast = 1.2f)))
         val changed = RenderCache.chunks(plan, { id -> if (id == 13L) g else null }, uriOf, 30.0, 1080)
-        assertFalse(RenderCache.isReady(changed[2]))
+        assertFalse(RenderCache.isReady(changed[1]))
         RenderCache.clear()
         assertTrue(RenderCache.substitute(plan, chunks) === plan)
     }
@@ -146,11 +146,11 @@ class RenderCacheTest {
 
     @Test fun aTransitionShowingOnePictureAtATimeIsAChunkOfItsOwn() {
         // A (0–3 s) | B (3–6 s), a whip 2.6–3.4 (one picture at a time: no pieces of its own in the plan) – its window is
-        // a chunk of its own on either side of the cut, and the rest of B keeps the key it had without the transition
+        // a chunk of its own (one, across the cut), and the rest of B keeps the key it had without the transition
         for (effect in listOf("whip", "cross_zoom", "dip_to_black")) {
             val plan = LayerPlanner.plan(snap(effect)) { 30.0 }!!
             val c = RenderCache.chunks(plan, { null }, uriOf, 30.0, 1080)
-            assertEquals(effect, listOf(0.0, 2.6, 3.0, 3.4), c.map { Math.round(it.a * 10) / 10.0 })
+            assertEquals(effect, listOf(0.0, 2.6, 3.4), c.map { Math.round(it.a * 10) / 10.0 })
             val o = JSONObject(javaClass.classLoader!!.getResource("snapshot_fx.json")!!.readText())
             o.getJSONObject("sequence").getJSONArray("video").getJSONObject(0).put("transitions", org.json.JSONArray())
             val bare = RenderCache.chunks(LayerPlanner.plan(Snapshot.parse(o)) { 30.0 }!!, { null }, uriOf, 30.0, 1080)
@@ -158,6 +158,18 @@ class RenderCacheTest {
             assertEquals(effect, 3.4, c.last().a, 1e-9)
             assertFalse(effect, c.last().hash == bare.last().hash && bare.last().a != 3.4)
         }
+    }
+
+    @Test fun chunkEdgesLieOnTheTimelinesGrid() {
+        // A (0–3 s) | B (3–6 s), a transition 2.6–3.4 s (one chunk, no edge at the cut inside it), in a 7 fps timeline:
+        // neither of its edges is a slot – each moves up to the next slot, and the chunks still meet edge to edge
+        val plan = LayerPlanner.plan(snap("whip")) { 30.0 }!!
+        val c = RenderCache.chunks(plan, { null }, uriOf, 7.0, 1080)
+        // 2.6 s = slot 18.2 → 19; 3.4 s = slot 23.8 → 24
+        assertEquals(listOf(0L, 19L, 24L), c.map { Math.round(it.a * 7) })
+        c.forEach { k -> assertEquals(k.a * 7, Math.round(k.a * 7).toDouble(), 1e-6) }
+        c.zipWithNext().forEach { (x, y) -> assertEquals(x.b, y.a, 1e-9) }
+        assertEquals(0.0, c.first().a, 1e-9)
     }
 
     @Test fun aRenderInProgressStopsWhenPlaybackStarts() {
