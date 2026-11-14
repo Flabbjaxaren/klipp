@@ -376,7 +376,7 @@ public class SeparableConvolutionShaderProgram implements GlShaderProgram {
     }
 
     existingTexture.release();
-    int texId = GlUtil.createTexture(size.getWidth(), size.getHeight(), useHdr);
+    int texId = GlUtil.createTexture(size.getWidth(), size.getHeight(), KlippPrecision.use(useHdr));
 
     return glObjectsProvider.createBuffersForTexture(texId, size.getWidth(), size.getHeight());
   }

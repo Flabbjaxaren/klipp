@@ -133,7 +133,7 @@ import androidx.media3.common.util.Size;
       GlObjectsProvider glObjectsProvider, GlTextureInfo newTexture, long presentationTimeUs) {
     try {
       if (previousTexture == null) {
-        int texId = GlUtil.createTexture(newTexture.width, newTexture.height, useHdr);
+        int texId = GlUtil.createTexture(newTexture.width, newTexture.height, KlippPrecision.use(useHdr));
         previousTexture =
             glObjectsProvider.createBuffersForTexture(texId, newTexture.width, newTexture.height);
       }
@@ -141,7 +141,7 @@ import androidx.media3.common.util.Size;
       if (previousTexture.height != newTexture.height
           || previousTexture.width != newTexture.width) {
         previousTexture.release();
-        int texId = GlUtil.createTexture(newTexture.width, newTexture.height, useHdr);
+        int texId = GlUtil.createTexture(newTexture.width, newTexture.height, KlippPrecision.use(useHdr));
         previousTexture =
             glObjectsProvider.createBuffersForTexture(texId, newTexture.width, newTexture.height);
       }

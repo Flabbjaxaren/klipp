@@ -216,7 +216,7 @@ public final class KlippFrameFill implements GlEffect {
         GlTextureInfo t = current;
         if (t == null || t.width != in.width || t.height != in.height) {
           if (t != null) t.release();
-          int id = GlUtil.createTexture(in.width, in.height, useHdr);
+          int id = GlUtil.createTexture(in.width, in.height, KlippPrecision.use(useHdr));
           t = o.createBuffersForTexture(id, in.width, in.height);
         }
         GlUtil.focusFramebufferUsingCurrentContext(t.fboId, t.width, t.height);
