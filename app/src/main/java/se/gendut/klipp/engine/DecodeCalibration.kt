@@ -131,9 +131,16 @@ object DecodeCalibration {
     @Volatile var stamp = 0
         private set
 
+    /** The decoding changed (SdrYuvCheck): checks are redone for the new path, playback rebuilt. */
+    fun decodingChanged() {
+        results.clear(); checked.clear(); lines.clear()
+        stamp++
+    }
+
     private fun key(mime: String, tenBit: Boolean) = "$mime|$tenBit"
     private fun prefs(c: Context) = c.getSharedPreferences("decodecal", Context.MODE_PRIVATE)
-    private fun prefKey(k: String) = "v$VERSION|${android.os.Build.FINGERPRINT}|$k"
+    // per decoding path: the YUV sampling (SdrYuvCheck) decodes differently from the driver's
+    private fun prefKey(k: String) = "v$VERSION|${android.os.Build.FINGERPRINT}|$k" + if (androidx.media3.effect.KlippPrecision.sdrYuv) "|yuv" else ""
 
     @Volatile private var app: Context? = null
     fun init(context: Context) { app = context.applicationContext }
@@ -266,6 +273,17 @@ void main() {
 }
 """
 
+    /** As [COPY], with the values -0.25..1.25 squeezed into 0..1 (to read super-whites and sub-blacks from 8 bits). */
+    private const val WIDE = """#version 100
+precision highp float;
+uniform sampler2D uTexSampler;
+varying vec2 vTexSamplingCoord;
+void main() {
+  vec4 c = texture2D(uTexSampler, vTexSamplingCoord);
+  gl_FragColor = vec4((c.rgb + 0.25) / 1.5, 1.0);
+}
+"""
+
     private const val MATRIX = """#version 100
 precision highp float;
 uniform sampler2D uTexSampler;
@@ -281,11 +299,15 @@ void main() {
      * Reads the patches' mean colors (video chain values, at the same stage the node effects see them) from frame number
      * [skip] and leaves the image unchanged.
      */
-    class ProbeEffect(private val skip: Int = 0, private val onRead: (List<FloatArray>) -> Unit) : GlEffect {
-        override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(skip, onRead, useHdr)
+    class ProbeEffect(private val skip: Int = 0, private val wide: Boolean = false, private val onRead: (List<FloatArray>) -> Unit) : GlEffect {
+        override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(skip, wide, onRead, useHdr)
 
-        private class Program(private val skip: Int, private val onRead: (List<FloatArray>) -> Unit, useHdr: Boolean) : BaseGlShaderProgram(useHdr, 1) {
+        private class Program(private val skip: Int, private val wide: Boolean, private val onRead: (List<FloatArray>) -> Unit, useHdr: Boolean) : BaseGlShaderProgram(useHdr, 1) {
             private val program = GlProgram(TetraShaders.VERTEX, COPY).apply {
+                setBufferAttribute("aFramePosition", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
+            }
+            // the reading (wide: -0.25..1.25); built before any use() (see GlProgram build is current)
+            private val reader = if (!wide) program else GlProgram(TetraShaders.VERTEX, WIDE).apply {
                 setBufferAttribute("aFramePosition", GlUtil.getNormalizedCoordinateBounds(), GlUtil.HOMOGENEOUS_COORDINATE_VECTOR_SIZE)
             }
             private var w = 0
@@ -295,10 +317,10 @@ void main() {
 
             override fun configure(inputWidth: Int, inputHeight: Int): Size { w = inputWidth; h = inputHeight; return Size(inputWidth, inputHeight) }
 
-            private fun draw(tex: Int) {
-                program.use()
-                program.setSamplerTexIdUniform("uTexSampler", tex, 0)
-                program.bindAttributesAndUniforms()
+            private fun draw(tex: Int, p: GlProgram = program) {
+                p.use()
+                p.setSamplerTexIdUniform("uTexSampler", tex, 0)
+                p.bindAttributesAndUniforms()
                 GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
             }
 
@@ -329,7 +351,7 @@ void main() {
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, f[0])
                 GLES20.glFramebufferTexture2D(GLES20.GL_FRAMEBUFFER, GLES20.GL_COLOR_ATTACHMENT0, GLES20.GL_TEXTURE_2D, t[0], 0)
                 GLES20.glViewport(0, 0, w, h)
-                draw(tex)
+                draw(tex, reader)
                 val out = ArrayList<FloatArray>()
                 val bw = maxOf(2, w / COLS / 4); val bh = maxOf(2, h / ROWS / 4)
                 val buf = ByteBuffer.allocateDirect(bw * bh * 4).order(ByteOrder.nativeOrder())
@@ -341,7 +363,7 @@ void main() {
                     GLES20.glReadPixels(cx - bw / 2, cy - bh / 2, bw, bh, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, buf)
                     val s = DoubleArray(3)
                     for (i in 0 until bw * bh) for (c in 0..2) s[c] += (buf.get(i * 4 + c).toInt() and 0xFF) / 255.0
-                    out += FloatArray(3) { (s[it] / (bw * bh)).toFloat() }
+                    out += FloatArray(3) { (s[it] / (bw * bh)).toFloat().let { v -> if (wide) v * 1.5f - 0.25f else v } }
                 }
                 GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, prevFbo[0])
                 GLES20.glViewport(prevVp[0], prevVp[1], prevVp[2], prevVp[3])
@@ -352,7 +374,7 @@ void main() {
 
             override fun release() {
                 super.release()
-                try { program.delete() } catch (e: Exception) { throw VideoFrameProcessingException(e) }
+                try { program.delete(); if (reader !== program) reader.delete() } catch (e: Exception) { throw VideoFrameProcessingException(e) }
             }
         }
     }

@@ -48,7 +48,7 @@ object NodeCache {
     class Entry(val file: File, val start: Double, val end: Double, val tenBit: Boolean)
 
     /** What a cache file should contain. */
-    class Req(val clip: Long, val uri: Uri, val start: Double, val end: Double, val point: Int, val nodes: List<GradeNode>, val key: String)
+    class Req(val clip: Long, val uri: Uri, val start: Double, val end: Double, val point: Int, val nodes: List<GradeNode>, val key: String, val headroom: Boolean = false)
 
     private const val VERSION = 7
     private const val HANDLE = 2.0
@@ -69,6 +69,7 @@ object NodeCache {
     private val main = Handler(Looper.getMainLooper())
 
     private fun dir(c: Context) = File(c.filesDir, "nodecache").apply { mkdirs() }
+    private fun fileOf(c: Context, r: Req) = File(dir(c), r.key + if (r.headroom) Headroom.SUFFIX else ".mp4")
     private fun index(c: Context) = File(dir(c), "index.json")
 
     fun init(context: Context) {
@@ -127,13 +128,18 @@ object NodeCache {
         val sb = StringBuilder()
         sb.append(VERSION).append('|').append(uri).append('|').append(a).append('|').append(b).append('|')
         sb.append(VideoPipeline.tenBitProfile(MimeTypes.VIDEO_H265) != null).append('|')
+        // stored with headroom (super-whites kept, see Headroom)
+        val headroom = Headroom.active
+        sb.append(headroom).append('|')
+        // the decoding (SdrYuvCheck): unclamped YUV sampling gives another picture of the same file
+        sb.append(androidx.media3.effect.KlippPrecision.sdrYuv).append('|')
         for (n in nodes) {
             sb.append(n.copy(cache = false, label = "").toJson().toString()).append('|')
             // the LUT's contents (a new LUT with the same name must produce a new cache)
             n.lut?.let { name -> runCatching { LutStore.get(name) }.getOrNull()?.data?.contentHashCode()?.let { sb.append("lut").append(it).append('|') } }
         }
         val key = MessageDigest.getInstance("SHA-1").digest(sb.toString().toByteArray()).joinToString("") { "%02x".format(it) }
-        return Req(clip.id, uri, a, b, point, nodes, key)
+        return Req(clip.id, uri, a, b, point, nodes, key, headroom)
     }
 
     /** Finished cache file for [req] covering source [from, to] (s), otherwise null. */
@@ -230,7 +236,7 @@ object NodeCache {
         val (r, t) = running ?: return
         running = null
         runCatching { t.cancel() }
-        app?.let { c -> File(File(dir(c), r.key + ".mp4").path + ".tmp").delete() }
+        app?.let { c -> File(fileOf(c, r).path + ".tmp").delete() }
         progress.remove(r.clip)
         queue.addFirst(r)
         se.gendut.klipp.CrashReport.note("node cache stopped for the export: clip ${r.clip}")
@@ -240,7 +246,7 @@ object NodeCache {
         val c = app ?: return
         if (running != null || calibrating || BackgroundWork.exporting) return
         val r = queue.removeFirstOrNull() ?: return
-        val out = File(dir(c), r.key + ".mp4")
+        val out = fileOf(c, r)
         val tmp = File(out.path + ".tmp")
         tmp.delete()
         Thread({
@@ -291,7 +297,7 @@ object NodeCache {
         // the nodes with fixed values; tracked windows and grain get the source time
         val tb = TimeBase(r.end - r.start)
         val clock: (Long) -> Double? = { pts -> tb.seconds(pts)?.let { r.start + it } }
-        val effects = ClipGrade(r.nodes).effects(null, clock = clock)
+        val effects = ClipGrade(r.nodes).effects(null, clock = clock) + listOfNotNull(if (r.headroom) Headroom.encodeEffect() else null)
         val item = EditedMediaItem.Builder(
             MediaItem.Builder().setUri(r.uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionUs((r.start * 1e6).toLong()).setEndPositionUs((r.end * 1e6).toLong()).build(),

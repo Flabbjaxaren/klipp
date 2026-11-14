@@ -113,7 +113,8 @@ object ScrubFrames {
     /** Builds the scrub frames; false = the file can't be built (then keyframes will have to do). */
     private suspend fun build(context: Context, media: Uri, key: String): Boolean {
         if (key in done) return true
-        val v = WindowTracker.open(context, Proxies.videoUri(media))
+        val src = Proxies.videoUri(media)
+        val v = WindowTracker.open(context, src)
         try {
             // HDR (PQ/HLG) would look washed out without tone mapping – keyframes will have to do there
             if (Perf.hdrFormat(v.format)) return false
@@ -132,7 +133,7 @@ object ScrubFrames {
                 next = (Math.floor(pts / step + 1e-6) + 1) * step
                 val ms = (pts * 1000).roundToInt().toLong()
                 if (m.containsKey(ms)) return@decode
-                val bmp = small(img, v.rotation, yuv) ?: return@decode
+                val bmp = Headroom.fix(src, small(img, v.rotation, yuv)) ?: return@decode
                 val f = File(d, "$ms.jpg")
                 val tmp = File(d, "$ms.tmp")
                 tmp.outputStream().use { bmp.compress(Bitmap.CompressFormat.JPEG, 72, it) }

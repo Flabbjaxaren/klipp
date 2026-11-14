@@ -96,12 +96,14 @@ object Proxies {
     private fun index(c: Context) = File(dir(c), "index.json")
     private fun key(u: Uri) = u.toString()
     private fun fileFor(c: Context, u: Uri, sig: String) =
-        File(dir(c), "p_" + key(u).hashCode().toUInt().toString(16) + "_" + key(u).length + (if (sig == LEGACY_SIG) "" else "_$sig") + ".mp4")
+        File(dir(c), "p_" + key(u).hashCode().toUInt().toString(16) + "_" + key(u).length + (if (sig == LEGACY_SIG) "" else "_$sig") +
+            (if (sig.endsWith("h")) Headroom.SUFFIX else ".mp4"))
 
     /** The signature of proxy files from older versions (1080p, 12 Mbit/s H.264, 8-bit). */
     private const val LEGACY_SIG = "1080-1-8"
 
-    fun sig(short: Int, quality: Int, depth: Int) = "$short-$quality-$depth"
+    /** "short-quality-depth", with "h" when the proxy keeps super-whites and sub-blacks ([Headroom]). */
+    fun sig(short: Int, quality: Int, depth: Int, headroom: Boolean = Headroom.active) = "$short-$quality-$depth" + if (headroom) "h" else ""
 
     private fun prefs(c: Context) = c.getSharedPreferences("klipp", Context.MODE_PRIVATE)
 
@@ -142,6 +144,12 @@ object Proxies {
         prefs(context).edit().putInt("proxyShort", shortSide).putInt("proxyQuality", this.quality).putInt("proxyBits", bitDepth).apply()
         checked.clear()
         failed.clear()
+        ensure(context, lastMedia)
+    }
+
+    /** The decoding changed ([SdrYuvCheck]): proxies with/without headroom are redone in the background. */
+    fun decodingChanged(context: Context) {
+        checked.clear()
         ensure(context, lastMedia)
     }
 
@@ -250,7 +258,8 @@ object Proxies {
             .build()
         val item = EditedMediaItem.Builder(MediaItem.fromUri(u))
             .setRemoveAudio(true) // audio plays from the original
-            .setEffects(androidx.media3.transformer.Effects(emptyList(), listOf(androidx.media3.effect.Presentation.createForShortSide(job.short))))
+            .setEffects(androidx.media3.transformer.Effects(emptyList(), listOfNotNull(androidx.media3.effect.Presentation.createForShortSide(job.short),
+                if (job.sig.endsWith("h")) Headroom.encodeEffect() else null)))
             .build()
         val comp = Composition.Builder(EditedMediaItemSequence.Builder(setOf(androidx.media3.common.C.TRACK_TYPE_VIDEO)).addItem(item).build())
             .setHdrMode(VideoPipeline.toneMapMode(job.hdr, k in glTried))
@@ -295,7 +304,7 @@ object Proxies {
                     }
                     if (job.depth == 10) {
                         // 10-bit didn't work on the phone: 8-bit (H.264)
-                        val j8 = Job(u, job.hdr, 8, job.short, sig(job.sig.substringBefore('-').toInt(), quality, 8))
+                        val j8 = Job(u, job.hdr, 8, job.short, sig(job.sig.substringBefore('-').toInt(), quality, 8, job.sig.endsWith("h")))
                         queue.addFirst(j8)
                         progress[k] = -1
                         next()

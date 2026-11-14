@@ -658,7 +658,15 @@ private fun LayerVideo(
         }
     }
     val layerName = layer.name
-    LaunchedEffect(gc?.id, structure, look, scaleShort, offGrid) {
+    // segments played from a file stored with headroom (a proxy, see Headroom): the values back – per frame, the player
+    // plays all the layer's segments with one effect list
+    val headroomSegs = remember(segs, proxyRev) {
+        segs.map { sg -> sg.start to se.gendut.klipp.engine.Headroom.isHeadroom(controller.uriOf(sg.src.item)?.let { se.gendut.klipp.engine.Proxies.videoUri(it) }) }
+    }
+    val headroomRef = remember { java.util.concurrent.atomic.AtomicReference<Pair<List<Pair<Double, Boolean>>, Int>>(emptyList<Pair<Double, Boolean>>() to -1) }
+    headroomRef.set(headroomSegs to active)
+    val anyHeadroom = headroomSegs.any { it.second }
+    LaunchedEffect(gc?.id, structure, look, scaleShort, offGrid, anyHeadroom) {
         if (gc != null && grade != null) se.gendut.klipp.engine.LiveGrades.publish(mapOf(gc.id to grade))
         // tracked windows: the frame's source time (see LayerClock)
         // always (live): a window tracked afterwards follows along without the effects being rebuilt
@@ -667,7 +675,13 @@ private fun LayerVideo(
         val layer = grade?.layer?.takeIf { it.hasAlpha }
         val keyFx = gc?.let { cl -> layer?.key?.let { se.gendut.klipp.engine.LayerFxEffect(layer, cl.id, se.gendut.klipp.engine.LayerFxEffect.KEY, se.gendut.klipp.engine.LayerFxEffect.STRAIGHT) } }
         val maskFx = gc?.let { cl -> layer?.let { se.gendut.klipp.engine.LayerFxEffect(it, cl.id, se.gendut.klipp.engine.LayerFxEffect.MASK, se.gendut.klipp.engine.LayerFxEffect.PREMULTIPLIED, src) } }
-        val fx = listOfNotNull(keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)
+        val headroomFx = if (!anyHeadroom) null else se.gendut.klipp.engine.Headroom.DynamicDecode { _ ->
+            val (list, act) = headroomRef.get()
+            // the segment the layer's clock is in (a freeze frame has none: the active one)
+            val st = clock.seg?.startSec
+            (if (st != null) list.minByOrNull { kotlin.math.abs(it.first - st) } else list.getOrNull(act))?.second ?: false
+        }
+        val fx = listOfNotNull(headroomFx, keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)
         // (no effects: none – the downscale alone would add a pass the plain picture doesn't need)
         val down = scaleShort?.takeIf { fx.isNotEmpty() }?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
         // on the timeline's frame grid, as the main player and the export (see LayerGridEffect): a slowed 120 fps clip gave

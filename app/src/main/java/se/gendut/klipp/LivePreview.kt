@@ -147,7 +147,8 @@ object Frames {
                 val opt = if (fast) MediaMetadataRetriever.OPTION_CLOSEST_SYNC else MediaMetadataRetriever.OPTION_CLOSEST
                 val px = se.gendut.klipp.engine.Perf.previewWidth()
                 // (decoding happens in mediaserver, not on this thread – a performance hint here does nothing)
-                val f = if (android.os.Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(us, opt, px, px) else r.getFrameAtTime(us, opt)
+                // a proxy stored with headroom: its values back (see Headroom)
+                val f = se.gendut.klipp.engine.Headroom.fix(uri, if (android.os.Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(us, opt, px, px) else r.getFrameAtTime(us, opt))
                 val img = f?.asImageBitmap() ?: return@runCatching null
                 put(k, img)
                 at to img

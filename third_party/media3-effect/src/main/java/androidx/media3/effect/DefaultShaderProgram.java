@@ -283,16 +283,53 @@ public final class DefaultShaderProgram extends BaseGlShaderProgram
       @WorkingColorSpace int sdrWorkingColorSpace,
       boolean sampleWithNearest)
       throws VideoFrameProcessingException {
+    return createWithExternalSampler(
+        context,
+        inputColorInfo,
+        outputColorInfo,
+        sdrWorkingColorSpace,
+        sampleWithNearest,
+        /* klippSdrYuv= */ false);
+  }
+
+  /**
+   * Klipp: as above; with {@code klippSdrYuv} SDR input (not widened to BT.2020) is sampled as YUV and converted with
+   * the file's own matrix, unclamped ({@link KlippYuv}) – when the GPU has EXT_YUV_target.
+   */
+  public static DefaultShaderProgram createWithExternalSampler(
+      Context context,
+      ColorInfo inputColorInfo,
+      ColorInfo outputColorInfo,
+      @WorkingColorSpace int sdrWorkingColorSpace,
+      boolean sampleWithNearest,
+      boolean klippSdrYuv)
+      throws VideoFrameProcessingException {
     boolean isInputTransferHdr = ColorInfo.isTransferHdr(inputColorInfo);
+    boolean isExpandingColorGamut =
+        (inputColorInfo.colorSpace == C.COLOR_SPACE_BT709
+                || inputColorInfo.colorSpace == C.COLOR_SPACE_BT601)
+            && outputColorInfo.colorSpace == C.COLOR_SPACE_BT2020;
+    boolean sdrYuv =
+        klippSdrYuv
+            && !isInputTransferHdr
+            && !isExpandingColorGamut
+            && GlUtil.isYuvTargetExtensionSupported();
     int vertexShaderResId =
-        isInputTransferHdr
+        isInputTransferHdr || sdrYuv
             ? R.raw.vertex_shader_transformation_es3
             : R.raw.vertex_shader_transformation_es2;
     int fragmentShaderResId =
         isInputTransferHdr
             ? R.raw.fragment_shader_transformation_external_yuv_es3
-            : R.raw.fragment_shader_transformation_sdr_external_es2;
+            : sdrYuv
+                ? R.raw.fragment_shader_klipp_sdr_external_yuv_es3
+                : R.raw.fragment_shader_transformation_sdr_external_es2;
     GlProgram glProgram = createGlProgram(context, vertexShaderResId, fragmentShaderResId);
+    if (sdrYuv) {
+      float[][] t = KlippYuv.transform(inputColorInfo);
+      glProgram.setFloatsUniform("uYuvToRgbColorTransform", t[0]);
+      glProgram.setFloatsUniform("uYuvOffset", t[1]);
+    }
     if (isInputTransferHdr) {
       // In HDR editing mode the decoder output is sampled in YUV.
       if (!GlUtil.isYuvTargetExtensionSupported()) {

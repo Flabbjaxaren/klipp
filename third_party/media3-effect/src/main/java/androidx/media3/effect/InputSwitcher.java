@@ -117,7 +117,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
                 inputColorInfo,
                 outputColorInfo,
                 sdrWorkingColorSpace,
-                experimentalAdjustSurfaceTextureTransformationMatrix);
+                experimentalAdjustSurfaceTextureTransformationMatrix,
+                /* klippSdrYuv= */ KlippYuv.use(glObjectsProvider));
         break;
       case INPUT_TYPE_BITMAP:
       case INPUT_TYPE_TEXTURE_ID:

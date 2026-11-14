@@ -192,7 +192,9 @@ object Reversals {
             val base = name(j)
             val hasVideo = trackOf(c, j.uri, "video/") != null
             val hasAudio = trackOf(c, j.uri, "audio/") != null
-            val video = if (hasVideo) File(d, "$base.mp4").also { if (!it.exists()) reverseVideo(c, j, it) } else null
+            // SDR kept with headroom (super-whites, see Headroom); HDR kept as HDR
+            val headroom = Headroom.active && !(Perf.isHdr(c, j.uri) == true && EncoderCaps.hdrSupported)
+            val video = if (hasVideo) File(d, base + if (headroom) Headroom.SUFFIX else ".mp4").also { if (!it.exists()) reverseVideo(c, j, it, headroom) } else null
             val audio = if (hasAudio) File(d, "$base.wav").also { if (!it.exists()) reverseAudio(c, j, it) } else null
             if (video == null && audio == null) error("no video or audio in the file")
             add(Rendition(j.uri.toString(), j.a, j.b, video, audio, 0, 0))
@@ -230,14 +232,14 @@ object Reversals {
 
     // ------------------------------------------------------------------ video
 
-    private fun reverseVideo(c: Context, j: Job, out: File) {
+    private fun reverseVideo(c: Context, j: Job, out: File, headroom: Boolean) {
         val intra = File(out.path + ".intra.mp4")
         try {
             // first with keyframes only; for an encoder that still makes inter frames: every frame as a keyframe
             var ok = false
             for (interval in floatArrayOf(0f, 0.001f)) {
                 intra.delete()
-                transcodeIntra(c, j, intra, interval)
+                transcodeIntra(c, j, intra, interval, headroom)
                 if (remuxReversed(intra, File(out.path + ".tmp"), j.b - j.a)) { ok = true; break }
             }
             if (!ok) error("the encoder does not produce keyframes only")
@@ -249,7 +251,7 @@ object Reversals {
     }
 
     /** The range with keyframes only, full resolution (10 bits and HDR kept when the phone can). */
-    private fun transcodeIntra(c: Context, j: Job, out: File, interval: Float) {
+    private fun transcodeIntra(c: Context, j: Job, out: File, interval: Float, headroom: Boolean) {
         val hdr = Perf.isHdr(c, j.uri) == true
         val keepHdr = hdr && EncoderCaps.hdrSupported
         val ten = if (keepHdr || VideoPipeline.bitDepth(c, j.uri) >= 10) VideoPipeline.tenBitProfile(MimeTypes.VIDEO_H265) else null
@@ -266,7 +268,8 @@ object Reversals {
             MediaItem.Builder().setUri(j.uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(Math.round(j.a * 1000)).setEndPositionMs(Math.round(j.b * 1000)).build(),
             ).build(),
-        ).setRemoveAudio(true).build()
+        ).setRemoveAudio(true)
+            .setEffects(androidx.media3.transformer.Effects(emptyList(), listOfNotNull(if (headroom && !keepHdr) Headroom.encodeEffect() else null))).build()
         val comp = Composition.Builder(EditedMediaItemSequence.Builder(setOf(androidx.media3.common.C.TRACK_TYPE_VIDEO)).addItem(item).build())
             .setHdrMode(if (keepHdr) Composition.HDR_MODE_KEEP_HDR else VideoPipeline.toneMapMode(hdr, false))
             .build()

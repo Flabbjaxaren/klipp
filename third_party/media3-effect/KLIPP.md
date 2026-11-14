@@ -10,7 +10,14 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   OpenGL ES 3 and can render to RGBA16F.
 - `TexturePool.java`: every texture pool (sampling, effects, the compositor, the final stage) gets RGBA16F when
   `KlippPrecision.highPrecision` is on – otherwise Media3 picks floating point only for HDR output. The color math (HDR,
-  tone mapping) is unchanged.
+  tone mapping) is unchanged. The textures made outside the pools follow the same rule (`KlippPrecision.use`):
+  `KlippFrameFill`'s held frame, `DefaultFrameDroppingShaderProgram` and `SeparableConvolutionShaderProgram` – the
+  export's fill had stored every frame in 8 bits.
+- `KlippYuv.java` (new), `fragment_shader_klipp_sdr_external_yuv_es3.glsl` (new), `DefaultShaderProgram.java`,
+  `InputSwitcher.java`: with `KlippPrecision.sdrYuv` (or a factory's GlObjectsProvider implementing `KlippYuv.Choice`)
+  SDR video is sampled as YUV (EXT_YUV_target, as Media3 does for HDR) and converted with the file's own matrix, range
+  and bit depth, unclamped – a camera's super-whites and sub-blacks reach the effects, and no driver picks another
+  matrix than the file's. Not for SDR widened to BT.2020 (HDR output). The app turns it on per phone after a check.
 - `MultipleInputVideoGraph.java`: the factory's `GlObjectsProvider` is kept behind the shared context (Klipp's
   10-bit encoder surfaces in multi-layer exports too).
 - `DefaultVideoFrameProcessor.java`: `Factory.klippGlObjectsProvider()` for the change above.

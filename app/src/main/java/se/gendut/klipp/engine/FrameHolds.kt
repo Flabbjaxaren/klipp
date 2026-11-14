@@ -131,7 +131,7 @@ object FrameHolds {
         val r = MediaMetadataRetriever()
         try {
             r.setDataSource(c, uri)
-            var bmp = r.getFrameAtTime((sec * 1_000_000).toLong(), MediaMetadataRetriever.OPTION_CLOSEST) ?: error("no frame at $sec s")
+            var bmp = Headroom.fix(uri, r.getFrameAtTime((sec * 1_000_000).toLong(), MediaMetadataRetriever.OPTION_CLOSEST)) ?: error("no frame at $sec s")
             val side = maxOf(bmp.width, bmp.height)
             if (side > MAX_SIDE) {
                 val k = MAX_SIDE.toFloat() / side

@@ -149,7 +149,7 @@ object RenderCache {
             val a = e[k]; val b = e[k + 1]
             if (b - a <= 1e-6) continue
             val sb = StringBuilder()
-            sb.append("v").append(VERSION).append('|').append(plan.width).append('x').append(plan.height).append('@').append(fps).append('/').append(short)
+            sb.append("v").append(VERSION).append(if (androidx.media3.effect.KlippPrecision.sdrYuv) "y" else "").append('|').append(plan.width).append('x').append(plan.height).append('@').append(fps).append('/').append(short)
                 .append('|').append(r(a)).append('-').append(r(b))
             var heavy = plan.layers.count { l -> l.segs.any { it.end > a + 1e-6 && it.start < b - 1e-6 } } > 1
             for ((li, l) in plan.layers.withIndex()) {
@@ -200,7 +200,7 @@ object RenderCache {
         if (a < c.start - 1e-6 || b > c.end + 1e-6) return emptyList()
         fun key(from: Double, to: Double): String {
             val sb = StringBuilder()
-            sb.append("v").append(VERSION).append('|').append(plan.width).append('x').append(plan.height).append('@').append(fps).append('/').append(short)
+            sb.append("v").append(VERSION).append(if (androidx.media3.effect.KlippPrecision.sdrYuv) "y" else "").append('|').append(plan.width).append('x').append(plan.height).append('@').append(fps).append('/').append(short)
                 .append('|').append(r(from)).append('-').append(r(to)).append("|L0[").append(r(c.start)).append(',').append(r(c.end)).append(',')
                 .append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item))).append(',').append(r(c.sourceIn)).append(',').append(s.speed).append(",C").append(videoKey(c))
             gradeOf(c.id)?.let { g -> sb.append(gradeKey(g)) }
@@ -223,7 +223,8 @@ object RenderCache {
     }
 
     /** Chunks are made from the proxy when there is one: a chunk made from the original is made again once the proxy exists (and back). */
-    private fun proxyKey(u: Uri?): String = if (u != null && Proxies.videoUri(u) != u) "~p" else ""
+    // (a proxy with headroom keeps the super-whites a grade can pull down: another picture)
+    private fun proxyKey(u: Uri?): String = if (u != null && Proxies.videoUri(u) != u) "~p" + (if (Headroom.isHeadroom(Proxies.videoUri(u))) "h" else "") else ""
 
     /** What in the clip affects the image (not the audio: volume, audio effects, name). */
     private fun videoKey(c: ClipSnap): String = listOf(

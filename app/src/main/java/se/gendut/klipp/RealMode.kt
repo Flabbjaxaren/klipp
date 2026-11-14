@@ -137,7 +137,7 @@ object Thumbs {
                 // scaled down directly in the decoder (no full-resolution image in the app's memory)
                 val f = if (android.os.Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 240, 240)
                 else r.getFrameAtTime(us, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)?.let { b -> Bitmap.createScaledBitmap(b, 240, (240f * b.height / b.width).toInt().coerceAtLeast(1), true).also { if (it !== b) b.recycle() } }
-                f?.asImageBitmap()
+                se.gendut.klipp.engine.Headroom.fix(uri, f)?.asImageBitmap()
             }.getOrNull()
         } ?: return null
         synchronized(cache) { cache[key] = img }

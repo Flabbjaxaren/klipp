@@ -346,7 +346,9 @@ object CompositionBuilder {
             val keyFx = layer?.key?.let { LayerFxEffect(layer, liveId, LayerFxEffect.KEY, LayerFxEffect.STRAIGHT) }
             val maskFx = layer?.let { LayerFxEffect(it, liveId, LayerFxEffect.MASK, if (upper) LayerFxEffect.STRAIGHT else LayerFxEffect.FLATTEN, clock, slotClock) }
             // (the fill after the downscale – it only resizes – and before everything that depends on the time)
-            val effects = listOfNotNull(scaleDown, fill, decodeFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(transition)
+            // a file stored with headroom (proxy, cache, reversed clip): its values back first (see Headroom)
+            val headroomFix = Headroom.decodeFor(itemUri)
+            val effects = listOfNotNull(scaleDown, fill, decodeFix, headroomFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(transition)
             val edited = if (still != null) {
                 EditedMediaItem.Builder(MediaItem.Builder().setUri(Uri.fromFile(still)).setImageDurationMs(Math.round(seg.dur * 1000).coerceAtLeast(1)).build())
                     .setDurationUs(us(seg.dur).coerceAtLeast(1))
@@ -876,6 +878,7 @@ class ProgramPlayback(private val context: Context) {
         append(VideoPipeline.describe())
         append(NodeCache.describe().trimEnd()).append(", the player reads ${cacheUsage.count { it == ';' }} clips from the cache\n")
         append(DecodeCalibration.describe())
+        append(SdrYuvCheck.describe())
         append(Perf.describe(context))
         append("first frame: ").append(if (renderedFirstFrame) "${firstFrameAt - preparedAt} ms" else "none yet").append('\n')
         append("position: ${player.currentPosition} ms\n")

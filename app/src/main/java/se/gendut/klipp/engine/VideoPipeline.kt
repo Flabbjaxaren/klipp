@@ -66,11 +66,17 @@ object VideoPipeline {
         previewShort = if (p.contains("videoPreviewShort")) p.getInt("videoPreviewShort", 1080).takeIf { it in PREVIEW_SIZES } ?: 1080
             else if (p.getBoolean("videoPreviewScale", true)) 1080 else 0
         KlippPrecision.highPrecision = highPrecision
+        SdrYuvCheck.init(c)
     }
 
     fun setHighPrecision(c: Context, on: Boolean) {
         highPrecision = on; KlippPrecision.highPrecision = on
         prefs(c).edit().putBoolean("video16f", on).apply()
+        // the YUV sampling's check is per precision setting (super-whites need floating point)
+        val was = KlippPrecision.sdrYuv
+        SdrYuvCheck.init(c)
+        if (was != KlippPrecision.sdrYuv) { DecodeCalibration.decodingChanged(); Proxies.decodingChanged(c) }
+        SdrYuvCheck.check(c)
     }
 
     fun setDisplayTenBit(c: Context, on: Boolean) { displayTenBit = on; prefs(c).edit().putBoolean("video10display", on).apply() }
@@ -78,8 +84,8 @@ object VideoPipeline {
     fun setHdrToneMap(c: Context, v: Int) { hdrToneMap = v.coerceIn(0, 1); prefs(c).edit().putInt("videoToneMap", hdrToneMap).apply() }
 
     /** The frame processor for an export/proxy: [tenBit] = encoder input RGBA_1010102. */
-    fun processorFactory(tenBit: Boolean): DefaultVideoFrameProcessor.Factory =
-        DefaultVideoFrameProcessor.Factory.Builder().setGlObjectsProvider(TenBitGlObjectsProvider(tenBit)).build()
+    fun processorFactory(tenBit: Boolean, sdrYuv: Boolean? = null): DefaultVideoFrameProcessor.Factory =
+        DefaultVideoFrameProcessor.Factory.Builder().setGlObjectsProvider(TenBitGlObjectsProvider(tenBit, sdrYuv)).build()
 
     /** HDR → SDR per the setting (and the fallback if the first path didn't work on the phone). */
     fun toneMapMode(anyHdr: Boolean, firstFailed: Boolean): Int {
@@ -173,7 +179,9 @@ object VideoPipeline {
  * for SDR – otherwise like Media3's own. If the phone lacks such a config it falls back to 8-bit.
  */
 @OptIn(UnstableApi::class)
-class TenBitGlObjectsProvider(private val tenBit: Boolean) : GlObjectsProvider {
+class TenBitGlObjectsProvider(private val tenBit: Boolean, private val sdrYuv: Boolean? = null) : GlObjectsProvider, androidx.media3.effect.KlippYuv.Choice {
+    override fun klippSdrYuv(): Boolean = sdrYuv ?: androidx.media3.effect.KlippPrecision.sdrYuv
+
     private val base = DefaultGlObjectsProvider()
 
     private fun config1010102(display: EGLDisplay): EGLConfig? {

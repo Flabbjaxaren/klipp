@@ -23,6 +23,12 @@ public final class KlippPrecision {
   /** Floating point (RGBA16F) in all texture pools when the context supports it. Default: on. */
   public static volatile boolean highPrecision = true;
 
+  /**
+   * SDR video sampled as YUV with the file's own matrix, unclamped ({@link KlippYuv}); set by the app once the phone
+   * has passed its check. A factory's GlObjectsProvider implementing {@link KlippYuv.Choice} decides for itself.
+   */
+  public static volatile boolean sdrYuv = false;
+
   /** Klipp: receives every frame the chain hands to an output surface, or drops as late (the app's cut trace). */
   public interface FrameTrace {
     /** [chain]: which chain (one per player), [ptsUs]: the frame's time, [presentNs]: when it is to be shown, -1 = dropped. */

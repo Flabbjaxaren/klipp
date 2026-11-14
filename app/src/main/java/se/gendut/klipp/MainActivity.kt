@@ -51,6 +51,8 @@ class MainActivity : ComponentActivity() {
         se.gendut.klipp.engine.VideoPipeline.init(applicationContext)
         se.gendut.klipp.engine.Proxies.init(applicationContext)
         se.gendut.klipp.engine.NodeCache.init(applicationContext)
+        // once per phone: may SDR video be sampled as YUV (super-whites kept)?
+        se.gendut.klipp.engine.SdrYuvCheck.check(applicationContext)
         Str.init(applicationContext)
         se.gendut.klipp.engine.FrameHolds.init(applicationContext)
         se.gendut.klipp.engine.BlankFrame.init(applicationContext)
