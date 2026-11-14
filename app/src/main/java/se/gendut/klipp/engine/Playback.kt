@@ -915,7 +915,7 @@ class ProgramPlayback(private val context: Context) {
             .setAudioSink(MeterSink(androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context).build()))
             // the program view: 10-bit surface (RGBA_1010102) when the setting is on; the chain computes in floating point (VideoPipeline)
             .setGlObjectsProvider(TenBitGlObjectsProvider(VideoPipeline.displayTenBit))
-            .build().also { it.addListener(listener); it.volume = if (recordingMute) 0f else liveGain }
+            .build().also { it.addListener(listener); it.volume = if (recordingMute) 0f else liveGain; it.setVideoFrameMetadataListener(MainFrames.released) }
 
     /** The player's position, so the time interpretation can be calibrated should Media3 change time base. */
     fun hint(sec: Double) {
@@ -1015,6 +1015,7 @@ class ProgramPlayback(private val context: Context) {
             frameShown = false
             hint(positionSec)
             playOriginUs = Math.round((built.plan?.origin ?: 0.0) * 1e6)
+            MainFrames.originUs = playOriginUs
             pick.clear(); pausedSec = null; picking = false
             player.setComposition(built.composition, CutSeek.ms(inside(positionSec), cuts, cutFps, wasPlaying))
             // scrubbing mode only applies to the players that existed when it was turned on – the new ones (new build) get it too
@@ -1525,4 +1526,13 @@ fun Look.applyTo(src: android.graphics.Bitmap): android.graphics.Bitmap {
         px[i] = (p and -0x1000000) or ((r * 255f + 0.5f).toInt() shl 16) or ((g * 255f + 0.5f).toInt() shl 8) or (b * 255f + 0.5f).toInt()
     }
     return android.graphics.Bitmap.createBitmap(px, w, h, android.graphics.Bitmap.Config.ARGB_8888)
+}
+
+/**
+ * The main player's frames as they are released to its view (presentation time = timeline time less [originUs], and the
+ * time each is shown at): the layers keep their players on the same screen refresh by them (LayerSync.Rate).
+ */
+object MainFrames {
+    internal val released = se.gendut.klipp.ReleasedFrames(kind = "mainreleased")
+    @Volatile var originUs = 0L
 }

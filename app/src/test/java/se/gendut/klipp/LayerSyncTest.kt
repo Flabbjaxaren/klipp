@@ -2,6 +2,7 @@ package se.gendut.klipp
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Layer players: no time stretch, no needless seeks (that was what stuttered in 0.9). */
@@ -37,5 +38,54 @@ class LayerSyncTest {
         assertEquals(Math.round((seg.sourceAt(50.4)!! - 60.0) * 1000) + 250, LayerSync.targetMs(50.4, seg, 250))
         // at the pre-roll's start a player waiting on its item's first frame is in step: no seek
         assertNull(LayerSync.decide(0, 0, 0, LayerSync.targetMs(49.761, seg, 250), running = true, ready = true, msSinceSeek = 5000).seekMs)
+    }
+
+    /** Shown times as a screen gives them: whole refreshes ([refreshMs]) – a lag of [lateMs] seen as the refresh it falls on. */
+    private fun seen(lateMs: Double, refreshMs: Double) = Math.round(lateMs / refreshMs) * refreshMs
+
+    /** The layer behind by [startMs]: one sample per refresh, the lag shrinking by what the factor gains; the lag after [ms]. */
+    private fun follow(startMs: Double, ms: Double, refreshMs: Double = 1000.0 / 90, mainAhead: (Double) -> Double = { 0.0 }): Pair<Double, LayerSync.Rate> {
+        val r = LayerSync.Rate()
+        var late = startMs; var at = 0.0
+        while (at < ms) {
+            r.sample(seen(late + mainAhead(at), refreshMs), refreshMs)
+            late -= (r.factor - 1.0) * refreshMs
+            at += refreshMs
+        }
+        return late to r
+    }
+
+    @Test fun aLayerBehindTheMainPlayerCatchesUpAndStaysThere() {
+        // measured on the OnePlus: 22–33 ms behind, all along – taken back within a second, then played at speed
+        for (start in listOf(22.0, 33.0, 44.0)) {
+            val (late, r) = follow(start, 1500.0)
+            assertTrue("$start → $late", Math.abs(late) <= 1000.0 / 90 / 2 + 1e-9)
+            assertEquals(1.0, r.factor, 0.0)
+        }
+        // … and ahead the other way
+        assertTrue(Math.abs(follow(-30.0, 1500.0).first) <= 1000.0 / 90 / 2 + 1e-9)
+    }
+
+    @Test fun withinHalfARefreshItIsLeftAlone() {
+        // shown times can't tell closer: 5 ms behind on a 90 Hz screen reads 0
+        val (late, r) = follow(5.0, 1000.0)
+        assertEquals(5.0, late, 1e-9)
+        assertEquals(1.0, r.factor, 0.0)
+    }
+
+    @Test fun aStallOfTheMainPlayerAtACutDoesNotSteerIt() {
+        // the main player's newest frame stays ~80 ms at a cut: samples late by up to that much for a few refreshes
+        val r = LayerSync.Rate()
+        repeat(LayerSync.Rate.WINDOW) { r.sample(0.0, 11.0) }
+        repeat(LayerSync.Rate.WINDOW / 2) { r.sample(80.0, 11.0) }
+        assertEquals(1.0, r.factor, 0.0)
+    }
+
+    @Test fun itNeverPlaysMoreThanTheLimitFasterOrSlower() {
+        val r = LayerSync.Rate()
+        repeat(LayerSync.Rate.WINDOW) { r.sample(150.0, 11.0) }
+        assertEquals(1.0 + LayerSync.Rate.MAX, r.factor, 1e-12)
+        repeat(LayerSync.Rate.WINDOW) { r.sample(-150.0, 11.0) }
+        assertEquals(1.0 - LayerSync.Rate.MAX, r.factor, 1e-12)
     }
 }

@@ -282,6 +282,10 @@ private fun LayerVideo(
         var pickDone = false; var pickSlotUs = 0L; var pickFromStart = false; var seenRepick = repick.intValue
         var lastMainMs = -1L
         val stats = SyncStats.forLayer(layer.name)
+        // the layer's clock on the main player's while playing (not the edit point layer's: it goes by its own at the cut)
+        val rate = LayerSync.Rate()
+        // (frames released since this time (ns) and for this segment count for it)
+        var rateFromNs = 0L; var rateSeg = -1
         // the edit point layer: the segment it is covering, the main chain's frames of that clip when it began, and
         // when the main player had enough of them (see Occlusion.mainFrames)
         var handSeg = -1; var handFrames = 0L; var handReadyAt = 0L; var handDown = false
@@ -460,6 +464,7 @@ private fun LayerVideo(
             }
             if (i < 0) {
                 if (player.playWhenReady) player.pause()
+                rate.reset(); rateFromNs = 0L
                 // a pick from an earlier pause in a segment is over: the player now waits on its next segment (below).
                 // Left standing, its end – a seek – came as that segment began while playing, over the prepared frame
                 if (pickKey != Long.MIN_VALUE) { pick.clear(); pickKey = Long.MIN_VALUE; pickActive.set(false) }
@@ -488,7 +493,9 @@ private fun LayerVideo(
             val media = seg.src as? SegSrc.Media
             // freeze frame: stays on the frame (the segment's start) the whole time
             val speed = media?.speed?.toFloat() ?: 1f
-            if (abs(player.playbackParameters.speed - speed) > 0.0001f) player.setPlaybackSpeed(speed)
+            // (… times the rate that keeps it on the main player's clock while playing, see LayerSync.Rate)
+            val want = speed * rate.factor.toFloat()
+            if (abs(player.playbackParameters.speed - want) > (if (rate.factor == 1.0) 0.0001f else 0.002f * speed)) player.setPlaybackSpeed(want)
             // (the item starts at the segment's source time, less its pre-roll; inside the segment this is Seg.sourceAt – the
             // same mapping as the export – but it must hold before the segment's start too: during the edit point layer's
             // pre-roll t is before it. Taking the segment's start there instead (Seg.sourceAt is null outside) made the
@@ -576,6 +583,23 @@ private fun LayerVideo(
             } else d.seekMs?.let { seekLayer(i, it); lastSeek = now; stats.seeks++; TRACE.log("seek", "layer=${layer.name} sync idx=$i ms=$it t=$t cur=${player.currentMediaItemIndex}/${player.currentPosition} state=${player.playbackState} drawn=$drawnIndex err=${player.playerError?.errorCodeName}") }
             if (player.playWhenReady != run) player.playWhenReady = run
             if (run && player.isPlaying && d.seekMs == null) stats.record(player.currentPosition - target)
+            if (!handoff && run && player.isPlaying && main?.isPlaying == true && d.seekMs == null && lastSeek != now && fpsP > 0.0) {
+                if (rateFromNs == 0L || i != rateSeg) { rateFromNs = System.nanoTime(); rateSeg = i }
+                // both players' newest frames since then: how much later the layer shows its slot than the main player
+                val m = se.gendut.klipp.engine.MainFrames.released.latest()
+                val l = released.latest()
+                val lTl = l?.let { clock.timelineUs(it.first) }
+                if (m != null && l != null && lTl != null && m.second > rateFromNs && l.second > rateFromNs) {
+                    val g = se.gendut.klipp.engine.FrameGrid(fpsP)
+                    val slotL = g.timeOf(Math.round(lTl * fpsP / 1e6))
+                    val slotM = g.timeOf(Math.round((m.first + se.gendut.klipp.engine.MainFrames.originUs) * fpsP / 1e6))
+                    val late = ((l.second - slotL * 1000) - (m.second - slotM * 1000)) / 1e6
+                    val f = rate.factor
+                    rate.sample(late, 1000.0 / (view?.display?.refreshRate ?: 60f).toDouble())
+                    if (TRACE.on) TRACE.log("late", "layer=${layer.name} ms=${"%.1f".format(java.util.Locale.ROOT, late)}")
+                    if (TRACE.on && rate.factor != f) TRACE.log("rate", "layer=${layer.name} factor=${"%.4f".format(java.util.Locale.ROOT, rate.factor)} late=${"%.1f".format(java.util.Locale.ROOT, rate.lateMs)} sample=${"%.1f".format(java.util.Locale.ROOT, late)}")
+                }
+            } else if (!run || lastSeek == now) { rate.reset(); rateFromNs = 0L }
             if (!state.playing && d.seekMs == null && player.playbackState != Player.STATE_BUFFERING) idle()
         } } finally { unhide() }
     }
@@ -1010,6 +1034,52 @@ object LayerSync {
         if (abs(drift) > SEEK_MS && msSinceSeek > 1000) return Decision(wantMs + SEEK_LEAD_MS)
         return Decision(null)
     }
+
+    /**
+     * The layer's frames shown on the same screen refresh as the main player's for the same slot. The main player's clock
+     * runs ahead of the wall clock for its first 300–400 ms (measured on the OnePlus: 20–40 ms gained, then steady), the
+     * layer's (no audio) doesn't: it began in step and stayed that far behind – its frames shown 22–33 ms after the main
+     * player's for the same slot, all along (below a seek's threshold). Measured where it shows: each player's newest
+     * frame, the time it is shown at less its timeline time (constant while a player keeps its pace – frames held or
+     * dropped, or a stall at a cut, don't change it). The players' reported positions don't tell it: the main player's
+     * lies 13 ms before to 4 ms after its pictures, differently from run to run. The layer plays a little faster or slower
+     * (it has no sound) until the median of the last [WINDOW] samples is within half a screen refresh – shown times are
+     * whole refreshes, it can't be told closer.
+     */
+    class Rate {
+        private val d = DoubleArray(WINDOW)
+        private var n = 0
+        private var k = 0
+        /** The factor on the segment's speed. */
+        var factor = 1.0
+            private set
+        /** The latest median (ms, + = the layer's frames shown late), for diagnostics. */
+        var lateMs = 0.0
+            private set
+
+        fun reset() { n = 0; k = 0; factor = 1.0 }
+
+        /** One sample: how much later (ms) the layer shows a slot than the main player does; [refreshMs] = the screen's. */
+        fun sample(late: Double, refreshMs: Double): Double {
+            d[k] = late; k = (k + 1) % WINDOW; if (n < WINDOW) n++
+            if (n < MIN_SAMPLES) return factor
+            val med = d.copyOf(n).sorted()[n / 2]
+            lateMs = med
+            factor = if (abs(med) <= refreshMs / 2) 1.0 else (1.0 + med / TAU_MS).coerceIn(1.0 - MAX, 1.0 + MAX)
+            return factor
+        }
+
+        companion object {
+            /** Samples (one per display frame) in the median … */
+            const val WINDOW = 15
+            /** … from this many on. */
+            const val MIN_SAMPLES = 5
+            /** A difference is taken back over about this long (ms) … */
+            const val TAU_MS = 300.0
+            /** … at most this much faster or slower (the main player's clock runs about this much fast through its start). */
+            const val MAX = 0.10
+        }
+    }
 }
 
 /** Measured drift per layer during playback (shown in the diagnostics view). */
@@ -1123,7 +1193,7 @@ private fun clipStartMs(s: Seg, preMs: Long): Long {
 }
 
 /** The last frames a layer player released: their presentation time (µs, the item's) by release time (ns). */
-private class ReleasedFrames(private val ramp: EarlyRamp? = null) : androidx.media3.exoplayer.video.VideoFrameMetadataListener {
+internal class ReleasedFrames(private val ramp: EarlyRamp? = null, private val kind: String = "released") : androidx.media3.exoplayer.video.VideoFrameMetadataListener {
     private val pts = LongArray(16)
     private val at = LongArray(16)
     @Volatile private var n = 0
@@ -1132,8 +1202,11 @@ private class ReleasedFrames(private val ramp: EarlyRamp? = null) : androidx.med
         if (releaseTimeNs == androidx.media3.common.C.TIME_UNSET) return
         val k = n % 16; pts[k] = presentationTimeUs; at[k] = releaseTimeNs; n++
         ramp?.released(releaseTimeNs, System.nanoTime())
-        if (TRACE.on) TRACE.log("released", "pts=$presentationTimeUs at=$releaseTimeNs")
+        if (TRACE.on) TRACE.log(kind, "pts=$presentationTimeUs at=$releaseTimeNs")
     }
+
+    /** The newest frame released: its presentation time (µs) and the time it is to be shown at (ns); null = none yet. */
+    @Synchronized fun latest(): Pair<Long, Long>? = if (n == 0) null else ((n - 1) % 16).let { pts[it] to at[it] }
 
     /** The time between the last two frames released (µs; null = not known yet). */
     @Synchronized fun stepUs(): Long? {
