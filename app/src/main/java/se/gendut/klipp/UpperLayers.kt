@@ -318,7 +318,9 @@ private fun LayerVideo(
             val mainMs = main?.currentPosition
             val advancing = mainMs != null && lastMainMs >= 0 && mainMs != lastMainMs && main.isPlaying
             lastMainMs = mainMs ?: -1L
-            val t = if (mainMs != null && state.playing) mainMs / 1000.0 else se.gendut.klipp.playheadSec(state.playhead)
+            // (by the playhead until the main player has been told to play: as playback begins it may still stand where its
+            // paused pick left it, before the slot – the layer then took itself for outside its segment, measured)
+            val t = if (mainMs != null && state.playing && main.playWhenReady) mainMs / 1000.0 else se.gendut.klipp.playheadSec(state.playhead)
             var i = if (handoff && !state.playing) -1 else segs.indices.indexOfFirst { k -> t >= segs[k].start - preS(k) && t < segs[k].end }
             if (handoff && !state.playing && handSeg >= 0 && handHid.isNotEmpty() && !handDown) {
                 // paused during the handover: the main player draws its frame again (a seek one millisecond away, as
