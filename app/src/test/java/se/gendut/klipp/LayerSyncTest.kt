@@ -1,6 +1,7 @@
 package se.gendut.klipp
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -87,5 +88,32 @@ class LayerSyncTest {
         assertEquals(1.0 + LayerSync.Rate.MAX, r.factor, 1e-12)
         repeat(LayerSync.Rate.WINDOW) { r.sample(-150.0, 11.0) }
         assertEquals(1.0 - LayerSync.Rate.MAX, r.factor, 1e-12)
+        // a start known to be behind: faster from the first frame on
+        r.start(19.0)
+        assertTrue(r.factor > 1.0)
+    }
+
+    @Test fun aSeekToTheShownFrameShowsThatFrameFirst() {
+        // 30 fps at 1.36 s on 25p (SV2's V2) and 120 fps at 25 %: the frame (timeline µs with the read-ahead, as the
+        // layer's clock gives it) and the one before it, in the item (ms, 250 ms of pre-roll)
+        for ((speed, srcFps) in listOf(1.0 to 30.0, 0.25 to 120.0)) {
+            val seg = se.gendut.klipp.engine.Seg(1.36, 2.0, se.gendut.klipp.engine.SegSrc.Media(1, 10.0, speed), null)
+            val lead = se.gendut.klipp.engine.FrameGrid.LEAD_US / 1e6 / speed
+            for (j in 1..20) {
+                val item = j / srcFps                       // the frame's item time past the segment's start (s, source)
+                val frameUs = Math.round((1.36 + item / speed + lead) * 1e6)
+                val ms = LayerSync.frameMs(frameUs, seg, 250)
+                val at = item * 1000 + 250; val before = (j - 1) / srcFps * 1000 + 250
+                assertTrue("$speed $j: $ms < $at", ms < at)
+                assertTrue("$speed $j: $ms > $before", ms > before)
+            }
+        }
+    }
+
+    @Test fun playbackStartsFromTheShownFrameUnlessItWasHeldLong() {
+        assertTrue(LayerSync.startsFromShown(1_381_333, 1_400_000))     // the slot's own frame
+        assertTrue(LayerSync.startsFromShown(1_441_000, 1_400_000))     // a segment's first frame, pinned to its first slot
+        assertTrue(LayerSync.startsFromShown(1_330_000, 1_400_000))     // held through a slot (25 fps on 60p)
+        assertFalse(LayerSync.startsFromShown(1_250_000, 1_400_000))    // held long (a gap in a variable frame rate)
     }
 }

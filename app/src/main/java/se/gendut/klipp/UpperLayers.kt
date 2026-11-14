@@ -280,6 +280,12 @@ private fun LayerVideo(
         // the paused pick (see the pick above): which segment and slot it is for, its attempts and seeks
         var pickKey = Long.MIN_VALUE; var pickGen = 0; var pickAttempt = 0; var pickSeeks = 0; var pickAt = 0L
         var pickDone = false; var pickSlotUs = 0L; var pickFromStart = false; var seenRepick = repick.intValue
+        // the frame the pick found (timeline µs, as LayerClock gives it; MIN_VALUE = none)
+        var pickFoundUs = Long.MIN_VALUE
+        // started from the frame shown (see below): it stands there, not on the playhead, until it runs
+        var fromShownHeld = false
+        // … that far behind the playhead (ms): the rate follower begins with it when the layer runs
+        var startLateMs = 0.0
         var lastMainMs = -1L
         val stats = SyncStats.forLayer(layer.name)
         // the layer's clock on the main player's while playing (not the edit point layer's: it goes by its own at the cut)
@@ -467,7 +473,7 @@ private fun LayerVideo(
                 rate.reset(); rateFromNs = 0L
                 // a pick from an earlier pause in a segment is over: the player now waits on its next segment (below).
                 // Left standing, its end – a seek – came as that segment began while playing, over the prepared frame
-                if (pickKey != Long.MIN_VALUE) { pick.clear(); pickKey = Long.MIN_VALUE; pickActive.set(false) }
+                if (pickKey != Long.MIN_VALUE) { pick.clear(); pickKey = Long.MIN_VALUE; pickActive.set(false); pickFoundUs = Long.MIN_VALUE }
                 // prepare the next segment right away (paused on its first frame) – the file is opened and the decoder started
                 // in good time, even the first time and with heavy originals (4K, HEVC) that take a while to get going
                 val next = segs.indexOfFirst { it.start > t }
@@ -544,6 +550,7 @@ private fun LayerVideo(
                 if (key != pickKey) {
                     pickActive.set(true)
                     pickKey = key; pickGen++; pickAttempt = 0; pickSeeks = 0; pickDone = false; pickSlotUs = g.timeOf(k); pickAt = now
+                    pickFoundUs = Long.MIN_VALUE
                     pickResult.set(null)
                     if (player.playWhenReady) player.playWhenReady = false
                     if (!attempt()) fallback("no attempt")
@@ -551,11 +558,9 @@ private fun LayerVideo(
                     val r = pickResult.getAndSet(null)
                     when {
                         r != null && r.gen != pickGen -> {}
-                        r is se.gendut.klipp.engine.PausedPick.Result.Found -> pickDone = true
+                        r is se.gendut.klipp.engine.PausedPick.Result.Found -> { pickDone = true; pickFoundUs = r.frameUs }
                         r is se.gendut.klipp.engine.PausedPick.Result.Exact -> {
-                            // just before that frame in the item (its timeline time less the read-ahead, see LayerClock)
-                            val sp = media.speed.coerceAtLeast(1e-6)
-                            val ms = Math.floor(((r.frameUs / 1e6 - se.gendut.klipp.engine.FrameGrid.LEAD_US / 1e6 / sp) - seg.start) * sp * 1000).toLong() + preMs[i] - 1
+                            val ms = LayerSync.frameMs(r.frameUs, seg, preMs[i])
                             if (++pickSeeks > 6) fallback("too many seeks") else {
                                 pickSeek(se.gendut.klipp.engine.PausedPick.Request(pickGen, pickSlotUs, pickFromStart, exactUs = r.frameUs), ms.coerceAtLeast(0))
                             }
@@ -567,11 +572,32 @@ private fun LayerVideo(
                 if (pickDone) idle()
                 continue
             } else if (pickKey != Long.MIN_VALUE) {
-                // left the paused pick (playing, or a still): the layer stood before the slot – back to the playhead
+                // left the paused pick (playing, or a still): the layer stood before the slot – back to the playhead.
+                // Played from there: to the frame it shows instead. A paused player shows the first frame after a seek at
+                // once – from the playhead that is the next slot's (or a later one's), and it stood there while the main
+                // player still showed the playhead's slot through its start (~150 ms, measured on the OnePlus). From the
+                // frame shown, the layer's clock begins that much behind: the rate follower takes it back (LayerSync.Rate)
+                // (only the pick for the playhead's slot: play pressed there. By the playhead – the main player may still
+                // stand where its own pick left it, before the slot, as playback begins: measured 2.679 s for 2.80 s)
+                val ph = se.gendut.klipp.playheadSec(state.playhead)
+                val fromShown = state.playing && pickDone && pickFoundUs != Long.MIN_VALUE && media != null && fpsP > 0.0 &&
+                    pickKey == i * 1_000_000_000L + Math.round(ph * fpsP) && LayerSync.startsFromShown(pickFoundUs, pickSlotUs)
+                if (TRACE.on) TRACE.log("pick", "layer=${layer.name} leave playing=${state.playing} found=$pickFoundUs slot=$pickSlotUs t=$t fromShown=$fromShown")
                 pick.clear(); pickKey = Long.MIN_VALUE; pickActive.set(false)
-                if (media != null) { seekLayer(i, target); lastSeek = now }
+                if (media != null) {
+                    val ms = if (fromShown) LayerSync.frameMs(pickFoundUs, seg, preMs[i]) else target
+                    // (the pick may have left it on that very millisecond: a seek there is ignored – no flush, and the grid
+                    // holds the frames after the pick's – first a millisecond away)
+                    if (player.currentMediaItemIndex == i && player.currentPosition == ms) seekLayer(i, ms + 1)
+                    seekLayer(i, ms); lastSeek = now
+                }
+                fromShownHeld = fromShown
+                rate.reset(); rateFromNs = 0L
+                if (fromShown) startLateMs = (pickSlotUs - pickFoundUs) / 1000.0
             }
-            val d = LayerSync.decide(
+            if (run && fromShownHeld) { rate.start(startLateMs); rateFromNs = System.nanoTime(); rateSeg = i }
+            if (run || !state.playing) fromShownHeld = false
+            val d = if (fromShownHeld) LayerSync.Decision(null) else LayerSync.decide(
                 curIndex = player.currentMediaItemIndex, curMs = player.currentPosition, wantIndex = i, wantMs = target,
                 running = run, ready = player.playbackState == Player.STATE_READY, msSinceSeek = now - lastSeek,
             )
@@ -1017,6 +1043,22 @@ object LayerSync {
         return ((t - seg.start) * m.speed * 1000).roundToLong() + preMs
     }
 
+    /**
+     * Just before the frame at timeline time [frameUs] (as LayerClock gives it: with the read-ahead) in segment [seg]'s
+     * item (ms; the item begins [preMs] before the segment): a seek there shows that frame first.
+     */
+    fun frameMs(frameUs: Long, seg: Seg, preMs: Long): Long {
+        val sp = (seg.src as? SegSrc.Media)?.speed?.coerceAtLeast(1e-6) ?: return 0L
+        return (Math.floor(((frameUs / 1e6 - se.gendut.klipp.engine.FrameGrid.LEAD_US / 1e6 / sp) - seg.start) * sp * 1000).toLong() + preMs - 1).coerceAtLeast(0)
+    }
+
+    /**
+     * Playback after a paused pick starts the layer from the frame shown ([frameUs]) for slot [slotUs] – unless it lies
+     * further from the slot than half a seek's threshold (a long-held frame: the layer would start that far behind; it
+     * starts from the playhead then).
+     */
+    fun startsFromShown(frameUs: Long, slotUs: Long): Boolean = abs(slotUs - frameUs) < SEEK_MS * 1000L / 2
+
     /** Above this much during playback it counts as a hiccup and is corrected with a seek (ms). */
     const val SEEK_MS = 200
     /** A seek during playback takes roughly this long – seek this far ahead (ms). */
@@ -1058,6 +1100,9 @@ object LayerSync {
             private set
 
         fun reset() { n = 0; k = 0; factor = 1.0 }
+
+        /** Starts [lateMs] behind (known before any frame shows it: started from a frame before the playhead). */
+        fun start(lateMs: Double) { reset(); factor = (1.0 + lateMs / TAU_MS).coerceIn(1.0 - MAX, 1.0 + MAX) }
 
         /** One sample: how much later (ms) the layer shows a slot than the main player does; [refreshMs] = the screen's. */
         fun sample(late: Double, refreshMs: Double): Double {
