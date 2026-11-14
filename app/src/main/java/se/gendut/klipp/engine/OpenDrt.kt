@@ -7,7 +7,7 @@
  *
  * The port is limited to SDR (100 nits peak, Rec.709 primaries) because Klipp's image pipeline is SDR. The algorithm,
  * the matrices and all presets (looks, tonescales, creative white point) are unchanged from the original.
- * Additions in Klipp: input "Rec.709 video" (2.4 power to linear) and "Apple Log" (Apple's published curve).
+ * Additions in Klipp: input "Rec.709 video" (2.4 power to linear; the film node reads it with the BT.709 camera curve instead, Spektra.decode) and "Apple Log" (Apple's published curve).
  */
 package se.gendut.klipp.engine
 

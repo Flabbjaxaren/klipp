@@ -554,6 +554,15 @@ object Spektra {
         return mul3(mul3(inv3(CAT16), mul3(d, CAT16)), toXyz)
     }
 
+    /**
+     * Input code value → scene linear light for the film. Rec.709 video is read as a camera's picture: the BT.709 OETF
+     * inverted (mid grey 0.18 at code 0.409), as light that falls on the negative – not the display curve (2.4) the
+     * OpenDRT node uses for it, which put 709 footage ≈ 0.6 stops darker into the film. The log curves are OpenDRT's.
+     */
+    fun decode(x: Float, input: OpenDrt.Input): Float =
+        if (input == OpenDrt.Input.REC709) { if (x < 0.081f) x / 4.5f else ((x + 0.099f) / 1.099f).pow(1f / 0.45f) }
+        else OpenDrt.oetf(x, input.oetf)
+
     fun inputMatrix(film: FilmData, input: OpenDrt.Input): DoubleArray =
         rgbToXyzAdapted(DoubleArray(9) { input.gamut[it].toDouble() }, film.refXy)
 
@@ -734,7 +743,7 @@ object Spektra {
 
         /** One pixel as the node sees it: code values in the input format → display code values (0..1). */
         fun apply(px: FloatArray) {
-            val lin = DoubleArray(K) { OpenDrt.oetf(px[it], input.oetf).toDouble() }
+            val lin = DoubleArray(K) { decode(px[it], input).toDouble() }
             val s = linearToSrgb(lin)
             for (c in 0 until K) {
                 var v = s[c].coerceIn(0.0, 1.0)

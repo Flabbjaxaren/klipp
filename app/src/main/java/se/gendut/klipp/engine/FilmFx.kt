@@ -588,7 +588,7 @@ object FilmFx {
         val printing = model.print != null
 
         /** Input code value (0..1) → linear. */
-        val decode = FloatArray(DECODE_N) { OpenDrt.oetf(it / (DECODE_N - 1f), model.input.oetf).let { v -> if (v.isNaN()) 0f else max(v, 0f) } }
+        val decode = FloatArray(DECODE_N) { Spektra.decode(it / (DECODE_N - 1f), model.input).let { v -> if (v.isNaN()) 0f else max(v, 0f) } }
 
         /** The largest linear value an input code value gives ([decode] at 1). */
         val linMax = decode.max().coerceAtLeast(1e-6f)
