@@ -13,16 +13,20 @@ import kotlin.math.max
 
 /**
  * The log wheels against reference renders (a neutral ramp through each wheel at several values, a combination and
- * other zone limits, rendered in float): log_wheels_ref.json.
+ * other zone limits, rendered in float): log_wheels_ref.json over 0..1, log_wheels_wide_ref.json over −0.2..1.3 (values
+ * below black and above white go through, each zone continuing straight).
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class LogWheelsTest {
-    private val ref by lazy {
-        JSONObject(LogWheelsTest::class.java.classLoader!!.getResourceAsStream("log_wheels_ref.json")!!.readBytes().toString(Charsets.UTF_8)).getJSONArray("cases")
-    }
+    private fun cases(file: String) =
+        JSONObject(LogWheelsTest::class.java.classLoader!!.getResourceAsStream(file)!!.readBytes().toString(Charsets.UTF_8)).getJSONArray("cases")
 
-    @Test fun theWheelsMatchTheReferenceRenders() {
+    @Test fun theWheelsMatchTheReferenceRenders() = matches(cases("log_wheels_ref.json"))
+
+    @Test fun belowBlackAndAboveWhiteMatchTheReferenceRenders() = matches(cases("log_wheels_wide_ref.json"))
+
+    private fun matches(ref: org.json.JSONArray) {
         for (k in 0 until ref.length()) {
             val c = ref.getJSONObject(k)
             val s = c.getDouble("shadow").toFloat(); val m = c.getDouble("mid").toFloat(); val h = c.getDouble("high").toFloat()
@@ -31,10 +35,7 @@ class LogWheelsTest {
             val xs = c.getJSONArray("x"); val ys = c.getJSONArray("y")
             var worst = 0.0
             for (i in 0 until xs.length()) {
-                val want = ys.getDouble(i)
-                // the table holds code values 0..1
-                if (want < 0.0 || want > 1.0) continue
-                worst = max(worst, abs(GradeNode.sample(curve, xs.getDouble(i).toFloat()) - want))
+                worst = max(worst, abs(GradeNode.curveSample(curve, xs.getDouble(i).toFloat()) - ys.getDouble(i)))
             }
             // the model's measured error: within 0.01 up to ±0.3, larger at the extremes (the transitions' exact shape)
             // and for a midtone zone much wider than the default (its gamma shape)
@@ -49,6 +50,49 @@ class LogWheelsTest {
         for (v in listOf(-1f, -0.5f, 0.5f, 1f)) for (zone in 0..2) {
             val t = GradeNode.logCurve(if (zone == 0) v else 0f, if (zone == 1) v else 0f, if (zone == 2) v else 0f, 0.333f, 0.55f)
             for (i in 1 until t.size) assertTrue("zone $zone at $v: ${t[i - 1]} > ${t[i]} at $i", t[i] >= t[i - 1] - 1e-6f)
+        }
+    }
+
+    @Test fun theGpuTableHoldsTheCurveAndContinuesItStraight() {
+        val t = arrayOf(GradeNode.logCurve(0f, 0f, 0.6f, 0.333f, 0.55f), GradeNode.logCurve(-0.6f, 0f, 0f, 0.333f, 0.55f), FloatArray(GradeNode.CURVE_N) { GradeNode.curveX(it) })
+        // what the shaders do: decode 24 bits, interpolate, continue straight beyond the ends
+        fun texel(ch: Int, i: Int) = GradeNode.curve24(t, ch, i) / 16777215.0 * 2 * GradeNode.CURVE_RANGE - GradeNode.CURVE_RANGE
+        fun gpu(ch: Int, x: Float): Double {
+            val p = (x - GradeNode.CURVE_LO) * (GradeNode.CURVE_N - 1) / (GradeNode.CURVE_HI - GradeNode.CURVE_LO)
+            val i = kotlin.math.floor(p).toInt().coerceIn(0, GradeNode.CURVE_N - 2)
+            return x + texel(ch, i) + (texel(ch, i + 1) - texel(ch, i)) * (p - i)
+        }
+        // the rounding to 24 bits: half a step per value inside the table; beyond it the end slope's rounding grows
+        // with the distance (two values one table step apart)
+        val q = GradeNode.CURVE_RANGE / 16777215.0
+        val step = (GradeNode.CURVE_HI - GradeNode.CURVE_LO) / (GradeNode.CURVE_N - 1).toDouble()
+        for (ch in 0..2) for (x in listOf(-1f, -0.3f, 0f, 0.25f, 0.5f, 0.9f, 1f, 1.07f, 1.5f, 2.5f)) {
+            val beyond = maxOf(GradeNode.CURVE_LO - x, x - GradeNode.CURVE_HI, 0f)
+            assertEquals("channel $ch at $x", GradeNode.curveSample(t[ch], x).toDouble(), gpu(ch, x), q * (1 + 2 * beyond / step) + 1e-6)
+        }
+        // the identity stays the identity, beyond the table too
+        for (x in listOf(-2f, 0f, 0.5f, 1f, 3f)) assertEquals(x.toDouble(), gpu(2, x), 2e-6)
+        // highlight +0.6 continues straight above the table: the slope at its end
+        val s = (GradeNode.curveSample(t[0], 1.5f) - GradeNode.curveSample(t[0], 1.4f)) / 0.1f
+        assertEquals(GradeNode.curveSample(t[0], 1.5f) + s, GradeNode.curveSample(t[0], 2.5f), 1e-4f)
+    }
+
+    @Test fun aNodeKeepsSuperWhitesAndSubBlacksForItsCurves() {
+        fun node(json: String) = GradeNode.fromJson(JSONObject(json)).params()
+        // saturation alone: nothing is cut
+        val sat = node("{\"id\":1,\"label\":\"N\",\"sat\":1.2}")
+        val px = floatArrayOf(1.06f, 1.06f, 1.06f)
+        GradeNode.apply(sat, px)
+        assertEquals(1.06f, px[1], 1e-5f)
+        val dark = floatArrayOf(-0.05f, -0.05f, -0.05f)
+        GradeNode.apply(sat, dark)
+        assertEquals(-0.05f, dark[1], 1e-5f)
+        // log highlight master −0.6 = −0.3 in reference units (amount = master·0.5): 1.1 → 0.934, 1.2 → 1.004 on the reference renders
+        val hi = node("{\"id\":1,\"label\":\"N\",\"logH\":[0,0,-0.6]}")
+        for ((x, want) in listOf(1.1f to 0.934f, 1.2f to 1.004f)) {
+            val p = floatArrayOf(x, x, x)
+            GradeNode.apply(hi, p)
+            assertEquals("log highlight at $x", want, p[1], 0.003f)
         }
     }
 

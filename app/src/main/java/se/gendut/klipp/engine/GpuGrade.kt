@@ -249,13 +249,11 @@ object GpuGrade {
             }
         }
 
-        /** The curves as a 256×3 bitmap: a row per channel, 16 bits in red (high) and green (low) – as in GradeNodeEffect's GL texture. */
+        /** The curves as a [GradeNode.CURVE_N]×3 bitmap: a row per channel, 24 bits in red, green and blue – as in GradeNodeEffect's GL texture. */
         private fun makeCurves(c: Array<FloatArray>?): Bitmap {
-            val px = IntArray(256 * 3) { k ->
-                val v = GradeNode.curve16(c, k / 256, k % 256)
-                (0xFF shl 24) or ((v shr 8) shl 16) or ((v and 255) shl 8)
-            }
-            return Bitmap.createBitmap(px, 256, 3, Bitmap.Config.ARGB_8888)
+            val n = GradeNode.CURVE_N
+            val px = IntArray(n * 3) { k -> (0xFF shl 24) or GradeNode.curve24(c, k / n, k % n) }
+            return Bitmap.createBitmap(px, n, 3, Bitmap.Config.ARGB_8888)
         }
 
         private val identityLut by lazy { CubeLut.identity(2) }
@@ -577,15 +575,17 @@ float hslAt(float row, float x) {
   return mix(hslTexel(i, row), hslTexel(i + 1.0, row), p - i);
 }
 
-// a channel's curve (log wheels and curves; a row: 16 bits as high, low byte) at x 0..1, linearly interpolated (as in GradeShaders)
+// a channel's curve (log wheels and curves; see GradeNode.CURVE_N): each value's difference from the straight line
+// (24 bits in red, green, blue) over x ${GradeNode.CURVE_LO}..${GradeNode.CURVE_HI}; linear between the entries,
+// straight on beyond the ends (as in GradeShaders)
 float curveTexel(float i, float row) {
-  float2 t = floor(float2(curves.eval(float2(i + 0.5, row + 0.5)).rg) * 255.0 + 0.5);
-  return (t.r * 256.0 + t.g) / 65535.0;
+  float3 t = floor(float3(curves.eval(float2(i + 0.5, row + 0.5)).rgb) * 255.0 + 0.5);
+  return (t.r * 65536.0 + t.g * 256.0 + t.b) / 16777215.0 * ${2 * GradeNode.CURVE_RANGE} - ${GradeNode.CURVE_RANGE};
 }
 float curveAt(float row, float x) {
-  float p = clamp(x, 0.0, 1.0) * 255.0;
-  float i = min(floor(p), 254.0);
-  return mix(curveTexel(i, row), curveTexel(i + 1.0, row), p - i);
+  float p = (x - (${GradeNode.CURVE_LO})) * ${(GradeNode.CURVE_N - 1) / (GradeNode.CURVE_HI - GradeNode.CURVE_LO)};
+  float i = clamp(floor(p), 0.0, ${GradeNode.CURVE_N - 2}.0);
+  return x + mix(curveTexel(i, row), curveTexel(i + 1.0, row), p - i);
 }
 
 float3 hslCurves(float3 c) {
@@ -632,12 +632,13 @@ half4 main(float2 pos) {
   c = c * uWb;
   c = uHue * c;
   float y = dot(c, float3(0.2126, 0.7152, 0.0722));
-  c = clamp(float3(y) + (c - float3(y)) * uSat, 0.0, 1.0);
+  // not clamped: values below black and above white reach the curves (as on reference renders)
+  c = float3(y) + (c - float3(y)) * uSat;
   // film density (see GradeNode.density)
   if (uDensity > 0.0) {
     float m = max(c.r, max(c.g, c.b));
     float e = uDensity * smoothstep(${GradeNode.DENSITY_DARK_LO}, ${GradeNode.DENSITY_DARK_HI}, m);
-    if (m > 1e-6 && e > 0.0) c = c * pow(c / m, float3(e));
+    if (m > 1e-6 && e > 0.0) { float3 cp = max(c, float3(0.0)); c = cp * pow(cp / m, float3(e)); }
   }
   if (uUseCurves > 0.5) {
     c = float3(curveAt(0.0, c.r), curveAt(1.0, c.g), curveAt(2.0, c.b));

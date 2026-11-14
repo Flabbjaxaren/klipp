@@ -6,7 +6,7 @@ import se.gendut.klipp.engine.GradeNode
 
 /**
  * The wheels' primaries against reference renders: a 16-bit gray ramp through known Lift/Gain/Gamma/Offset values
- * (the reference's offset unit adds 0.1835), read back from the file.
+ * (the reference's offset unit adds 0.1835), read back from the file (16-bit integers, so cut to 0..1).
  */
 class PrimariesTest {
     private class Case(val lift: Float, val gain: Float, val gamma: Float, val offset: Float, val x: FloatArray, val y: FloatArray)
@@ -30,7 +30,8 @@ class PrimariesTest {
             for (i in c.x.indices) {
                 val rgb = floatArrayOf(c.x[i], c.x[i], c.x[i])
                 GradeNode.apply(p, rgb)
-                assertEquals("lift ${c.lift} gain ${c.gain} gamma ${c.gamma} offset ${c.offset} at ${c.x[i]}", c.y[i], rgb[0], 0.002f)
+                // the reference files are 16-bit integers: they hold 0..1 only (the node itself keeps values beyond)
+                assertEquals("lift ${c.lift} gain ${c.gain} gamma ${c.gamma} offset ${c.offset} at ${c.x[i]}", c.y[i], rgb[0].coerceIn(0f, 1f), 0.002f)
             }
         }
     }

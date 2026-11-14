@@ -22,6 +22,7 @@ import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.math.sin
 
@@ -458,7 +459,7 @@ data class GradeNode(
             // the log wheels first, then the curves: both are tables per channel
             fun comp(ch: FloatArray, c: Int): FloatArray {
                 val lg = if (hasLog) logCurve(amount(logShadow, sh, c), amount(logMid, md, c), amount(logHi, hi, c), logLow, logHigh) else null
-                return FloatArray(256) { i -> sample(ch, sample(y, lg?.get(i) ?: (i / 255f))) }
+                return FloatArray(CURVE_N) { i -> sampleExt(ch, sampleExt(y, lg?.get(i) ?: curveX(i))) }
             }
             arrayOf(comp(r, 0), comp(gg, 1), comp(b, 2))
         } else null
@@ -506,7 +507,9 @@ data class GradeNode(
         )
 
         /**
-         * The log wheels on one channel, as a 256-entry table over code values 0..1 (as measured on reference renders).
+         * The log wheels on one channel, as a [CURVE_N]-entry table over code values [CURVE_LO]..[CURVE_HI] (at
+         * [curveX]; as measured on reference renders, which keep values below black and above white and continue each
+         * zone straight beyond them).
          * Each wheel works on its own tonal zone, split at [low] and [top]:
          * - shadow: a lift of the zone below [low]. Lowered, black goes to `shadow`; raised, black goes to `shadow·low`
          *   (the slope there becomes 1 − shadow).
@@ -517,7 +520,8 @@ data class GradeNode(
          * transitions soft, and the curve never folds back: tones keep their order at any setting.
          */
         fun logCurve(shadow: Float, mid: Float, high: Float, low: Float, top: Float): FloatArray {
-            val n = 3073; val x0 = -0.25; val dx = 1.5 / (n - 1)
+            // the grid reaches past the table on both sides by more than the averaging window
+            val x0 = CURVE_LO - 0.25; val dx = 1.5 / 3072; val n = ((CURVE_HI + 0.25 - x0) / dx).roundToInt() + 1
             val ks = (if (shadow >= 0f) shadow else shadow / low).toDouble()
             val kh = (if (high >= 0f) high / (1f - top) else high).toDouble()
             val m = mid.coerceIn(-0.995f, 0.995f).toDouble()
@@ -534,12 +538,12 @@ data class GradeNode(
             for (i in 1 until n) { val cur = d(x0 + i * dx); c[i] = c[i - 1] + (prev + cur) / 2 * dx; prev = cur }
             fun at(x: Double): Double { val p = ((x - x0) / dx).coerceIn(0.0, n - 1.0); val i = p.toInt().coerceAtMost(n - 2); return c[i] + (c[i + 1] - c[i]) * (p - i) }
             val w = LOG_SOFT.toDouble()
-            return FloatArray(256) { i -> val x = i / 255.0; (x + (at(x + w) - at(x - w)) / (2 * w)).toFloat() }
+            return FloatArray(CURVE_N) { i -> val x = curveX(i).toDouble(); (x + (at(x + w) - at(x - w)) / (2 * w)).toFloat() }
         }
 
         /** The log wheels on one value (see [logCurve]). */
         fun logTone(x: Float, shadow: Float, mid: Float, high: Float, low: Float, top: Float): Float =
-            sample(logCurve(shadow, mid, high, low, top), x)
+            curveSample(logCurve(shadow, mid, high, low, top), x)
 
         /** Half the width of the log wheels' transitions (code values), measured on reference renders. */
         const val LOG_SOFT = 0.063f
@@ -660,9 +664,41 @@ data class GradeNode(
             return bt to bu
         }
 
-        /** A channel's curve table ([Params.curves]) value as 16 bits for the GPU's texture (no table: the identity). */
-        fun curve16(c: Array<FloatArray>?, ch: Int, i: Int): Int =
-            ((c?.get(ch)?.get(i) ?: (i / 255f)).coerceIn(0f, 1f) * 65535f + 0.5f).toInt()
+        /**
+         * The composite curve tables ([Params.curves]: log wheels, then the curves): [CURVE_N] values per channel over
+         * code values [CURVE_LO]..[CURVE_HI], so a camera's super-whites and sub-blacks and a lift above white go
+         * through (reference renders keep them); beyond that the end segments continue straight.
+         */
+        const val CURVE_N = 512
+        const val CURVE_LO = -0.5f
+        const val CURVE_HI = 1.5f
+        /** On the GPU each value is stored as its difference from the straight line, 24 bits over ±[CURVE_RANGE]. */
+        const val CURVE_RANGE = 8f
+        private const val CURVE_STEPS = 16777215.0
+
+        /** The code value of a composite table's entry [i]. */
+        fun curveX(i: Int): Float = CURVE_LO + i * (CURVE_HI - CURVE_LO) / (CURVE_N - 1)
+
+        /** A composite table ([CURVE_N] entries) at any [x]: linear between the entries, straight on beyond the ends. */
+        fun curveSample(t: FloatArray, x: Float): Float {
+            val p = (x - CURVE_LO) / (CURVE_HI - CURVE_LO) * (CURVE_N - 1)
+            val i = kotlin.math.floor(p).toInt().coerceIn(0, CURVE_N - 2)
+            val d0 = t[i] - curveX(i); val d1 = t[i + 1] - curveX(i + 1)
+            return x + d0 + (d1 - d0) * (p - i)
+        }
+
+        /** A channel's composite table value for the GPU's texture: the difference from the straight line as 24 bits (no table: the identity). */
+        fun curve24(c: Array<FloatArray>?, ch: Int, i: Int): Int {
+            val d = c?.get(ch)?.get(i)?.let { it - curveX(i) } ?: 0f
+            return ((d.coerceIn(-CURVE_RANGE, CURVE_RANGE) + CURVE_RANGE) * (CURVE_STEPS / (2 * CURVE_RANGE)) + 0.5).toInt()
+        }
+
+        /** A 256-entry curve over 0..1 ([Curve.table]) at any [x]: outside 0..1 its end segments continue straight. */
+        fun sampleExt(t: FloatArray, x: Float): Float = when {
+            x < 0f -> t[0] + x * (t[1] - t[0]) * 255f
+            x > 1f -> t[255] + (x - 1f) * (t[255] - t[254]) * 255f
+            else -> sample(t, x)
+        }
 
         fun sample(t: FloatArray, x: Float): Float {
             val p = x.coerceIn(0f, 1f) * 255f
@@ -696,11 +732,12 @@ data class GradeNode(
             val hg = p.hueMat[3] * r + p.hueMat[4] * g + p.hueMat[5] * b
             val hb = p.hueMat[6] * r + p.hueMat[7] * g + p.hueMat[8] * b
             val luma = 0.2126f * hr + 0.7152f * hg + 0.0722f * hb
-            rgb[0] = (luma + (hr - luma) * p.sat).coerceIn(0f, 1f)
-            rgb[1] = (luma + (hg - luma) * p.sat).coerceIn(0f, 1f)
-            rgb[2] = (luma + (hb - luma) * p.sat).coerceIn(0f, 1f)
+            // not clamped: values below black and above white reach the curves (as on reference renders)
+            rgb[0] = luma + (hr - luma) * p.sat
+            rgb[1] = luma + (hg - luma) * p.sat
+            rgb[2] = luma + (hb - luma) * p.sat
             density(rgb, p.density)
-            p.curves?.let { cv -> for (i in 0..2) rgb[i] = sample(cv[i], rgb[i]) }
+            p.curves?.let { cv -> for (i in 0..2) rgb[i] = curveSample(cv[i], rgb[i]) }
             p.hsl?.let { t -> HslCurves.apply(t, rgb); for (i in 0..2) rgb[i] = rgb[i].coerceIn(0f, 1f) }
             p.lut?.let { l ->
                 val o = l.applyTetrahedral(rgb[0], rgb[1], rgb[2])
@@ -1370,15 +1407,17 @@ vec3 colorIn(vec4 src) {
   return cin;
 }
 
-// a channel's curve (log wheels and curves; a row of the table: 16 bits as high, low byte) at x 0..1, linearly interpolated
+// a channel's curve (log wheels and curves; see GradeNode.CURVE_N): a row of the table holds each value's difference
+// from the straight line (24 bits in red, green, blue) over x ${GradeNode.CURVE_LO}..${GradeNode.CURVE_HI}; linear
+// between the entries, straight on beyond the ends
 float curveTexel(float i, float row) {
-  vec2 t = floor(texture2D(uCurves, vec2((i + 0.5) / 256.0, (row + 0.5) / 3.0)).rg * 255.0 + 0.5);
-  return (t.r * 256.0 + t.g) / 65535.0;
+  vec3 t = floor(texture2D(uCurves, vec2((i + 0.5) / ${GradeNode.CURVE_N}.0, (row + 0.5) / 3.0)).rgb * 255.0 + 0.5);
+  return (t.r * 65536.0 + t.g * 256.0 + t.b) / 16777215.0 * ${2 * GradeNode.CURVE_RANGE} - ${GradeNode.CURVE_RANGE};
 }
 float curveAt(float row, float x) {
-  float p = clamp(x, 0.0, 1.0) * 255.0;
-  float i = min(floor(p), 254.0);
-  return mix(curveTexel(i, row), curveTexel(i + 1.0, row), p - i);
+  float p = (x - (${GradeNode.CURVE_LO})) * ${(GradeNode.CURVE_N - 1) / (GradeNode.CURVE_HI - GradeNode.CURVE_LO)};
+  float i = clamp(floor(p), 0.0, ${GradeNode.CURVE_N - 2}.0);
+  return x + mix(curveTexel(i, row), curveTexel(i + 1.0, row), p - i);
 }
 
 // an HSL curve (a row of the table: 16 bits as high, low byte) at x 0..1, linearly interpolated
@@ -1433,12 +1472,13 @@ void main() {
   c = c * uWb;
   c = uHue * c;
   float y = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  c = clamp(vec3(y) + (c - vec3(y)) * uSat, 0.0, 1.0);
+  // not clamped: values below black and above white reach the curves (as on reference renders)
+  c = vec3(y) + (c - vec3(y)) * uSat;
   // film density (see GradeNode.density)
   if (uDensity > 0.0) {
     float m = max(c.r, max(c.g, c.b));
     float e = uDensity * smoothstep(${GradeNode.DENSITY_DARK_LO}, ${GradeNode.DENSITY_DARK_HI}, m);
-    if (m > 1e-6 && e > 0.0) c = c * pow(c / m, vec3(e));
+    if (m > 1e-6 && e > 0.0) { vec3 cp = max(c, vec3(0.0)); c = cp * pow(cp / m, vec3(e)); }
   }
   if (uUseCurves > 0.5) {
     c = vec3(curveAt(0.0, c.r), curveAt(1.0, c.g), curveAt(2.0, c.b));
@@ -1536,13 +1576,13 @@ class GradeNodeEffect(
                 GLES20.glGenTextures(1, ids, 0)
                 curveTex = ids[0]
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, curveTex)
-                // exact texels: the shader interpolates the 16-bit values itself
+                // exact texels: the shader interpolates the 24-bit values itself
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
                 GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
-                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 256, 3, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, curveBytes(p.curves))
+                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, GradeNode.CURVE_N, 3, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, curveBytes(p.curves))
                 GLES20.glGenTextures(1, ids2, 0)
                 lutTex = ids2[0]
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, lutTex)
@@ -1644,7 +1684,7 @@ class GradeNodeEffect(
             if (cur.curves !== curvesUp && !(cur.curves contentDeepEquals curvesUp)) {
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, curveTex)
                 GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
-                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 256, 3, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, curveBytes(cur.curves))
+                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, GradeNode.CURVE_N, 3, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, curveBytes(cur.curves))
             }
             curvesUp = cur.curves
             if (cur.hsl !== hslUp && !(cur.hsl contentDeepEquals hslUp)) {
@@ -1676,14 +1716,15 @@ class GradeNodeEffect(
         fun transpose3(m: FloatArray) = floatArrayOf(m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8])
 
         /**
-         * The channels' composite curves (log wheels and curves) as a 256×3 RGBA texture: a row per channel, 16 bits in
-         * red (high) and green (low) – 8 bits turned into steps once a later node (film, OpenDRT) spreads the tones.
+         * The channels' composite curves (log wheels and curves) as a [GradeNode.CURVE_N]×3 RGBA texture: a row per
+         * channel, each value's difference from the straight line as 24 bits in red (high), green and blue (low) – 8
+         * bits turned into steps once a later node (film, OpenDRT) spreads the tones.
          */
         fun curveBytes(c: Array<FloatArray>?): ByteBuffer {
-            val b = ByteBuffer.allocateDirect(256 * 3 * 4).order(ByteOrder.nativeOrder())
-            for (ch in 0..2) for (i in 0 until 256) {
-                val v = GradeNode.curve16(c, ch, i)
-                b.put((v shr 8).toByte()); b.put((v and 255).toByte()); b.put(0); b.put(255.toByte())
+            val b = ByteBuffer.allocateDirect(GradeNode.CURVE_N * 3 * 4).order(ByteOrder.nativeOrder())
+            for (ch in 0..2) for (i in 0 until GradeNode.CURVE_N) {
+                val v = GradeNode.curve24(c, ch, i)
+                b.put((v shr 16).toByte()); b.put((v shr 8 and 255).toByte()); b.put((v and 255).toByte()); b.put(255.toByte())
             }
             b.flip()
             return b
