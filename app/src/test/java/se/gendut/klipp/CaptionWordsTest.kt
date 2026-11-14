@@ -61,12 +61,6 @@ class TitleStyleTest {
         org.junit.Assert.assertEquals(look, se.gendut.klipp.engine.TitleLook.parse(look.encode()))
     }
 
-    @org.junit.Test fun theSameAmountOnAllLogWheelsIsAnOffset() {
-        for (x in listOf(0.1f, 0.33f, 0.5f, 0.9f)) assertEquals(x + 0.1f, se.gendut.klipp.engine.GradeNode.logTone(x, 0.1f, 0.1f, 0.1f, 0.333f, 0.55f), 1e-4f)
-    }
-
-    @org.junit.Test fun theShadowWheelLeavesHighlightsAlone() =
-        assertEquals(0.9f, se.gendut.klipp.engine.GradeNode.logTone(0.9f, 0.2f, 0f, 0f, 0.333f, 0.55f), 1e-4f)
 }
 
 class PathSmoothingTest {

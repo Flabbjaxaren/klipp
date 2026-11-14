@@ -456,8 +456,9 @@ data class GradeNode(
             val sh = logShadow.rgb(); val md = logMid.rgb(); val hi = logHi.rgb()
             fun amount(w: Wheel, c: FloatArray, i: Int) = c[i] * 0.25f + w.master * 0.5f
             // the log wheels first, then the curves: both are tables per channel
-            fun comp(ch: FloatArray, c: Int) = FloatArray(256) { i ->
-                sample(ch, sample(y, logTone(i / 255f, amount(logShadow, sh, c), amount(logMid, md, c), amount(logHi, hi, c), logLow, logHigh)))
+            fun comp(ch: FloatArray, c: Int): FloatArray {
+                val lg = if (hasLog) logCurve(amount(logShadow, sh, c), amount(logMid, md, c), amount(logHi, hi, c), logLow, logHigh) else null
+                return FloatArray(256) { i -> sample(ch, sample(y, lg?.get(i) ?: (i / 255f))) }
             }
             arrayOf(comp(r, 0), comp(gg, 1), comp(b, 2))
         } else null
@@ -505,17 +506,45 @@ data class GradeNode(
         )
 
         /**
-         * The log wheels on one channel value: three offsets whose zones overlap softly and always add up to one, so the
-         * same amount on all three is a plain offset.
+         * The log wheels on one channel, as a 256-entry table over code values 0..1 (as measured on reference renders).
+         * Each wheel works on its own tonal zone, split at [low] and [top]:
+         * - shadow: a lift of the zone below [low]. Lowered, black goes to `shadow`; raised, black goes to `shadow·low`
+         *   (the slope there becomes 1 − shadow).
+         * - mid: a gamma of the zone between [low] and [top] (exponent ((1 − mid)/(1 + mid))^1.25), so its ends stay put.
+         *   At ±1 the zone collapses onto one of its ends.
+         * - high: a gain of the zone above [top]. Raised, white goes to 1 + high; lowered, the slope there becomes 1 + high.
+         * The zones' changes add up, and the sum is averaged over ±[LOG_SOFT] around each value. That makes the
+         * transitions soft, and the curve never folds back: tones keep their order at any setting.
          */
-        fun logTone(x: Float, shadow: Float, mid: Float, high: Float, low: Float, top: Float): Float {
-            fun step(a: Float, b: Float): Float { val t = ((x - a) / (b - a)).coerceIn(0f, 1f); return t * t * (3f - 2f * t) }
-            val soft = 0.12f
-            val s = 1f - step(low - soft, low + soft)
-            val h = step(top - soft, top + soft)
-            val m = (1f - s - h).coerceAtLeast(0f)
-            return x + shadow * s + mid * m + high * h
+        fun logCurve(shadow: Float, mid: Float, high: Float, low: Float, top: Float): FloatArray {
+            val n = 3073; val x0 = -0.25; val dx = 1.5 / (n - 1)
+            val ks = (if (shadow >= 0f) shadow else shadow / low).toDouble()
+            val kh = (if (high >= 0f) high / (1f - top) else high).toDouble()
+            val m = mid.coerceIn(-0.995f, 0.995f).toDouble()
+            val g = ((1 - m) / (1 + m)).pow(LOG_MID_POW)
+            val lo = low.toDouble(); val hi = top.toDouble()
+            fun d(x: Double): Double = when {
+                x < lo -> ks * (lo - x)
+                x > hi -> kh * (x - hi)
+                else -> lo + (hi - lo) * ((x - lo) / (hi - lo)).pow(g) - x
+            }
+            // the running integral of the change, so the average over a window is a difference
+            val c = DoubleArray(n)
+            var prev = d(x0)
+            for (i in 1 until n) { val cur = d(x0 + i * dx); c[i] = c[i - 1] + (prev + cur) / 2 * dx; prev = cur }
+            fun at(x: Double): Double { val p = ((x - x0) / dx).coerceIn(0.0, n - 1.0); val i = p.toInt().coerceAtMost(n - 2); return c[i] + (c[i + 1] - c[i]) * (p - i) }
+            val w = LOG_SOFT.toDouble()
+            return FloatArray(256) { i -> val x = i / 255.0; (x + (at(x + w) - at(x - w)) / (2 * w)).toFloat() }
         }
+
+        /** The log wheels on one value (see [logCurve]). */
+        fun logTone(x: Float, shadow: Float, mid: Float, high: Float, low: Float, top: Float): Float =
+            sample(logCurve(shadow, mid, high, low, top), x)
+
+        /** Half the width of the log wheels' transitions (code values), measured on reference renders. */
+        const val LOG_SOFT = 0.063f
+        /** The power on the mid wheel's gamma ratio, measured on reference renders. */
+        private const val LOG_MID_POW = 1.25
 
         /**
          * The primaries, per channel: lift and gain are one linear step, y = gain·(lift + x·(1 − lift)) / (1 + lift·(gain − 1))
