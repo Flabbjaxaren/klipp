@@ -81,7 +81,7 @@ android {
         create("designTest") {
             initWith(getByName("release"))
             applicationIdSuffix = ".designtest"
-            versionNameSuffix = "-designtest.107"
+            versionNameSuffix = "-designtest.108"
             manifestPlaceholders["appLabel"] = "Klipp test"
             matchingFallbacks += "release"
         }
