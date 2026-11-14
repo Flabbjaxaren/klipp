@@ -460,6 +460,9 @@ private fun LayerVideo(
             }
             if (i < 0) {
                 if (player.playWhenReady) player.pause()
+                // a pick from an earlier pause in a segment is over: the player now waits on its next segment (below).
+                // Left standing, its end – a seek – came as that segment began while playing, over the prepared frame
+                if (pickKey != Long.MIN_VALUE) { pick.clear(); pickKey = Long.MIN_VALUE; pickActive.set(false) }
                 // prepare the next segment right away (paused on its first frame) – the file is opened and the decoder started
                 // in good time, even the first time and with heavy originals (4K, HEVC) that take a while to get going
                 val next = segs.indexOfFirst { it.start > t }
