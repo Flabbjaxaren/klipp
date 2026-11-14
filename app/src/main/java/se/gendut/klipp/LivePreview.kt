@@ -60,17 +60,18 @@ private data class GradeReq(
 )
 
 object Frames {
-    // kept by size, not count: a 1920 px frame is 8 MB, a scrub frame a fraction of that
+    // kept by size, not count: a 1920 px frame is 8 MB (16 MB in floating point), a scrub frame a fraction of that
     private val cache = LinkedHashMap<String, ImageBitmap>(32, 0.75f, true)
-    private const val CACHE_BYTES = 96L shl 20
+    private const val CACHE_BYTES = 128L shl 20
+    private fun bytesOf(img: ImageBitmap): Long = runCatching { img.asAndroidBitmap().allocationByteCount.toLong() }.getOrDefault(img.width.toLong() * img.height * 4)
     private fun put(k: String, img: ImageBitmap) = synchronized(cache) {
         cache[k] = img
-        var bytes = cache.values.sumOf { it.width.toLong() * it.height * 4 }
+        var bytes = cache.values.sumOf { bytesOf(it) }
         val it = cache.entries.iterator()
         while (bytes > CACHE_BYTES && cache.size > 1 && it.hasNext()) {
             val e = it.next()
             if (e.key == k) continue
-            bytes -= e.value.width.toLong() * e.value.height * 4
+            bytes -= bytesOf(e.value)
             it.remove()
         }
     }
@@ -92,6 +93,26 @@ object Frames {
 
     fun key(uri: Uri, sec: Double, exact: Boolean) = "$uri@${(sec * 25).roundToInt()}${if (exact) "e" else "s"}"
     fun cached(uri: Uri, sec: Double): ImageBitmap? = synchronized(cache) { cache[key(uri, sec, true)] }
+    /** The still through the video chain ([loadDeep]), if it is in the cache. */
+    fun cachedDeep(uri: Uri, sec: Double): ImageBitmap? = synchronized(cache) { cache[key(uri, sec, true) + "d"] }
+
+    /**
+     * The exact frame through the video chain playback uses (se.gendut.klipp.engine.VideoStill): values below black and
+     * above white kept, for the color page's grade preview. null where that isn't possible (HDR, 8-bit chain, no YUV
+     * sampling, a failure) – the caller keeps the ordinary still.
+     */
+    suspend fun loadDeep(context: Context, uri: Uri, sec: Double): Pair<Double, ImageBitmap>? {
+        val k = key(uri, sec, true) + "d"
+        synchronized(cache) { cache[k] }?.let { return sec to it }
+        return withContext(worker) {
+            synchronized(cache) { cache[k] }?.let { return@withContext sec to it }
+            if (!se.gendut.klipp.engine.VideoStill.usable(context, uri)) return@withContext null
+            val b = se.gendut.klipp.engine.VideoStill.grab(context, uri, sec, se.gendut.klipp.engine.Perf.previewWidth()) ?: return@withContext null
+            val img = b.asImageBitmap()
+            put(k, img)
+            sec to img
+        }
+    }
 
     /**
      * Nearest keyframe to [sec] within the clip's part of the source ([lo], [hi]) – so a fast scrub frame never
@@ -195,7 +216,11 @@ fun LivePreview(
     // shown while dragging a slider/in the image/a color wheel, scrubbing, or when the player has no frame yet
     state.trimView?.let { TrimFrame(controller, it, modifier); return }
     val live = state.live?.takeUnless { it.isAudio }
-    if (live == null && !state.scrubbing && gs?.live == null && gs?.shownKey == null && !force) return
+    if (live == null && !state.scrubbing && gs?.live == null && gs?.shownKey == null && !force) {
+        // the color page at rest: the still through the video chain is fetched ahead, so a drag starts with it
+        if (gs?.active == true && !state.playing) DeepPrefetch(controller, state)
+        return
+    }
     val q = controller.snapshot.playable().sequence ?: return
     val ctx = LocalContext.current
     val t = state.playhead.toDouble()
@@ -219,19 +244,25 @@ fun LivePreview(
         val lo = c.sourceIn
         val hi = c.sourceIn + c.duration * c.speed
         LaunchedEffect(media) { se.gendut.klipp.engine.ScrubFrames.ensure(ctx, media) }
+        // on the color page the still comes through the video chain (super-whites and sub-blacks kept for the grade)
+        val deep = gs?.active == true
         // exact frame from the cache, otherwise (while the finger drags) the low-res scrub frame already in memory
-        (Frames.cached(uri, sec)?.let { sec to it } ?: if (state.scrubbing) se.gendut.klipp.engine.ScrubFrames.peek(media, sec, lo, hi) else null)
+        ((if (deep) Frames.cachedDeep(uri, sec) else null)?.let { sec to it } ?: Frames.cached(uri, sec)?.let { sec to it }
+            ?: if (state.scrubbing) se.gendut.klipp.engine.ScrubFrames.peek(media, sec, lo, hi) else null)
             ?.let { hits[c.id] = it }
         // while the finger drags: the scrub frame (low-res, immediate) or the nearest keyframe; the exact frame at full
         // resolution once the playhead has rested for a moment or the finger is lifted
-        LaunchedEffect(c.id, (sec * 25).roundToInt()) {
+        LaunchedEffect(c.id, (sec * 25).roundToInt(), deep) {
             if (state.scrubbing) {
                 val quick = se.gendut.klipp.engine.ScrubFrames.load(media, sec, lo, hi)
                 if (quick != null) { frames[c.id] = quick; se.gendut.klipp.engine.ScrubFrames.prefetch(media, sec, lo, hi) }
                 else Frames.loadTimed(ctx, uri, sec, exact = false, lo = lo, hi = hi)?.let { frames[c.id] = it }
                 kotlinx.coroutines.delay(120)
             }
+            if (deep) Frames.cachedDeep(uri, sec)?.let { frames[c.id] = sec to it; return@LaunchedEffect }
             Frames.loadTimed(ctx, uri, sec, exact = true)?.let { frames[c.id] = it }
+            // then the same frame through the video chain (takes a few hundred ms; the ordinary still is shown meanwhile)
+            if (deep) Frames.loadDeep(ctx, uri, sec)?.let { frames[c.id] = it }
         }
     }
     // the clip's grade (color page) and the timeline look: on the GPU (AGSL, milliseconds), otherwise on the
@@ -374,6 +405,25 @@ fun LivePreview(
                 se.gendut.klipp.engine.OverlayRenderer.drawCaption(cv, step?.text ?: cap.text, st, w, h, step?.word ?: -1)
             }
             cv.restore()
+        }
+    }
+}
+
+/** Fetches the video-chain stills ([Frames.loadDeep]) of the clips under a resting playhead (the color page). */
+@Composable
+private fun DeepPrefetch(controller: ProjectController, state: EditorState) {
+    val q = controller.snapshot.playable().sequence ?: return
+    val ctx = LocalContext.current
+    val t = state.playhead.toDouble()
+    for (tr in q.video.take(3).filter { it.enabled }) {
+        val c = tr.clips.firstOrNull { it.text == null && t >= it.start - 5e-4 && t < it.end - 5e-4 } ?: continue
+        val media = controller.uriOf(c.item) ?: continue
+        val uri = se.gendut.klipp.engine.Proxies.videoUri(media)
+        val sec = c.sourceAt(c.start + (t - c.start).coerceIn(0.0, (c.duration - 0.04).coerceAtLeast(0.0)))
+        LaunchedEffect(c.id, uri, (sec * 25).roundToInt()) {
+            // only once the playhead has rested a moment (not for every frame stepped past)
+            kotlinx.coroutines.delay(400)
+            Frames.loadDeep(ctx, uri, sec)
         }
     }
 }
