@@ -249,12 +249,13 @@ object GpuGrade {
             }
         }
 
+        /** The curves as a 256×3 bitmap: a row per channel, 16 bits in red (high) and green (low) – as in GradeNodeEffect's GL texture. */
         private fun makeCurves(c: Array<FloatArray>?): Bitmap {
-            val px = IntArray(256) { i ->
-                fun ch(k: Int) = ((c?.get(k)?.get(i) ?: (i / 255f)) * 255f + 0.5f).toInt().coerceIn(0, 255)
-                (0xFF shl 24) or (ch(0) shl 16) or (ch(1) shl 8) or ch(2)
+            val px = IntArray(256 * 3) { k ->
+                val v = GradeNode.curve16(c, k / 256, k % 256)
+                (0xFF shl 24) or ((v shr 8) shl 16) or ((v and 255) shl 8)
             }
-            return Bitmap.createBitmap(px, 256, 1, Bitmap.Config.ARGB_8888)
+            return Bitmap.createBitmap(px, 256, 3, Bitmap.Config.ARGB_8888)
         }
 
         private val identityLut by lazy { CubeLut.identity(2) }
@@ -292,7 +293,7 @@ object GpuGrade {
             s.setFloatUniform("uUseCurves", if (p.curves != null) 1f else 0f)
             s.setFloatUniform("uUseHsl", if (p.hsl != null) 1f else 0f)
             s.setInputShader("hsl", shaderOf(hslBitmap(p.hsl), false))
-            s.setInputShader("curves", shaderOf(curvesBitmap(p.curves), true))
+            s.setInputShader("curves", shaderOf(curvesBitmap(p.curves), false))
             setLut(s, p.lut, p.lutMix)
             val q = p.qual
             s.setFloatUniform("uUseQual", if (q != null) 1f else 0f)
@@ -576,6 +577,17 @@ float hslAt(float row, float x) {
   return mix(hslTexel(i, row), hslTexel(i + 1.0, row), p - i);
 }
 
+// a channel's curve (log wheels and curves; a row: 16 bits as high, low byte) at x 0..1, linearly interpolated (as in GradeShaders)
+float curveTexel(float i, float row) {
+  float2 t = floor(float2(curves.eval(float2(i + 0.5, row + 0.5)).rg) * 255.0 + 0.5);
+  return (t.r * 256.0 + t.g) / 65535.0;
+}
+float curveAt(float row, float x) {
+  float p = clamp(x, 0.0, 1.0) * 255.0;
+  float i = min(floor(p), 254.0);
+  return mix(curveTexel(i, row), curveTexel(i + 1.0, row), p - i);
+}
+
 float3 hslCurves(float3 c) {
   float y = dot(c, float3(0.2126, 0.7152, 0.0722));
   float3 dm = c - float3((c.r + c.g + c.b) / 3.0);
@@ -628,7 +640,7 @@ half4 main(float2 pos) {
     if (m > 1e-6 && e > 0.0) c = c * pow(c / m, float3(e));
   }
   if (uUseCurves > 0.5) {
-    c = float3(curves.eval(float2(c.r * 255.0 + 0.5, 0.5)).r, curves.eval(float2(c.g * 255.0 + 0.5, 0.5)).g, curves.eval(float2(c.b * 255.0 + 0.5, 0.5)).b);
+    c = float3(curveAt(0.0, c.r), curveAt(1.0, c.g), curveAt(2.0, c.b));
   }
   if (uUseHsl > 0.5) c = hslCurves(c);
   if (uUseLut > 0.5) {

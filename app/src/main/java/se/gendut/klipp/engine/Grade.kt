@@ -660,6 +660,10 @@ data class GradeNode(
             return bt to bu
         }
 
+        /** A channel's curve table ([Params.curves]) value as 16 bits for the GPU's texture (no table: the identity). */
+        fun curve16(c: Array<FloatArray>?, ch: Int, i: Int): Int =
+            ((c?.get(ch)?.get(i) ?: (i / 255f)).coerceIn(0f, 1f) * 65535f + 0.5f).toInt()
+
         fun sample(t: FloatArray, x: Float): Float {
             val p = x.coerceIn(0f, 1f) * 255f
             val i = p.toInt().coerceAtMost(254)
@@ -1366,6 +1370,17 @@ vec3 colorIn(vec4 src) {
   return cin;
 }
 
+// a channel's curve (log wheels and curves; a row of the table: 16 bits as high, low byte) at x 0..1, linearly interpolated
+float curveTexel(float i, float row) {
+  vec2 t = floor(texture2D(uCurves, vec2((i + 0.5) / 256.0, (row + 0.5) / 3.0)).rg * 255.0 + 0.5);
+  return (t.r * 256.0 + t.g) / 65535.0;
+}
+float curveAt(float row, float x) {
+  float p = clamp(x, 0.0, 1.0) * 255.0;
+  float i = min(floor(p), 254.0);
+  return mix(curveTexel(i, row), curveTexel(i + 1.0, row), p - i);
+}
+
 // an HSL curve (a row of the table: 16 bits as high, low byte) at x 0..1, linearly interpolated
 float hslTexel(float i, float row) {
   vec2 t = floor(texture2D(uHsl, vec2((i + 0.5) / 512.0, (row + 0.5) / 6.0)).rg * 255.0 + 0.5);
@@ -1426,8 +1441,7 @@ void main() {
     if (m > 1e-6 && e > 0.0) c = c * pow(c / m, vec3(e));
   }
   if (uUseCurves > 0.5) {
-    vec3 u = c * (255.0 / 256.0) + vec3(0.5 / 256.0);
-    c = vec3(texture2D(uCurves, vec2(u.r, 0.5)).r, texture2D(uCurves, vec2(u.g, 0.5)).g, texture2D(uCurves, vec2(u.b, 0.5)).b);
+    c = vec3(curveAt(0.0, c.r), curveAt(1.0, c.g), curveAt(2.0, c.b));
   }
   if (uUseHsl > 0.5) c = hslCurves(c);
   if (uUseLut > 0.5) {
@@ -1522,12 +1536,13 @@ class GradeNodeEffect(
                 GLES20.glGenTextures(1, ids, 0)
                 curveTex = ids[0]
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, curveTex)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_LINEAR)
-                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_LINEAR)
+                // exact texels: the shader interpolates the 16-bit values itself
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MIN_FILTER, GLES20.GL_NEAREST)
+                GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_MAG_FILTER, GLES20.GL_NEAREST)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_S, GLES20.GL_CLAMP_TO_EDGE)
                 GLES20.glTexParameteri(GLES20.GL_TEXTURE_2D, GLES20.GL_TEXTURE_WRAP_T, GLES20.GL_CLAMP_TO_EDGE)
                 GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
-                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 256, 1, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, curveBytes(p.curves))
+                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 256, 3, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, curveBytes(p.curves))
                 GLES20.glGenTextures(1, ids2, 0)
                 lutTex = ids2[0]
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, lutTex)
@@ -1629,7 +1644,7 @@ class GradeNodeEffect(
             if (cur.curves !== curvesUp && !(cur.curves contentDeepEquals curvesUp)) {
                 GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, curveTex)
                 GLES20.glPixelStorei(GLES20.GL_UNPACK_ALIGNMENT, 1)
-                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 256, 1, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, curveBytes(cur.curves))
+                GLES20.glTexImage2D(GLES20.GL_TEXTURE_2D, 0, GLES20.GL_RGBA, 256, 3, 0, GLES20.GL_RGBA, GLES20.GL_UNSIGNED_BYTE, curveBytes(cur.curves))
             }
             curvesUp = cur.curves
             if (cur.hsl !== hslUp && !(cur.hsl contentDeepEquals hslUp)) {
@@ -1660,12 +1675,15 @@ class GradeNodeEffect(
     companion object {
         fun transpose3(m: FloatArray) = floatArrayOf(m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8])
 
-        /** The curves as a 256×1 RGBA texture (r, g, b = the channels' composite curves). */
+        /**
+         * The channels' composite curves (log wheels and curves) as a 256×3 RGBA texture: a row per channel, 16 bits in
+         * red (high) and green (low) – 8 bits turned into steps once a later node (film, OpenDRT) spreads the tones.
+         */
         fun curveBytes(c: Array<FloatArray>?): ByteBuffer {
-            val b = ByteBuffer.allocateDirect(256 * 4).order(ByteOrder.nativeOrder())
-            for (i in 0 until 256) {
-                for (ch in 0..2) b.put(((c?.get(ch)?.get(i) ?: (i / 255f)) * 255f + 0.5f).toInt().coerceIn(0, 255).toByte())
-                b.put(255.toByte())
+            val b = ByteBuffer.allocateDirect(256 * 3 * 4).order(ByteOrder.nativeOrder())
+            for (ch in 0..2) for (i in 0 until 256) {
+                val v = GradeNode.curve16(c, ch, i)
+                b.put((v shr 8).toByte()); b.put((v and 255).toByte()); b.put(0); b.put(255.toByte())
             }
             b.flip()
             return b
