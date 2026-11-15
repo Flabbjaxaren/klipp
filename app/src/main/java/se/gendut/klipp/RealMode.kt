@@ -162,6 +162,15 @@ fun durText(sec: Double): String {
 // ------------------------------------------------------------------ program monitor
 
 /**
+ * The app's visits to the foreground. Back from the background the program picture can be empty while the player stands
+ * still: on the color page the picture is a texture view, and Android frees its image when the app is stopped – the
+ * player has nothing new to draw, so the monitor stayed black until the playhead moved.
+ */
+object AppLife {
+    var starts by androidx.compose.runtime.mutableIntStateOf(0)
+}
+
+/**
  * A resized monitor (the handle, rotation) shows the paused frame drawn at the old size and shifted until the player
  * renders again: once the size has settled, the frame is drawn anew.
  */
@@ -861,6 +870,15 @@ fun ProgramStack(
     val effect = if (wholeLook && android.os.Build.VERSION.SDK_INT >= 33)
         remember(playback.look) { se.gendut.klipp.engine.GpuGrade.lookRenderEffect(playback.look).asComposeRenderEffect() } else null
     Box(Modifier.fillMaxSize().graphicsLayer { renderEffect = effect }.testTag(if (wholeLook) "wholeLook" else "programStack")) {
+        // back from the background: the standing picture is drawn anew (see AppLife)
+        val starts = AppLife.starts
+        LaunchedEffect(starts) {
+            if (starts <= 1) return@LaunchedEffect
+            kotlinx.coroutines.delay(250)
+            if (!state.playing) playback.redraw()
+            kotlinx.coroutines.delay(600)
+            if (!state.playing && !playback.frameShown) playback.reload(state.playhead.toDouble())
+        }
         ProgramSurface(playback.player, texture, Modifier.fillMaxSize().redrawOnResize(playback, state))
         between()
         // V2/V3, cross dissolves (and titles and captions, unless the look is drawn over the picture: see UpperLayers)

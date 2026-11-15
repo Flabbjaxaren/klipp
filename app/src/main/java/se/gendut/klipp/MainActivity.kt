@@ -32,6 +32,12 @@ class MainActivity : ComponentActivity() {
         cutDiagnostics(intent)
     }
 
+    override fun onStart() {
+        super.onStart()
+        // (the program picture is drawn anew: back from the background its surface can be empty, see AppLife)
+        AppLife.starts++
+    }
+
     override fun onStop() {
         super.onStop()
         // save changes now – the process may be killed in the background before a delayed save has run
