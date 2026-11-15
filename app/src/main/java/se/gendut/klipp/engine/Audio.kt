@@ -326,11 +326,25 @@ class MeterSink(sink: androidx.media3.exoplayer.audio.AudioSink) : androidx.medi
         }
     }
 
+    /** The clock the picture follows: the audio position with its corrections taken up gradually (see [ClockSmoother]). */
+    private val clock = ClockSmoother().also { c -> c.onStep = { CutTrace.log("sink", "step ${it} µs") } }
+    @Volatile private var playAtNs = 0L
+    private var startNoted = true
+
     override fun getCurrentPositionUs(sourceEnded: Boolean): Long {
-        val p = super.getCurrentPositionUs(sourceEnded)
-        if (p != androidx.media3.exoplayer.audio.AudioSink.CURRENT_POSITION_NOT_SET) Meters.position(p)
+        val raw = super.getCurrentPositionUs(sourceEnded)
+        if (raw == androidx.media3.exoplayer.audio.AudioSink.CURRENT_POSITION_NOT_SET) { clock.reset(); return raw }
+        val now = System.nanoTime()
+        val p = clock.next(raw, now, playbackParameters.speed)
+        // diagnostics: how long after play the audio position starts to run (the picture waits for it)
+        if (!startNoted && CutTrace.on) {
+            if (firstRaw == Long.MIN_VALUE) firstRaw = raw
+            else if (raw > firstRaw) { startNoted = true; CutTrace.log("sink", "position runs ${(now - playAtNs) / 1_000_000} ms after play") }
+        }
+        Meters.position(p)
         return p
     }
+    private var firstRaw = Long.MIN_VALUE
 
     override fun setVolume(volume: Float) {
         this.volume = volume
@@ -338,24 +352,29 @@ class MeterSink(sink: androidx.media3.exoplayer.audio.AudioSink) : androidx.medi
     }
 
     override fun play() {
+        clock.reset()
+        playAtNs = System.nanoTime(); firstRaw = Long.MIN_VALUE; startNoted = false
         super.play()
         Meters.playing(true)
     }
 
     override fun pause() {
         Meters.playing(false)
+        clock.reset()
         super.pause()
     }
 
     override fun flush() {
         Meters.playing(false)
         Meters.clear()
+        clock.reset()
         super.flush()
     }
 
     override fun reset() {
         Meters.playing(false)
         Meters.clear()
+        clock.reset()
         super.reset()
     }
 }
