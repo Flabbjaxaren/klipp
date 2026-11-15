@@ -43,7 +43,11 @@ class FrameGrid(fps: Double) {
          * or after the item's last decoded frame (see [nearEnd]) – compared in the composition's time base (µs), the
          * effects' output against the decoded buffer's time. So such a frame is never earlier than its own time, never on
          * or after the next item's start [endUs] (that slot is the next item's first frame), and after the frame before
-         * ([lastOut]). Within that, on the grid: its own slot when that isn't earlier than itself, otherwise the next one.
+         * ([lastOut]). Within that, on the grid: its own slot when that isn't earlier than itself. A frame lying just after
+         * its slot (it belongs to the slot nearest it, [slotOf] – a clip's frames lie on the slots, the read-ahead and a
+         * camera's jitter after them) is shown at its own time, which is that slot on screen: moved to the next slot, the
+         * clip's last frame fell on the next clip's first slot – the frame before it stood for two slots before every
+         * unrendered cut and the last one was never seen. Further from its slot than the rule allows: the next slot.
          * When no slot is left before the next item (the last decoded frame lies after the last slot but before the next
          * item's start), it is an end-of-item frame only: 2 µs before the next item's start (a second one 1 µs), where the
          * next item's first frame replaces it at once. Before, these frames were shown at their own times – off the grid next to the next
@@ -55,7 +59,8 @@ class FrameGrid(fps: Double) {
             val after = if (lastOut == Long.MIN_VALUE) Long.MIN_VALUE else lastOut + 1
             // (the slots are the timeline's: times here are [originUs] earlier)
             fun ceilSlot(t: Long) = Math.round(Math.ceil((t + originUs - 0.5) / stepUs) * stepUs) - originUs
-            var g = if (out != null && out >= tUs) out else ceilSlot(tUs)
+            val own = Math.round(stepUs / 2) + LEAD_US
+            var g = if (out != null && out >= tUs) out else if (out != null && tUs - out <= own) tUs else ceilSlot(tUs)
             if (g < after) g = ceilSlot(after)
             // (no slot left: 2 µs before the next item, a second such frame 1 µs – a frame belongs to the first slot at or
             // after it, so both of an item's last two frames can find the next item's slot; times must keep rising)

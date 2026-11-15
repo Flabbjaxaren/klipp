@@ -277,6 +277,13 @@ class FrameGridTest {
         assertEquals(end - 1, FrameGrid.lastFrameAt(6_231_000L, null, end, b, step60))
         // never before its own time, never at the next item's start (Media3: a frame at or after the last decoded one)
         assertTrue(b >= 6_230_000L && b < end)
+        // a clip whose frames lie on the slots (read 1 ms early, a little jitter): the last frame at 9.4412 s belongs to
+        // the slot at 9.44 s and is shown at its own time – in that slot, not on the next clip's first one at 9.48 s
+        assertEquals(9_441_200L, FrameGrid.lastFrameAt(9_441_200L, 9_440_000L, 9_480_000L, 9_400_000L, 40_000.0))
+        val clip = (0 until 12).map { 9_000_000L + it * 40_000L + 1_000L + (it % 3) * 400L }
+        val shown = FrameRateEffect.Streams(25.0, longArrayOf(9_480_000L, 12_000_000L)).let { r -> clip.mapNotNull { r.next(it) } }
+        assertEquals(12, shown.size)
+        shown.forEachIndexed { i, t -> assertTrue("frame $i at $t", t - (9_000_000L + i * 40_000L) in 0L..2_000L) }
         // the main player's rule over such an item: rising, every output on the grid but the last, which ends the item
         val src = (0 until 60).map { Math.round(4_233_333L + it * 1e6 / (119.94 * 0.25)) }.filter { it < end }
         val rule = FrameRateEffect.Streams(60.0, longArrayOf(end, 9_000_000L))
