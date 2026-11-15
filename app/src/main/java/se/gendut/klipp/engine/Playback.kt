@@ -919,7 +919,7 @@ class ProgramPlayback(private val context: Context) {
             // short buffer: fast start after seek and rebuild (see Perf)
             .setLoadControl(Perf.editingLoadControl())
             // the mix is measured where it is played (the level meters follow the sound, see Meters)
-            .setAudioSink(MeterSink(androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context).build()))
+            .setAudioSink(MeterSink(androidx.media3.exoplayer.audio.DefaultAudioSink.Builder(context).setAudioTrackProvider(ProgramTracks).build()))
             // the program view: 10-bit surface (RGBA_1010102) when the setting is on; the chain computes in floating point (VideoPipeline)
             .setGlObjectsProvider(TenBitGlObjectsProvider(VideoPipeline.displayTenBit))
             .build().also { it.addListener(listener); it.volume = if (recordingMute) 0f else liveGain; it.setVideoFrameMetadataListener(MainFrames.released) }

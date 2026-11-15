@@ -526,3 +526,33 @@ class FxProcessor(private val fx: Long, private val native: FxNative = EngineFx)
         skip = latency
     }
 }
+
+/**
+ * The program's audio track, asked for Android's low-latency output path ([lowLatency]): the picture waits for the audio
+ * position to start after play (the sound is the clock), and that takes the output path's latency. Left to itself a
+ * media track with Media3's half-second buffer goes to the power-saving deep-buffer output; asked for low latency it
+ * plays on the primary one even when the fast path itself is refused (the mix's rate isn't the output's). On the vivo
+ * the position starts 61–76 ms after play instead of 97–125 ms (two rounds of four starts each).
+ */
+@OptIn(UnstableApi::class)
+object ProgramTracks : androidx.media3.exoplayer.audio.DefaultAudioSink.AudioTrackProvider {
+    @Volatile var lowLatency = true
+
+    override fun getAudioTrack(
+        config: androidx.media3.exoplayer.audio.AudioSink.AudioTrackConfig, attributes: androidx.media3.common.AudioAttributes,
+        audioSessionId: Int, context: android.content.Context?,
+    ): android.media.AudioTrack {
+        val default = androidx.media3.exoplayer.audio.DefaultAudioSink.AudioTrackProvider.DEFAULT
+        if (!lowLatency || config.offload || config.tunneling) return default.getAudioTrack(config, attributes, audioSessionId, context)
+        return runCatching {
+            android.media.AudioTrack.Builder()
+                .setAudioAttributes(attributes.audioAttributesV21.audioAttributes)
+                .setAudioFormat(android.media.AudioFormat.Builder().setSampleRate(config.sampleRate).setChannelMask(config.channelConfig).setEncoding(config.encoding).build())
+                .setTransferMode(android.media.AudioTrack.MODE_STREAM)
+                .setBufferSizeInBytes(config.bufferSize)
+                .setSessionId(audioSessionId)
+                .setPerformanceMode(android.media.AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+                .build().also { CutTrace.log("sink", "low-latency track: mode ${it.performanceMode}, buffer ${it.bufferSizeInFrames} frames, ${config.sampleRate} Hz") }
+        }.getOrElse { default.getAudioTrack(config, attributes, audioSessionId, context) }
+    }
+}
