@@ -62,6 +62,68 @@ object GpuGrade {
     }
 
     /**
+     * Diagnostics (the agent bridge): [grade] on a test image (gray ramp and color patches) through the GPU path and the
+     * CPU, the whole chain and each node alone – the 5×5 sample points' mean and whether the result is black.
+     * [reset] turns a GPU path that was switched off back on first.
+     */
+    fun probe(grade: ClipGrade?, look: Look, reset: Boolean): String = buildString {
+        if (reset) { broken = false; lastError = null }
+        append("gpu grade: ").append(if (supported && !broken) "on" else "off").append(lastError?.let { " ($it)" } ?: "").append('\n')
+        if (Build.VERSION.SDK_INT < 33 || !supported) return@buildString
+        val src = Bitmap.createBitmap(320, 180, Bitmap.Config.ARGB_8888).apply {
+            val px = IntArray(320 * 180)
+            for (y in 0 until 180) for (x in 0 until 320) {
+                val v = x * 255 / 319
+                px[y * 320 + x] = when (y / 45) {
+                    0 -> (0xFF shl 24) or (v shl 16) or (v shl 8) or v
+                    1 -> (0xFF shl 24) or (v shl 16) or ((v / 2) shl 8) or (v / 4)
+                    2 -> (0xFF shl 24) or ((v / 4) shl 16) or (v shl 8) or (v / 2)
+                    else -> (0xFF shl 24) or ((v / 3) shl 16) or ((v / 2) shl 8) or v
+                }
+            }
+            setPixels(px, 0, 320, 0, 0, 320, 180)
+        }
+        fun mean(b: Bitmap?): String = if (b == null) "null" else {
+            val sw = if (b.config == Bitmap.Config.HARDWARE) b.copy(Bitmap.Config.ARGB_8888, false) else b
+            var r = 0; var g = 0; var bl = 0
+            for (j in 0 until 5) for (i in 0 until 5) {
+                val p = sw.getPixel(((i + 0.5f) / 5 * sw.width).toInt(), ((j + 0.5f) / 5 * sw.height).toInt())
+                r += (p shr 16) and 255; g += (p shr 8) and 255; bl += p and 255
+            }
+            "rgb ${r / 25} ${g / 25} ${bl / 25}" + if (looksBlack(sw)) " BLACK" else ""
+        }
+        fun run(name: String, g: ClipGrade?, lk: Look) {
+            val gpu = runCatching { Impl.apply(src, g, lk, null) }
+            val cpu = runCatching { var s = src; if (g != null) s = g.applyTo(s); lk.applyTo(s) }
+            append(name).append(": gpu ").append(gpu.fold({ mean(it) }, { "error ${it.javaClass.simpleName}: ${it.message}" }))
+                .append(" · cpu ").append(cpu.fold({ mean(it) }, { "error ${it.message}" })).append('\n')
+        }
+        // the tables as the shader reads them: the bytes back from the GPU against the bitmap's own
+        fun bytes(name: String, b: Bitmap) {
+            val back = runCatching { Impl.passThrough(b) }.getOrElse { append(name).append(": error ").append(it.message).append('\n'); return }
+            if (back == null) { append(name).append(": no image\n"); return }
+            var worst = 0; var at = ""
+            for (y in 0 until b.height) for (x in 0 until b.width) {
+                val p = b.getPixel(x, y); val q = back.getPixel(x, y)
+                for (sh in intArrayOf(16, 8, 0)) {
+                    val d = kotlin.math.abs(((p shr sh) and 255) - ((q shr sh) and 255))
+                    if (d > worst) { worst = d; at = "x $x y $y: %06x → %06x".format(p and 0xFFFFFF, q and 0xFFFFFF) }
+                }
+            }
+            append(name).append(": largest byte change ").append(worst).append(if (worst > 0) " ($at)" else "").append('\n')
+        }
+        bytes("test image read back", src)
+        grade?.nodes?.firstOrNull { !it.isNeutral }?.params()?.curves?.let { bytes("curve table read back", Impl.curvesFor(it)) }
+        bytes("identity curve table read back", Impl.curvesFor(null))
+        run("source", null, Look.NONE)
+        run("whole chain", grade, look)
+        grade?.nodes?.forEachIndexed { i, n ->
+            run("node ${i + 1} ${n.label}${if (n.isNeutral) " (neutral)" else ""}${if (n.film != null) " film" else ""}${if (n.lut != null) " lut" else ""}${if (n.drt != null) " drt" else ""}", grade.copy(nodes = listOf(n), stab = null, layer = null, mblur = null), Look.NONE)
+        }
+        if (grade != null) append("grade: ").append(grade.toJson().toString()).append('\n')
+    }
+
+    /**
      * Does the image turn black on the CPU too (a grade that intentionally makes it black, e.g. gain at the bottom)?
      * Then the GPU's black image is correct – otherwise the fast path was disabled for the rest of the session.
      * Checked on a tiny image.
@@ -239,6 +301,37 @@ object GpuGrade {
             hslFor = t; hslBmp = bmp
             return bmp
         }
+
+        /** Diagnostics: [b] read texel by texel through an AGSL shader (as the node reads its tables) and back from the GPU. */
+        @Synchronized
+        fun passThrough(b: Bitmap): Bitmap? {
+            val s = RuntimeShader("uniform shader t; half4 main(float2 p) { return t.eval(floor(p) + 0.5); }")
+            s.setInputShader("t", shaderOf(b, false))
+            val w = b.width; val h = b.height
+            val tg = targetFor(w, h)
+            val node = renderNode
+            node.setPosition(0, 0, w, h)
+            node.setRenderEffect(null)
+            val c = node.beginRecording()
+            c.drawRect(0f, 0f, w.toFloat(), h.toFloat(), Paint().apply { shader = s })
+            node.endRecording()
+            tg.renderer.setContentRoot(node)
+            tg.renderer.createRenderRequest().setWaitForPresent(true).syncAndDraw()
+            node.discardDisplayList()
+            val img = tg.reader.acquireLatestImage() ?: return null
+            try {
+                val pl = img.planes[0]
+                val out = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                val row = java.nio.ByteBuffer.allocateDirect(w * 4 * h)
+                val line = ByteArray(w * 4)
+                for (y in 0 until h) { pl.buffer.position(y * pl.rowStride); pl.buffer.get(line, 0, w * 4); row.put(line) }
+                row.rewind()
+                out.copyPixelsFromBuffer(row)
+                return out
+            } finally { img.close() }
+        }
+
+        fun curvesFor(c: Array<FloatArray>?): Bitmap = makeCurves(c)
 
         private fun curvesBitmap(c: Array<FloatArray>?): Bitmap {
             val k = c?.contentDeepHashCode() ?: 0

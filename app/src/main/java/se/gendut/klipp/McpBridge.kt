@@ -336,7 +336,15 @@ object McpBridge {
                 else -> error("op is chunks, copy or render")
             }
         },
-        Tool("cut_trace", "Edit point diagnostics (CutTrace): configure it (trace, mode 0–3, stab), or read and clear its lines.",
+        Tool("gpu_grade", "The preview's GPU grading (GpuGrade): a clip's grade on a test image through the GPU and the CPU, the whole " +
+                "chain and each node alone, plus the grade as JSON. reset=true turns a GPU path that switched itself off back on.",
+            JSONObject().put("clip", prop("number", "clip id (default: the selection)")).put("reset", prop("boolean", ""))
+                .put("grade", prop("object", "a grade as JSON to test instead of the clip's"))) { a ->
+            val id = if (a.has("clip")) a.getLong("clip") else st().selected
+            val g = a.optJSONObject("grade")?.let { se.gendut.klipp.engine.ClipGrade.fromJson(it) } ?: id?.let { gradesOf?.invoke()?.get(it) }
+            texts("clip $id\n" + se.gendut.klipp.engine.GpuGrade.probe(g, se.gendut.klipp.engine.Look.NONE, a.optBoolean("reset")))
+        },
+        Tool("cut_trace","Edit point diagnostics (CutTrace): configure it (trace, mode 0–3, stab), or read and clear its lines.",
             JSONObject().put("trace", prop("boolean", "turn the trace on/off")).put("mode", prop("number", "0 normal, 1 no edit point layer, 2 layer without takeover, 3 layer marked red"))
                 .put("read", prop("boolean", "return the lines collected since the last read and clear them"))
                 .put("stab", prop("boolean", "diagnostics: stabilized clips get the edit point layer too"))) { a ->
