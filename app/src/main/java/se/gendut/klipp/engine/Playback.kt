@@ -1138,8 +1138,15 @@ class ProgramPlayback(private val context: Context) {
     }
 
     private fun plainSeek(sec: Double) {
+        // a paused pick leaves the frame rate effect holding its input until the next seek's flush (see PausedPick)
+        val held = pick.active
         pick.clear(); pausedSec = null; picking = false; main.removeCallbacks(pickTimeout)
-        player.seekTo(seekMs(sec))
+        val ms = seekMs(sec)
+        // a seek to where the player already stands is ignored – no flush: after a pick at that very position (the
+        // timeline's start: go to start, play) the effect waited for ever, the sound and the clock ran with the picture
+        // standing, and at the next item the player crept along. Sought a millisecond away first, the flush comes
+        if (held && ms == player.currentPosition) player.seekTo(ms + 1)
+        player.seekTo(ms)
     }
 
     // --- the paused player's frame (see PausedPick): the playhead stays, the decoder is sought before it ---
