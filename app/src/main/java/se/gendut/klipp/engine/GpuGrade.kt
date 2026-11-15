@@ -37,9 +37,12 @@ object GpuGrade {
      */
     /**
      * [filmColorOnly]: a node's film as its colors only (spektrafilm's chain baked into a LUT, as playback's fallback)
-     * – for scrubbing, where the CPU's full film (grain, halation, diffusion) can't keep up with the frames.
+     * when the whole film on the GPU ([GlStill]) isn't available – the CPU's full film can't keep up with the frames.
      */
     fun apply(src: Bitmap, grade: ClipGrade?, look: Look, keyOf: Int? = null, filmColorOnly: Boolean = false): Bitmap? {
+        // a film node: the whole chain through playback's own GPU programs, so the still is the played picture (the
+        // film's couplers, halation and sharpening work across neighbouring pixels – a LUT was a few code values off)
+        if (keyOf == null && grade != null && GlStill.wants(grade)) GlStill.apply(src, grade, look)?.let { return it }
         if (android.os.Build.VERSION.SDK_INT < 33 || !supported || broken) return null
         // the full film (grain, halation, diffusion) only exists on the CPU and in playback's GL path
         if (!filmColorOnly && grade?.chain?.any { !it.isNeutral && it.film != null } == true) return null
@@ -117,6 +120,9 @@ object GpuGrade {
         bytes("identity curve table read back", Impl.curvesFor(null))
         run("source", null, Look.NONE)
         run("whole chain", grade, look)
+        // a film node: the whole chain through playback's GPU programs (GlStill), what the color page's still shows
+        if (grade != null && GlStill.wants(grade)) append("whole chain, playback's programs: ").append(mean(GlStill.apply(src, grade, look)))
+            .append(GlStill.broken?.let { " (off: $it)" } ?: "").append('\n')
         grade?.nodes?.forEachIndexed { i, n ->
             run("node ${i + 1} ${n.label}${if (n.isNeutral) " (neutral)" else ""}${if (n.film != null) " film" else ""}${if (n.lut != null) " lut" else ""}${if (n.drt != null) " drt" else ""}", grade.copy(nodes = listOf(n), stab = null, layer = null, mblur = null), Look.NONE)
         }
