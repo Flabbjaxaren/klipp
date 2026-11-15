@@ -619,12 +619,8 @@ class ProjectController(
         if (!force && snap == snapshot && revision > 0) return
         // new clips from a new edit (not undo/redo): the engine can reuse ids after an undo – a
         // leftover grade on such an id must not follow the new clip (the split's inheritance is set afterwards)
-        val prev = snapshot
-        if (revision > 0 && snap.editSerial != prev.editSerial) {
-            val before = prev.sequence?.let { q -> q.video + q.audio }?.flatMap { it.clips }?.mapTo(HashSet()) { it.id }.orEmpty()
-            val fresh = snap.sequence?.let { q -> q.video + q.audio }?.flatMap { it.clips }?.map { it.id }?.filter { it !in before }.orEmpty()
-            if (fresh.isNotEmpty()) onNewClips(fresh)
-        }
+        val fresh = newClips(snapshot, snap, edited = revision > 0, restoring = restoring)
+        if (fresh.isNotEmpty()) onNewClips(fresh)
         snapshot = snap
         se.gendut.klipp.projectFps = snap.fps.takeIf { it.isFinite() && it >= 1.0 } ?: 25.0
         // (no sequence yet, e.g. a new project: not the previous project's line)
@@ -2254,4 +2250,15 @@ object FdPath {
             ?: mime?.let { android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }?.takeIf { e -> e.length in 1..5 && e.all { it.isLetterOrDigit() && it.code < 128 } }
         return if (ext != null) "/proc/self/fd/$fd.${ext.lowercase()}" else "/proc/self/fd/$fd"
     }
+}
+
+/**
+ * The clips of [snap] that a new edit created: not in [prev], and only after an edit in the same project ([edited]: the
+ * timeline was read before; [restoring]: a project is being opened – its clips are not new, and their grades must stay:
+ * comparing them with the previous project's clips reset the grades of every clip whose id that project didn't have).
+ */
+internal fun newClips(prev: Snapshot, snap: Snapshot, edited: Boolean, restoring: Boolean): List<Long> {
+    if (!edited || restoring || snap.editSerial == prev.editSerial) return emptyList()
+    val before = prev.sequence?.let { q -> q.video + q.audio }?.flatMap { it.clips }?.mapTo(HashSet()) { it.id }.orEmpty()
+    return snap.sequence?.let { q -> q.video + q.audio }?.flatMap { it.clips }?.map { it.id }?.filter { it !in before }.orEmpty()
 }
