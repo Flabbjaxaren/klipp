@@ -331,13 +331,48 @@ object RenderCache {
     }
 
     /** Runs of chunks that sit edge to edge (in time order). */
+    /**
+     * Ready chunks edge to edge, as runs that can be joined into one file: a run also ends where the next chunk's file
+     * is encoded differently ([formatOf]) – a joined file has one format (the first piece's), and a piece encoded
+     * otherwise was decoded with it (the vivo's encoder made the timeline's last chunk limited range and the others
+     * full range: in the joined file that chunk's blacks were lifted and its whites lowered, only once it was rendered).
+     */
     private fun runs(chunks: List<Chunk>): List<List<Chunk>> {
         val out = ArrayList<MutableList<Chunk>>()
         for (c in chunks.sortedBy { it.a }) {
             val last = out.lastOrNull()
-            if (last != null && kotlin.math.abs(last.last().b - c.a) < 1e-6) last += c else out += mutableListOf(c)
+            if (last != null && kotlin.math.abs(last.last().b - c.a) < 1e-6 && formatOf(last.last().hash) == formatOf(c.hash)) last += c
+            else out += mutableListOf(c)
         }
         return out
+    }
+
+    /** A chunk file's encoding (by its hash – a file never changes): what must be equal for its frames to join another's. */
+    private val formats = ConcurrentHashMap<String, String>()
+
+    private fun formatOf(hash: String): String {
+        formats[hash]?.let { return it }
+        val f = fileOf(hash)?.takeIf { it.exists() && it.length() > 0 } ?: return ""
+        val k = runCatching { formatKey(f) }.getOrDefault("?" + hash)
+        formats[hash] = k
+        return k
+    }
+
+    /** The video track's codec, size, color description and parameter sets (SPS/PPS: profile, level, range, matrix). */
+    private fun formatKey(f: File): String {
+        val ex = android.media.MediaExtractor()
+        try {
+            ex.setDataSource(f.path)
+            val t = (0 until ex.trackCount).first { ex.getTrackFormat(it).getString(android.media.MediaFormat.KEY_MIME)?.startsWith("video/") == true }
+            val m = ex.getTrackFormat(t)
+            fun int(k: String) = if (m.containsKey(k)) m.getInteger(k) else -1
+            fun csd(k: String) = m.getByteBuffer(k)?.let { b -> val a = ByteArray(b.remaining()); b.duplicate().get(a); a.joinToString("") { "%02x".format(it) } }.orEmpty()
+            return listOf(m.getString(android.media.MediaFormat.KEY_MIME), int(android.media.MediaFormat.KEY_WIDTH), int(android.media.MediaFormat.KEY_HEIGHT),
+                int(android.media.MediaFormat.KEY_COLOR_RANGE), int(android.media.MediaFormat.KEY_COLOR_STANDARD), int(android.media.MediaFormat.KEY_COLOR_TRANSFER),
+                csd("csd-0"), csd("csd-1")).joinToString("|")
+        } finally {
+            ex.release()
+        }
     }
 
     private fun joinHash(run: List<Chunk>) = sha1("join|" + run.joinToString(",") { it.hash })
@@ -362,7 +397,6 @@ object RenderCache {
         }
     }
 
-    /** The files (each with its start time, s) one after another in one file – same codec and format. */
     /**
      * Where a chunk is rendered to: one frame past its end [Chunk.b] when the timeline goes on (cut away after, so the
      * file holds exactly [a, b)). Rendered only to b, the chunk's last item ended the whole render, and the frame the
@@ -466,6 +500,7 @@ object RenderCache {
         return if (c.b + 1.0 / f <= total + 1e-9) c.b + 1.0 / f else c.b
     }
 
+    /** The files (each with its start time, s) one after another in one file – same codec and format (see [runs]). */
     private fun concat(parts: List<Pair<File, Double>>, out: File, limitUs: Long = Long.MAX_VALUE) {
         var muxer: android.media.MediaMuxer? = null
         var track = -1
@@ -725,6 +760,7 @@ object RenderCache {
     fun clear() {
         dir?.listFiles()?.forEach { it.delete() }
         files.clear()
+        formats.clear()
         states = states.map { it.copy(ready = false) }
         renderAll = false
         cleared++
