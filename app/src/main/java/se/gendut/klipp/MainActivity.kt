@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         se.gendut.klipp.engine.Perf.init(applicationContext)
         se.gendut.klipp.engine.GlStill.init(applicationContext)
+        se.gendut.klipp.engine.FrameSnap.init(applicationContext)
         BuildConfigShim.version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
         CrashReport.install(applicationContext)
         // the first start in this process: an export marked as running was cut off with the old process (checked once

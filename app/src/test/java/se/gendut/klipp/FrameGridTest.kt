@@ -68,8 +68,8 @@ class FrameGridTest {
     }
 
     /**
-     * The reference, by brute force: slot k (T_k ≥ the segment's start, < its end) shows the first frame with
-     * T_k−1 + LEAD < τ ≤ T_k + LEAD; none there: the frame before (the segment's first slot: its first frame). The
+     * The reference, by brute force: slot k (T_k ≥ the segment's start, < its end) shows the first frame nearest it –
+     * T_k−1 + LEAD + half a slot < τ ≤ T_k + LEAD + half a slot; none there: the frame before (the segment's first slot: its first frame). The
      * rule's frames held from their presentation time on must show exactly that in every slot – none missing, none extra.
      */
     private fun assertSlotsHold(frames: List<Long>, segStart: Long, segEnd: Long, rate: Double, rule: (List<Long>) -> List<Pair<Long, Long?>>) {
@@ -80,7 +80,8 @@ class FrameGridTest {
         while (Math.round(k * st) < segEnd - FrameGrid.LEAD_US) {
             val t = Math.round(k * st)
             val prevT = Math.round((k - 1) * st)
-            val own = frames.firstOrNull { it > prevT + FrameGrid.LEAD_US && it <= t + FrameGrid.LEAD_US }
+            val tol = Math.round(st / 2)
+            val own = frames.firstOrNull { it > prevT + FrameGrid.LEAD_US + tol && it <= t + FrameGrid.LEAD_US + tol }
             val want = if (t < segStart - FrameGrid.LEAD_US + st && want0 == null) frames.first() else own ?: want0
             val got = out.lastOrNull { it.second <= t }?.first
             assertEquals("slot $t", want, got)

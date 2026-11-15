@@ -37,7 +37,7 @@ class LiveAfterChunkTest {
         return (0L..Math.round(out.last().first / st)).associateWith { k -> out.lastOrNull { it.first <= Math.round(k * st) + 1 }?.second ?: -1L }
     }
 
-    private fun case(fps: Double, pieceA: Double, pieceB: Double, start: Double, srcIn: Double, speed: Double, srcFps: Double) {
+    private fun case(fps: Double, pieceA: Double, pieceB: Double, start: Double, srcIn: Double, speed: Double, srcFps: Double, oldCutDiffers: Boolean = true) {
         val end = pieceB + 1.0
         // the export: the clip runs on through the piece's end (one item from its own start)
         val export = shown(listOf(frames(start, srcIn, speed, srcFps, start, end)), LongArray(0), fps, itemEnds = false)
@@ -68,12 +68,13 @@ class LiveAfterChunkTest {
         // and cut at the piece's end, as before: the first slot showed another source frame
         val cutEdges = longArrayOf(Math.round(pieceB * 1e6), Math.round(end * 1e6))
         val old = shown(listOf(pieceFrames, frames(start, srcIn, speed, srcFps, pieceB, end)), cutEdges, fps, itemEnds = true)
-        assertNotEquals("the old cut differs at slot $kEnd", export[kEnd], old[kEnd])
+        if (oldCutDiffers) assertNotEquals("the old cut differs at slot $kEnd", export[kEnd], old[kEnd])
     }
 
     @Test fun quarterSpeed120After25pPush() = case(25.0, 3.68, 4.28, 4.0, 1.0, 0.25, 120.0)
 
     @Test fun quarterSpeed120After60pWhip() = case(60.0, 5.6833333, 6.3166667, 6.0, 1.0, 0.25, 120.0)
 
-    @Test fun thirtyFpsAfter25pPiece() = case(25.0, 1.0, 1.52, 0.0, 0.513, 1.0, 30.0)
+    // (here the frame nearest the piece's end slot is also the first one after it: cut at the piece's end the slot showed the same)
+    @Test fun thirtyFpsAfter25pPiece() = case(25.0, 1.0, 1.52, 0.0, 0.513, 1.0, 30.0, oldCutDiffers = false)
 }

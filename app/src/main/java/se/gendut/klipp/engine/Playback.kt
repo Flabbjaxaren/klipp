@@ -411,7 +411,9 @@ object CompositionBuilder {
      * Playback's plan before the pre-render substitution (as [buildFull] makes it): same lengths, layers without a playable
      * file removed. Used for the pre-render chunks ([RenderCache.chunks]) in the main player and in the app's upper layers.
      */
-    fun previewPlan(s: Snapshot, uriOf: (Long) -> Uri?, transitions: Boolean = true): LayerPlan? {
+    fun previewPlan(s0: Snapshot, uriOf: (Long) -> Uri?, transitions: Boolean = true): LayerPlan? {
+        // the clips' in points on their own frames in the files the preview reads (see FrameSnap)
+        val s = FrameSnap.snapshot(s0) { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
         val durs = s.media.associate { it.id to it.duration.takeIf { d -> d > 0 } }
         val plan = LayerPlanner.plan(s, transitions) { MediaProbe.length(uriOf(it), durs[it]) } ?: return null
         return plan.copy(layers = plan.layers.filter { l -> l.segs.any { seg -> uriOf(seg.src.item) != null } })
@@ -512,6 +514,8 @@ object CompositionBuilder {
         visibleFrom: Double? = null,
         pick: PausedPick? = null,
     ): Built? {
+        // the clips' in points on their own frames in the files this build reads (see FrameSnap)
+        @Suppress("NAME_SHADOWING") val s = FrameSnap.snapshot(s, videoUriOf)
         val q = s.sequence ?: return null
         val total = q.duration
         if (total <= 0.0) return null
@@ -953,6 +957,8 @@ class ProgramPlayback(private val context: Context) {
         FrameHolds.ensure(context, FrameHolds.holdsOf(s, uriOf))
         // reversed clips: the files that run backwards, likewise in the background
         Reversals.ensure(context, s, uriOf)
+        // the clips' first frame times (their in points on their own frames, see FrameSnap), likewise
+        FrameSnap.ensure(context, s) { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
         hdrMode = VideoPipeline.toneMapMode(CompositionBuilder.anyHdr(context, s) { id -> uriOf(id)?.takeUnless { Proxies.enabled && Proxies.hasProxy(it) } }, hdrCodecFailed)
         // which clips read the node cache (and which file): if it changes the player is rebuilt
         cacheUsage = NodeCache.usage(s, grades, uriOf)
@@ -965,7 +971,7 @@ class ProgramPlayback(private val context: Context) {
         val playable = RenderCache.playable(chunks, windows)
         edges = CutSeek.edgesOf(s, chunks)
         cuts = runCatching { CompositionBuilder.playPlan(s, uriOf, chunks)?.let { CutSeek.cutsOf(it.layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
-        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#holds" + FrameHolds.revision + "#rev" + Reversals.revision
+        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#rev" + Reversals.revision
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
         LiveGrades.publish(grades)
         if (!force && key == lastKey && hasContent) {
@@ -1309,6 +1315,8 @@ object Exporter {
         runCatching { FrameHolds.await(context, FrameHolds.holdsOf(s, uriOf)) }.onFailure { return Result.failure(it) }
         // the reversed clips' files likewise (otherwise they played forwards in the file)
         runCatching { Reversals.await(context, s, uriOf) }.onFailure { return Result.failure(it) }
+        // the clips' first frame times in the originals (their in points on their own frames, see FrameSnap)
+        runCatching { FrameSnap.await(context, s, uriOf) }
         val anyHdr = withContext(Dispatchers.IO) { CompositionBuilder.anyHdr(context, s, probe = true, uriOf = uriOf) }
         val anyTen = withContext(Dispatchers.IO) { CompositionBuilder.anyTenBit(context, s, uriOf) }
         // what is made: the same plan the export dialog showed (HDR or SDR, 8 or 10 bits, the codec for the size)

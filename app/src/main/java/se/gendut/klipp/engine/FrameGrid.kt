@@ -14,6 +14,17 @@ class FrameGrid(fps: Double) {
     /** The first slot at or after [tUs] (timeline µs). */
     fun slotAtOrAfter(tUs: Long): Long = Math.ceil(tUs * fpsV / 1e6 - 1e-6).toLong()
 
+    /**
+     * How far after a slot a frame may lie and still belong to it (µs): half a slot – a frame belongs to the slot
+     * nearest its time. Camera files' frame times wander a millisecond or two around their rate: with frames lying on
+     * the slots (a clip's in point on its own frames, see FrameSnap) and no room after a slot, a frame a little late
+     * went to the next slot – its own slot held the frame before and the frame after it was dropped.
+     */
+    val tolUs: Long = Math.round(stepUs / 2)
+
+    /** The slot a frame at [tauUs] (as the effects see it: read [LEAD_US] early) belongs to. */
+    fun slotOf(tauUs: Long): Long = slotAtOrAfter(tauUs - LEAD_US - tolUs)
+
     /** The earliest slot time (µs) a stream starting at [startUs] can show its first frame at. */
     fun earliestUs(startUs: Long): Long = timeOf(Math.floor(startUs / stepUs).toLong())
 
@@ -93,10 +104,10 @@ class FrameGrid(fps: Double) {
  * moves the in point along it), so τ doesn't depend on where a render begins. Slot k is at T_k = k / fps. A frame's
  * **presentation time** is the slot it is first shown on; it holds until the next frame's.
  *
- * The rule: a frame belongs to the first slot at or after it (τ ≤ T_k + [FrameGrid.LEAD_US], the read-ahead), and slot k
- * shows the first frame that belongs to it; a slot no frame belongs to (a source slower than the timeline) holds the
- * frame before. So a frame is never shown before its time, at most one source frame older than the latest at the slot,
- * and the decision for a frame depends only on its own τ and the frame before it (the later frames of a slot are
+ * The rule: a frame belongs to the slot nearest its time ([FrameGrid.slotOf]: up to half a slot after the slot, the
+ * read-ahead [FrameGrid.LEAD_US] taken off), and slot k shows the first frame that belongs to it; a slot no frame
+ * belongs to (a source slower than the timeline) holds the frame before. So a frame is shown at most half a slot from
+ * its time, and the decision for a frame depends only on its own τ and the frame before it (the later frames of a slot are
  * dropped) – exact for any timestamps, no frame time guessed. Every render that has the frame before decides alike; a
  * rendered part therefore reads from before its visible start (RenderCache's pre-roll).
  *
@@ -139,7 +150,7 @@ class SourceSampler(fps: Double) {
 
     /** The frame at [tauUs] (timeline): its presentation time (a slot, µs), or null when it is shown on no slot. */
     fun next(tauUs: Long): Long? {
-        var c = grid.slotAtOrAfter(tauUs - FrameGrid.LEAD_US)
+        var c = grid.slotOf(tauUs)
         if (k0 != Long.MIN_VALUE) {
             // the segment's first frame shows from its first slot
             val firstTime = if (nominal > 0) nominal else Math.round(grid.stepUs)
@@ -292,7 +303,7 @@ object PreRollRule {
     fun startTau(tausUs: List<Long>, visibleUs: Long, fps: Double): Long? {
         val g = FrameGrid(fps)
         val ka = g.slotAtOrAfter(visibleUs - FrameGrid.LEAD_US)
-        fun slot(t: Long) = g.slotAtOrAfter(t - FrameGrid.LEAD_US)
+        fun slot(t: Long) = g.slotOf(t)
         val last = tausUs.indexOfLast { slot(it) <= ka }
         if (last < 0) return null
         val j = slot(tausUs[last])

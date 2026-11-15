@@ -321,7 +321,8 @@ object RenderCache {
             if (rendered.any { it === next } || kotlin.math.abs(next.start - piece.end) > 1e-6 || src.speed <= 1e-6) continue
             val endUs = Math.round(piece.end * 1e6)
             val k = g.slotAtOrAfter(endUs - FrameGrid.LEAD_US)
-            val from = (g.timeOf(k - 1) + FrameGrid.LEAD_US + 2) / 1e6
+            // (after everything that belongs to the slot before: a frame up to half a slot after it does, see FrameGrid.slotOf)
+            val from = (g.timeOf(k - 1) + FrameGrid.LEAD_US + g.tolUs + 2) / 1e6
             val shift = piece.end - from
             if (shift <= 1e-6 || from <= piece.start + 1e-6 || shift >= next.dur) continue
             out[i] = piece.copy(dur = piece.dur - shift)
@@ -434,13 +435,15 @@ object RenderCache {
      * long one costs nothing to read through). Bounded: [PRE_ROLL_SYNC_STEPS] steps back from key frame to key frame
      * and [PRE_ROLL_LIMIT] seconds; a clip that can't be read, a reversed one or a freeze frame: [preRoll]'s estimate.
      */
-    internal fun preRollFor(context: Context, s: Snapshot, uriOf: (Long) -> Uri?, a: Double, export: Boolean): Double {
+    internal fun preRollFor(context: Context, s0: Snapshot, uriOf: (Long) -> Uri?, a: Double, export: Boolean): Double {
         if (a <= 1e-9) return 0.0
+        // (the clips as the render reads them: their in points on their own frames, see FrameSnap)
+        val s = FrameSnap.snapshot(s0) { id -> uriOf(id)?.let { if (export) it else Proxies.videoUri(it) } }
         val q = s.sequence ?: return 0.0
         val fps = s.fps.takeIf { it > 0.0 } ?: return preRoll(s, a)
         val g = FrameGrid(fps)
         val visibleUs = Math.round(a * 1e6)
-        val slotEnd = g.timeOf(g.slotAtOrAfter(visibleUs - FrameGrid.LEAD_US)) + FrameGrid.LEAD_US
+        val slotEnd = g.timeOf(g.slotAtOrAfter(visibleUs - FrameGrid.LEAD_US)) + FrameGrid.LEAD_US + g.tolUs
         var p = 0.0
         for (t in q.video) for (c in t.clips) {
             if (!c.enabled || c.text != null || c.start > a + 1e-9 || c.start + c.duration <= a + 1e-9) continue
@@ -572,6 +575,7 @@ object RenderCache {
         val end = renderEnd(s, Chunk(a, b, "", false))
         FrameHolds.await(context, FrameHolds.holdsOf(s, uriOf))
         Reversals.await(context, s, uriOf)
+        FrameSnap.await(context, s) { id -> uriOf(id)?.let { if (export == null) Proxies.videoUri(it) else it } }
         val anyHdr = withContext(Dispatchers.IO) { CompositionBuilder.anyHdr(context, s, probe = true, uriOf = uriOf) }
         val built = CompositionBuilder.buildFull(
             s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
@@ -681,6 +685,8 @@ object RenderCache {
             // the freeze frames and the reversed clips' files must exist (as in the export)
             FrameHolds.await(context, FrameHolds.holdsOf(s, uriOf))
             Reversals.await(context, s, uriOf)
+            // the clips' first frame times (their in points on their own frames, see FrameSnap)
+            FrameSnap.await(context, s) { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
             val anyHdr = withContext(Dispatchers.IO) { CompositionBuilder.anyHdr(context, s, probe = true, uriOf = uriOf) }
             val short = VideoPipeline.previewShort
             var n = 0

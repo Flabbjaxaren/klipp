@@ -114,7 +114,7 @@ fun UpperLayers(
 @Composable
 fun rememberPreviewPlan(controller: ProjectController, gradeOf: (Long) -> se.gendut.klipp.engine.ClipGrade?, gradesKey: Any?): LayerPlan? {
     val snap = controller.snapshot
-    return remember(controller.revision, snap, se.gendut.klipp.engine.Reversals.revision, se.gendut.klipp.engine.RenderCache.revision, gradesKey) {
+    return remember(controller.revision, snap, se.gendut.klipp.engine.Reversals.revision, se.gendut.klipp.engine.RenderCache.revision, se.gendut.klipp.engine.FrameSnap.revision, gradesKey) {
         runCatching {
             se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, controller::uriOf)?.let { p ->
                 val chunks = se.gendut.klipp.engine.RenderCache.chunks(p, gradeOf, controller::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort)

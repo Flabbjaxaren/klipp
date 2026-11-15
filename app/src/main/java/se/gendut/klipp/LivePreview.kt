@@ -249,6 +249,8 @@ fun LivePreview(
         val media = controller.uriOf(c.item) ?: continue
         // the proxy when there is one: 1080p with dense keyframes = much faster stills while scrubbing
         val uri = se.gendut.klipp.engine.Proxies.videoUri(media)
+        // (the clip as playback reads it: its in point on its own frames, see FrameSnap – the still is playback's frame)
+        @Suppress("NAME_SHADOWING") val c = se.gendut.klipp.engine.FrameSnap.clip(c, uri)
         val sec = srcSec(c)
         val lo = c.sourceIn
         val hi = c.sourceIn + c.duration * c.speed
@@ -436,7 +438,7 @@ private fun DeepPrefetch(controller: ProjectController, state: EditorState) {
         val c = tr.clips.firstOrNull { it.text == null && t >= it.start - 5e-4 && t < it.end - 5e-4 } ?: continue
         val media = controller.uriOf(c.item) ?: continue
         val uri = se.gendut.klipp.engine.Proxies.videoUri(media)
-        val sec = c.sourceAt(c.start + (t - c.start).coerceIn(0.0, (c.duration - 0.04).coerceAtLeast(0.0)))
+        val sec = se.gendut.klipp.engine.FrameSnap.clip(c, uri).let { sc -> sc.sourceAt(sc.start + (t - sc.start).coerceIn(0.0, (sc.duration - 0.04).coerceAtLeast(0.0))) }
         LaunchedEffect(c.id, uri, (sec * 25).roundToInt()) {
             // only once the playhead has rested a moment (not for every frame stepped past)
             kotlinx.coroutines.delay(400)

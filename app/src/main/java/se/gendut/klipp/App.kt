@@ -383,7 +383,7 @@ fun KlippApp(
     }
     if (playback != null) LaunchedEffect(playback) {
         // freeze frames and reversed files: the picture is wrong until they exist (a gap, forwards) – swapped in at once
-        androidx.compose.runtime.snapshotFlow { se.gendut.klipp.engine.FrameHolds.revision to se.gendut.klipp.engine.Reversals.revision }.collect {
+        androidx.compose.runtime.snapshotFlow { Triple(se.gendut.klipp.engine.FrameHolds.revision, se.gendut.klipp.engine.Reversals.revision, se.gendut.klipp.engine.FrameSnap.revision) }.collect {
             playback.refresh(state.playhead.toDouble())
         }
     }
@@ -407,7 +407,7 @@ fun KlippApp(
             // (not the render's own revision: a finished chunk would then cancel rendering of the next)
             listOf(controller.revision, gs.revision, se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll,
                 se.gendut.klipp.engine.RenderCache.cleared, se.gendut.klipp.engine.RenderCache.halted, se.gendut.klipp.engine.RenderCache.auto,
-                se.gendut.klipp.engine.VideoPipeline.previewShort)
+                se.gendut.klipp.engine.VideoPipeline.previewShort, se.gendut.klipp.engine.FrameSnap.revision)
         }.debounce(1200).collectLatest {
             val snap = controller.snapshot
             val grades = HashMap(gs.grades)
