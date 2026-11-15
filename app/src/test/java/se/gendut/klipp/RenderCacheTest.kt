@@ -195,4 +195,21 @@ class RenderCacheTest {
             assertTrue(outer.isCancelled)
         }
     }
+    @Test fun aLongStretchIsRenderedInPieces() {
+        // A (0–3 s) | B (3–30 s), no transition: B in pieces of at most four seconds, on fixed places of the timeline
+        val o = JSONObject(javaClass.classLoader!!.getResource("snapshot_fx.json")!!.readText())
+        val q = o.getJSONObject("sequence")
+        q.put("duration", 30.0)
+        q.getJSONArray("video").getJSONObject(0).put("transitions", org.json.JSONArray())
+        q.getJSONArray("video").getJSONObject(0).getJSONArray("clips").getJSONObject(1).put("duration", 27.0)
+        val plan = LayerPlanner.plan(Snapshot.parse(o)) { 60.0 }!!
+        val c = RenderCache.chunks(plan, { null }, uriOf, 25.0, 1080)
+        // (no piece at 4 s: it would leave B a first piece of one second)
+        assertEquals(listOf(0.0, 3.0, 8.0, 12.0, 16.0, 20.0, 24.0, 28.0), c.map { it.a })
+        assertEquals(30.0, c.last().b, 1e-9)
+        assertTrue(c.all { it.b - it.a >= RenderCache.MAX_CHUNK / 2 && it.b - it.a <= RenderCache.MAX_CHUNK * 1.5 + 1e-9 })
+        // each piece its own key; the same timeline gives the same ones
+        assertEquals(c.size, c.map { it.hash }.toSet().size)
+        assertEquals(c.map { it.hash }, RenderCache.chunks(plan, { null }, uriOf, 25.0, 1080).map { it.hash })
+    }
 }

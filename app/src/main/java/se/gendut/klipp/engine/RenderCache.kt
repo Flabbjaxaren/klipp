@@ -73,9 +73,11 @@ object RenderCache {
         val longer: List<Pair<String, Double>> = emptyList(),
     )
 
-    private const val VERSION = 17
+    private const val VERSION = 18
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
+    /** The longest piece a stretch of the timeline is rendered in (s), see [chunks]. */
+    const val MAX_CHUNK = 4.0
     /** The disk space for the files. */
     private const val MAX_BYTES = 3L * 1024 * 1024 * 1024
     /** The render ids (like the reversed clips': negative, but in a range of their own). */
@@ -144,6 +146,23 @@ object RenderCache {
         while (i < e.size) {
             if (e[i] - e[i - 1] < MIN_CHUNK && e.size > 2) { if (i == e.size - 1) e.removeAt(i - 1) else e.removeAt(i) } else i++
         }
+        // a long stretch is rendered in pieces of at most MAX_CHUNK: playback stops the chunk being rendered and it starts
+        // over from its beginning afterwards, so a long clip (27 s on the vivo: half a minute undisturbed) was never ready
+        // while one kept playing and adjusting – a piece is done in a few seconds and stays. The pieces begin on fixed
+        // places of the timeline (multiples of MAX_CHUNK, on a slot), so an edit elsewhere in the clip keeps the others'
+        // keys; ready neighbours are joined into one file as always. Never inside a transition window (one chunk, see above)
+        val pieces = ArrayList<Double>()
+        for (k in 0 until e.size - 1) {
+            val a = e[k]; val b = e[k + 1]
+            if (b - a <= MAX_CHUNK * 1.5 || inside.any { (t0, t1) -> t0 < b - 1e-6 && t1 > a + 1e-6 }) continue
+            var x = (Math.floor(a / MAX_CHUNK + 1e-9) + 1) * MAX_CHUNK
+            while (x < b - 1e-6) {
+                val at = if (fps > 0.0) Math.ceil(x * fps - 1e-6) / fps else x
+                if (at - a >= MAX_CHUNK / 2 && b - at >= MAX_CHUNK / 2) pieces += at
+                x += MAX_CHUNK
+            }
+        }
+        if (pieces.isNotEmpty()) { e += pieces; e.sort() }
         val out = ArrayList<Chunk>()
         for (k in 0 until e.size - 1) {
             val a = e[k]; val b = e[k + 1]
