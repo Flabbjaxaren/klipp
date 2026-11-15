@@ -1078,7 +1078,10 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
         matrixTransformationListBuilder = new ImmutableList.Builder<>();
         rgbMatrixListBuilder = new ImmutableList.Builder<>();
       }
+      long klippT = System.nanoTime();
       shaderProgramListBuilder.add(glEffect.toGlShaderProgram(context, isOutputTransferHdr));
+      KlippPrecision.composite(
+          "fxbuild " + glEffect.getClass().getSimpleName() + " ms=" + (System.nanoTime() - klippT) / 100_000 / 10.0);
     }
 
     finalShaderProgramWrapper.setMatrixTransformations(
@@ -1145,10 +1148,13 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
     isConfiguring.close();
     try {
       if (forceReconfigure || !activeEffects.equals(inputStreamInfo.effects)) {
+        // Klipp: how long the chain's rebuild takes (the cut trace)
+        long klippT0 = System.nanoTime();
         for (int i = 0; i < intermediateGlShaderPrograms.size(); i++) {
           intermediateGlShaderPrograms.get(i).release();
         }
         intermediateGlShaderPrograms.clear();
+        long klippT1 = System.nanoTime();
 
         ImmutableList.Builder<Effect> effectsListBuilder =
             new ImmutableList.Builder<Effect>().addAll(inputStreamInfo.effects);
@@ -1183,6 +1189,15 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
 
         activeEffects.clear();
         activeEffects.addAll(inputStreamInfo.effects);
+        KlippPrecision.composite(
+            "fxconfig effects="
+                + inputStreamInfo.effects.size()
+                + " release_ms="
+                + (klippT1 - klippT0) / 1_000_000
+                + " build_ms="
+                + (System.nanoTime() - klippT1) / 1_000_000);
+      } else {
+        KlippPrecision.composite("fxconfig same effects=" + inputStreamInfo.effects.size());
       }
 
       if (frameCache != null) {

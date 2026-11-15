@@ -915,7 +915,10 @@ class ProgramPlayback(private val context: Context) {
     private var cacheUsage = ""
 
     private fun newPlayer(): CompositionPlayer =
-        CompositionPlayer.Builder(context)
+        androidx.media3.transformer.KlippPlayerOptions.videoPrewarming(CompositionPlayer.Builder(context),
+            // (diagnostics: the file diag/noprewarm in the app's external files turns Media3's prewarming off – without it the
+            // next item's first frame comes on time, but the effect chain then never gets the new stream: not usable yet)
+            !java.io.File(context.getExternalFilesDir(null), "diag/noprewarm").exists())
             // short buffer: fast start after seek and rebuild (see Perf)
             .setLoadControl(Perf.editingLoadControl())
             // the mix is measured where it is played (the level meters follow the sound, see Meters)

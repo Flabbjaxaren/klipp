@@ -407,7 +407,7 @@ fun KlippApp(
             // (not the render's own revision: a finished chunk would then cancel rendering of the next)
             listOf(controller.revision, gs.revision, se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll,
                 se.gendut.klipp.engine.RenderCache.cleared, se.gendut.klipp.engine.RenderCache.halted, se.gendut.klipp.engine.RenderCache.auto,
-                se.gendut.klipp.engine.VideoPipeline.previewShort, se.gendut.klipp.engine.FrameSnap.revision)
+                se.gendut.klipp.engine.VideoPipeline.previewShort, se.gendut.klipp.engine.FrameSnap.revision, se.gendut.klipp.engine.RenderCache.hold)
         }.debounce(1200).collectLatest {
             val snap = controller.snapshot
             val grades = HashMap(gs.grades)
@@ -427,7 +427,8 @@ fun KlippApp(
             // (stopping with the render chip stops only the optional rendering – the transitions are needed for playback)
             val optional = !se.gendut.klipp.engine.RenderCache.halted
             val todo = chunks.filter { c ->
-                !se.gendut.klipp.engine.RenderCache.isReady(c) && (inTransition(c) || (optional && (all || (auto && c.heavy))))
+                !se.gendut.klipp.engine.RenderCache.hold &&
+                    !se.gendut.klipp.engine.RenderCache.isReady(c) && (inTransition(c) || (optional && (all || (auto && c.heavy))))
             }.sortedWith(compareBy({ !inTransition(it) }, { distance(it) }))
             se.gendut.klipp.engine.RenderCache.wanted = todo.map { it.hash }.toSet()
             se.gendut.klipp.engine.RenderCache.generation++

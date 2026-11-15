@@ -44,6 +44,9 @@ object RenderCache {
     var progress by mutableStateOf<Float?>(null)
         internal set
 
+    /** Diagnostics (the agent bridge): nothing is rendered – the timeline plays live until it is turned off again. */
+    var hold by mutableStateOf(false)
+
     /** Stopped by the user: no optional rendering ("Render", automatic) until requested again – transitions still render (playback shows them only rendered). */
     var halted by mutableStateOf(false)
 

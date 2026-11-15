@@ -298,8 +298,8 @@ object McpBridge {
             ctl().import(uris)
             texts("importing ${uris.size} files")
         },
-        Tool("render_diag", "Pre-render diagnostics: op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals; grades: overrides for this render only).",
-            JSONObject().put("op", prop("string", "chunks | copy | render")).put("a", prop("number", "s")).put("b", prop("number", "s"))
+        Tool("render_diag", "Pre-render diagnostics: op=live deletes the renders and holds rendering (the timeline plays live), op=resume lets it render again; op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals; grades: overrides for this render only).",
+            JSONObject().put("op", prop("string", "live | resume | chunks | copy | render")).put("a", prop("number", "s")).put("b", prop("number", "s"))
                 .put("mode", prop("string", "chunk | export")).put("name", prop("string", "file name"))
                 .put("grades", prop("object", "op=render: grades for this render only, clip id → grade JSON (the project's grades are left as they are)"))
                 .put("passes", prop("boolean", "op=render: count Klipp's GPU stages (nodes, film, …) during the render – glFinish around each, so not for timing"))) { a ->
@@ -312,6 +312,9 @@ object McpBridge {
             val chunks = se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, c::uriOf)
                 ?.let { p -> se.gendut.klipp.engine.RenderCache.chunks(p, { id -> grades[id] }, c::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort) }.orEmpty()
             when (a.optString("op")) {
+                // the timeline live: nothing rendered and nothing being rendered, until "resume"
+                "live" -> { se.gendut.klipp.engine.RenderCache.hold = true; se.gendut.klipp.engine.RenderCache.clear(); texts("live: renders deleted, rendering held") }
+                "resume" -> { se.gendut.klipp.engine.RenderCache.hold = false; texts("rendering resumed") }
                 "chunks" -> texts(chunks.joinToString("\n") { k -> "%.4f–%.4f ready=%s heavy=%s %s".format(java.util.Locale.ROOT, k.a, k.b, se.gendut.klipp.engine.RenderCache.isReady(k), k.heavy, k.hash.take(12)) })
                 "copy" -> {
                     dirOut.listFiles()?.filter { it.name.startsWith("chunk_") || it.name.startsWith("join_") }?.forEach { it.delete() }
@@ -333,7 +336,7 @@ object McpBridge {
                     val passes = if (count) " passes ${se.gendut.klipp.engine.PassTimes.counts().toSortedMap()}" else ""
                     texts(r.fold({ "rendered ${out.path} (${out.length()} bytes) in $ms ms$passes" }, { "failed: ${it.message}" }))
                 }
-                else -> error("op is chunks, copy or render")
+                else -> error("op is live, resume, chunks, copy or render")
             }
         },
         Tool("gpu_grade", "The preview's GPU grading (GpuGrade): a clip's grade on a test image through the GPU and the CPU, the whole " +
