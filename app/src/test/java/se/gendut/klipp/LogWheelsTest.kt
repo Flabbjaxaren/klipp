@@ -53,6 +53,26 @@ class LogWheelsTest {
         }
     }
 
+    /**
+     * The shaders' decoding (written without large intermediate values, for GPUs that work it out in half precision)
+     * gives the stored value back for every high byte, and in half-precision steps no intermediate exceeds a half's range.
+     */
+    @Test fun theShadersDecodingMatchesTheStorageWithoutLargeNumbers() {
+        fun eval(expr: String, r: Double, g: Double, b: Double): Double {
+            val n = Regex("[0-9]+\\.[0-9]+(?:e-?[0-9]+)?").findAll(expr.substringAfter("128.0")).map { it.value.toDouble() }.toList()
+            return if (n.size == 4) (r - 128) * n[0] + g * n[1] + b * n[2] + n[3]
+            else { val m = Regex("[0-9]+\\.[0-9]+(?:e-?[0-9]+)?").findAll(expr).map { it.value.toDouble() }.toList(); r * m[0] + g * m[1] }
+        }
+        for (r in 0..255) for (g in intArrayOf(0, 1, 127, 255)) for (b in intArrayOf(0, 200, 255)) {
+            val want = (r * 65536.0 + g * 256.0 + b) / 16777215.0 * 2 * GradeNode.CURVE_RANGE - GradeNode.CURVE_RANGE
+            assertEquals("r $r g $g b $b", want, eval(GradeNode.CURVE_DECODE, r.toDouble(), g.toDouble(), b.toDouble()), 1e-9)
+            val hsl = (r * 256.0 + g) / 65535.0
+            assertEquals("hsl r $r g $g", hsl, eval(GradeNode.HSL_DECODE, r.toDouble(), g.toDouble(), 0.0), 1e-9)
+            // every product and partial sum stays far inside a half's range (65504)
+            assertTrue(abs((r - 128) * 0.0625) <= 8.0 && abs(r * 0.0039064) <= 1.0)
+        }
+    }
+
     @Test fun theGpuTableHoldsTheCurveAndContinuesItStraight() {
         val t = arrayOf(GradeNode.logCurve(0f, 0f, 0.6f, 0.333f, 0.55f), GradeNode.logCurve(-0.6f, 0f, 0f, 0.333f, 0.55f), FloatArray(GradeNode.CURVE_N) { GradeNode.curveX(it) })
         // what the shaders do: decode 24 bits, interpolate, continue straight beyond the ends

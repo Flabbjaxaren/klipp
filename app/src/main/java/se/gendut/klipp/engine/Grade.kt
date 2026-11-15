@@ -676,6 +676,18 @@ data class GradeNode(
         const val CURVE_RANGE = 8f
         private const val CURVE_STEPS = 16777215.0
 
+        /**
+         * The shaders' decoding of a table texel's bytes `t` (0..255 each) into the difference from the straight line.
+         * Written so that no intermediate value is large: some GPUs (the vivo's, in AGSL) work such an expression out
+         * in half precision, where the plain `t.r * 65536.0 + …` overflowed (largest half 65504) and the picture went black.
+         * The high byte relative to its middle keeps the usual small differences precise there too.
+         */
+        // ((r·65536 + g·256 + b) · 16/16777215 − 8 rearranged; the constants are checked in LogWheelsTest)
+        const val CURVE_DECODE = "((t.r - 128.0) * 0.06250000372529052 + t.g * 0.0002441406395519161 + t.b * 9.536743732496722e-7 + 4.768371866248344e-7)"
+
+        /** The same for the HSL curves' 16-bit texels (high, low byte) → 0..1. */
+        const val HSL_DECODE = "(t.r * 0.003906309605554284 + t.g * 1.5259021896696422e-5)"
+
         /** The code value of a composite table's entry [i]. */
         fun curveX(i: Int): Float = CURVE_LO + i * (CURVE_HI - CURVE_LO) / (CURVE_N - 1)
 
@@ -1412,7 +1424,7 @@ vec3 colorIn(vec4 src) {
 // between the entries, straight on beyond the ends
 float curveTexel(float i, float row) {
   vec3 t = floor(texture2D(uCurves, vec2((i + 0.5) / ${GradeNode.CURVE_N}.0, (row + 0.5) / 3.0)).rgb * 255.0 + 0.5);
-  return (t.r * 65536.0 + t.g * 256.0 + t.b) / 16777215.0 * ${2 * GradeNode.CURVE_RANGE} - ${GradeNode.CURVE_RANGE};
+  return ${GradeNode.CURVE_DECODE};
 }
 float curveAt(float row, float x) {
   float p = (x - (${GradeNode.CURVE_LO})) * ${(GradeNode.CURVE_N - 1) / (GradeNode.CURVE_HI - GradeNode.CURVE_LO)};
@@ -1423,7 +1435,7 @@ float curveAt(float row, float x) {
 // an HSL curve (a row of the table: 16 bits as high, low byte) at x 0..1, linearly interpolated
 float hslTexel(float i, float row) {
   vec2 t = floor(texture2D(uHsl, vec2((i + 0.5) / 512.0, (row + 0.5) / 6.0)).rg * 255.0 + 0.5);
-  return (t.r * 256.0 + t.g) / 65535.0;
+  return ${GradeNode.HSL_DECODE};
 }
 float hslAt(float row, float x) {
   float p = clamp(x, 0.0, 1.0) * 511.0;

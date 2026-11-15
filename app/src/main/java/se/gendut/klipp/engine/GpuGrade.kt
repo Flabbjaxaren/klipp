@@ -567,7 +567,7 @@ float3 colorIn(float3 src, float2 pos) {
 // an HSL curve (a row of the table: 16 bits as high, low byte) at x 0..1, linearly interpolated (as in GradeShaders)
 float hslTexel(float i, float row) {
   float2 t = floor(float2(hsl.eval(float2(i + 0.5, row + 0.5)).rg) * 255.0 + 0.5);
-  return (t.r * 256.0 + t.g) / 65535.0;
+  return ${GradeNode.HSL_DECODE};
 }
 float hslAt(float row, float x) {
   float p = clamp(x, 0.0, 1.0) * 511.0;
@@ -580,7 +580,7 @@ float hslAt(float row, float x) {
 // straight on beyond the ends (as in GradeShaders)
 float curveTexel(float i, float row) {
   float3 t = floor(float3(curves.eval(float2(i + 0.5, row + 0.5)).rgb) * 255.0 + 0.5);
-  return (t.r * 65536.0 + t.g * 256.0 + t.b) / 16777215.0 * ${2 * GradeNode.CURVE_RANGE} - ${GradeNode.CURVE_RANGE};
+  return ${GradeNode.CURVE_DECODE};
 }
 float curveAt(float row, float x) {
   float p = (x - (${GradeNode.CURVE_LO})) * ${(GradeNode.CURVE_N - 1) / (GradeNode.CURVE_HI - GradeNode.CURVE_LO)};
