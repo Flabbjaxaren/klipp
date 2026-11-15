@@ -57,6 +57,8 @@ import kotlin.math.roundToInt
 private data class GradeReq(
     val tag: Any, val src: ImageBitmap, val g: se.gendut.klipp.engine.ClipGrade?, val look: se.gendut.klipp.engine.Look,
     val keyNode: Int?, val interacting: Boolean,
+    /** The still's source time. */
+    val at: Double = 0.0,
 )
 
 object Frames {
@@ -213,6 +215,13 @@ fun LivePreview(
     /** Show even without dragging – e.g. until the player has shown its first frame, or while a new look is being built in. */
     force: Boolean = false,
 ) {
+    // the graded stills, kept while the preview is away (remembered before the returns below): when the player is
+    // rebuilt after a change (no frame for a moment, see [force]) the last graded still is shown at once instead of the
+    // ungraded (log) one while the new grade is worked out – with a film node on the CPU that took a few hundred ms, a
+    // visible flash every time a value was changed
+    val graded = remember { mutableStateMapOf<Long, Pair<Any, ImageBitmap>>() }
+    // the source time of each graded still: an older one is only shown for the same frame (or while dragging/scrubbing)
+    val gradedAt = remember { HashMap<Long, Double>() }
     // shown while dragging a slider/in the image/a color wheel, scrubbing, or when the player has no frame yet
     state.trimView?.let { TrimFrame(controller, it, modifier); return }
     val live = state.live?.takeUnless { it.isAudio }
@@ -267,7 +276,6 @@ fun LivePreview(
     }
     // the clip's grade (color page) and the timeline look: on the GPU (AGSL, milliseconds), otherwise on the
     // CPU at half resolution. A dedicated thread: only the latest request waits, nothing queues up.
-    val graded = remember { mutableStateMapOf<Long, Pair<Any, ImageBitmap>>() }
     val ungraded = HashSet<Long>()
     val shownTimes = HashMap<Long, Double>()
     // the preview goes away: the window is drawn for the playhead again
@@ -286,13 +294,15 @@ fun LivePreview(
         // while scrubbing, film is shown with its colors only (the full film on the CPU takes longer than a frame, and
         // every new frame cancelled it – the ungraded log image was shown until the finger was lifted)
         // the same while a slider, wheel or curve is dragged: the CPU's full film runs at 480 px, far below the
-        // screen, and every change waited for it
+        // screen, and every change waited for it. And also while the player has no frame (rebuilt after a change):
+        // the CPU's full film came out visibly darker and softer than playback's for those moments (measured on the
+        // vivo: 2.6 luma levels below, the film's colors on the GPU 0.2) – a flicker after every change
         val interacting = state.scrubbing || live != null || gs?.live != null
         key(c.id) {
             // one grading at a time per clip, always of the latest request; a grading in progress is never cancelled –
             // with a slow chain (a heavy node chain at full size) and a finger that keeps moving, cancelling meant that
             // nothing was ever shown until the finger stopped
-            val req by androidx.compose.runtime.rememberUpdatedState(GradeReq(tag, src, g, lk, keyNode, interacting))
+            val req by androidx.compose.runtime.rememberUpdatedState(GradeReq(tag, src, g, lk, keyNode, interacting, srcTime))
             LaunchedEffect(Unit) {
                 snapshotFlow { req }.distinctUntilChanged().conflate().collect { r ->
                     // the time limit counts from the previous frame: during a drag the latest position is graded every
@@ -302,12 +312,13 @@ fun LivePreview(
                     GradeWorker.lastRun = android.os.SystemClock.uptimeMillis()
                     val out = kotlinx.coroutines.withContext(GradeWorker.dispatcher) { GradeWorker.hinted {
                         val b = r.src.asAndroidBitmap()
-                        se.gendut.klipp.engine.GpuGrade.apply(b, r.g, r.look, r.keyNode, filmColorOnly = r.interacting)?.asImageBitmap() ?: run {
+                        se.gendut.klipp.engine.GpuGrade.apply(b, r.g, r.look, r.keyNode, filmColorOnly = true)?.asImageBitmap() ?: run {
                             var small = android.graphics.Bitmap.createScaledBitmap(b, 480, (480f * b.height / b.width).roundToInt().coerceAtLeast(1), true)
                             if (r.g != null) small = r.g.applyTo(small, r.keyNode)
                             r.look.applyTo(small).asImageBitmap()
                         }
                     } }
+                    gradedAt[c.id] = r.at
                     graded[c.id] = r.tag to out
                 }
             }
@@ -326,10 +337,16 @@ fun LivePreview(
             titles[c.id] = img
         }
     }
+    // a graded still for what is shown: the same frame, or (while a finger moves) the previous one – one frame late is
+    // better than an ungraded flash, but another frame's picture is not shown when the player merely has no frame
+    val moving = state.scrubbing || live != null || gs?.live != null
+    fun gradedFor(id: Long): ImageBitmap? = graded[id]?.second?.takeIf {
+        moving || (hits[id] ?: frames[id])?.first?.let { at -> kotlin.math.abs((gradedAt[id] ?: Double.NaN) - at) < 1e-3 } == true
+    }
     // the last image shown at the bottom: shown instead of black until a new clip's first frame is decoded
     val lastBottom = remember { arrayOfNulls<ImageBitmap>(1) }
     val bottom = layers.firstOrNull { it.text == null }
-    val bottomImg = bottom?.let { b -> graded[b.id]?.second ?: (hits[b.id] ?: frames[b.id])?.second }
+    val bottomImg = bottom?.let { b -> gradedFor(b.id) ?: (hits[b.id] ?: frames[b.id])?.second }
     // write after composition, and drop images for clips no longer shown
     SideEffect {
         if (bottomImg != null) lastBottom[0] = bottomImg
@@ -343,7 +360,7 @@ fun LivePreview(
     // until every clip's first graded still is ready, nothing is drawn: the player's frame underneath (already graded)
     // shows through. Otherwise every drag began with a flash of the ungraded (log) still, or black. Not when forced –
     // then the player has no frame to show.
-    val ready = force || layers.all { c -> c.text != null || (if (c.id in ungraded) (hits[c.id] ?: frames[c.id]) != null else graded[c.id] != null) }
+    val ready = force || layers.all { c -> c.text != null || (if (c.id in ungraded) (hits[c.id] ?: frames[c.id]) != null else gradedFor(c.id) != null) }
     if (!ready) return
     Canvas(modifier.fillMaxSize().clipToBounds().testTag("livepreview")) {
         drawRect(Color.Black)
@@ -374,7 +391,7 @@ fun LivePreview(
             val stab = gs?.grades?.get(c.id)?.stab?.transform(shown.first, raw.width.toFloat(), raw.height.toFloat())
             // the graded image; if it belongs to an older still (the next one is being graded right now) it is shown
             // anyway – better one frame late than an ungraded flash
-            val img = graded[c.id]?.second ?: raw
+            val img = gradedFor(c.id) ?: raw
             val f = min(w.toFloat() / img.width, h.toFloat() / img.height)
             val iw = img.width * f * s
             val ih = img.height * f * s
