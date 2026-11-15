@@ -1363,6 +1363,17 @@ object Exporter {
         }
     }
 
+    /**
+     * Encoders that always get the same color description (BT.709, limited range): Transformer asks for the first
+     * item's, so a pre-rendered chunk beginning with a full-range proxy came out full range and one beginning with a gap
+     * or a still limited range (the vivo) – chunks that can't be joined into one file, and a switch of files (a short
+     * hold) in the middle of playback. The frames are converted to the range asked for by the encoder itself.
+     */
+    private class OneColorEncoders(private val base: androidx.media3.transformer.Codec.EncoderFactory) : androidx.media3.transformer.Codec.EncoderFactory by base {
+        override fun createForVideoEncoding(format: androidx.media3.common.Format, logSessionId: android.media.metrics.LogSessionId?): androidx.media3.transformer.Codec =
+            base.createForVideoEncoding(format.buildUpon().setColorInfo(androidx.media3.common.ColorInfo.SDR_BT709_LIMITED).build(), logSessionId)
+    }
+
     /** The encoders' settings from [st]: bitrate, CBR/VBR, keyframes, profile, audio bitrate. */
     private fun encoderFactory(context: Context, st: ExportSettings, tenBit: Boolean = false): androidx.media3.transformer.DefaultEncoderFactory {
         val v = androidx.media3.transformer.VideoEncoderSettings.Builder()
@@ -1404,7 +1415,11 @@ object Exporter {
      * to the crash report (the export). [expect] = the size asked for: a file that came out different is reported in the
      * message afterwards (the encoder chose a size it could make).
      */
-    internal suspend fun transform(context: Context, comp: Composition, out: File, st: ExportSettings, tenBit: Boolean, note: Boolean = true, expect: Pair<Int, Int>? = null, onProgress: (Int) -> Unit): Result<Unit> {
+    internal suspend fun transform(
+        context: Context, comp: Composition, out: File, st: ExportSettings, tenBit: Boolean, note: Boolean = true, expect: Pair<Int, Int>? = null,
+        /** The pre-render: every file with the same color description, whatever its first item is (see [OneColorEncoders]). */
+        oneColor: Boolean = false, onProgress: (Int) -> Unit,
+    ): Result<Unit> {
         return withContext(Dispatchers.Main) {
             suspendCancellableCoroutine { cont ->
                 // Snapdragon: the encoding threads on the big cores while the job runs (see Perf.Boost)
@@ -1413,7 +1428,7 @@ object Exporter {
                     .setAssetLoaderFactory(Perf.assetLoaderFactory(context))
                     .setVideoMimeType(st.codec)
                     .setAudioMimeType(MimeTypes.AUDIO_AAC)
-                    .setEncoderFactory(encoderFactory(context, st, tenBit))
+                    .setEncoderFactory(encoderFactory(context, st, tenBit).let { if (oneColor) OneColorEncoders(it) else it })
                     // floating point in the whole chain; with 10-bit an RGBA_1010102 surface into the encoder
                     .setVideoFrameProcessorFactory(VideoPipeline.processorFactory(tenBit))
                     .addListener(object : Transformer.Listener {

@@ -73,7 +73,7 @@ object RenderCache {
         val longer: List<Pair<String, Double>> = emptyList(),
     )
 
-    private const val VERSION = 16
+    private const val VERSION = 17
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
     /** The disk space for the files. */
@@ -579,11 +579,11 @@ object RenderCache {
             previewShort = if (export == null) short else 0, range = (a - preRollFor(context, s, uriOf, a, export = export != null))..end, visibleFrom = a, output = settings,
         ) ?: return Result.failure(IllegalStateException("nothing to render in $a–$b"))
         out.delete()
-        if (end <= b) return Exporter.transform(context, built.composition, out, settings, tenBit = false, note = false) { }
+        if (end <= b) return Exporter.transform(context, built.composition, out, settings, tenBit = false, note = false, oneColor = export == null) { }
         // as a chunk: one frame past the end, cut away again (see renderEnd)
         val tmp = File(out.path + ".tmp")
         tmp.delete()
-        val r = Exporter.transform(context, built.composition, tmp, settings, tenBit = false, note = false) { }
+        val r = Exporter.transform(context, built.composition, tmp, settings, tenBit = false, note = false, oneColor = export == null) { }
         if (r.isFailure) { tmp.delete(); return r }
         return runCatching { concat(listOf(tmp to 0.0), out, limitUs = Math.round((b - a) * 1e6) - 500) }.also { tmp.delete() }
     }
@@ -704,7 +704,7 @@ object RenderCache {
                     // picture), and so does a change that makes the chunk unwanted; otherwise it is rendered again from its
                     // start once playback is over
                     val out = whileAllowed({ canWork() && c.hash in wanted }) {
-                        Exporter.transform(context, built.composition, tmp, renderSettings(s, short), tenBit = false, note = false) { p ->
+                        Exporter.transform(context, built.composition, tmp, renderSettings(s, short), tenBit = false, note = false, oneColor = true) { p ->
                             progress = ((done + (c.b - c.a) * p / 100.0) / total).toFloat().coerceIn(0f, 1f)
                         }
                     }
