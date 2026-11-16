@@ -405,7 +405,7 @@ fun KlippApp(
         val renderScope = this
         androidx.compose.runtime.snapshotFlow {
             // (not the render's own revision: a finished chunk would then cancel rendering of the next)
-            listOf(controller.revision, gs.revision, se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll, se.gendut.klipp.engine.RenderCache.renderRange,
+            listOf(controller.revision, gs.revision, se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll, se.gendut.klipp.engine.RenderCache.renderRange, se.gendut.klipp.engine.RenderCache.slowRevision,
                 se.gendut.klipp.engine.RenderCache.cleared, se.gendut.klipp.engine.RenderCache.halted, se.gendut.klipp.engine.RenderCache.auto,
                 se.gendut.klipp.engine.VideoPipeline.previewShort, se.gendut.klipp.engine.FrameSnap.revision, se.gendut.klipp.engine.RenderCache.hold)
         }.debounce(1200).collectLatest {
@@ -415,7 +415,7 @@ fun KlippApp(
                 se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, controller::uriOf)
                     ?.let { p -> se.gendut.klipp.engine.RenderCache.chunks(p, { id -> grades[id] }, controller::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort) }
             }.getOrNull().orEmpty()
-            se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy) }
+            se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy || se.gendut.klipp.engine.RenderCache.isSlow(it)) }
             // every transition between two clips: playback shows it only pre-rendered (a cut until then, see
             // RenderCache.playPlan) – they come first, the one nearest the playhead first
             val windows = se.gendut.klipp.engine.RenderCache.transitionWindows(snap)
@@ -430,8 +430,8 @@ fun KlippApp(
             val optional = !se.gendut.klipp.engine.RenderCache.halted
             val todo = chunks.filter { c ->
                 !se.gendut.klipp.engine.RenderCache.hold &&
-                    !se.gendut.klipp.engine.RenderCache.isReady(c) && (inTransition(c) || (optional && (asked(c) || (auto && c.heavy))))
-            }.sortedWith(compareBy({ !inTransition(it) }, { distance(it) }))
+                    !se.gendut.klipp.engine.RenderCache.isReady(c) && (inTransition(c) || (optional && (asked(c) || (auto && c.heavy) || se.gendut.klipp.engine.RenderCache.isSlow(c))))
+            }.sortedWith(compareBy({ !inTransition(it) && !se.gendut.klipp.engine.RenderCache.isSlow(it) }, { distance(it) }))
             se.gendut.klipp.engine.RenderCache.wanted = todo.map { it.hash }.toSet()
             se.gendut.klipp.engine.RenderCache.generation++
             // the render under way: its chunk finishes (or stops, if no longer wanted), then the new list takes over
@@ -450,7 +450,7 @@ fun KlippApp(
             // not while playing (rendering takes decoders and power from the picture); scrubbing, zooming and editing go on beside it
             rendering = renderScope.launch {
                 val r = se.gendut.klipp.engine.RenderCache.render(context, snap, controller::uriOf, grades, todo, canWork = { !state.playing && !se.gendut.klipp.engine.BackgroundWork.exporting }) {
-                    se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy) }
+                    se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy || se.gendut.klipp.engine.RenderCache.isSlow(it)) }
                     // into playback only once it's stopped (a rebuild during playback stutters)
                     scope.launch { androidx.compose.runtime.snapshotFlow { state.playing }.first { !it }; se.gendut.klipp.engine.RenderCache.bump() }
                 }

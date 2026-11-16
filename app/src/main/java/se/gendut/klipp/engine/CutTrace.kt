@@ -39,9 +39,8 @@ object CutTrace {
     fun configure(trace: Boolean, diagMode: Int) {
         on = trace
         mode = diagMode.coerceIn(0, 3)
-        androidx.media3.effect.KlippPrecision.frameTrace = if (trace) androidx.media3.effect.KlippPrecision.FrameTrace { chain, ptsUs, presentNs, dropped ->
-            log("gl", "chain=$chain pts=$ptsUs ${if (dropped) "DROPPED" else "present=$presentNs"} thread=${Thread.currentThread().name}")
-        } else null
+        // (the frames go through the one frame hook, which logs them while the trace runs – see FrameHook)
+        FrameHook.install()
         androidx.media3.effect.KlippPrecision.compositeTrace = if (trace) androidx.media3.effect.KlippPrecision.CompositeTrace { line -> log("comp", line) } else null
         log("config", "trace=$trace mode=$mode")
     }

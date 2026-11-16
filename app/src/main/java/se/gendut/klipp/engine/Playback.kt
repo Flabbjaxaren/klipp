@@ -840,7 +840,18 @@ class ProgramPlayback(private val context: Context) {
             if (startPending) { main.removeCallbacks(deferredPlay); main.post(deferredPlay) }
         }
 
-        override fun onIsPlayingChanged(isPlaying: Boolean) { CutTrace.log("isPlaying", "layer=main $isPlaying pos=${player.currentPosition}"); if (isPlaying) traceRenderers() }
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            CutTrace.log("isPlaying", "layer=main $isPlaying pos=${player.currentPosition}")
+            if (isPlaying) { traceRenderers(); PlaybackMargin.begin() }
+            else {
+                // the stretch just played: chunks the live preview didn't keep up with are rendered ahead (see PlaybackMargin)
+                val late = PlaybackMargin.end()
+                if (late.isNotEmpty()) {
+                    val slow = PlaybackMargin.lateIn(renderChunks.filter { !RenderCache.isReady(it) }.map { Triple(it.a, it.b, it.hash) }, late, playOriginUs)
+                    if (slow.isNotEmpty()) { CutTrace.log("margin", "slow chunks ${slow.size} from ${late.size} late frames"); RenderCache.markSlow(slow) }
+                }
+            }
+        }
 
         override fun onPositionDiscontinuity(old: androidx.media3.common.Player.PositionInfo, new: androidx.media3.common.Player.PositionInfo, reason: Int) {
             CutTrace.log("discontinuity", "layer=main reason=$reason ${old.positionMs} -> ${new.positionMs}")

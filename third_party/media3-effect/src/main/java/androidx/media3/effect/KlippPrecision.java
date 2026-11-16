@@ -42,7 +42,7 @@ public final class KlippPrecision {
     void onFrame(int chain, long ptsUs, long presentNs, boolean dropped);
   }
 
-  /** Set only while a trace runs (null otherwise: no cost). */
+  /** The app's frame hook (its cut trace and the playback margin); null: no cost. */
   @androidx.annotation.Nullable public static volatile FrameTrace frameTrace;
 
   static void trace(int chain, long ptsUs, long presentNs, boolean dropped) {

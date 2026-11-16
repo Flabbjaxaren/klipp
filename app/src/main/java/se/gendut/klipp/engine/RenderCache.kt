@@ -76,6 +76,16 @@ object RenderCache {
     /** "Render timeline": all chunks that are not ready get rendered (once; reset when done). */
     var renderAll by mutableStateOf(false)
 
+    /**
+     * Chunks the live preview did not keep up with (PlaybackMargin: late or dropped frames while playing), by key: rendered
+     * ahead like transitions, red on the render bar until then. A change in the chunk gives it a new key – measured anew.
+     */
+    private val slow = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    var slowRevision by mutableIntStateOf(0)
+        private set
+    fun markSlow(keys: Set<String>) { if (slow.addAll(keys)) slowRevision++ }
+    fun isSlow(c: Chunk): Boolean = c.hash in slow
+
     /** With [renderAll]: only the chunks within this stretch (s) – the selected clips' (the render chip's "Render selection"). */
     var renderRange by mutableStateOf<ClosedFloatingPointRange<Double>?>(null)
 
