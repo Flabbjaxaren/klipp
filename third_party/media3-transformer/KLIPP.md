@@ -14,3 +14,10 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   renderer never holds two streams; Klipp's live playback with one video renderer across the items (prewarming off,
   items that start "at a keyframe", see `LiveCuts` in the app) reads on into the next items, and an item shorter than
   the codec's queue (a pre-rendered piece of 0.6 s) was graded and timed as the item after it.
+- `SequenceRenderersFactory.java`, `SequenceVideoRenderer.onRelease`: the buffering sink is detached before it is
+  released. With prewarming off Media3 never detaches it (`deactivateBufferingVideoSink` returns early), so releasing a
+  sequence player's renderer – which `CompositionPlayer` does at every new composition – released the composition
+  player's one video graph through it (`PlaybackVideoGraphWrapper.InputVideoSink.release`). The next composition's
+  renderers then flushed a released frame processor: `RejectedExecutionException`, "Unexpected runtime error" at every
+  rebuild on a player (Klipp then made a new player each time). `CompositionPlayerInternal` releases the graph itself
+  when the player is released.

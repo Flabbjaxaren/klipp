@@ -397,6 +397,13 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     @Override
     protected void onRelease() {
       super.onRelease();
+      // Klipp: the frame processing sink belongs to the composition player (one video graph for every sequence player, kept
+      // for the next composition and released by CompositionPlayerInternal): never release it from here. With prewarming
+      // off the buffering sink still points at it when the renderer is released (deactivateBufferingVideoSink leaves it
+      // attached), and releasing it released the whole video graph – the next composition's renderers then flushed a
+      // released frame processor (RejectedExecutionException at every new composition on a player).
+      bufferingVideoSink.setVideoSink(null);
+      bufferingVideoSink.clearPendingOperations();
       bufferingVideoSink.release();
     }
 
