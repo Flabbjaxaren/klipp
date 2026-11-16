@@ -760,9 +760,11 @@ class ProgramPlayback(private val context: Context) {
             // The next reload therefore switches to a new player.
             dead = true
             val pos = positionSec()
-            val cause = error.cause ?: error
+            // the innermost cause: the composition player hands on the sequence player's error, which wraps the exception
+            // thrown (the note showed only where it was wrapped)
+            val cause = generateSequence<Throwable>(error) { t -> t.cause?.takeIf { it !== t } }.last()
             lastError = error.errorCodeName + ": " + (error.cause?.message ?: error.message) + where(cause)
-            se.gendut.klipp.CrashReport.note("player error: $lastError\n" + cause.stackTrace.take(12).joinToString("\n") { "  at $it" })
+            se.gendut.klipp.CrashReport.note("player error: $lastError\n  cause: $cause\n" + cause.stackTrace.take(16).joinToString("\n") { "  at $it" })
             // the fallbacks only for errors they can fix (a missing file or a read error must not turn off HDR or the LUT)
             val code = error.errorCode
             val decoderIssue = code == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
