@@ -30,7 +30,11 @@ import kotlin.math.roundToInt
  * No audio leaves the phone; the network is only used to download the model once.
  */
 object Whisper {
-    private val loaded by lazy { runCatching { System.loadLibrary("klipp_whisper") }.isSuccess }
+    // (not loaded on a CPU without the instructions it is built for: SIGILL there, see CpuFeatures)
+    private val loaded by lazy {
+        if (!CpuFeatures.speech) { se.gendut.klipp.CrashReport.note("speech: this CPU lacks dotprod/fp16/atomics – unavailable"); return@lazy false }
+        runCatching { System.loadLibrary("klipp_whisper") }.isSuccess
+    }
     val available: Boolean get() = loaded
 
     /** Called from whisper.cpp with the percentage (0–100) of what is currently being transcribed. */
