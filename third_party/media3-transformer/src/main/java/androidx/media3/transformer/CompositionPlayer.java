@@ -1795,7 +1795,12 @@ public final class CompositionPlayer extends SimpleBasePlayer {
       Set<@C.TrackType Integer> sequenceTrackTypes,
       boolean shouldGenerateBlankFrames) {
     MediaSource silenceMediaSource =
-        new ClippingMediaSource.Builder(new SilenceMediaSource(editedMediaItem.durationUs))
+        new ClippingMediaSource.Builder(
+                // Klipp: the silence at the mix's rate (see KlippAudio, KlippSilenceMediaSource)
+                KlippAudio.playbackMixSampleRate > 0
+                    ? new KlippSilenceMediaSource(
+                        editedMediaItem.durationUs, KlippAudio.playbackMixSampleRate)
+                    : new SilenceMediaSource(editedMediaItem.durationUs))
             .setStartPositionUs(editedMediaItem.mediaItem.clippingConfiguration.startPositionUs)
             .setEndPositionUs(editedMediaItem.mediaItem.clippingConfiguration.endPositionUs)
             .build();
