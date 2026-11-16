@@ -17,4 +17,32 @@ public final class KlippPlayerOptions {
   public static CompositionPlayer.Builder videoPrewarming(CompositionPlayer.Builder builder, boolean enabled) {
     return builder.setVideoPrewarmingEnabled(enabled);
   }
+
+  /**
+   * Diagnostics: the players of the sequences (one each). Media3 keeps them to itself, so they are found by their type
+   * (the names don't survive the release build). Empty until a composition is set; call on the player's thread.
+   */
+  public static java.util.List<androidx.media3.exoplayer.ExoPlayer> sequencePlayers(CompositionPlayer player) {
+    java.util.ArrayList<androidx.media3.exoplayer.ExoPlayer> out = new java.util.ArrayList<>();
+    try {
+      for (java.lang.reflect.Field f : CompositionPlayer.class.getDeclaredFields()) {
+        if (!java.util.List.class.isAssignableFrom(f.getType())) continue;
+        f.setAccessible(true);
+        Object v = f.get(player);
+        if (!(v instanceof java.util.List)) continue;
+        for (Object h : (java.util.List<?>) v) {
+          if (h == null) continue;
+          for (java.lang.reflect.Field g : h.getClass().getDeclaredFields()) {
+            if (!androidx.media3.exoplayer.ExoPlayer.class.isAssignableFrom(g.getType())) continue;
+            g.setAccessible(true);
+            Object q = g.get(h);
+            if (q instanceof androidx.media3.exoplayer.ExoPlayer) out.add((androidx.media3.exoplayer.ExoPlayer) q);
+          }
+        }
+      }
+    } catch (Throwable ignored) {
+      // diagnostics only
+    }
+    return out;
+  }
 }

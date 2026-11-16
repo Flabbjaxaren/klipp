@@ -210,6 +210,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   @Override
   public void signalEndOfCurrentInputStream() {
     videoFrameProcessingTaskExecutor.verifyVideoFrameProcessingThread();
+    KlippPrecision.composite("fsw end waiting=" + availableFrames.size());
     if (availableFrames.isEmpty()) {
       checkNotNull(listener).onInputStreamProcessed();
       isInputStreamEndedWithPendingAvailableFrames = false;
@@ -383,6 +384,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
         oldestAvailableFrame.glTextureInfo,
         oldestAvailableFrame.presentationTimeUs,
         renderTimeNs);
+    if (isInputStreamEndedWithPendingAvailableFrames) {
+      KlippPrecision.composite("fsw rendered left=" + availableFrames.size());
+    }
     if (availableFrames.isEmpty() && isInputStreamEndedWithPendingAvailableFrames) {
       checkNotNull(listener).onInputStreamProcessed();
       isInputStreamEndedWithPendingAvailableFrames = false;

@@ -737,6 +737,14 @@ class ProgramPlayback(private val context: Context) {
     /** If the phone never reports the first frame: assume it shows a while after the player became ready. */
     private val assumeShown = Runnable { if (player.playbackState == androidx.media3.common.Player.STATE_READY) { frameShown = true; framesShown++ } }
 
+    /** Diagnostics (the cut trace): what the sequence's own player does with its renderers around an item boundary. */
+    private val traced = java.util.Collections.newSetFromMap(java.util.WeakHashMap<ExoPlayer, Boolean>())
+    private fun traceRenderers() {
+        if (!CutTrace.on) return
+        for ((i, p) in androidx.media3.transformer.KlippPlayerOptions.sequencePlayers(player).withIndex())
+            if (traced.add(p)) { p.addAnalyticsListener(RendererTrace(i)); CutTrace.log("seq", "$i traced") }
+    }
+
     // must be created before the player below
     private val listener = object : androidx.media3.common.Player.Listener {
         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -798,7 +806,7 @@ class ProgramPlayback(private val context: Context) {
             if (startPending) { main.removeCallbacks(deferredPlay); main.post(deferredPlay) }
         }
 
-        override fun onIsPlayingChanged(isPlaying: Boolean) { CutTrace.log("isPlaying", "layer=main $isPlaying pos=${player.currentPosition}") }
+        override fun onIsPlayingChanged(isPlaying: Boolean) { CutTrace.log("isPlaying", "layer=main $isPlaying pos=${player.currentPosition}"); if (isPlaying) traceRenderers() }
 
         override fun onPositionDiscontinuity(old: androidx.media3.common.Player.PositionInfo, new: androidx.media3.common.Player.PositionInfo, reason: Int) {
             CutTrace.log("discontinuity", "layer=main reason=$reason ${old.positionMs} -> ${new.positionMs}")

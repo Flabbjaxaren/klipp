@@ -570,6 +570,7 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
         new FinalShaderProgramWrapper.Listener() {
           @Override
           public void onInputStreamProcessed() {
+            KlippPrecision.composite("streamprocessed ended=" + inputStreamEnded);
             if (inputStreamEnded) {
               listenerExecutor.execute(listener::onEnded);
               DebugTraceUtil.logEvent(COMPONENT_VFP, EVENT_SIGNAL_ENDED, C.TIME_END_OF_SOURCE);
@@ -746,6 +747,10 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
         format.height);
     Format nextFormat = adjustForPixelWidthHeightRatio(format);
     nextInputFrameInfo = new FrameInfo(nextFormat, offsetToAddUs);
+    // Klipp: the stream change's steps (the cut trace)
+    KlippPrecision.composite(
+        "regstream enter effects=" + effects.size() + " open=" + inputStreamRegisteredCondition.isOpen()
+            + " offset=" + offsetToAddUs + " thread=" + Thread.currentThread().getName());
 
     try {
       // Blocks until the previous input stream registration completes.
@@ -770,6 +775,7 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
         // configured.
         this.pendingInputStreamInfo = pendingInputStreamInfo;
         inputStreamRegisteredCondition.close();
+        KlippPrecision.composite("regstream pending: end of the current stream signalled");
         inputSwitcher.signalEndOfCurrentInputStream();
       }
     }
@@ -781,7 +787,15 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
     checkNotNull(
         nextInputFrameInfo, "registerInputStream must be called before registering input frames");
     if (!inputStreamRegisteredCondition.isOpen() || released) {
+      if (klippRegisterOk) {
+        klippRegisterOk = false;
+        KlippPrecision.composite("regframe refused (the stream isn't configured yet)");
+      }
       return false;
+    }
+    if (!klippRegisterOk) {
+      klippRegisterOk = true;
+      KlippPrecision.composite("regframe accepted again");
     }
     inputSwitcher.activeTextureManager().registerInputFrame(nextInputFrameInfo);
     return true;
@@ -825,6 +839,7 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
 
   @Override
   public void signalEndOfInput() {
+    KlippPrecision.composite("endofinput");
     DebugTraceUtil.logEvent(COMPONENT_VFP, EVENT_RECEIVE_END_OF_ALL_INPUT, C.TIME_END_OF_SOURCE);
     checkState(!inputStreamEnded);
     inputStreamEnded = true;
@@ -846,6 +861,7 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
    */
   @Override
   public void flush() {
+    KlippPrecision.composite("flush thread=" + Thread.currentThread().getName());
     try {
       // The method is synchronized with configure(), which could modify the TextureManager used in
       // the InputSwitcher. If running concurrently, the flush call could be routed to the changed
@@ -914,8 +930,12 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
 
   // Methods that must be called on the GL thread.
 
+  /** Klipp: whether the last registerInputFrame was accepted (the cut trace logs the changes). */
+  private boolean klippRegisterOk = true;
+
   private void configurePendingInputStream() throws VideoFrameProcessingException {
     videoFrameProcessingTaskExecutor.verifyVideoFrameProcessingThread();
+    KlippPrecision.composite("configpending has=" + (this.pendingInputStreamInfo != null));
     @Nullable InputStreamInfo pendingInputStreamInfo = null;
     // Release the lock before calling configure.
     synchronized (lock) {

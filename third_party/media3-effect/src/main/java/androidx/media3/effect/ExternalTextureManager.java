@@ -218,6 +218,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     videoFrameProcessingTaskExecutor.submit(
         () -> {
           currentFrame = null;
+          if (currentInputStreamEnded) {
+            KlippPrecision.composite(
+                "etm processed pending=" + pendingFrames.size() + " cap=" + externalShaderProgramInputCapacity
+                    + " avail=" + availableFrameCount);
+          }
           if (currentInputStreamEnded && pendingFrames.isEmpty()) {
             // Reset because there could be further input streams after the current one ends.
             currentInputStreamEnded = false;
@@ -280,6 +285,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
             // the next explicit registration.
             shouldRejectIncomingFrames = true;
           }
+          KlippPrecision.composite(
+              "etm end pending=" + pendingFrames.size() + " cur=" + (currentFrame != null)
+                  + " cap=" + externalShaderProgramInputCapacity + " avail=" + availableFrameCount);
           if (pendingFrames.isEmpty() && currentFrame == null) {
             checkNotNull(externalShaderProgram).signalEndOfCurrentInputStream();
             DebugTraceUtil.logEvent(
@@ -363,6 +371,9 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   }
 
   private void forceSignalEndOfStream() {
+    KlippPrecision.composite(
+        "etm force avail=" + availableFrameCount + " pending=" + pendingFrames.size()
+            + " cap=" + externalShaderProgramInputCapacity + " cur=" + (currentFrame != null));
     if (availableFrameCount == pendingFrames.size()) {
       // All frames received from decoder. Do not force end of stream.
       return;

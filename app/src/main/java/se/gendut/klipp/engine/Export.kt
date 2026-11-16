@@ -211,12 +211,19 @@ class FrameRateEffect(
                 PausedPick.HOLD -> { inputListener.onInputFrameProcessed(tex); return }
                 else -> null
             }
+            // (diagnostics: every frame's time into and out of the rule, the cut trace)
+            if (CutTrace.on) CutTrace.log("rate", "in=$presentationTimeUs out=${out ?: "drop"}")
             if (out == null) {
                 inputListener.onInputFrameProcessed(tex)
                 inputListener.onReadyToAcceptInputFrame()
                 return
             }
             super.queueInputFrame(gl, tex, out)
+        }
+
+        override fun signalEndOfCurrentInputStream() {
+            if (CutTrace.on) CutTrace.log("rate", "end of the input stream")
+            super.signalEndOfCurrentInputStream()
         }
 
         override fun flush() {
