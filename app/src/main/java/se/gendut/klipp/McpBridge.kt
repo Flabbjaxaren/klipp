@@ -356,8 +356,8 @@ object McpBridge {
             ctl().import(uris)
             texts("importing ${uris.size} files")
         },
-        Tool("render_diag", "Pre-render diagnostics: op=live deletes the renders (of every project) and holds rendering (the timeline plays live), op=resume lets it render again; op=hold holds rendering and keeps the renders; op=rebuild makes the player build its composition again (nothing deleted); op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals; grades: overrides for this render only).",
-            JSONObject().put("op", prop("string", "live | resume | hold | rebuild | chunks | copy | render")).put("a", prop("number", "s")).put("b", prop("number", "s"))
+        Tool("render_diag", "Pre-render diagnostics: op=live deletes the renders (of every project) and holds rendering (the timeline plays live), op=resume lets it render again; op=hold holds rendering and keeps the renders; op=status: what is being made (pre-render progress, proxies and node caches in progress); op=rebuild makes the player build its composition again (nothing deleted); op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals; grades: overrides for this render only).",
+            JSONObject().put("op", prop("string", "live | resume | hold | rebuild | status | chunks | copy | render")).put("a", prop("number", "s")).put("b", prop("number", "s"))
                 .put("mode", prop("string", "chunk | export")).put("name", prop("string", "file name"))
                 .put("grades", prop("object", "op=render: grades for this render only, clip id → grade JSON (the project's grades are left as they are)"))
                 .put("passes", prop("boolean", "op=render: count Klipp's GPU stages (nodes, film, …) during the render – glFinish around each, so not for timing"))) { a ->
@@ -374,6 +374,13 @@ object McpBridge {
                 "live" -> { se.gendut.klipp.engine.RenderCache.hold = true; se.gendut.klipp.engine.RenderCache.clear(); texts("live: renders deleted, rendering held") }
                 "resume" -> { se.gendut.klipp.engine.RenderCache.hold = false; texts("rendering resumed") }
                 // (test runs: hold rendering without deleting anything – the renders of every project stay)
+                // (test runs: what is still being made – the pre-render, proxies, node caches)
+                "status" -> texts(onMain {
+                    JSONObject().put("hold", se.gendut.klipp.engine.RenderCache.hold)
+                        .put("render", se.gendut.klipp.engine.RenderCache.progress?.toDouble() ?: JSONObject.NULL)
+                        .put("proxies", JSONObject(se.gendut.klipp.engine.Proxies.progress.toMap()))
+                        .put("nodeCache", JSONObject(se.gendut.klipp.engine.NodeCache.progress.mapKeys { it.key.toString() }))
+                }.toString())
                 "hold" -> { se.gendut.klipp.engine.RenderCache.hold = true; texts("rendering held, renders kept") }
                 // (test runs: the player builds its composition again, nothing deleted – as after any change)
                 "rebuild" -> { onMain { se.gendut.klipp.engine.RenderCache.touch() }; texts("rebuild asked") }
