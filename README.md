@@ -142,6 +142,8 @@ Parts from other projects:
 - **FilmCraft** (the editing engine, Rust), **Media3** (Apache-2.0), **whisper.cpp** (MIT).
 - **Media3 effect** (Apache-2.0) as source code in `third_party/media3-effect`, modified so that the whole video chain
   computes in floating point (RGBA16F) – see `third_party/media3-effect/KLIPP.md`.
+- **Media3 transformer** (Apache-2.0) as source code in `third_party/media3-transformer`, modified for live playback's cuts
+  with one video renderer – see `third_party/media3-transformer/KLIPP.md`.
 
 ### The spektrafilm tables
 
