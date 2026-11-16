@@ -470,7 +470,7 @@ fun KlippApp(
                 if (r.isSuccess && all && todo.all { se.gendut.klipp.engine.RenderCache.isReady(it) }) {
                     se.gendut.klipp.engine.RenderCache.renderAll = false
                     se.gendut.klipp.engine.RenderCache.renderRange = null
-                    toaster.show(Str.t(R.string.app_timeline_rendered))
+                    toaster.show(Str.t(if (range != null) R.string.app_selection_rendered else R.string.app_timeline_rendered))
                 }
             }
             rendering.join()

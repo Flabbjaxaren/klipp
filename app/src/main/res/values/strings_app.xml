@@ -52,6 +52,7 @@
     <string name="app_playback_rebuild_failed">Couldn\'t rebuild playback (%1$s)</string>
     <string name="app_render_failed">Rendering failed: %1$s</string>
     <string name="app_timeline_rendered">The timeline is rendered</string>
+    <string name="app_selection_rendered">The selection is rendered</string>
     <string name="app_lut_fallback">The color pass didn\'t work on this GPU – using standard effects (trilinear LUT)</string>
     <string name="app_marker_at">Marker at %1$s</string>
     <string name="app_copied_to_source">Copied to Source – pick a spot and insert</string>

@@ -52,6 +52,7 @@
     <string name="app_playback_rebuild_failed">Uppspelningen kunde inte byggas om (%1$s)</string>
     <string name="app_render_failed">Renderingen misslyckades: %1$s</string>
     <string name="app_timeline_rendered">Tidslinjen är renderad</string>
+    <string name="app_selection_rendered">Markeringen är renderad</string>
     <string name="app_lut_fallback">Färgpasset fungerade inte på den här GPU:n – använder standardeffekter (trilinjär LUT)</string>
     <string name="app_marker_at">Markör vid %1$s</string>
     <string name="app_copied_to_source">Kopierat till källan – välj plats och infoga</string>
