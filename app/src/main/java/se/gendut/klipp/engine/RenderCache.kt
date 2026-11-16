@@ -40,6 +40,16 @@ object RenderCache {
     var revision by mutableIntStateOf(0)
         private set
 
+    /** The chunk being rendered now (start, end in s) and how much of it is done (0..1) – the timeline's render bar shows it. */
+    var current by mutableStateOf<Pair<Double, Double>?>(null)
+        private set
+    var currentDone by mutableStateOf(0f)
+        private set
+
+    /** A render waits for a clip's proxy (see [proxyPending]): the render chip says so instead of 0 %. */
+    var waitingForProxy by mutableStateOf(false)
+        private set
+
     /** Diagnostics (test runs): playback builds its composition again, as when a chunk becomes ready – nothing is deleted. */
     fun touch() { revision++ }
 
@@ -733,9 +743,13 @@ object RenderCache {
                 // decoder's instances taken) – and the chunk's key holds whether a proxy is used, so it was rendered again
                 // once the proxy was there.
                 while (proxyPending(s, uriOf, c.a - preRollFor(context, s, uriOf, c.a, export = false), renderEnd(s, c))) {
-                    if (generation != gen || c.hash !in wanted) return Result.success(n)
+                    waitingForProxy = true
+                    if (generation != gen || c.hash !in wanted) { waitingForProxy = false; return Result.success(n) }
                     kotlinx.coroutines.delay(500)
                 }
+                waitingForProxy = false
+                current = c.a to c.b
+                currentDone = 0f
                 val built = CompositionBuilder.buildFull(
                     s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
                     videoUriOf = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }, previewShort = short,
@@ -753,6 +767,7 @@ object RenderCache {
                     val out = whileAllowed({ canWork() && c.hash in wanted }) {
                         Exporter.transform(context, built.composition, tmp, renderSettings(s, short), tenBit = false, note = false, oneColor = true) { p ->
                             progress = ((done + (c.b - c.a) * p / 100.0) / total).toFloat().coerceIn(0f, 1f)
+                            currentDone = (p / 100f).coerceIn(0f, 1f)
                         }
                     }
                     if (out == null) {
@@ -788,6 +803,8 @@ object RenderCache {
             return Result.success(n)
         } finally {
             progress = null
+            current = null
+            waitingForProxy = false
         }
     }
 

@@ -1652,6 +1652,15 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     if (x1 < 0f || x0 > w) continue
                     drawRect(if (c.ready) Color(0xFF4CAF7A) else Color(0xFFD9534F), Offset(x0, rulerBasePx - 3.dp.toPx()), Size(x1 - x0, 3.dp.toPx()))
                 }
+                // the chunk being rendered now: amber, filled as far as it has come
+                se.gendut.klipp.engine.RenderCache.current?.let { (a, b) ->
+                    val x0 = (a * pps).toFloat() - sx(); val x1 = (b * pps).toFloat() - sx()
+                    if (x1 >= 0f && x0 <= w) {
+                        val h = 3.dp.toPx(); val y = rulerBasePx - h
+                        drawRect(Color(0x66E0A93B), Offset(x0, y), Size(x1 - x0, h))
+                        drawRect(Color(0xFFE0A93B), Offset(x0, y), Size((x1 - x0) * se.gendut.klipp.engine.RenderCache.currentDone, h))
+                    }
+                }
                 // markers
                 for ((i, m) in state.markers.withIndex()) {
                     val x = m * pps - sx()

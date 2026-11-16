@@ -138,6 +138,11 @@
     <string name="app_deselect">Deselect</string>
     <string name="app_rendering_progress">Rendering %1$d%%  ✕</string>
     <string name="app_waiting">Waiting …</string>
+    <string name="app_waiting_proxies">Waiting for proxies …</string>
+    <plurals name="app_preparing">
+        <item quantity="one">Preparing a file · %2$d%%</item>
+        <item quantity="other">Preparing %1$d files · %2$d%%</item>
+    </plurals>
     <string name="app_render">Render</string>
     <string name="app_crossfade">Crossfade</string>
     <string name="app_length">Length</string>

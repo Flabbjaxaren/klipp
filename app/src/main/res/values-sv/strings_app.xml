@@ -138,6 +138,11 @@
     <string name="app_deselect">Avmarkera</string>
     <string name="app_rendering_progress">Renderar %1$d %%  ✕</string>
     <string name="app_waiting">Väntar …</string>
+    <string name="app_waiting_proxies">Väntar på proxyer …</string>
+    <plurals name="app_preparing">
+        <item quantity="one">Förbereder en fil · %2$d %%</item>
+        <item quantity="other">Förbereder %1$d filer · %2$d %%</item>
+    </plurals>
     <string name="app_render">Rendera</string>
     <string name="app_crossfade">Övertoning</string>
     <string name="app_length">Längd</string>

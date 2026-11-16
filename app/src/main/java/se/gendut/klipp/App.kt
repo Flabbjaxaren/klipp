@@ -1057,7 +1057,9 @@ internal fun TimecodeDialog(now: Float, onDismiss: () -> Unit, onGo: (Float) -> 
 
 /**
  * Pre-render chip at the timeline: "Render" when there are heavy parts that aren't rendered (then everything plays from
- * finished files, without lag); during rendering, the progress – tap to cancel.
+ * finished files, without lag); during rendering, the progress – tap to cancel. It also says what is being prepared in
+ * the background – proxies, node caches, freeze frames as video – and that a render waits for a proxy: after an import
+ * of camera files that takes minutes, and the picture plays heavier until it is done.
  */
 @Composable
 internal fun RenderChip(modifier: Modifier) {
@@ -1065,20 +1067,32 @@ internal fun RenderChip(modifier: Modifier) {
     val rc = se.gendut.klipp.engine.RenderCache
     val p = rc.progress
     val todo = rc.states.any { it.heavy && !it.ready }
-    AnimatedVisibility(p != null || todo, modifier = modifier, enter = fadeIn() + scaleIn(initialScale = 0.8f), exit = fadeOut() + scaleOut(targetScale = 0.8f)) {
+    // background preparation: each file's progress (−1 = queued) averaged
+    val prep = se.gendut.klipp.engine.Proxies.progress.values.toList() + se.gendut.klipp.engine.NodeCache.progress.values.toList() +
+        List(se.gendut.klipp.engine.HoldVideos.busy) { -1 }
+    val prepPct = if (prep.isEmpty()) 0 else prep.sumOf { it.coerceAtLeast(0) } / prep.size
+    val preparing = prep.isNotEmpty()
+    AnimatedVisibility(p != null || todo || preparing, modifier = modifier, enter = fadeIn() + scaleIn(initialScale = 0.8f), exit = fadeOut() + scaleOut(targetScale = 0.8f)) {
+        val actionable = p != null || todo || rc.renderAll
         Row(
             Modifier.height(30.dp).clip(RoundedCornerShape(15.dp)).background(K.SurfaceHighest)
-                .clickable {
+                .then(if (!actionable) Modifier else Modifier.clickable {
                     haptics.confirm()
                     if (p != null || rc.renderAll) { rc.renderAll = false; rc.halted = true } else { rc.halted = false; rc.renderAll = true }
-                }
+                })
                 .padding(horizontal = 10.dp).testTag("renderChip"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Ic.Bolt, null, tint = if (p != null) K.Primary else K.OnSurface, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(4.dp))
             Text(
-                if (p != null) stringResource(R.string.app_rendering_progress, (p * 100).toInt()) else if (rc.renderAll) stringResource(R.string.app_waiting) else stringResource(R.string.app_render),
+                when {
+                    rc.waitingForProxy -> stringResource(R.string.app_waiting_proxies)
+                    p != null -> stringResource(R.string.app_rendering_progress, (p * 100).toInt())
+                    rc.renderAll -> stringResource(R.string.app_waiting)
+                    todo -> stringResource(R.string.app_render)
+                    else -> pluralStringResource(R.plurals.app_preparing, prep.size, prep.size, prepPct)
+                },
                 color = K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold,
             )
         }

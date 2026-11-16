@@ -37,6 +37,10 @@ object HoldVideos {
     var revision by mutableIntStateOf(0)
         private set
 
+    /** Freeze frame videos waiting or being made (the render chip counts them as preparation). */
+    var busy by mutableIntStateOf(0)
+        private set
+
     @Volatile private var app: Context? = null
     fun init(context: Context) { app = context.applicationContext }
 
@@ -72,6 +76,7 @@ object HoldVideos {
         main.post {
             if (out.path in pending || out.path in failed) return@post
             pending += out.path
+            busy = pending.size
             queue.addLast(Job(still, len, short, out))
             if (running == null) next(app)
         }
@@ -97,6 +102,7 @@ object HoldVideos {
         fun done(ok: Boolean) {
             running = null
             pending -= job.out.path
+            busy = pending.size
             if (ok && tmp.renameTo(job.out)) revision++ else { tmp.delete(); failed += job.out.path }
             next(c)
         }
