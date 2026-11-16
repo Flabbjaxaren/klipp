@@ -97,7 +97,7 @@ data class SegFx(
     fun progress(t: Double): Float = if (t1 <= t0) 1f else ((t - t0) / (t1 - t0)).coerceIn(0.0, 1.0).toFloat()
 
     /** How the piece is drawn at timeline time [t]. */
-    fun at(t: Double): Geom = move(t).let { g -> if (blur == 1f) g else g.copy(blurX = g.blurX * blur, blurY = g.blurY * blur, blurZoom = g.blurZoom * blur, blurTurn = g.blurTurn * blur) }
+    fun at(t: Double): Geom = move(t).let { g -> (blur * BASE_BLUR).let { m -> g.copy(blurX = g.blurX * m, blurY = g.blurY * m, blurZoom = g.blurZoom * m, blurTurn = g.blurTurn * m) } }
 
     private fun move(t: Double): Geom {
         val p = progress(t)
@@ -110,7 +110,7 @@ data class SegFx(
             // into the color slowly, ever faster, black at the edit point; out of it at once and then a long soft tail (the
             // overlap layer is not visible)
             TransitionType.DIP_BLACK, TransitionType.DIP_WHITE -> Geom(
-                tint = if (incoming) 1f - bezier(after(p, pc), 0.07f, 0.17f, 0.43f, 0.99f).first else bezier(before(p, pc), 0.64f, 0.02f, 0.94f, 0.61f).first,
+                tint = if (incoming) 1f - bezier(after(p, pc), 0.08f, 0.19f, 0.41f, 0.98f).first else bezier(before(p, pc), 0.62f, 0.04f, 0.92f, 0.63f).first,
                 tintWhite = type == TransitionType.DIP_WHITE,
             )
             // push: the incoming clip comes from the right (reversed: left) and pushes out the outgoing one
@@ -134,9 +134,9 @@ data class SegFx(
             // takes over a quarter turn behind and settles level (the picture mirrored around the frame), smeared as by a 300°
             // shutter. Reversed: counterclockwise
             TransitionType.ROTATE -> {
-                val (turn, speed) = if (incoming) bezier(after(p, pc), 0.19f, 0.52f, 0.33f, 0.99f).let { (u, d) -> ROTATE_IN * (u - 1f) to ROTATE_IN * d / (t1 - cut).toFloat() }
+                val (turn, speed) = if (incoming) bezier(after(p, pc), 0.2f, 0.5f, 0.31f, 0.98f).let { (u, d) -> ROTATE_IN * (u - 1f) to ROTATE_IN * d / (t1 - cut).toFloat() }
                     else gather(before(p, pc)).let { (u, v) -> ROTATE_OUT * u to ROTATE_OUT * GATHER_SPEED * v / (cut - t0).toFloat() }
-                Geom(turn = sign * turn, blurTurn = (speed * SHUTTER_S * 300f / 360f).coerceAtMost(MAX_TURN_BLUR), mirror = true)
+                Geom(turn = sign * turn, blurTurn = (speed * SHUTTER_S * 320f / 360f).coerceAtMost(MAX_TURN_BLUR), mirror = true)
             }
             // straight down through the edit point: the picture continues mirrored, so nothing else has to be seen at once
             TransitionType.WHIP_VERTICAL -> arrive(p, pc).let { (u, v) -> Geom(dy = sign * (if (incoming) 1f - u else -u), blurY = PAN_BLUR * v, mirror = true) }
@@ -169,28 +169,28 @@ data class SegFx(
     val visible get() = !(over && type.sequential)
 
     companion object {
-        /** The zoom as logarithms: the outgoing clip grows to ×2.46 at the edit point, the incoming one starts there from ×0.65. */
-        const val ZOOM_OUT = 0.9f
-        const val ZOOM_IN = 0.43f
+        /** The zoom as logarithms: the outgoing clip grows to ×2.53 at the edit point, the incoming one starts there from ×0.64. */
+        const val ZOOM_OUT = 0.93f
+        const val ZOOM_IN = 0.45f
         /** Exposure time of the zoom's motion blur: a 360° shutter at 25 fps. */
         const val SHUTTER_S = 1f / 25f
         /** The version of the moves above, in the render cache's keys: raise it when a transition's look changes. */
-        const val LOOK = 8
+        const val LOOK = 9
         /** How far the push and the whip have come at the edit point: about where the speeds on either side meet. */
-        const val THROWN = 0.7f
+        const val THROWN = 0.68f
         /** The most smear (the zoom's in log scale, the turn's in radians) – short transitions move very fast. */
         const val MAX_ZOOM_BLUR = 1.3f
         const val MAX_TURN_BLUR = 1.2f
-        /** Rotate: the outgoing clip's turn at the edit point (110°) and how far behind the incoming one starts (90°). */
-        const val ROTATE_OUT = 1.92f
-        const val ROTATE_IN = 1.571f
-        private const val GATHER = 1.1f
+        /** Rotate: the outgoing clip's turn at the edit point (114°) and how far behind the incoming one starts (94°). */
+        const val ROTATE_OUT = 1.99f
+        const val ROTATE_IN = 1.64f
+        private const val GATHER = 1.15f
         private val GATHER_E = kotlin.math.exp(GATHER)
         /** [gather]'s speed at the edit point and [settle]'s right after it, in move per part (for the zoom's true speed). */
         val GATHER_SPEED = GATHER * (GATHER_E - 1f) / (GATHER_E - 1f - GATHER)
         val SETTLE_SPEED = SETTLE_Y1 / SETTLE_X1
-        private const val SETTLE_X1 = 0.1f
-        private const val SETTLE_Y1 = 0.7f
+        private const val SETTLE_X1 = 0.11f
+        private const val SETTLE_Y1 = 0.72f
 
         /** Up to the edit point, x = 0..1 of the part: from rest, ever faster (speed 1 at the end). */
         fun gather(x: Float): Pair<Float, Float> {
@@ -199,7 +199,7 @@ data class SegFx(
         }
 
         /**
-         * After it: the ease cubic-bezier(0.1, 0.7, 0, 1) – leaving at full speed (1), half the way gone in a twentieth of the
+         * After it: the ease cubic-bezier(0.11, 0.72, 0, 1) – leaving at full speed (1), half the way gone in a twentieth of the
          * part, then a long soft landing.
          */
         fun settle(x: Float): Pair<Float, Float> = bezier(x, SETTLE_X1, SETTLE_Y1, 0f, 1f).let { (u, d) -> u to (d / SETTLE_SPEED).coerceIn(0f, 1f) }
@@ -219,7 +219,9 @@ data class SegFx(
         /** One coordinate of a cubic from 0 to 1 with inner points [a] and [b], and its derivative. */
         private fun bez(s: Float, a: Float, b: Float): Float { val r = 1f - s; return 3f * r * r * s * a + 3f * r * s * s * b + s * s * s }
         private fun bezD(s: Float, a: Float, b: Float): Float { val r = 1f - s; return 3f * r * r * a + 6f * r * s * (b - a) + 3f * s * s * (1f - b) }
-        const val PAN_BLUR = 0.8f
+        const val PAN_BLUR = 0.85f
+        /** The motion blur at 100 %: half as much again as the moves' own (they looked too sharp at the default). */
+        const val BASE_BLUR = 1.5f
     }
 }
 
@@ -249,9 +251,9 @@ object WhipCurve {
     }
 
     /** The base length, its outgoing part (up to the cut) and its incoming one (the cut to the landing). */
-    const val TOTAL_S = 0.5005
-    const val OUT_S = 0.133467
-    const val IN_S = 0.367033
+    const val TOTAL_S = 0.5
+    const val OUT_S = 0.138
+    const val IN_S = 0.362
     private const val WIDTH_PX = 1920.0
     /**
      * The smear values are a soft (Gaussian-like) blur's spread, not its length: a box smear as wide as √12 × that has the
@@ -259,14 +261,14 @@ object WhipCurve {
      */
     private val SMEAR_PER_PX = kotlin.math.sqrt(12.0) / WIDTH_PX
 
-    // outgoing: from rest to −0.667 over 0.2 s, of which the part to the cut is used; incoming: from +0.464 (a frame before
+    // outgoing: from rest to −0.68 over 0.205 s, of which the part to the cut is used; incoming: from +0.48 (a frame before
     // the cut) to 0
-    private val OUT = Cubic(0.0, 0.0, 0.171919, -0.015807, 0.183133, -0.575350, 0.200200, -0.666667)
-    private val IN = Cubic(-0.016105, 0.463542, 0.079814, 0.041571, 0.056152, 0.0, 0.367033, 0.0)
-    // smear (px): rising to 70 at 0.167 s on the outgoing clip (of which the part to the cut is used); 100 at the
+    private val OUT = Cubic(0.0, 0.0, 0.168, -0.02, 0.187, -0.56, 0.205, -0.68)
+    private val IN = Cubic(-0.016, 0.48, 0.077, 0.045, 0.058, 0.0, IN_S, 0.0)
+    // smear (px): rising to 74 at 0.17 s on the outgoing clip (of which the part to the cut is used); 106 at the
     // cut on the incoming one, gone after a third of a second
-    private val BLUR_OUT = Cubic(0.0, 0.0, 0.096867, -1.246381, 0.147405, 63.481342, 0.166833, 70.0)
-    private val BLUR_IN = Cubic(0.0, 100.0, 0.062416, 19.725776, 0.041557, -0.696822, 0.333669, 0.0)
+    private val BLUR_OUT = Cubic(0.0, 0.0, 0.095, -1.2, 0.15, 66.0, 0.17, 74.0)
+    private val BLUR_IN = Cubic(0.0, 106.0, 0.06, 21.0, 0.044, -0.7, 0.33, 0.0)
 
     /** The outgoing clip at [s] seconds of the base move (0..[OUT_S]): its shift (frame widths, left −) and smear (widths). */
     fun outgoing(s: Double): Pair<Float, Float> = OUT.at(s).toFloat() to (BLUR_OUT.at(s).coerceAtLeast(0.0) * SMEAR_PER_PX).toFloat()
@@ -487,9 +489,9 @@ void main() {
   if (uLeak > 0.0) {
     // turbulent clouds of light drifting across, warm orange to pink with a hot yellow core
     // screen blend of a warm-to-pink glow sweeping in from the right; at the edit point almost all white
-    float cloud = clouds(vec2(o.x * uAspect, o.y) * 1.7 + vec2(-1.4 * uDrift, 0.5 * uDrift));
+    float cloud = clouds(vec2(o.x * uAspect, o.y) * 1.75 + vec2(-1.45 * uDrift, 0.52 * uDrift));
     float glow = smoothstep(1.2 - 1.6 * uLeak, 1.2, o.x + 0.25 * (1.0 - o.y) + (cloud - 0.5) * 0.7);
-    vec3 warm = mix(vec3(1.0, 0.42, 0.12), vec3(1.0, 0.38, 0.72), smoothstep(0.35, 0.75, cloud + 0.3 * o.y));
+    vec3 warm = mix(vec3(1.0, 0.44, 0.13), vec3(1.0, 0.36, 0.7), smoothstep(0.35, 0.75, cloud + 0.3 * o.y));
     warm = mix(warm, vec3(1.0, 0.85, 0.45), smoothstep(0.6, 0.85, cloud) * glow);
     vec3 leak = warm * glow * (0.6 + 0.8 * cloud) * uLeak * 1.4;
     rgb = vec3(1.0) - (vec3(1.0) - rgb) * (vec3(1.0) - clamp(leak, 0.0, 1.0));

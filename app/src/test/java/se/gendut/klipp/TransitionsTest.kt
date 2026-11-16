@@ -227,15 +227,15 @@ class TransitionsTest {
         val o = baseWhip(false); val i = baseWhip(true)
         val cut = 10.0 + WhipCurve.OUT_S
         assertEquals(0f, o.at(10.0).dx, 1e-4f)
-        assertEquals(-0.0949f, o.at(10.1).dx, 2e-3f)
-        assertEquals(-0.1905f, o.at(cut - 1e-9).dx, 2e-3f)
-        // smear: the spread × √12 (a Gaussian's spread as a box)
-        val box = kotlin.math.sqrt(12f) / 1920f
-        assertEquals(46.5f * box, o.at(cut - 1e-9).blurX, 1e-3f)
-        assertEquals(0.3915f, i.at(cut).dx, 2e-3f)
-        assertEquals(100f * box, i.at(cut).blurX, 1e-4f)
-        assertEquals(0.0667f, i.at(cut + 0.1).dx, 2e-3f)
-        assertEquals(0.0107f, i.at(cut + 0.2).dx, 2e-3f)
+        assertEquals(-0.0970f, o.at(10.1).dx, 2e-3f)
+        assertEquals(-0.2074f, o.at(cut - 1e-9).dx, 2e-3f)
+        // smear: the spread × √12 (a Gaussian's spread as a box), at 100 % the base blur's share
+        val box = kotlin.math.sqrt(12f) / 1920f * SegFx.BASE_BLUR
+        assertEquals(50.9f * box, o.at(cut - 1e-9).blurX, 1e-3f)
+        assertEquals(0.4040f, i.at(cut).dx, 2e-3f)
+        assertEquals(106f * box, i.at(cut).blurX, 1e-4f)
+        assertEquals(0.0685f, i.at(cut + 0.1).dx, 2e-3f)
+        assertEquals(0.0110f, i.at(cut + 0.2).dx, 2e-3f)
         assertEquals(0f, i.at(10.0 + WhipCurve.TOTAL_S).dx, 1e-4f)
         assertEquals(0f, i.at(10.0 + WhipCurve.TOTAL_S).blurX, 1e-4f)
         // a soft smear (the zoom keeps a shutter's even one)
@@ -243,7 +243,7 @@ class TransitionsTest {
         assertFalse(SegFx(TransitionType.ZOOM, true, false, 2.0, 4.0, 3.0, false).at(3.0).softBlur)
         // mirrored edges, both ways; reversed: the other way round
         assertTrue(o.at(10.1).mirror && i.at(cut).mirror)
-        assertEquals(-0.3915f, baseWhip(true, reverse = true).at(cut).dx, 2e-3f)
+        assertEquals(-0.4040f, baseWhip(true, reverse = true).at(cut).dx, 2e-3f)
     }
 
     @Test fun theWhipShowsOnePictureAtATime() {
@@ -264,17 +264,17 @@ class TransitionsTest {
         assertEquals(0f, c.at((t0 + t1) / 2 - 2 * WhipCurve.OUT_S - 0.01).dx, 1e-6f)
         // a short part is pressed: the move still ends exactly at the edit point and lands exactly at the end
         val s = SegFx(TransitionType.WHIP, false, false, 10.0, 10.4, 10.05, false)
-        assertEquals(-0.1905f, s.at(10.05 - 1e-9).dx, 2e-3f)
+        assertEquals(-0.2074f, s.at(10.05 - 1e-9).dx, 2e-3f)
         assertEquals(0f, s.at(10.0).dx, 1e-6f)
         assertEquals(0f, SegFx(TransitionType.WHIP, true, false, 10.0, 10.4, 10.35, false).at(10.4).dx, 1e-6f)
     }
 
     @Test fun theZoomIsOneMoveInward() {
         fun scale(t: Double) = (if (t < 3.0) fx(TransitionType.ZOOM, false, false) else fx(TransitionType.ZOOM, true, false)).at(t).scale
-        // outgoing: from normal size up to ×2.46; incoming: from ×0.65 up to normal size
+        // outgoing: from normal size up to ×2.53; incoming: from ×0.64 up to normal size
         assertEquals(1f, scale(2.0), 1e-3f)
-        assertEquals(2.46f, fx(TransitionType.ZOOM, false, false).at(3.0).scale, 2e-2f)
-        assertEquals(0.65f, fx(TransitionType.ZOOM, true, false).at(3.0).scale, 2e-2f)
+        assertEquals(2.53f, fx(TransitionType.ZOOM, false, false).at(3.0).scale, 2e-2f)
+        assertEquals(0.64f, fx(TransitionType.ZOOM, true, false).at(3.0).scale, 2e-2f)
         assertEquals(1f, scale(4.0), 1e-3f)
         // always growing on each side of the edit point
         val before = (0..9).map { scale(2.0 + it * 0.1) }
@@ -291,8 +291,8 @@ class TransitionsTest {
         // halfway into the outgoing half it has come a fifth of the way; halfway into the incoming half it has nearly arrived
         assertTrue(out.at(2.5).scale < 1.25f)
         assertTrue(inc.at(3.5).scale > 0.97f)
-        // a twentieth into the incoming half, half its way is gone
-        assertEquals(0.41f, SegFx.settle(0.05f).first, 0.03f)
+        // a twentieth into the incoming half, nearly two fifths of its way are gone
+        assertEquals(0.38f, SegFx.settle(0.05f).first, 0.03f)
     }
 
     @Test fun theZoomIsSmearedAsBy360DegreeShutterAndKeepsItsSpeedThroughTheCut() {
@@ -300,8 +300,9 @@ class TransitionsTest {
         // the zoom's speed in log scale per second on either side of the edit point: about the same
         val before = SegFx.ZOOM_OUT * SegFx.GATHER_SPEED / 1f; val after = SegFx.ZOOM_IN * SegFx.SETTLE_SPEED / 1f
         assertTrue("$before $after", after / before in 1f..1.6f)
-        assertEquals(before * SegFx.SHUTTER_S, out.at(2.9999).blurZoom, 1e-2f)
-        assertEquals(after * SegFx.SHUTTER_S, inc.at(3.0001).blurZoom, 1e-2f)
+        // (at 100 %: the base blur's share of the shutter's smear)
+        assertEquals(before * SegFx.SHUTTER_S * SegFx.BASE_BLUR, out.at(2.9999).blurZoom, 1e-2f)
+        assertEquals(after * SegFx.SHUTTER_S * SegFx.BASE_BLUR, inc.at(3.0001).blurZoom, 1e-2f)
         assertEquals(0f, out.at(2.0).blurZoom, 1e-4f); assertEquals(0f, inc.at(4.0).blurZoom, 1e-4f)
         // speeds and progress of the two halves
         assertEquals(1f, SegFx.gather(1f).first, 1e-5f); assertEquals(1f, SegFx.gather(1f).second, 1e-5f); assertEquals(0f, SegFx.gather(0f).second, 1e-5f)
