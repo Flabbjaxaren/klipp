@@ -172,13 +172,14 @@ object CompositionBuilder {
         return maxOf(mediaDur?.let { us(it) } ?: 0L, end, 1L)
     }
 
-    private fun clipped(uri: Uri, srcIn: Double, dur: Double, speed: Double, leadUs: Long = 0L): MediaItem {
+    private fun clipped(uri: Uri, srcIn: Double, dur: Double, speed: Double, leadUs: Long = 0L, keyFrameStart: Boolean = false): MediaItem {
         val lead = leadUs.coerceAtMost(us(srcIn)).coerceAtLeast(0L)
         val start = (us(srcIn) - lead).coerceAtLeast(0L)
         val end = (us(srcIn + dur * kotlin.math.abs(speed)) - lead).coerceAtLeast(start + 1)
         return MediaItem.Builder()
             .setUri(uri)
-            .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionUs(start).setEndPositionUs(end).build())
+            // (see LiveCuts: no initial discontinuity – the one video renderer reads on into the item)
+            .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionUs(start).setEndPositionUs(end).setStartsAtKeyFrame(keyFrameStart).build())
             .build()
     }
 
@@ -222,6 +223,8 @@ object CompositionBuilder {
         fillSlots: Boolean = false,
         /** Where segments begin before a part is cut out (timeline µs): a segment starting elsewhere was cut. */
         realStarts: Set<Long>? = null,
+        /** Live playback with one video renderer across the items (see [LiveCuts]). */
+        oneRenderer: Boolean = false,
     ): EditedMediaItemSequence? {
         val previewDownscale = outW > 0 && outH > 0
         val fw = if (previewDownscale) outW else plan.width
@@ -348,14 +351,17 @@ object CompositionBuilder {
             // (the fill after the downscale – it only resizes – and before everything that depends on the time)
             // a file stored with headroom (proxy, cache, reversed clip): its values back first (see Headroom)
             val headroomFix = Headroom.decodeFor(itemUri)
-            val effects = listOfNotNull(scaleDown, fill, decodeFix, headroomFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(transition)
+            // one renderer across the items (LiveCuts): the item's frames from its keyframe on reach the chain – those
+            // before its start are dropped first, before any work is done on them
+            val preroll = if (oneRenderer && still == null) PrerollDrop(Math.round((seg.start - plan.origin) * 1e6)) else null
+            val effects = listOfNotNull(preroll, scaleDown, fill, decodeFix, headroomFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(transition)
             val edited = if (still != null) {
                 EditedMediaItem.Builder(MediaItem.Builder().setUri(Uri.fromFile(still)).setImageDurationMs(Math.round(seg.dur * 1000).coerceAtLeast(1)).build())
                     .setDurationUs(us(seg.dur).coerceAtLeast(1))
                     .setFrameRate(fps.takeIf { it.isFinite() && it >= 1.0 }?.let { Math.round(it).toInt() } ?: 25)
                     .setEffects(androidx.media3.transformer.Effects(emptyList(), effects))
                     .build()
-            } else EditedMediaItem.Builder(clipped(itemUri, itemIn, seg.dur + tail(index), src.speed, VIDEO_LEAD_US))
+            } else EditedMediaItem.Builder(clipped(itemUri, itemIn, seg.dur + tail(index), src.speed, VIDEO_LEAD_US, keyFrameStart = oneRenderer))
                 // CompositionPlayer requires the media's own length (before clipping) on every item
                 .setDurationUs(mediaUs(itemLen, itemIn, seg.dur + tail(index), src.speed, VIDEO_LEAD_US))
                 .setRemoveAudio(true)
@@ -541,7 +547,7 @@ object CompositionBuilder {
         val times = ArrayList<TimeBase>()
         val clipTime = TimeBase(plan?.length ?: total, plan?.origin ?: 0.0).also { times += it } // time for keyframes on the clips (simple path)
         val (pw, ph) = if (plan == null || previewShort <= 0) 0 to 0 else previewSize(plan.width, plan.height, previewShort)
-        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, output?.outputFps(s.fps)?.takeIf { it > 0.0 } ?: s.fps, fillSlots = output != null, realStarts = realStarts)?.let { seqs += it } }
+        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, output?.outputFps(s.fps)?.takeIf { it > 0.0 } ?: s.fps, fillSlots = output != null, realStarts = realStarts, oneRenderer = output == null && LiveCuts.oneRenderer)?.let { seqs += it } }
         val hasVideo = seqs.isNotEmpty()
         // export without audio (and pre-render): no audio sequences
         val audio = if (output?.audio == false || range != null) emptyList() else q.audio.take(3)
@@ -922,11 +928,10 @@ class ProgramPlayback(private val context: Context) {
     /** The clips that read the node cache in the latest composition. */
     private var cacheUsage = ""
 
-    private fun newPlayer(): CompositionPlayer =
-        androidx.media3.transformer.KlippPlayerOptions.videoPrewarming(CompositionPlayer.Builder(context),
-            // (diagnostics: the file diag/noprewarm in the app's external files turns Media3's prewarming off – without it the
-            // next item's first frame comes on time, but the effect chain then never gets the new stream: not usable yet)
-            !java.io.File(context.getExternalFilesDir(null), "diag/noprewarm").exists())
+    private fun newPlayer(): CompositionPlayer {
+        // (experiment: the file diag/noprewarm in the app's external files – one renderer across the items, see LiveCuts)
+        LiveCuts.oneRenderer = java.io.File(context.getExternalFilesDir(null), "diag/noprewarm").exists()
+        return androidx.media3.transformer.KlippPlayerOptions.videoPrewarming(CompositionPlayer.Builder(context), !LiveCuts.oneRenderer)
             // short buffer: fast start after seek and rebuild (see Perf)
             .setLoadControl(Perf.editingLoadControl())
             // the mix is measured where it is played (the level meters follow the sound, see Meters)
@@ -934,6 +939,7 @@ class ProgramPlayback(private val context: Context) {
             // the program view: 10-bit surface (RGBA_1010102) when the setting is on; the chain computes in floating point (VideoPipeline)
             .setGlObjectsProvider(TenBitGlObjectsProvider(VideoPipeline.displayTenBit))
             .build().also { it.addListener(listener); it.volume = if (recordingMute) 0f else liveGain; it.setVideoFrameMetadataListener(MainFrames.released) }
+    }
 
     /** The player's position, so the time interpretation can be calibrated should Media3 change time base. */
     fun hint(sec: Double) {
