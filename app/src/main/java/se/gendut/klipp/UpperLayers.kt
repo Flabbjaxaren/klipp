@@ -546,7 +546,7 @@ private fun LayerVideo(
                         listOfNotNull(itemStart.takeIf { slotSec - it <= se.gendut.klipp.engine.PausedSeek.MAX_BACK_S })
                     val from = starts.getOrNull(pickAttempt) ?: return false
                     pickFromStart = from <= itemStart + 1e-6
-                    pickSeek(se.gendut.klipp.engine.PausedPick.Request(pickGen, pickSlotUs, pickFromStart), LayerSync.targetMs(from, seg, preMs[i]).coerceAtLeast(0)); pickSeeks++
+                    pickSeek(se.gendut.klipp.engine.PausedPick.Request(pickGen, pickSlotUs, pickFromStart, stepUs = g.stepUs), LayerSync.targetMs(from, seg, preMs[i]).coerceAtLeast(0)); pickSeeks++
                     return true
                 }
                 if (repick.intValue != seenRepick) { seenRepick = repick.intValue; pickKey = Long.MIN_VALUE }
@@ -565,7 +565,7 @@ private fun LayerVideo(
                         r is se.gendut.klipp.engine.PausedPick.Result.Exact -> {
                             val ms = LayerSync.frameMs(r.frameUs, seg, preMs[i])
                             if (++pickSeeks > 6) fallback("too many seeks") else {
-                                pickSeek(se.gendut.klipp.engine.PausedPick.Request(pickGen, pickSlotUs, pickFromStart, exactUs = r.frameUs), ms.coerceAtLeast(0))
+                                pickSeek(se.gendut.klipp.engine.PausedPick.Request(pickGen, pickSlotUs, pickFromStart, exactUs = r.frameUs, stepUs = g.stepUs), ms.coerceAtLeast(0))
                             }
                         }
                         r is se.gendut.klipp.engine.PausedPick.Result.Earlier -> { pickAttempt++; if (pickSeeks > 6 || !attempt()) fallback("no attempt left") }

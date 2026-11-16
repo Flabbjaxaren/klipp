@@ -39,7 +39,16 @@ class PausedPick(private val post: (Result) -> Unit) {
          * to where a player already stands is ignored – no flush, no frames; the layer's pick waited for ever).
          */
         val flushes: Int = 1,
-    )
+        /** The timeline's slot length (µs); 0: not known (only a frame presented on the slot itself counts). */
+        val stepUs: Double = 0.0,
+    ) {
+        /**
+         * How far after the slot a frame presented there still is the slot's own: an item's last frame lying just after
+         * its slot is presented at its own time, which is that slot on screen (FrameGrid.lastFrameAt) – up to half a slot
+         * and the read-ahead after it; the next slot's frame comes a whole slot later.
+         */
+        val ownUs: Long get() = if (stepUs > 0.0) Math.round(stepUs / 2) + FrameGrid.LEAD_US else SLOT_US
+    }
 
     /**
      * DONE: the slot's frame is out; the frames after it are held back (not shown) until the next seek or [clear] – a
@@ -102,7 +111,7 @@ class PausedPick(private val post: (Result) -> Unit) {
                         }
                     } else if (presentedUs == null) DROP
                     else if (presentedUs < r.slotUs - SLOT_US) { keptUs = tUs; keptIsFirst = seen == 1; DROP }
-                    else if (presentedUs <= r.slotUs + SLOT_US) {
+                    else if (presentedUs <= r.slotUs + r.ownUs) {
                         if (seen > 1 || r.atSegmentStart) { state = State.DONE; out = Result.Found(r.gen, tUs); SHOW }
                         else { state = State.DROP; out = Result.Earlier(r.gen); HOLD }
                     } else {

@@ -1210,6 +1210,7 @@ class ProgramPlayback(private val context: Context) {
     private var pickMs = 0L
     private var pickAtStart = false
     private var pickSlotUs = 0L
+    private var pickStepUs = 0.0
     private val pick = PausedPick { r -> main.post { onPicked(r) } }.also { p -> p.trace = { CutTrace.log("pick", it) } }
     private val pickTimeout = Runnable { pickFallback("no frame in time") }
 
@@ -1240,7 +1241,8 @@ class ProgramPlayback(private val context: Context) {
         // (a seek to the position the player is at is ignored – no new frames)
         if (ms == player.currentPosition) ms = if (p.second) ms + 1 else (ms - 1).coerceAtLeast(0)
         pickMs = ms; pickAtStart = p.second
-        seekPick(PausedPick.Request(pauseGen, pickSlotUs, p.second), ms)
+        pickStepUs = g.stepUs
+        seekPick(PausedPick.Request(pauseGen, pickSlotUs, p.second, stepUs = pickStepUs), ms)
     }
 
     private fun seekPick(r: PausedPick.Request, ms: Long) {
@@ -1262,7 +1264,7 @@ class ProgramPlayback(private val context: Context) {
                 var ms = Math.floorDiv(r.frameUs + playOriginUs, 1000L) - 1
                 if (pickAtStart) ms = maxOf(ms, pickMs)
                 if (ms == player.currentPosition) ms = (pickMs - 1).coerceAtLeast(0)
-                seekPick(PausedPick.Request(pauseGen, pickSlotUs, pickAtStart, exactUs = r.frameUs), ms.coerceAtLeast(0))
+                seekPick(PausedPick.Request(pauseGen, pickSlotUs, pickAtStart, exactUs = r.frameUs, stepUs = pickStepUs), ms.coerceAtLeast(0))
             }
             is PausedPick.Result.Earlier -> { pausedAttempt++; tryPaused() }
         }

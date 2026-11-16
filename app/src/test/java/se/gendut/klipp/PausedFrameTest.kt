@@ -16,12 +16,15 @@ import se.gendut.klipp.engine.PausedSeek
  */
 class PausedFrameTest {
     /** One segment's frames on the timeline (µs) from [segStart] s. */
-    private fun frames(segStart: Double, dur: Double, srcFps: Double, speed: Double, srcIn: Double, gap: LongRange? = null): List<Long> {
+    private fun frames(segStart: Double, dur: Double, srcFps: Double, speed: Double, srcIn: Double, gap: LongRange? = null, lead: Boolean = false): List<Long> {
         val out = ArrayList<Long>()
         var j = Math.ceil(srcIn * srcFps - 1e-9).toLong()
+        // [lead]: as the app plays a clip – its in point on its first frame (FrameSnap), read 1 ms before it (the frames
+        // then lie 1 ms / speed after the slots)
+        val inS = if (lead) j / srcFps - FrameGrid.LEAD_US / 1e6 else srcIn
         while (true) {
             val f = j / srcFps
-            val t = Math.round((segStart + (f - srcIn) / speed) * 1e6)
+            val t = Math.round((segStart + (f - inS) / speed) * 1e6)
             if (t >= Math.round((segStart + dur) * 1e6)) break
             if (gap == null || Math.round(f * 1e6) !in gap) out += t
             j++
@@ -53,7 +56,7 @@ class PausedFrameTest {
         var attempt = 0; var seeks = 0; var gen = 1
         var req: PausedPick.Request; var ms: Long
         val first = PausedSeek.position(slotSec, segStart, 0, tl.fps)!!
-        req = PausedPick.Request(gen, g.timeOf(k), first.second); ms = first.first
+        req = PausedPick.Request(gen, g.timeOf(k), first.second, stepUs = g.stepUs); ms = first.first
         var atStart = first.second; var pickMs = ms
         while (seeks < 6) {
             seeks++
@@ -61,7 +64,8 @@ class PausedFrameTest {
             pick.onFlush()
             // the seek: frames from the position on (an item's start: rounded down, the item before has no frame there)
             val from = ms * 1000
-            val rule = FrameRateEffect.Streams(tl.fps, tl.startsUs, itemEnds = false)
+            // (the main player's rule as playback runs it: an item's last frames kept at their own time – FrameGrid.lastFrameAt)
+            val rule = FrameRateEffect.Streams(tl.fps, tl.startsUs)
             results.clear()
             var shown: Long? = null
             for (t in tl.all.filter { it >= from }) {
@@ -75,12 +79,12 @@ class PausedFrameTest {
                 is PausedPick.Result.Exact -> {
                     var e = Math.floorDiv(r.frameUs, 1000L) - 1
                     if (atStart) e = maxOf(e, pickMs)
-                    req = PausedPick.Request(gen, g.timeOf(k), atStart, exactUs = r.frameUs); ms = e
+                    req = PausedPick.Request(gen, g.timeOf(k), atStart, exactUs = r.frameUs, stepUs = g.stepUs); ms = e
                 }
                 is PausedPick.Result.Earlier -> {
                     attempt++
                     val p = PausedSeek.position(slotSec, segStart, attempt, tl.fps) ?: return null to seeks
-                    req = PausedPick.Request(gen, g.timeOf(k), p.second); ms = p.first; atStart = p.second; pickMs = ms
+                    req = PausedPick.Request(gen, g.timeOf(k), p.second, stepUs = g.stepUs); ms = p.first; atStart = p.second; pickMs = ms
                 }
                 is PausedPick.Result.Found -> return r.frameUs to seeks
             }
@@ -117,6 +121,19 @@ class PausedFrameTest {
     @Test fun aLongGapInAVariableFrameRateFile() {
         // 0.6 s without frames: the slots in it hold the frame before the gap
         assertAllSlots(Timeline(25.0, listOf(0.0 to frames(0.0, 3.0, 30.0, 1.0, 0.48, gap = 1_000_001L..1_599_999L))), maxSeeks = 4)
+    }
+
+    @Test fun aClipsLastFrameJustAfterItsSlot() {
+        // (clips as the app plays them: frames 1 ms after their slots. The last one is shown at its own time, which is its
+        // slot on screen – FrameGrid.lastFrameAt; the pick took it for the next slot's and showed the frame before: the
+        // regression run's R1 at 4.52 s and 8.52 s, every phone)
+        val tl = Timeline(25.0, listOf(
+            0.0 to frames(0.0, 1.44, 30.0, 1.0, 0.517, lead = true),
+            1.44 to frames(1.44, 1.2, 25.0, 1.0, 0.5, lead = true),
+            2.64 to frames(2.64, 1.6, 50.0, 1.0, 3.01, lead = true),
+            4.24 to frames(4.24, 1.92, 120.0, 0.25, 2.0, lead = true),
+        ))
+        assertAllSlots(tl)
     }
 
     @Test fun theFirstAndLastSlotsAndTheSlotsAtACut() {
