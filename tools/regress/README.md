@@ -33,7 +33,7 @@ Verdicts, kept apart:
 - **push reference** (R6) – every frame of the push against its reference (the edge at (1 − e)·width, e from the push's
   own curve), in every render: an error repeated in each render fails each.
 
-A runner error fails the run (`runner / execution`). `selftest.py <run output dir>` shows that the checks catch what they
+A runner error fails the run (`runner / execution`). `selftest.py [run output dir]` shows that the checks catch what they
 are for: from a run's R1 and R6 files it makes broken ones (the last two frames gone, the last frame the one before, a
 straight cut, a black incoming picture, a push the other way, the same wrong push five times) – each must fail, the
 unbroken files must pass.
@@ -45,3 +45,8 @@ and pictures of wrong slots.
 The code band: 16 blocks across the middle of the picture, white = 1, least significant bit left; code = clip id × 2048
 + frame index. The rs clips (for stabilization) carry it between two white markers in the middle of the width on a
 texture that is never white, so the markers give the zoom.
+
+Without a phone (and in CI, job `regress-selftest`): `python3 tools/regress/selftest.py` runs against `fixtures/` – the R1
+and R6 exports of build 155 on the OnePlus, scaled to 320×180 (the size the checks read at; times and codes checked
+identical to the originals) with their timelines. It also checks that a file that can't be decoded fails and that an
+unexpected error inside a run ends it with a failure and an exit code other than 0. Needs ffmpeg/ffprobe and numpy.

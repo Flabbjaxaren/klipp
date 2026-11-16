@@ -13,8 +13,11 @@ file as it is and broken variants of it, and runs them through the same decoding
   R6 with the incoming picture black     → push reference
   R6 pushing the other way               → push reference
   R6's black-incoming push, five times   → each of the five
+  a file that can't be decoded           → fails (never a pass on what couldn't be read)
+  an unexpected error inside a run       → the run fails (runner / execution) with an exit code other than 0
 
-Usage: selftest.py <run output dir>
+Usage: selftest.py [run output dir]   (default: fixtures/ – the renders of build 155 on the OnePlus, scaled to 320×180,
+                                       so it runs without a phone: CI does)
 """
 import json, math, os, subprocess, sys, tempfile
 
@@ -23,6 +26,8 @@ import numpy as np
 sys.argv, ARGS = sys.argv[:1], sys.argv[1:]
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import regress as r  # noqa: E402
+
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 W, H = 640, 360
 
@@ -55,7 +60,7 @@ class Sink(r.Run):
 
 
 def main():
-    src = ARGS[0]
+    src = ARGS[0] if ARGS else os.path.join(HERE, "fixtures")
     work = tempfile.mkdtemp(prefix="selftest_")
     run = Sink(work)
     cases = []
@@ -116,6 +121,23 @@ def main():
         run.push_file("R6", f"the same black push, render {k + 1}", p, tl6)
         cases.append((f"R6 black incoming, render {k + 1} of 5", False, run.results[-1]))
 
+    # a file that can't be decoded: a fail, never a pass
+    broken = os.path.join(work, "broken.mp4")
+    with open(os.path.join(src, "R1_export.mp4"), "rb") as f:
+        data = f.read()
+    with open(broken, "wb") as f:
+        f.write(data[: len(data) // 3])
+    run.identity_file("R1", "a truncated file", broken, exp, skip, end_slot=end_slot)
+    cases.append(("R1 from a truncated file", False, run.results[-1]))
+    run.push_file("R6", "a truncated file", broken, tl6)
+    cases.append(("R6 from a truncated file", False, run.results[-1]))
+
+    # an unexpected error inside a run: a failed run with an exit code other than 0, the report says so
+    code, report = runner_error(work)
+    failed = any(x["test"] == "runner" and not x["ok"] for x in report.get("results", []))
+    cases.append(("an error inside a run", False, {"ok": code == 0 or not failed,
+                                                  "summary": f"exit code {code}, runner/execution {'failed' if failed else 'missing'}"}))
+
     print()
     ok = True
     for name, should_pass, res in cases:
@@ -125,6 +147,51 @@ def main():
         print(f"{'RIGHT' if right else 'WRONG'}  {name}: {'passes' if res['ok'] else 'fails'} – {res['summary'][:110]}" + (f" {kinds}" if kinds else ""))
     print(f"\n{'all checks behave' if ok else 'A CHECK DID NOT BEHAVE'} ({work})")
     sys.exit(0 if ok else 1)
+
+
+class _FakePhone:
+    """A phone whose tool calls work until the run imports its clips – then the tool fails."""
+    def __init__(self, *a):
+        pass
+
+    def forward(self):
+        pass
+
+    def callj(self, tool, args=None, timeout=300):
+        if tool == "app_state":
+            return {"version": "fake", "playhead": 0.0, "mode": "edit", "selected": None}
+        if tool == "projects" and (args or {}).get("op") == "list":
+            return [{"id": "user", "name": "the user's", "current": True}]
+        return {}
+
+    def call(self, tool, args=None, timeout=300):
+        return ""
+
+    def exec(self, command, params=None):
+        raise RuntimeError("a tool failed")
+
+    def adb(self, *a, **k):
+        return "Fake"
+
+
+def runner_error(work):
+    """regress.main with a phone whose tool fails inside the run: its exit code and report."""
+    out = os.path.join(work, "runner_error")
+    real, real_sleep, argv = r.Phone, r.time.sleep, sys.argv
+    r.Phone, r.time.sleep = _FakePhone, (lambda s: None)
+    sys.argv = ["regress.py", "--serial", "fake", "--only", "R1", "--out", out]
+    try:
+        r.main()
+        code = 0
+    except SystemExit as e:
+        code = e.code if isinstance(e.code, int) else 1
+    finally:
+        r.Phone, r.time.sleep, sys.argv = real, real_sleep, argv
+    try:
+        report = json.load(open(os.path.join(out, "report.json")))
+    except Exception:
+        report = {}
+    return code, report
 
 
 if __name__ == "__main__":

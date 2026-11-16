@@ -75,3 +75,17 @@ jobs:
       - name: Tests
         working-directory: rust
         run: KLIPP_TEST_MEDIA="$RUNNER_TEMP/media" cargo test --release
+
+  regress-selftest:
+    name: Regression checks (self-test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      # the checks' decoding (ffmpeg, ffprobe) and their arithmetic (numpy) – nothing else, no phone
+      - name: ffmpeg and numpy
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg python3-numpy
+      # the regression run's checks against renders from the phone (tools/regress/fixtures) and broken copies of them:
+      # each broken one must fail, the unbroken ones pass, and an error inside a run must end it with a failure
+      - name: Self-test
+        run: python3 tools/regress/selftest.py
