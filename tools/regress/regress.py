@@ -366,6 +366,12 @@ class Run:
             raise RuntimeError("program view not found (is the editor showing?)")
         return r
 
+    def shot_code(self, p, r, central):
+        self.ph.screencap(p)
+        w = int(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width", "-of", "csv=p=0", p], capture_output=True, text=True).stdout.split()[0])
+        k_ = w / (r[0] + r[2])                # the program view is centred: its left + right edge = the window's width
+        return decode(png_gray(p, tuple(round(v * k_) for v in r)), central)
+
     def paused(self, test, exp, skip, slots, label):
         r = self.program_rect()
         bad, n = [], 0
@@ -375,10 +381,13 @@ class Run:
             self.ph.call("set_playhead", {"seconds": k / FPS})
             time.sleep(2.2)
             p = os.path.join(self.out, f"{test}_paused_{label}_{k}.png".replace(" ", "_"))
-            self.ph.screencap(p)
-            w = int(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width", "-of", "csv=p=0", p], capture_output=True, text=True).stdout.split()[0])
-            k_ = w / (r[0] + r[2])            # the program view is centred: its left + right edge = the window's width
-            code = decode(png_gray(p, tuple(round(v * k_) for v in r)), exp[k] // 2048 in CENTRAL)
+            code = self.shot_code(p, r, exp[k] // 2048 in CENTRAL)
+            if code != exp[k]:
+                # (a notification banner can cover the picture: the paused picture stays, the banner goes)
+                time.sleep(6)
+                code = self.shot_code(p, r, exp[k] // 2048 in CENTRAL)
+                if code == exp[k]:
+                    self.log(f"{test}: paused {k} right on a second screenshot (the first was covered)")
             n += 1
             if code != exp[k]:
                 bad.append({"slot": k, "t": round(k / FPS, 3), "want": describe(exp[k]), "got": describe(code), "image": os.path.basename(p)})
@@ -446,13 +455,21 @@ class Run:
             self.ph.call("set_playhead", {"seconds": k / FPS})
             time.sleep(2.5)
             p = os.path.join(self.out, f"{test}_look_{label}_{k}.png".replace(" ", "_"))
-            self.ph.screencap(p)
-            w = int(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width", "-of", "csv=p=0", p], capture_output=True, text=True).stdout.split()[0])
-            k_ = w / (r[0] + r[2])
-            shot = png_gray(p, tuple(round(v * k_) for v in r)).astype(np.int16)
-            d = {j: float(np.abs(shot - refs[j]).mean()) for j in range(k - 3, k + 4) if j in refs}
-            best = min(d, key=d.get)
-            same = best == k or d[k] <= d[best] * 1.03 + 0.2
+            def judge():
+                self.ph.screencap(p)
+                w = int(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width", "-of", "csv=p=0", p], capture_output=True, text=True).stdout.split()[0])
+                k_ = w / (r[0] + r[2])
+                shot = png_gray(p, tuple(round(v * k_) for v in r)).astype(np.int16)
+                d = {j: float(np.abs(shot - refs[j]).mean()) for j in range(k - 3, k + 4) if j in refs}
+                best = min(d, key=d.get)
+                return d, best, best == k or d[k] <= d[best] * 1.03 + 0.2
+            d, best, same = judge()
+            if not same or d[k] > tol:
+                # (a notification banner can cover the picture: the paused picture stays, the banner goes)
+                time.sleep(6)
+                d, best, same = judge()
+                if same and d[k] <= tol:
+                    self.log(f"{test}: paused {k} matches on a second screenshot (the first was covered)")
             row = {"slot": k, "t": round(k / FPS, 3), "diff": round(d[k], 2), "closest": best, "closest_diff": round(d[best], 2), "image": os.path.basename(p)}
             rows.append(row)
             if not same or d[k] > tol:
@@ -490,7 +507,7 @@ def main():
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--pkg", default="se.gendut.klipp.designtest")
     ap.add_argument("--clips", default=os.path.join(HERE, "clips"))
-    ap.add_argument("--apv", default="", help="comma-separated paths on the phone of extra camera clips (test A1)")
+    ap.add_argument("--apv", default="", help="comma-separated paths on the phone of camera clips (test A1) – in the app's files dir (adb shell cp them there): the app may not read DCIM")
     ap.add_argument("--only", default="", help="e.g. R1,R3")
     ap.add_argument("--repeat", type=int, default=5)
     ap.add_argument("--tol", type=float, default=6.0, help="A1: the paused picture's mean difference to the export (8-bit gray)")
@@ -536,6 +553,8 @@ def main():
                 names = items()
                 if all(f in names for f in CLIPS):
                     break
+            if any(f not in names for f in CLIPS):
+                raise RuntimeError(f"test clips not imported: {[f for f in CLIPS if f not in names]}")
         if args.apv:
             paths = [x.strip() for x in args.apv.split(",") if x.strip()]
             want_names = [os.path.basename(x) for x in paths]
@@ -547,6 +566,9 @@ def main():
                     names = items()
                     if all(f in names for f in want_names):
                         break
+            lost = [f for f in want_names if f not in names]
+            if lost:
+                raise RuntimeError(f"not imported: {lost} – the app reads only files it may (its own files dir, or the picker's)")
             rows = {r["name"]: r for r in ph.exec("project.items")["rows"]}
             fps_of = lambda f: float(re.match(r"[\d.]+", rows[f]["cells"].get("Frame Rate", "0")).group(0))
             CAMERA[:] = sorted(want_names, key=fps_of)
@@ -568,10 +590,23 @@ def main():
             end = max(c["start"] + c["duration"] for t in tl["sequence"]["video"] for c in t["clips"])
             if tag == "A1":
                 # proxies, node caches and the transition first (the user's own order: pre-render, then look)
+                # (heavy pieces render only on Render unless the user turned auto render on: press it, as the user does)
+                pressed = False
                 for _ in range(600):
                     st = ph.callj("render_diag", {"op": "status"})
-                    if not st["proxies"] and not st["nodeCache"] and st["render"] is None and "ready=false heavy=true" not in ph.call("render_diag", {"op": "chunks"}):
+                    busy = st["proxies"] or st["nodeCache"] or st["render"] is not None
+                    pending = "ready=false heavy=true" in ph.call("render_diag", {"op": "chunks"})
+                    if not busy and not pending:
                         break
+                    if not busy and pending:
+                        if pressed:
+                            run.log("A1: heavy pieces still not ready after Render, nothing in progress")
+                            break
+                        b = ph.node_bounds("#renderChip")
+                        if b:
+                            ph.call("tap", {"x": (b[0] + b[2]) / 2, "y": (b[1] + b[3]) / 2})
+                            run.log("A1: pressed Render")
+                            pressed = True
                     time.sleep(3)
                 run.log(f"A1: made: {ph.call('render_diag', {'op': 'status'})}")
                 ref = run.render(f"{tag}_export", 0, end, "export")
