@@ -219,9 +219,18 @@ def expected(timeline, fps=FPS):
         if not track.get("enabled", True):
             continue
         for c in track["clips"]:
-            if c["name"] not in CLIPS or c.get("reverse") or c.get("hold") is not None or not c.get("enabled", True):
+            if c["name"] not in CLIPS or c.get("reverse") or not c.get("enabled", True):
                 continue
             cid, sfps = CLIPS[c["name"]]
+            if c.get("hold") is not None:
+                # a freeze frame: the source frame nearest its time on every slot (FrameHolds: the closest frame)
+                n = round(c["hold"] * sfps)
+                for k in range(math.ceil((c["start"] * 1e6 - LEAD_US) * fps / 1e6 - 1e-6),
+                               math.ceil(((c["start"] + c["duration"]) * 1e6 - LEAD_US) * fps / 1e6 - 1e-6)):
+                    exp[k] = cid * 2048 + n
+                    if ti == 0:
+                        base[k] = cid * 2048 + n
+                continue
             for k, n in segment_slots(c["start"], c["duration"], c["sourceIn"], c["speed"], sfps, fps).items():
                 exp[k] = cid * 2048 + n
                 if ti == 0:
@@ -266,11 +275,23 @@ def build(ph, name, items):
         ids = [place(ph, items[f], "V1", 2.0 * i, 1.5, 2.0) for i, f in enumerate(["rq30.mp4", "rq25.mp4", "rq60.mp4", "rq24.mp4", "rq50.mp4"])]
         for cid in ids[1:]:
             ph.exec("sequence.applyVideoTransition", {"clip": cid, "effect": "push", "frames": 15, "edge": "in", "align": "center"})
+    elif name == "R5 freeze":
+        # freeze frames inside clips (the app's own command), so plain clips run into and out of them
+        t = 0.0
+        for f, si in [("rq30.mp4", 1.0), ("rq25.mp4", 0.5), ("rq60.mp4", 1.5), ("rq24.mp4", 1.0)]:
+            place(ph, items[f], "V1", t, si, 1.6)
+            t = round(t + 1.6, 6)
+        def clip_at(name):
+            return next(c for c in ph.callj("timeline")["sequence"]["video"][0]["clips"] if c["name"] == name and c.get("hold") is None)
+        for f, off, dur in [("rq30.mp4", 0.8, 0.8), ("rq60.mp4", 0.6, 0.6)]:
+            c = clip_at(f)
+            ph.exec("clip.insertFrameHoldSegment", {"clip": c["id"], "time": round((c["start"] + off) * 25) * 254016000000 // 25, "seconds": dur})
     elif name == "A1 camera":
         # the main case: camera clips trimmed and in a row, film with node cache on two, a push between two, an upper layer
+        # (seven clips; fewer files are used in turn, each with an in point of its own)
         ids, t = [], 0.0
-        for i, f in enumerate(CAMERA):
-            ids.append(place(ph, items[f], "V1", t, 1.013 + 0.3 * i, 1.4))
+        for i in range(max(7, len(CAMERA))):
+            ids.append(place(ph, items[CAMERA[i % len(CAMERA)]], "V1", t, 1.013 + 0.3 * i, 1.4))
             t = round(t + 1.4, 6)
         film = {"nodes": [{"id": 1, "label": "Film", "film": {}, "cache": True}]}
         for i in (1, 4):
@@ -580,7 +601,7 @@ def main():
                 CLIPS[f] = (100 + i, fps_of(f))
             run.log("camera clips: " + ", ".join(f"{f} {CLIPS[f][1]} fps" for f in CAMERA))
         ph.call("set_mode", {"mode": "edit"})
-        tests = [("R1 straight", "R1"), ("R2 layers", "R2"), ("R3 push", "R3"), ("R4 stab cache", "R4")] + ([("A1 camera", "A1")] if args.apv else [])
+        tests = [("R1 straight", "R1"), ("R2 layers", "R2"), ("R3 push", "R3"), ("R4 stab cache", "R4"), ("R5 freeze", "R5")] + ([("A1 camera", "A1")] if args.apv else [])
         for name, tag in tests:
             if not want(tag):
                 continue
