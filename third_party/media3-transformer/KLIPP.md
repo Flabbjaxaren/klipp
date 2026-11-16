@@ -21,3 +21,9 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   renderers then flushed a released frame processor: `RejectedExecutionException`, "Unexpected runtime error" at every
   rebuild on a player (Klipp then made a new player each time). `CompositionPlayerInternal` releases the graph itself
   when the player is released.
+- `SequenceRenderersFactory.java`, `SequenceVideoRenderer.getCodecMaxValues`: with prewarming off the decoder's input
+  buffers are at least the codec's own maximum for the resolution (`getCodecMaxInputSize`). Media3 sizes them by the
+  current file's largest sample (×1.5, capped there), so the next file of the same codec and size with a larger sample
+  could not reuse the decoder (`DISCARD_REASON_MAX_INPUT_SIZE_EXCEEDED`): with one renderer it was drained and made again
+  right before the cut, on the playback thread, and the item's first frame came too late and was dropped (a reversed
+  clip on the OnePlus; two camera files on the vivo).

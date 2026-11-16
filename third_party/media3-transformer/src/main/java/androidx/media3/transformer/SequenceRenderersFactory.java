@@ -541,6 +541,26 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       return super.shouldInitCodec(codecInfo);
     }
 
+    /**
+     * Klipp: with one renderer across the items (prewarming off) the decoder's input buffers are at least the codec's own
+     * maximum for the resolution. Media3 sizes them by the current file's largest sample (×1.5, up to that maximum), so
+     * the next file of the same codec and size with a larger sample (another camera file, a reversed clip) could not
+     * reuse the decoder: it was drained and made again right before the cut (64–113 ms on the playback thread on the
+     * OnePlus), and the new item's first frame came too late and was dropped.
+     */
+    @Override
+    protected CodecMaxValues getCodecMaxValues(
+        MediaCodecInfo codecInfo, Format format, Format[] streamFormats) {
+      CodecMaxValues values = super.getCodecMaxValues(codecInfo, format, streamFormats);
+      if (videoPrewarmingEnabled || values.inputSize == Format.NO_VALUE) {
+        return values;
+      }
+      int codecMaxInputSize = getCodecMaxInputSize(codecInfo, format);
+      return codecMaxInputSize > values.inputSize
+          ? new CodecMaxValues(values.width, values.height, codecMaxInputSize)
+          : values;
+    }
+
     @Override
     protected long getBufferTimestampAdjustmentUs() {
       @Nullable KlippStream stream = klippOutputStream();
