@@ -83,6 +83,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     }
     effects = ImmutableList.copyOf(audioProcessors);
     audioGraph = new AudioGraph(mixerFactory, effects);
+    // Klipp: the mix at the project's sample rate, not at the first input's (see KlippAudio)
+    audioGraph.klippSetMixSampleRate(KlippAudio.playbackMixSampleRate);
   }
 
   /** Releases any underlying resources. */

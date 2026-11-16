@@ -1048,6 +1048,10 @@ class ProgramPlayback(private val context: Context) {
             playOriginUs = Math.round((built.plan?.origin ?: 0.0) * 1e6)
             MainFrames.originUs = playOriginUs
             pick.clear(); pausedSec = null; picking = false
+            // the mix at the project's sample rate: Media3 took the first input's, a gap's silence at 44.1 kHz whenever a
+            // track began with one – every clip was resampled to it, the output back to the phone's 48 kHz, and the
+            // fast audio path was refused (see KlippAudio)
+            androidx.media3.transformer.KlippAudio.playbackMixSampleRate = s.sequence?.sampleRate?.takeIf { it > 0 } ?: 48_000
             player.setComposition(built.composition, CutSeek.ms(inside(positionSec), cuts, cutFps, wasPlaying))
             // scrubbing mode only applies to the players that existed when it was turned on – the new ones (new build) get it too
             if (player.isScrubbingModeEnabled) { player.isScrubbingModeEnabled = false; player.isScrubbingModeEnabled = true }

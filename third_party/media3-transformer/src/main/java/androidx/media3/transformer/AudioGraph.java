@@ -54,6 +54,8 @@ import java.util.Objects;
   private final AudioProcessingPipeline audioProcessingPipeline;
 
   private AudioFormat mixerAudioFormat;
+  /** Klipp: the sample rate the mixer runs at, {@link Format#NO_VALUE} for the first input's (see {@link KlippAudio}). */
+  private int klippMixSampleRate = Format.NO_VALUE;
   private boolean isMixerConfigured;
   private boolean isMixerReady;
   private long pendingStartTimeUs;
@@ -81,6 +83,11 @@ import java.util.Objects;
     audioProcessingPipeline = new AudioProcessingPipeline(effects);
   }
 
+  /** Klipp: sets the sample rate the mixer runs at (see {@link KlippAudio}); before the first input registers. */
+  public void klippSetMixSampleRate(int sampleRateHz) {
+    klippMixSampleRate = sampleRateHz;
+  }
+
   /** Returns whether an {@link AudioFormat} is valid as an input format. */
   public static boolean isInputAudioFormatValid(AudioFormat format) {
     if (format.encoding == Format.NO_VALUE) {
@@ -105,7 +112,12 @@ import java.util.Objects;
     checkArgument(format.pcmEncoding != Format.NO_VALUE);
     AudioGraphInput audioGraphInput;
     try {
-      audioGraphInput = new AudioGraphInput(mixerAudioFormat, editedMediaItem, format);
+      // Klipp: the first input is converted to the preset rate, so the mixer runs at it (see KlippAudio)
+      AudioFormat requestedFormat =
+          Objects.equals(mixerAudioFormat, AudioFormat.NOT_SET) && klippMixSampleRate > 0
+              ? new AudioFormat(klippMixSampleRate, Format.NO_VALUE, Format.NO_VALUE)
+              : mixerAudioFormat;
+      audioGraphInput = new AudioGraphInput(requestedFormat, editedMediaItem, format);
       if (Objects.equals(mixerAudioFormat, AudioFormat.NOT_SET)) {
         this.mixerAudioFormat = audioGraphInput.getOutputAudioFormat();
         audioProcessingPipeline.configure(mixerAudioFormat);

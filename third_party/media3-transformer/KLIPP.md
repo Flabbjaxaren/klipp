@@ -27,3 +27,9 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   could not reuse the decoder (`DISCARD_REASON_MAX_INPUT_SIZE_EXCEEDED`): with one renderer it was drained and made again
   right before the cut, on the playback thread, and the item's first frame came too late and was dropped (a reversed
   clip on the OnePlus; two camera files on the vivo).
+- `AudioGraph.java`, `PlaybackAudioGraphWrapper.java`, new `KlippAudio.java`: the composition player's mixer runs at a
+  sample rate the app sets (`KlippAudio.playbackMixSampleRate`, the project's), every input converted to it before the
+  mixer. Media3 took the first input's rate, and a gap's silence (`SilenceMediaSource`) is always 44.1 kHz: whenever a
+  track began with one, every clip was resampled to 44.1 kHz and the output back to the phone's 48 kHz, and the fast
+  audio path was refused (measured in the audio flinger: the track at 44100 Hz before, at 48000 Hz and a fast track
+  after). The export doesn't use it (its own conversion after the mixer).
