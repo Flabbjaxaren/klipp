@@ -401,6 +401,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     protected void onDisabled() {
       super.onDisabled();
       klippStreams.clear();
+      klippQueued.clear();
+      klippPreroll.clear();
       deactivateBufferingVideoSink();
     }
 
@@ -423,6 +425,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
         throws ExoPlaybackException {
       super.onPositionReset(positionUs, joining, sampleStreamIsResetToKeyFrame);
       targetFrameRateHelper.onPositionReset();
+      klippQueued.clear();
+      klippPreroll.clear();
     }
 
     @Override
@@ -445,6 +449,57 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       super.onStreamChanged(formats, startPositionUs, offsetUs, mediaPeriodId);
     }
 
+    /** Klipp: per stream (renderer offset), the times of the samples queued to the decoder, and of those that are pre-roll. */
+    private final java.util.TreeMap<Long, java.util.HashSet<Long>> klippQueued = new java.util.TreeMap<>();
+    private final java.util.TreeMap<Long, java.util.HashSet<Long>> klippPreroll = new java.util.TreeMap<>();
+
+    private void klippNoteQueued(DecoderInputBuffer buffer) {
+      java.util.Map.Entry<Long, KlippStream> input = klippStreams.lastEntry();
+      if (input == null || buffer.isEndOfStream()) {
+        return;
+      }
+      long key = input.getKey();
+      java.util.HashSet<Long> queued = klippQueued.computeIfAbsent(key, k -> new java.util.HashSet<>());
+      if (queued.size() > 4096) {
+        queued.clear();
+      }
+      queued.add(buffer.timeUs);
+      KlippStream s = input.getValue();
+      if (s.prerollStartUs != C.TIME_UNSET && buffer.timeUs + s.offsetToCompositionTimeUs < s.prerollStartUs) {
+        java.util.HashSet<Long> pre = klippPreroll.computeIfAbsent(key, k -> new java.util.HashSet<>());
+        if (pre.size() > 4096) {
+          pre.clear();
+        }
+        pre.add(buffer.timeUs);
+      }
+    }
+
+    /**
+     * Klipp: whether a frame coming out is a later item's pre-roll. Media3 assigns a frame to the stream whose time range
+     * it falls in, and a next item's pre-roll times lie below the item before's last frame: with an open GOP (HEVC's CRA)
+     * the next item's keyframe came out before that item's last frames, counted as that item's and was shown on its last
+     * slot (the regression run's R1 with HEVC clips, playback and paused). Known by the times the samples went in with –
+     * only when the time was queued as a later stream's pre-roll and never for the stream coming out now (two clips of
+     * one rate and phase can share times: then nothing is decided here).
+     */
+    private boolean klippIsLaterPreroll(long timeUs) {
+      long out = getOutputStreamOffsetUs();
+      if (out == C.TIME_UNSET || klippPreroll.isEmpty()) {
+        return false;
+      }
+      // streams before the one coming out are done
+      klippQueued.headMap(out).clear();
+      klippPreroll.headMap(out).clear();
+      java.util.HashSet<Long> own = klippQueued.get(out);
+      for (java.util.Map.Entry<Long, java.util.HashSet<Long>> e : klippPreroll.tailMap(out, false).entrySet()) {
+        if (e.getValue().contains(timeUs) && (own == null || !own.contains(timeUs))) {
+          e.getValue().remove(timeUs);
+          return true;
+        }
+      }
+      return false;
+    }
+
     /** Klipp: the values of the stream whose frames come out of the codec now (null if not known). */
     @Nullable
     private KlippStream klippOutputStream() {
@@ -460,6 +515,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     @Override
     protected void onQueueInputBuffer(DecoderInputBuffer buffer) throws ExoPlaybackException {
       targetFrameRateHelper.onQueueInputBuffer(buffer, getCodecInputFormat());
+      klippNoteQueued(buffer);
       super.onQueueInputBuffer(buffer);
     }
 
@@ -485,6 +541,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       long outputStreamOffsetUs = getOutputStreamOffsetUs();
       long presentationTimeUs = bufferPresentationTimeUs - outputStreamOffsetUs;
       if (targetFrameRateHelper.shouldDropOutputFrame(presentationTimeUs) && !isLastBuffer) {
+        skipOutputBuffer(checkNotNull(codec), bufferIndex, presentationTimeUs);
+        return true;
+      }
+      // Klipp: a later item's pre-roll that came out early (see klippIsLaterPreroll)
+      if (!isLastBuffer && klippIsLaterPreroll(bufferPresentationTimeUs)) {
         skipOutputBuffer(checkNotNull(codec), bufferIndex, presentationTimeUs);
         return true;
       }

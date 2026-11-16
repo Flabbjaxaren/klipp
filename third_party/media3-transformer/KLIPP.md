@@ -21,6 +21,12 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   renderers then flushed a released frame processor: `RejectedExecutionException`, "Unexpected runtime error" at every
   rebuild on a player (Klipp then made a new player each time). `CompositionPlayerInternal` releases the graph itself
   when the player is released.
+- `SequenceRenderersFactory.java`, `SequenceVideoRenderer.klippIsLaterPreroll`: a later item's pre-roll frame that comes
+  out of the decoder before the item before's last frames is released undrawn. Media3 assigns a frame to the stream
+  whose time range it falls in, and a next item's pre-roll times lie below the item before's last frame: with an open
+  GOP (HEVC's CRA) the next item's keyframe came out first, counted as the item before's, and was shown on its last
+  slot in playback and paused. The frames are known by the times their samples were queued with, per stream – only
+  when the time was queued as a later stream's pre-roll and never for the stream coming out now.
 - `SequenceRenderersFactory.java`, `SequenceVideoRenderer.processOutputBuffer`, new `KlippPreroll.java`: an item whose
   effects include a `KlippPreroll` (the app's `PrerollDrop`, live cuts with one renderer) has its frames before that
   composition time released from the decoder undrawn (`skipOutputBuffer`). Through the effects each cost a surface update
