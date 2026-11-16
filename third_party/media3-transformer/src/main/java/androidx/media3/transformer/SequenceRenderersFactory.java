@@ -542,6 +542,47 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     }
 
     /**
+     * Klipp: a change of colour information alone between two SDR streams of the same bit depth keeps the decoder. Media3
+     * discards it for any difference – a camera file without transfer and primaries next to a proxy or a node cache
+     * that has them (BT.709) – and a new decoder took 95–126 ms on the OnePlus at every such cut (3–6 frames late or
+     * released at once). The decoder's output does not depend on it: each stream reaches the effects with its own
+     * format's colours. With HDR on either side, a decoder doing the tone mapping, or another bit depth, Media3 decides.
+     */
+    @Override
+    protected androidx.media3.exoplayer.DecoderReuseEvaluation canReuseCodec(
+        androidx.media3.exoplayer.mediacodec.MediaCodecInfo codecInfo,
+        Format oldFormat,
+        Format newFormat,
+        boolean isAdaptiveFormatChange) {
+      androidx.media3.exoplayer.DecoderReuseEvaluation e =
+          super.canReuseCodec(codecInfo, oldFormat, newFormat, isAdaptiveFormatChange);
+      if (e.discardReasons != androidx.media3.exoplayer.DecoderReuseEvaluation.DISCARD_REASON_VIDEO_COLOR_INFO_CHANGED
+          || requestMediaCodecToneMapping
+          || !klippSdrSameDepth(oldFormat.colorInfo, newFormat.colorInfo)) {
+        return e;
+      }
+      androidx.media3.exoplayer.DecoderReuseEvaluation same =
+          super.canReuseCodec(
+              codecInfo, oldFormat, newFormat.buildUpon().setColorInfo(oldFormat.colorInfo).build(), isAdaptiveFormatChange);
+      if (same.discardReasons != 0) {
+        return e;
+      }
+      return new androidx.media3.exoplayer.DecoderReuseEvaluation(codecInfo.name, oldFormat, newFormat, same.result, 0);
+    }
+
+    private boolean klippSdrSameDepth(
+        @Nullable androidx.media3.common.ColorInfo a, @Nullable androidx.media3.common.ColorInfo b) {
+      if (androidx.media3.common.ColorInfo.isTransferHdr(a) || androidx.media3.common.ColorInfo.isTransferHdr(b)) {
+        return false;
+      }
+      int la = a == null ? Format.NO_VALUE : a.lumaBitdepth;
+      int lb = b == null ? Format.NO_VALUE : b.lumaBitdepth;
+      int ca = a == null ? Format.NO_VALUE : a.chromaBitdepth;
+      int cb = b == null ? Format.NO_VALUE : b.chromaBitdepth;
+      return la == lb && ca == cb;
+    }
+
+    /**
      * Klipp: with one renderer across the items (prewarming off) the decoder's input buffers are at least the codec's own
      * maximum for the resolution. Media3 sizes them by the current file's largest sample (×1.5, up to that maximum), so
      * the next file of the same codec and size with a larger sample (another camera file, a reversed clip) could not

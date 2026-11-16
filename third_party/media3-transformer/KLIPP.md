@@ -21,6 +21,10 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   renderers then flushed a released frame processor: `RejectedExecutionException`, "Unexpected runtime error" at every
   rebuild on a player (Klipp then made a new player each time). `CompositionPlayerInternal` releases the graph itself
   when the player is released.
+- `SequenceRenderersFactory.java`, `SequenceVideoRenderer.canReuseCodec`: a change of colour information alone between
+  two SDR streams of the same bit depth keeps the decoder (Media3 discards it: a camera file without transfer and
+  primaries next to a proxy or a node cache with BT.709 gave a new decoder, 95–126 ms on the OnePlus, at every such
+  cut). Not with HDR on either side, the decoder's tone mapping, or another bit depth.
 - `SequenceRenderersFactory.java`, `SequenceVideoRenderer.getCodecMaxValues`: with prewarming off the decoder's input
   buffers are at least the codec's own maximum for the resolution (`getCodecMaxInputSize`). Media3 sizes them by the
   current file's largest sample (×1.5, capped there), so the next file of the same codec and size with a larger sample
