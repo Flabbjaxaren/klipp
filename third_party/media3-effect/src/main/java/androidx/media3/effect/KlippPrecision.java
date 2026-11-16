@@ -29,6 +29,13 @@ public final class KlippPrecision {
    */
   public static volatile boolean sdrYuv = false;
 
+  /**
+   * A stream change sets up the next stream's effects while the old stream's last frames wait for their release
+   * (FinalShaderProgramWrapper) – otherwise the next stream's first frame enters the chain only after the old stream's
+   * last frame was shown. Set by the app (live cuts with one renderer).
+   */
+  public static volatile boolean earlyStreamEnd = false;
+
   /** Klipp: receives every frame the chain hands to an output surface, or drops as late (the app's cut trace). */
   public interface FrameTrace {
     /** [chain]: which chain (one per player), [ptsUs]: the frame's time, [presentNs]: when it is to be shown, -1 = dropped. */

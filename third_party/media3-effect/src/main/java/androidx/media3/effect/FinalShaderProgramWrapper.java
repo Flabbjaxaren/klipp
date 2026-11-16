@@ -75,6 +75,17 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
     /** Called when a frame is rendered to the output surface. */
     void onFrameRendered(long presentationTimeUs);
+
+    /**
+     * Klipp: whether a stream that ends while its last frames wait for their release may count as processed at once
+     * (the next stream's effects are then set up while they wait; see {@link #klippOldFramesDone}).
+     */
+    default boolean klippReleaseEarly() {
+      return false;
+    }
+
+    /** Klipp: the frames of streams that counted as processed early have all left this stage. */
+    default void klippOldFramesDone() {}
   }
 
   private static final String TAG = "FinalShaderWrapper";
@@ -93,6 +104,16 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   private final Executor videoFrameProcessorListenerExecutor;
   private final VideoFrameProcessor.Listener videoFrameProcessorListener;
   private final Queue<TimedGlTextureInfo> availableFrames;
+  /**
+   * Klipp: the stage each of {@link #availableFrames} came from (same order) – a frame of a stream that counted as
+   * processed early goes back to the effects it came from, which are kept until then.
+   */
+  private final Queue<InputListener> klippFrom = new ConcurrentLinkedQueue<>();
+  /** Klipp: how many of {@link #availableFrames} (the oldest) belong to streams that counted as processed early. */
+  private int klippOldFrames;
+  /** Klipp: matrices set for the next stream while frames of the old one wait (applied after them). */
+  @Nullable private List<GlMatrixTransformation> klippPendingMatrices;
+  @Nullable private List<RgbMatrix> klippPendingRgb;
   private final TexturePool outputTexturePool;
   private final LongArrayQueue outputTextureTimestamps; // Synchronized with outputTexturePool.
   private final LongArrayQueue syncObjects;
@@ -214,10 +235,41 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     if (availableFrames.isEmpty()) {
       checkNotNull(listener).onInputStreamProcessed();
       isInputStreamEndedWithPendingAvailableFrames = false;
+    } else if (checkNotNull(listener).klippReleaseEarly()) {
+      // Klipp: the frames wait for their release, the next stream's effects are set up meanwhile
+      checkState(!renderFramesAutomatically);
+      klippOldFrames = availableFrames.size();
+      isInputStreamEndedWithPendingAvailableFrames = false;
+      KlippPrecision.composite("fsw early end old=" + klippOldFrames);
+      listener.onInputStreamProcessed();
     } else {
       checkState(!renderFramesAutomatically);
       isInputStreamEndedWithPendingAvailableFrames = true;
     }
+  }
+
+  /** Klipp: whether frames of a stream that counted as processed early still wait here. */
+  /* package */ boolean klippHasOldFrames() {
+    return klippOldFrames > 0;
+  }
+
+  private void klippOldFrameLeft() {
+    if (klippOldFrames > 0 && --klippOldFrames == 0) {
+      klippOldDone();
+    }
+  }
+
+  private void klippOldDone() {
+    klippOldFrames = 0;
+    if (klippPendingMatrices != null) {
+      List<GlMatrixTransformation> m = klippPendingMatrices;
+      List<RgbMatrix> r = checkNotNull(klippPendingRgb);
+      klippPendingMatrices = null;
+      klippPendingRgb = null;
+      setMatrixTransformations(m, r);
+    }
+    KlippPrecision.composite("fsw old frames done");
+    checkNotNull(listener).klippOldFramesDone();
   }
 
   @Override
@@ -239,9 +291,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
             glObjectsProvider,
             inputTexture,
             presentationTimeUs,
-            /* renderTimeNs= */ presentationTimeUs * 1000);
+            /* renderTimeNs= */ presentationTimeUs * 1000,
+            inputListener);
       } else {
         availableFrames.add(new TimedGlTextureInfo(inputTexture, presentationTimeUs));
+        klippFrom.add(inputListener);
         if (isWaitingForRedrawFrame()) {
           if (presentationTimeUs == redrawFramePresentationTimeUs) {
             redrawFramePresentationTimeUs = C.TIME_UNSET;
@@ -253,8 +307,10 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
                 glObjectsProvider,
                 inputTexture,
                 presentationTimeUs,
-                /* renderTimeNs= */ SystemClock.DEFAULT.nanoTime());
+                /* renderTimeNs= */ SystemClock.DEFAULT.nanoTime(),
+                inputListener);
             availableFrames.clear();
+            klippFrom.clear();
           } else {
             // Skip other frames when waiting for the replay frame to arrive, so that the producer
             // can continue processing, but keep it in the availableFrames for the player to call
@@ -270,7 +326,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
           glObjectsProvider,
           inputTexture,
           presentationTimeUs,
-          /* renderTimeNs= */ presentationTimeUs * 1000);
+          /* renderTimeNs= */ presentationTimeUs * 1000,
+          inputListener);
     }
   }
 
@@ -285,7 +342,11 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     videoFrameProcessingTaskExecutor.verifyVideoFrameProcessingThread();
     // Drops all frames that aren't rendered yet.
     availableFrames.clear();
+    klippFrom.clear();
     isInputStreamEndedWithPendingAvailableFrames = false;
+    if (klippOldFrames > 0) {
+      klippOldDone();
+    }
     redrawFramePresentationTimeUs = C.TIME_UNSET;
     if (defaultShaderProgram != null) {
       defaultShaderProgram.flush();
@@ -358,6 +419,14 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   public void setMatrixTransformations(
       List<GlMatrixTransformation> matrixTransformations, List<RgbMatrix> rgbMatrices) {
     videoFrameProcessingTaskExecutor.verifyVideoFrameProcessingThread();
+    if (klippOldFrames > 0
+        && !(this.matrixTransformations.equals(matrixTransformations)
+            && this.rgbMatrices.equals(rgbMatrices))) {
+      // Klipp: frames of the old stream still wait – they are drawn with its matrices
+      klippPendingMatrices = new ArrayList<>(matrixTransformations);
+      klippPendingRgb = new ArrayList<>(rgbMatrices);
+      return;
+    }
     this.matrixTransformations.clear();
     this.matrixTransformations.addAll(matrixTransformations);
     this.rgbMatrices.clear();
@@ -379,11 +448,14 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     }
 
     TimedGlTextureInfo oldestAvailableFrame = availableFrames.remove();
+    InputListener from = klippFrom.remove();
     renderFrame(
         glObjectsProvider,
         oldestAvailableFrame.glTextureInfo,
         oldestAvailableFrame.presentationTimeUs,
-        renderTimeNs);
+        renderTimeNs,
+        from);
+    klippOldFrameLeft();
     if (isInputStreamEndedWithPendingAvailableFrames) {
       KlippPrecision.composite("fsw rendered left=" + availableFrames.size());
     }
@@ -411,9 +483,12 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
   /* package */ void prepareToRedraw(long redrawFramePresentationTimeUs) {
     this.redrawFramePresentationTimeUs = redrawFramePresentationTimeUs;
-    for (int i = 0; i < availableFrames.size(); i++) {
+    while (!availableFrames.isEmpty()) {
       TimedGlTextureInfo availableFrame = availableFrames.remove();
-      inputListener.onInputFrameProcessed(availableFrame.glTextureInfo);
+      klippFrom.remove().onInputFrameProcessed(availableFrame.glTextureInfo);
+    }
+    if (klippOldFrames > 0) {
+      klippOldDone();
     }
   }
 
@@ -487,7 +562,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       GlObjectsProvider glObjectsProvider,
       GlTextureInfo inputTexture,
       long presentationTimeUs,
-      long renderTimeNs) {
+      long renderTimeNs,
+      InputListener from) {
     try {
       // Klipp: a single late frame (a clip change) is shown late rather than dropped; under sustained load it is dropped
       if (renderTimeNs == VideoFrameProcessor.DROP_OUTPUT_FRAME
@@ -497,7 +573,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       if (renderTimeNs == VideoFrameProcessor.DROP_OUTPUT_FRAME
           || !ensureConfigured(glObjectsProvider, inputTexture.width, inputTexture.height)
           || (isWaitingForRedrawFrame() && presentationTimeUs != redrawFramePresentationTimeUs)) {
-        inputListener.onInputFrameProcessed(inputTexture);
+        from.onInputFrameProcessed(inputTexture);
         if (renderTimeNs == VideoFrameProcessor.DROP_OUTPUT_FRAME) {
           KlippPrecision.framesLate++; // Klipp: diagnostics
           KlippPrecision.noteLate();
@@ -518,7 +594,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
                   VideoFrameProcessingException.from(e, presentationTimeUs)));
     }
 
-    inputListener.onInputFrameProcessed(inputTexture);
+    from.onInputFrameProcessed(inputTexture);
   }
 
   private void renderFrameToOutputSurface(

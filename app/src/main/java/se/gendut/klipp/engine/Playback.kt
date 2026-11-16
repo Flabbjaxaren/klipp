@@ -931,6 +931,8 @@ class ProgramPlayback(private val context: Context) {
     private fun newPlayer(): CompositionPlayer {
         // (experiment: the file diag/noprewarm in the app's external files – one renderer across the items, see LiveCuts)
         LiveCuts.oneRenderer = java.io.File(context.getExternalFilesDir(null), "diag/noprewarm").exists()
+        // (the next item's effects are set up while the old item's last frame waits for its release, see LiveCuts)
+        androidx.media3.effect.KlippPrecision.earlyStreamEnd = LiveCuts.oneRenderer
         return androidx.media3.transformer.KlippPlayerOptions.videoPrewarming(CompositionPlayer.Builder(context), !LiveCuts.oneRenderer)
             // short buffer: fast start after seek and rebuild (see Perf)
             .setLoadControl(Perf.editingLoadControl())

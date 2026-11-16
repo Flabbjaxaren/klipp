@@ -590,6 +590,18 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
             }
             frameCache.onFrameRendered(presentationTimeUs);
           }
+
+          @Override
+          public boolean klippReleaseEarly() {
+            // Klipp: a stream change (not the end of all input) may set up the next stream's effects while the old
+            // stream's last frames wait for their release
+            return KlippPrecision.earlyStreamEnd && !inputStreamEnded && frameCache == null;
+          }
+
+          @Override
+          public void klippOldFramesDone() {
+            klippReleaseRetired();
+          }
         });
   }
 
@@ -933,6 +945,24 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
   /** Klipp: whether the last registerInputFrame was accepted (the cut trace logs the changes). */
   private boolean klippRegisterOk = true;
 
+  /** Klipp: effects of an old stream kept until its last frames have left the last stage (see configure). */
+  private final List<GlShaderProgram> klippRetired = new ArrayList<>();
+
+  private void klippReleaseRetired() {
+    if (klippRetired.isEmpty()) {
+      return;
+    }
+    KlippPrecision.composite("fxretired released " + klippRetired.size());
+    for (int i = 0; i < klippRetired.size(); i++) {
+      try {
+        klippRetired.get(i).release();
+      } catch (VideoFrameProcessingException e) {
+        Log.e(TAG, "Error releasing a retired shader program", e);
+      }
+    }
+    klippRetired.clear();
+  }
+
   private void configurePendingInputStream() throws VideoFrameProcessingException {
     videoFrameProcessingTaskExecutor.verifyVideoFrameProcessingThread();
     KlippPrecision.composite("configpending has=" + (this.pendingInputStreamInfo != null));
@@ -1170,8 +1200,15 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
       if (forceReconfigure || !activeEffects.equals(inputStreamInfo.effects)) {
         // Klipp: how long the chain's rebuild takes (the cut trace)
         long klippT0 = System.nanoTime();
-        for (int i = 0; i < intermediateGlShaderPrograms.size(); i++) {
-          intermediateGlShaderPrograms.get(i).release();
+        if (finalShaderProgramWrapper.klippHasOldFrames()) {
+          // Klipp: frames of the old stream wait in the last stage, their textures still belong to these effects –
+          // released once the frames have left (klippOldFramesDone)
+          klippRetired.addAll(intermediateGlShaderPrograms);
+          KlippPrecision.composite("fxretire " + intermediateGlShaderPrograms.size());
+        } else {
+          for (int i = 0; i < intermediateGlShaderPrograms.size(); i++) {
+            intermediateGlShaderPrograms.get(i).release();
+          }
         }
         intermediateGlShaderPrograms.clear();
         long klippT1 = System.nanoTime();
@@ -1313,6 +1350,7 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
         for (int i = 0; i < intermediateGlShaderPrograms.size(); i++) {
           intermediateGlShaderPrograms.get(i).release();
         }
+        klippReleaseRetired();
         finalShaderProgramWrapper.release();
       } catch (Exception e) {
         Log.e(TAG, "Error releasing shader program", e);
