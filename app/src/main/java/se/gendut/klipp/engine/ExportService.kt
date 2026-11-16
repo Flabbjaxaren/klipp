@@ -37,6 +37,16 @@ class ExportService : Service() {
         return START_NOT_STICKY
     }
 
+    /**
+     * Android 15+: the media processing type's time is up (six hours in a day). The service must stop at once or the app
+     * is ended with an error; the export goes on without the protection (if the process is lost after all, ExportGuard
+     * reports it at the next start).
+     */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        se.gendut.klipp.CrashReport.note("export service: time limit reached (type $fgsType) – the export goes on unprotected")
+        stopSelf()
+    }
+
     companion object {
         private const val ID = 4711
         private const val CHANNEL = "export"
@@ -62,7 +72,11 @@ class ExportService : Service() {
                 .build()
         }
 
+        /** Between [start] and [stop]: a progress that comes after the export ended posts no notification. */
+        @Volatile private var active = false
+
         fun start(c: Context, name: String) {
+            active = true
             runCatching { c.startForegroundService(Intent(c, ExportService::class.java).putExtra(EXTRA_NAME, name)) }
                 .onFailure { se.gendut.klipp.CrashReport.note("export service not started: ${it.message}") }
         }
@@ -71,12 +85,14 @@ class ExportService : Service() {
 
         /** The notification's progress (only when it changes by a whole percent). */
         fun progress(c: Context, name: String, percent: Int) {
-            if (percent == lastPercent) return
+            // (a late progress after the end would put up an ongoing notification nothing takes down)
+            if (!active || percent == lastPercent) return
             lastPercent = percent
             runCatching { c.getSystemService(NotificationManager::class.java).notify(ID, notification(c, name, percent)) }
         }
 
         fun stop(c: Context) {
+            active = false
             lastPercent = -1
             runCatching { c.stopService(Intent(c, ExportService::class.java)) }
             runCatching { c.getSystemService(NotificationManager::class.java).cancel(ID) }
@@ -113,6 +129,15 @@ object ExportGuard {
     fun end(c: Context) {
         prefs(c).edit().remove("running").remove("since").commit()
         ExportService.stop(c)
+    }
+
+    /**
+     * The export was stopped from outside while the process lives (its coroutine cancelled: the screen that ran it went
+     * away). Said the next time the editor shows – not passed over as if nothing had been started.
+     */
+    fun cutOff(name: String) {
+        notice = name
+        se.gendut.klipp.CrashReport.note("export cut off while running: $name")
     }
 
     /**

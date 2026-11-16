@@ -253,6 +253,10 @@ fun KlippApp(
                 se.gendut.klipp.engine.Exporter.export(context, c.snapshot, c::uriOf, name, lookOf(grade), mixMaster(mix), HashMap(gs.grades), st) {
                     exportProgress = it; se.gendut.klipp.engine.ExportGuard.progress(context, name, it)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // the screen running the export went away while the process lives: said when the editor shows again
+                se.gendut.klipp.engine.ExportGuard.cutOff(name)
+                throw e
             } finally {
                 se.gendut.klipp.engine.ExportGuard.end(context)
                 se.gendut.klipp.engine.BackgroundWork.export(false)
@@ -268,6 +272,11 @@ fun KlippApp(
                     toaster.show(Str.t(R.string.app_export_failed, it.message ?: ""))
                 }
         }
+    }
+    // Back while an export runs: the app goes to the background instead of being closed (Android 10–11 closed the
+    // activity, and the export with it); 12+ does this itself on the first screen
+    androidx.activity.compose.BackHandler(enabled = exportProgress != null) {
+        (context as? android.app.Activity)?.moveTaskToBack(true)
     }
     if (exportAsk && controller != null) {
         val q = controller.snapshot.sequence

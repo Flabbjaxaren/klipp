@@ -42,4 +42,33 @@ class ExportGuardTest {
         ExportGuard.end(c)
         assertNull(ExportGuard.interrupted(c))
     }
+
+    @Test fun aProgressAfterTheEndPostsNoNotification() {
+        Str.init(c)
+        val nm = c.getSystemService(android.app.NotificationManager::class.java)
+        ExportGuard.begin(c, "Sen")
+        ExportGuard.progress(c, "Sen", 40)
+        assertEquals(1, Shadows.shadowOf(nm).allNotifications.size)
+        ExportGuard.end(c)
+        assertEquals(0, Shadows.shadowOf(nm).allNotifications.size)
+        // a progress callback that comes after the end (the encoder's last report)
+        ExportGuard.progress(c, "Sen", 99)
+        assertEquals("no ongoing notification left behind", 0, Shadows.shadowOf(nm).allNotifications.size)
+    }
+
+    @Test fun anExportCutOffWhileTheProcessLivesIsSaid() {
+        ExportGuard.notice = null
+        ExportGuard.cutOff("Avbruten")
+        assertEquals("Avbruten", ExportGuard.notice)
+        ExportGuard.notice = null
+    }
+
+    @Test fun theServiceStopsItselfWhenItsTimeIsUp() {
+        Str.init(c)
+        val controller = org.robolectric.Robolectric.buildService(ExportService::class.java).create()
+        val service = controller.get()
+        service.onStartCommand(android.content.Intent(), 0, 1)
+        service.onTimeout(1, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING)
+        assertTrue(Shadows.shadowOf(service).isStoppedBySelf)
+    }
 }
