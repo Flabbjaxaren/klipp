@@ -280,6 +280,17 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     return null;
   }
 
+  /** Klipp: one stream's values (see SequenceVideoRenderer#klippStreams). */
+  private static final class KlippStream {
+    final long offsetToCompositionTimeUs;
+    final ImmutableList<Effect> effects;
+
+    KlippStream(long offsetToCompositionTimeUs, ImmutableList<Effect> effects) {
+      this.offsetToCompositionTimeUs = offsetToCompositionTimeUs;
+      this.effects = effects;
+    }
+  }
+
   private static boolean isLastInSequence(Timeline timeline, MediaPeriodId mediaPeriodId) {
     // TODO: b/419479048 - Investigate whether this should always be false for looping sequences.
     return timeline.getIndexOfPeriod(mediaPeriodId.periodUid) == timeline.getPeriodCount() - 1;
@@ -323,6 +334,14 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     private ImmutableList<Effect> pendingEffects;
     private long offsetToCompositionTimeUs;
     private boolean requestMediaCodecToneMapping;
+
+    /**
+     * Klipp: each stream's own effects and composition time offset, by the stream's renderer offset. They were kept in
+     * single fields set when a stream is read ({@link #onStreamChanged}) but used when its frames come out of the codec –
+     * a renderer that reads more than one stream ahead (one renderer across the items, prewarming off, and an item
+     * shorter than the codec's queue) gave a stream the next one's effects and times.
+     */
+    private final java.util.TreeMap<Long, KlippStream> klippStreams = new java.util.TreeMap<>();
 
     public SequenceVideoRenderer(
         Context context,
@@ -371,6 +390,7 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
     @Override
     protected void onDisabled() {
       super.onDisabled();
+      klippStreams.clear();
       deactivateBufferingVideoSink();
     }
 
@@ -403,8 +423,21 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       offsetToCompositionTimeUs =
           getOffsetToCompositionTimeUs(getTimeline(), mediaPeriodId, offsetUs);
       pendingEffects = editedMediaItem.effects.videoEffects;
+      klippStreams.put(offsetUs, new KlippStream(offsetToCompositionTimeUs, pendingEffects));
       targetFrameRateHelper.onStreamChanged(editedMediaItem);
       super.onStreamChanged(formats, startPositionUs, offsetUs, mediaPeriodId);
+    }
+
+    /** Klipp: the values of the stream whose frames come out of the codec now (null if not known). */
+    @Nullable
+    private KlippStream klippOutputStream() {
+      long outputOffsetUs = getOutputStreamOffsetUs();
+      if (outputOffsetUs == C.TIME_UNSET) {
+        return null;
+      }
+      // streams before it are done
+      klippStreams.headMap(outputOffsetUs).clear();
+      return klippStreams.get(outputOffsetUs);
     }
 
     @Override
@@ -503,7 +536,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 
     @Override
     protected long getBufferTimestampAdjustmentUs() {
-      return offsetToCompositionTimeUs;
+      @Nullable KlippStream stream = klippOutputStream();
+      return stream != null ? stream.offsetToCompositionTimeUs : offsetToCompositionTimeUs;
     }
 
     @Override
@@ -520,12 +554,13 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
         @VideoSink.InputType int inputType,
         Format format,
         @VideoSink.FirstFrameReleaseInstruction int firstFrameReleaseInstruction) {
+      @Nullable KlippStream stream = klippOutputStream();
       videoSink.onInputStreamChanged(
           inputType,
           format,
           getOutputStreamStartPositionUs(),
           firstFrameReleaseInstruction,
-          pendingEffects);
+          stream != null ? stream.effects : pendingEffects);
     }
 
     private void activateBufferingVideoSink() {

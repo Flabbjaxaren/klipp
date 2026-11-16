@@ -7,4 +7,10 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
 
 ## Changes
 
-(none yet)
+- `SequenceRenderersFactory.java`, `SequenceVideoRenderer`: each stream's effects and composition time offset are kept
+  by the stream's renderer offset (`klippStreams`) and looked up for the stream whose frames come out of the codec. In
+  Media3 they are single fields set when a stream is read and used when its frames come out – a renderer that reads more
+  than one stream ahead gave a stream the next one's effects and times. With Media3's video prewarming (its default) a
+  renderer never holds two streams; Klipp's live playback with one video renderer across the items (prewarming off,
+  items that start "at a keyframe", see `LiveCuts` in the app) reads on into the next items, and an item shorter than
+  the codec's queue (a pre-rendered piece of 0.6 s) was graded and timed as the item after it.
