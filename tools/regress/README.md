@@ -50,3 +50,19 @@ Without a phone (and in CI, job `regress-selftest`): `python3 tools/regress/self
 and R6 exports of build 155 on the OnePlus, scaled to 320×180 (the size the checks read at; times and codes checked
 identical to the originals) with their timelines. It also checks that a file that can't be decoded fails and that an
 unexpected error inside a run ends it with a failure and an exit code other than 0. Needs ffmpeg/ffprobe and numpy.
+
+## Endurance and export failure paths
+
+`endurance.py --serial S --port P --clips DIR [--minutes 22] [--project NAME]` plays, seeks, edits (the V3 clip moved)
+and exports one test project ("E1 endurance": pushes, film with node cache, V2/V3) over and over, and samples every
+cycle: PSS and its parts, threads, the codecs the process holds (media.resource_manager), thermal status and the skin,
+CPU and GPU temperatures, late and dropped frames per play (cut trace, first frame of each slot after 300 ms) and
+errors in the log. `samples.jsonl` holds the course over time. Exports it made are removed from Movies/Klipp.
+Only transition chunks render by themselves (automatic rendering is off by default): a resumption check after an export
+looks at those, not at every chunk.
+
+`export_check.py --serial S --port P` (after an endurance run, in its project): an export left with HOME, one left
+with BACK, and one whose process is killed (am force-stop) four seconds in – a new file and the notification gone in
+the first two; no file, no notification and the "Export interrupted" notice in the last. A release-signed build can't
+list its cache (run-as), so the temporary file's removal is left to the unit test there. force-stop can bring another
+app to the front: every tap first checks that the test app is on top.
