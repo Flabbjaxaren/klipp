@@ -47,6 +47,16 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   `FrameCacheGlShaderProgram` (package-private, hence here); its bookkeeping (`Queue`) is plain and tested in the app.
   A planner may answer `UNSEEN` for a frame: it is kept (repeated into the slots before the next one) but not shown –
   a pre-rendered part's pre-roll, so the part's first slots hold the frame the whole timeline holds there.
+- `FinalShaderProgramWrapper.java`, `DefaultVideoFrameProcessor.java`: with `KlippPrecision.earlyStreamEnd` (the app's
+  live cuts with one renderer), a stream change that is not the end of all input counts as processed at once, even while
+  the old stream's last frames still wait for their release in the last stage. The next stream's effects are set up
+  meanwhile, so its first frame no longer enters the chain only after the old stream's last frame was shown.
+  - The waiting frames remember the stage they came from (`klippFrom`); their textures go back there.
+  - The old effects are kept (`klippRetired`) until those frames have left, then released.
+  - Final matrices set meanwhile wait until then.
+  - A flush or a redraw ends the wait.
+  - The diagnostics also log the stream change steps (regstream, regframe, configpending, streamprocessed, flush,
+    endofinput, etm, fsw).
 
 The resources (`res/raw`, shaders) and the manifest come from the AAR file of the same version.
 
