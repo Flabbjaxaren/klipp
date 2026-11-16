@@ -1062,7 +1062,12 @@ class ProgramPlayback(private val context: Context) {
             // the mix at the project's sample rate: Media3 took the first input's, a gap's silence at 44.1 kHz whenever a
             // track began with one – every clip was resampled to it, the output back to the phone's 48 kHz, and the
             // fast audio path was refused (see KlippAudio)
-            androidx.media3.transformer.KlippAudio.playbackMixSampleRate = s.sequence?.sampleRate?.takeIf { it > 0 } ?: 48_000
+            // (diagnostics: the file diag/nolowlatency – the program track without the low-latency request)
+            ProgramTracks.lowLatency = !java.io.File(context.getExternalFilesDir(null), "diag/nolowlatency").exists()
+            // (diagnostics: the file diag/mixfirst in the app's external files – Media3's own choice, the first input's rate)
+            androidx.media3.transformer.KlippAudio.playbackMixSampleRate =
+                if (java.io.File(context.getExternalFilesDir(null), "diag/mixfirst").exists()) androidx.media3.common.Format.NO_VALUE
+                else s.sequence?.sampleRate?.takeIf { it > 0 } ?: 48_000
             player.setComposition(built.composition, CutSeek.ms(inside(positionSec), cuts, cutFps, wasPlaying))
             // scrubbing mode only applies to the players that existed when it was turned on – the new ones (new build) get it too
             if (player.isScrubbingModeEnabled) { player.isScrubbingModeEnabled = false; player.isScrubbingModeEnabled = true }

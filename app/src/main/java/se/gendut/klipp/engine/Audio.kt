@@ -532,7 +532,9 @@ class FxProcessor(private val fx: Long, private val native: FxNative = EngineFx)
  * position to start after play (the sound is the clock), and that takes the output path's latency. Left to itself a
  * media track with Media3's half-second buffer goes to the power-saving deep-buffer output; asked for low latency it
  * plays on the primary one even when the fast path itself is refused (the mix's rate isn't the output's). On the vivo
- * the position starts 61–76 ms after play instead of 97–125 ms (two rounds of four starts each).
+ * the position starts 61–76 ms after play instead of 97–125 ms (two rounds of four starts each). When the request is
+ * granted (the mix's rate is the output's, as with KlippAudio's 48 kHz mix) a normal track is made instead: a fast
+ * low-latency track loses what it holds when it is paused, and the clock leapt half a second at a cut.
  */
 @OptIn(UnstableApi::class)
 object ProgramTracks : androidx.media3.exoplayer.audio.DefaultAudioSink.AudioTrackProvider {
@@ -553,6 +555,12 @@ object ProgramTracks : androidx.media3.exoplayer.audio.DefaultAudioSink.AudioTra
                 .setSessionId(audioSessionId)
                 .setPerformanceMode(android.media.AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
                 .build().also { CutTrace.log("sink", "low-latency track: mode ${it.performanceMode}, buffer ${it.bufferSizeInFrames} frames, ${config.sampleRate} Hz") }
-        }.getOrElse { default.getAudioTrack(config, attributes, audioSessionId, context) }
+        }.getOrNull()?.let { t ->
+            // granted (the track's rate is the output's): a fast track drops what it holds when it is paused – the player
+            // pauses it for a moment at an item edge now and then, and the clock then leapt the buffer ahead (vivo: 480 ms,
+            // nine frames dropped at a cut after every rebuild). Only the refused request (the primary output) is kept
+            if (t.performanceMode != android.media.AudioTrack.PERFORMANCE_MODE_LOW_LATENCY) t
+            else { t.release(); CutTrace.log("sink", "low latency granted – a normal track instead"); null }
+        } ?: default.getAudioTrack(config, attributes, audioSessionId, context)
     }
 }
