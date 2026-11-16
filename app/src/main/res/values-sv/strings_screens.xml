@@ -292,4 +292,7 @@
     <!-- ExportService.kt -->
     <string name="exportservice_channel">Exporter</string>
     <string name="exportservice_title">Exporterar video</string>
+    <string name="settings_storage_summary">Klipp använder %1$.1f GB · %2$.1f GB ledigt på telefonen</string>
+    <string name="settings_storage_parts">Proxyer %1$.1f · nodcache %2$.1f · förrenderat %3$.1f · frysta bilder och bakvända klipp %4$.1f GB</string>
+    <string name="settings_storage_low">Lite utrymme kvar: proxyer och förrendering kan stanna</string>
 </resources>

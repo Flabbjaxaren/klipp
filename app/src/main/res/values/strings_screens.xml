@@ -292,4 +292,7 @@
     <!-- ExportService.kt -->
     <string name="exportservice_channel">Exports</string>
     <string name="exportservice_title">Exporting video</string>
+    <string name="settings_storage_summary">Klipp uses %1$.1f GB · %2$.1f GB free on the phone</string>
+    <string name="settings_storage_parts">Proxies %1$.1f · node cache %2$.1f · renders %3$.1f · freeze frames and reversed clips %4$.1f GB</string>
+    <string name="settings_storage_low">Little space left: proxies and renders may stop</string>
 </resources>
