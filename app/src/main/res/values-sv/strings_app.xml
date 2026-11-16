@@ -144,6 +144,7 @@
         <item quantity="other">Förbereder %1$d filer · %2$d %%</item>
     </plurals>
     <string name="app_render">Rendera</string>
+    <string name="app_render_selection">Rendera val</string>
     <string name="app_crossfade">Övertoning</string>
     <string name="app_length">Längd</string>
     <string name="app_fade_in_from_white">Tona in från vitt</string>

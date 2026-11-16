@@ -144,6 +144,7 @@
         <item quantity="other">Preparing %1$d files · %2$d%%</item>
     </plurals>
     <string name="app_render">Render</string>
+    <string name="app_render_selection">Render selection</string>
     <string name="app_crossfade">Crossfade</string>
     <string name="app_length">Length</string>
     <string name="app_fade_in_from_white">Fade in from white</string>

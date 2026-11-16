@@ -405,7 +405,7 @@ fun KlippApp(
         val renderScope = this
         androidx.compose.runtime.snapshotFlow {
             // (not the render's own revision: a finished chunk would then cancel rendering of the next)
-            listOf(controller.revision, gs.revision, se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll,
+            listOf(controller.revision, gs.revision, se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll, se.gendut.klipp.engine.RenderCache.renderRange,
                 se.gendut.klipp.engine.RenderCache.cleared, se.gendut.klipp.engine.RenderCache.halted, se.gendut.klipp.engine.RenderCache.auto,
                 se.gendut.klipp.engine.VideoPipeline.previewShort, se.gendut.klipp.engine.FrameSnap.revision, se.gendut.klipp.engine.RenderCache.hold)
         }.debounce(1200).collectLatest {
@@ -420,6 +420,8 @@ fun KlippApp(
             // RenderCache.playPlan) – they come first, the one nearest the playhead first
             val windows = se.gendut.klipp.engine.RenderCache.transitionWindows(snap)
             val all = se.gendut.klipp.engine.RenderCache.renderAll
+            val range = se.gendut.klipp.engine.RenderCache.renderRange
+            fun asked(c: se.gendut.klipp.engine.RenderCache.Chunk) = all && (range == null || (c.a < range.endInclusive - 1e-6 && c.b > range.start + 1e-6))
             val auto = se.gendut.klipp.engine.RenderCache.auto
             val head = state.playhead.toDouble()
             fun inTransition(c: se.gendut.klipp.engine.RenderCache.Chunk) = windows.any { w -> c.a < w.endInclusive - 1e-6 && c.b > w.start + 1e-6 }
@@ -428,14 +430,14 @@ fun KlippApp(
             val optional = !se.gendut.klipp.engine.RenderCache.halted
             val todo = chunks.filter { c ->
                 !se.gendut.klipp.engine.RenderCache.hold &&
-                    !se.gendut.klipp.engine.RenderCache.isReady(c) && (inTransition(c) || (optional && (all || (auto && c.heavy))))
+                    !se.gendut.klipp.engine.RenderCache.isReady(c) && (inTransition(c) || (optional && (asked(c) || (auto && c.heavy))))
             }.sortedWith(compareBy({ !inTransition(it) }, { distance(it) }))
             se.gendut.klipp.engine.RenderCache.wanted = todo.map { it.hash }.toSet()
             se.gendut.klipp.engine.RenderCache.generation++
             // the render under way: its chunk finishes (or stops, if no longer wanted), then the new list takes over
             rendering?.join()
             if (todo.isEmpty()) {
-                if (all) se.gendut.klipp.engine.RenderCache.renderAll = false
+                if (all) { se.gendut.klipp.engine.RenderCache.renderAll = false; se.gendut.klipp.engine.RenderCache.renderRange = null }
                 // finished chunks not yet joined (e.g. after a change in the middle of a rendered stretch)
                 val before = se.gendut.klipp.engine.RenderCache.usedFiles(chunks)
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.RenderCache.joinRuns(chunks) }
@@ -456,6 +458,7 @@ fun KlippApp(
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     se.gendut.klipp.CrashReport.note("pre-render: ${e.message}")
                     se.gendut.klipp.engine.RenderCache.renderAll = false
+                    se.gendut.klipp.engine.RenderCache.renderRange = null
                     toaster.show(Str.t(R.string.app_render_failed, e.message ?: e.javaClass.simpleName))
                 }
                 if (r.isSuccess) {
@@ -466,6 +469,7 @@ fun KlippApp(
                 // (a render that left the rest to a newer timeline has not finished it)
                 if (r.isSuccess && all && todo.all { se.gendut.klipp.engine.RenderCache.isReady(it) }) {
                     se.gendut.klipp.engine.RenderCache.renderAll = false
+                    se.gendut.klipp.engine.RenderCache.renderRange = null
                     toaster.show(Str.t(R.string.app_timeline_rendered))
                 }
             }
@@ -1062,11 +1066,13 @@ internal fun TimecodeDialog(now: Float, onDismiss: () -> Unit, onGo: (Float) -> 
  * of camera files that takes minutes, and the picture plays heavier until it is done.
  */
 @Composable
-internal fun RenderChip(modifier: Modifier) {
+internal fun RenderChip(modifier: Modifier, selection: ClosedFloatingPointRange<Double>? = null) {
     val haptics = rememberHaptics()
     val rc = se.gendut.klipp.engine.RenderCache
     val p = rc.progress
     val todo = rc.states.any { it.heavy && !it.ready }
+    // clips selected with heavy parts under them: the chip renders just those ("Render selection")
+    val selTodo = selection != null && rc.states.any { it.heavy && !it.ready && it.a < selection.endInclusive - 1e-6 && it.b > selection.start + 1e-6 }
     // background preparation: each file's progress (−1 = queued) averaged
     val prep = se.gendut.klipp.engine.Proxies.progress.values.toList() + se.gendut.klipp.engine.NodeCache.progress.values.toList() +
         List(se.gendut.klipp.engine.HoldVideos.busy) { -1 }
@@ -1078,7 +1084,8 @@ internal fun RenderChip(modifier: Modifier) {
             Modifier.height(30.dp).clip(RoundedCornerShape(15.dp)).background(K.SurfaceHighest)
                 .then(if (!actionable) Modifier else Modifier.clickable {
                     haptics.confirm()
-                    if (p != null || rc.renderAll) { rc.renderAll = false; rc.halted = true } else { rc.halted = false; rc.renderAll = true }
+                    if (p != null || rc.renderAll) { rc.renderAll = false; rc.renderRange = null; rc.halted = true }
+                    else { rc.halted = false; rc.renderRange = if (selTodo) selection else null; rc.renderAll = true }
                 })
                 .padding(horizontal = 10.dp).testTag("renderChip"),
             verticalAlignment = Alignment.CenterVertically,
@@ -1090,6 +1097,7 @@ internal fun RenderChip(modifier: Modifier) {
                     rc.waitingForProxy -> stringResource(R.string.app_waiting_proxies)
                     p != null -> stringResource(R.string.app_rendering_progress, (p * 100).toInt())
                     rc.renderAll -> stringResource(R.string.app_waiting)
+                    selTodo -> stringResource(R.string.app_render_selection)
                     todo -> stringResource(R.string.app_render)
                     else -> pluralStringResource(R.plurals.app_preparing, prep.size, prep.size, prepPct)
                 },

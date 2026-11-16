@@ -423,7 +423,10 @@ internal fun EditPage(
             Timeline(state, tool, Modifier.fillMaxSize())
             if (overlays) {
                 // (the chip first: a card that reaches up to it lies over it, not under)
-                RenderChip(Modifier.align(Alignment.TopEnd).padding(top = 34.dp, end = 10.dp))
+                // (the selected clips' stretch: the chip can render just that)
+                val sel = (state.multi + listOfNotNull(state.selected)).let { ids -> state.clips.filter { it.id in ids } }
+                RenderChip(Modifier.align(Alignment.TopEnd).padding(top = 34.dp, end = 10.dp),
+                    selection = if (sel.isEmpty()) null else sel.minOf { it.start }.toDouble()..sel.maxOf { it.end }.toDouble())
                 TransitionCard(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad, start = 12.dp, end = 12.dp))
                 CutBar(state, Modifier.align(Alignment.BottomCenter).padding(bottom = barPad, start = 12.dp, end = 12.dp))
             }

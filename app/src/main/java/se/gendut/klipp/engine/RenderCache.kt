@@ -76,6 +76,9 @@ object RenderCache {
     /** "Render timeline": all chunks that are not ready get rendered (once; reset when done). */
     var renderAll by mutableStateOf(false)
 
+    /** With [renderAll]: only the chunks within this stretch (s) – the selected clips' (the render chip's "Render selection"). */
+    var renderRange by mutableStateOf<ClosedFloatingPointRange<Double>?>(null)
+
     /** The chunks' state for the timeline's render bar: (from, to, ready, needs rendering). */
     var states by mutableStateOf<List<ChunkState>>(emptyList())
         internal set
