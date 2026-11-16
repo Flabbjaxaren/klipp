@@ -113,7 +113,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.core:core-ktx:1.17.0")
     val media3 = "1.11.1"
-    implementation("androidx.media3:media3-exoplayer:$media3")
+    // Media3 ExoPlayer as source code with Klipp's changes (third_party/media3-exoplayer); replaces the Maven module everywhere
+    implementation(project(":media3-exoplayer"))
     // Media3 transformer as source code with Klipp's changes (third_party/media3-transformer); replaces the Maven module everywhere
     implementation(project(":media3-transformer"))
     // Media3 effect as source code with Klipp's changes (third_party/media3-effect); replaces the Maven module everywhere
@@ -143,5 +144,6 @@ configurations.all {
     resolutionStrategy.dependencySubstitution {
         substitute(module("androidx.media3:media3-effect")).using(project(":media3-effect"))
         substitute(module("androidx.media3:media3-transformer")).using(project(":media3-transformer"))
+        substitute(module("androidx.media3:media3-exoplayer")).using(project(":media3-exoplayer"))
     }
 }

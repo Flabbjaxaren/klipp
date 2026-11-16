@@ -19,7 +19,7 @@ android {
 
 dependencies {
     val media3 = "1.11.1"
-    api("androidx.media3:media3-exoplayer:$media3")
+    api(project(":media3-exoplayer"))
     api(project(":media3-effect"))
     api("androidx.media3:media3-muxer:$media3")
     implementation("androidx.media3:media3-datasource:$media3")
@@ -35,5 +35,6 @@ dependencies {
 configurations.all {
     resolutionStrategy.dependencySubstitution {
         substitute(module("androidx.media3:media3-effect")).using(project(":media3-effect"))
+        substitute(module("androidx.media3:media3-exoplayer")).using(project(":media3-exoplayer"))
     }
 }

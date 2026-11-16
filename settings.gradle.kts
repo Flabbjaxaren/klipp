@@ -20,3 +20,5 @@ project(":media3-effect").projectDir = file("third_party/media3-effect")
 // Media3 transformer as source code with Klipp's changes (live cuts with one video renderer), see third_party/media3-transformer/KLIPP.md
 include(":media3-transformer")
 project(":media3-transformer").projectDir = file("third_party/media3-transformer")
+include(":media3-exoplayer")
+project(":media3-exoplayer").projectDir = file("third_party/media3-exoplayer")
