@@ -83,6 +83,23 @@ class MediaLibraryTest {
         idle()
     }
 
+    @Test fun missingFilesAreOfferedAFolderSearch() {
+        val lib = FakeLibrary()
+        // nothing missing: no row
+        show(lib)
+        assertEquals(0, rule.onAllNodes(androidx.compose.ui.test.hasTestTag("media:missing"), useUnmergedTree = true).fetchSemanticsNodes().size)
+        // two files the project can't open: the row says so and offers the folder search
+        lib.media = lib.media.map { if (it.id != 1L) it.copy(offline = true) else it }
+        idle()
+        rule.onRoot().captureRoboImage("$dir/71_media_saknas.png")
+        // (the sheet is clickable: its children's semantics are merged into it – they are looked up unmerged)
+        rule.onNodeWithTag("media:missing", useUnmergedTree = true).assertIsDisplayed()
+        rule.onNode(androidx.compose.ui.test.hasText("2 filer saknas"), useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithTag("media:relink", useUnmergedTree = true).assertIsDisplayed()
+        // and each missing file's card says so
+        assertEquals(2, rule.onAllNodes(androidx.compose.ui.test.hasText("Saknas"), useUnmergedTree = true).fetchSemanticsNodes().size)
+    }
+
     @Test fun foldersMoveRenameAndOpen() {
         val lib = FakeLibrary()
         val opened = mutableListOf<Long>()

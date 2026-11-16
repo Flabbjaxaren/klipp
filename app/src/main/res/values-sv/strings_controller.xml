@@ -192,4 +192,5 @@
     <string name="tts_busy">Skapar …</string>
     <string name="tts_failed">Telefonen har ingen röst för språket</string>
     <string name="projectcontroller_undo_caption_style">Undertextstil</string>
+    <string name="projectcontroller_relinked">Hittade %1$d av %2$d saknade filer</string>
 </resources>

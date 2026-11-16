@@ -295,4 +295,10 @@
     <string name="settings_storage_summary">Klipp uses %1$.1f GB · %2$.1f GB free on the phone</string>
     <string name="settings_storage_parts">Proxies %1$.1f · node cache %2$.1f · renders %3$.1f · freeze frames and reversed clips %4$.1f GB</string>
     <string name="settings_storage_low">Little space left: proxies and renders may stop</string>
+    <plurals name="medialibrary_missing">
+        <item quantity="one">%d file is missing</item>
+        <item quantity="other">%d files are missing</item>
+    </plurals>
+    <string name="medialibrary_find_in_folder">Find in folder</string>
+    <string name="medialibrary_missing_badge">Missing</string>
 </resources>

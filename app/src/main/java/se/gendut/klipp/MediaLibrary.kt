@@ -72,6 +72,9 @@ interface MediaLibrary {
     fun renameBin(bin: Long, name: String)
     /** Remove media and folders (with their contents) from the project – and the timeline clips that use them. */
     fun delete(items: List<Long>, bins: List<Long>)
+    /** Finds the missing files in a folder (and its subfolders) by name and links them again. */
+    fun relinkFromFolder(tree: Uri) {}
+
     /** All media in a folder and its subfolders. */
     fun mediaInBin(bin: Long): List<Long> {
         val sub = bins.filter { it.parent == bin }.map { it.id }
@@ -123,6 +126,17 @@ fun MediaSheet(visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen
                     .testTag("mediaSheet")
             ) {
                 Box(Modifier.align(Alignment.CenterHorizontally).size(36.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(K.OutlineVar))
+                // files the project can't open any more (moved, renamed folder, another phone): found in a folder all at once
+                val missing = lib.media.count { it.offline }
+                val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { tree ->
+                    if (tree != null) lib.relinkFromFolder(tree)
+                }
+                if (missing > 0 && !selecting) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("media:missing"), verticalAlignment = Alignment.CenterVertically) {
+                        Text(pluralStringResource(R.plurals.medialibrary_missing, missing, missing), color = K.Error, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        PillButton(stringResource(R.string.medialibrary_find_in_folder), { haptics.confirm(); pickFolder.launch(null) }, Modifier.testTag("media:relink"), icon = Ic.Folder, filled = false)
+                    }
+                }
                 if (selecting) {
                     // selection mode: actions in the header
                     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -353,8 +367,13 @@ private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, onCli
             if (m.markIn != null || m.markOut != null) {
                 Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(10.dp).clip(RoundedCornerShape(5.dp)).background(K.Primary))
             }
+            // the file can't be opened (see the missing files' row above): said on the card, where the timeline badge goes
+            if (m.offline) Text(
+                stringResource(R.string.medialibrary_missing_badge), color = K.OnPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(K.Error).padding(horizontal = 6.dp, vertical = 2.dp)
+            )
             // used in the timeline
-            if (used > 0) Text(
+            else if (used > 0) Text(
                 stringResource(R.string.medialibrary_in_timeline), color = K.PrimarySoft, fontSize = 10.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(K.PrimaryContainer).padding(horizontal = 6.dp, vertical = 2.dp)
             )
@@ -379,4 +398,5 @@ fun controllerLibrary(c: se.gendut.klipp.engine.ProjectController) = object : Me
     override fun rename(item: Long, name: String) { c.renameMedia(item, name) }
     override fun renameBin(bin: Long, name: String) { c.renameBin(bin, name) }
     override fun delete(items: List<Long>, bins: List<Long>) { c.deleteMedia(items, bins) }
+    override fun relinkFromFolder(tree: Uri) { c.relinkFromFolder(tree) }
 }

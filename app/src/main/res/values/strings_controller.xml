@@ -192,4 +192,5 @@
     <string name="tts_busy">Creating…</string>
     <string name="tts_failed">This phone has no voice for the language</string>
     <string name="projectcontroller_undo_caption_style">Caption style</string>
+    <string name="projectcontroller_relinked">Found %1$d of %2$d missing files</string>
 </resources>

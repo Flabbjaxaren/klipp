@@ -101,6 +101,69 @@ class ProjectController(
     /** The media item's file; negative ids = reversed clips' files ([Reversals]). */
     fun uriOf(item: Long): Uri? = if (item < 0) RenderCache.uriOf(item) ?: Reversals.uriOf(item) else uris[item]
 
+    // ------------------------------------------------------------------ missing files
+
+    /** The project's missing files (offline: the file could not be opened when the project was). */
+    val missingCount: Int get() = snapshot.media.count { it.offline }
+
+    /**
+     * Finds the project's missing files in a folder the user picked ([tree], and its subfolders): each by its file name –
+     * the name it was imported with, or the name in the project – and links it again, all in one go. Reports how many
+     * were found.
+     */
+    fun relinkFromFolder(tree: Uri) = scope.launch {
+        val missing = snapshot.media.filter { it.offline }
+        if (missing.isEmpty()) return@launch
+        busy = true
+        try {
+            runCatching { context.contentResolver.takePersistableUriPermission(tree, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            // the folder's files by name (lower case), subfolders a few levels down, a bounded number of entries
+            val files = withContext(kotlinx.coroutines.Dispatchers.IO) { folderFiles(tree) }
+            fun nameOf(u: Uri?): String? = u?.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':')?.lowercase()
+            var found = 0
+            editLock.withLock {
+                for (m in missing) {
+                    val doc = listOfNotNull(nameOf(offline[m.id]), m.name.lowercase()).firstNotNullOfOrNull { files[it] } ?: continue
+                    val pfd = withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { context.contentResolver.openFileDescriptor(doc, "r") }.getOrNull() } ?: continue
+                    val ok = engine.tryExec("media.relink", JSONObject().put("item", m.id)
+                        .put("path", FdPath.of(pfd.fd, displayName(doc), context.contentResolver.getType(doc))).put("force", true)).isSuccess
+                    if (ok) { fds += pfd; uris[m.id] = doc; offline.remove(m.id); found++ } else runCatching { pfd.close() }
+                }
+                refresh()
+                saveLocked()
+            }
+            onMessage(Str.t(R.string.projectcontroller_relinked, found, missing.size))
+        } finally {
+            busy = false
+        }
+    }
+
+    private fun folderFiles(tree: Uri): Map<String, Uri> {
+        val out = HashMap<String, Uri>()
+        val cr = context.contentResolver
+        val root = android.provider.DocumentsContract.getTreeDocumentId(tree)
+        val todo = ArrayDeque<Pair<String, Int>>().apply { add(root to 0) }
+        var seen = 0
+        while (todo.isNotEmpty() && seen < 20_000) {
+            val (doc, depth) = todo.removeFirst()
+            val children = android.provider.DocumentsContract.buildChildDocumentsUriUsingTree(tree, doc)
+            runCatching {
+                cr.query(children, arrayOf(android.provider.DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                    android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                    android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE), null, null, null)?.use { c ->
+                    while (c.moveToNext()) {
+                        seen++
+                        val id = c.getString(0) ?: continue
+                        val name = c.getString(1) ?: continue
+                        if (c.getString(2) == android.provider.DocumentsContract.Document.MIME_TYPE_DIR) { if (depth < 4) todo.add(id to depth + 1) }
+                        else out.putIfAbsent(name.lowercase(), android.provider.DocumentsContract.buildDocumentUriUsingTree(tree, id))
+                    }
+                }
+            }
+        }
+        return out
+    }
+
     // ------------------------------------------------------------------ import
 
     fun import(picked: List<Uri>) = scope.launch {
