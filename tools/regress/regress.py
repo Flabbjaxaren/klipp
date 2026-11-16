@@ -38,6 +38,8 @@ CLIPS = {                  # file → (clip id in the code, frame rate)
     "rs30.mp4": (8, 30.0), "rs60.mp4": (9, 60.0),
 }
 CENTRAL = {8, 9}
+# R6: a dark and a light plain picture (make_clips.sh): the push between them has a reference of its own (push_errors)
+PUSH_FILES = ("push_dark.mp4", "push_light.mp4")
 CAMERA = []                # the camera clips of test A1 (--apv): file names, slowest frame rate first
 
 
@@ -105,14 +107,133 @@ def decode_gray(img):
 
 
 def video_codes(path):
-    """Per frame of a file: (pts s, code)."""
+    """Every decoded frame of a file's first video stream: (pts s, code, gray image). Strict: a decoding error, a frame
+    without a time or a different count of images and times is an error – never truncated to the shorter."""
     w, h = 320, 180
-    raw = subprocess.run(["ffmpeg", "-v", "quiet", "-i", path, "-fps_mode", "passthrough", "-vf", f"scale={w}:{h}:flags=area,format=gray",
-                          "-f", "rawvideo", "-"], capture_output=True).stdout
-    ts = [float(x.split(",")[0]) for x in subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "frame=pts_time",
-                                                          "-of", "csv=p=0", path], capture_output=True, text=True).stdout.split() if x.split(",")[0].strip()]
-    a = np.frombuffer(raw, np.uint8).reshape(-1, h, w)
-    return [(ts[i], decode_gray(a[i]), a[i]) for i in range(min(len(a), len(ts)))]
+    decoded = subprocess.run(["ffmpeg", "-v", "error", "-xerror", "-i", path, "-map", "0:v:0", "-fps_mode", "passthrough",
+                              "-vf", f"scale={w}:{h}:flags=area,format=gray", "-f", "rawvideo", "-"], capture_output=True, check=True)
+    probed = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_frames", "-show_entries", "frame=pts_time",
+                             "-of", "json", path], capture_output=True, check=True, text=True)
+    frames = json.loads(probed.stdout).get("frames", [])
+    if not frames:
+        raise ValueError(f"{path}: no video frames")
+    if any("pts_time" not in f for f in frames):
+        raise ValueError(f"{path}: a decoded frame has no time")
+    ts = [float(f["pts_time"]) for f in frames]
+    if not all(math.isfinite(t) for t in ts):
+        raise ValueError(f"{path}: an invalid frame time")
+    raw = decoded.stdout
+    if len(raw) % (w * h):
+        raise ValueError(f"{path}: an incomplete frame")
+    images = np.frombuffer(raw, np.uint8).reshape(-1, h, w)
+    if len(images) != len(ts):
+        raise ValueError(f"{path}: {len(images)} decoded images but {len(ts)} frame times")
+    return [(pts, decode_gray(img), img) for pts, img in zip(ts, images)]
+
+
+def layout_errors(codes, first_slot, end_slot, fps=FPS):
+    """
+    Completeness, apart from what the frames show: exactly one frame for every slot of [first_slot, end_slot) – the range
+    asked for, not the file's own length (a short file must not define its own pass) – each on its slot (within half a
+    millisecond: the file's time base) and in rising order. File times start at 0 at first_slot.
+    """
+    from collections import Counter
+    errors, slots, previous = [], [], None
+    eps_s = 0.0005
+    for i, (pts, _, _) in enumerate(codes):
+        local = round(pts * fps)
+        slot = first_slot + local
+        slots.append(slot)
+        if abs(pts - local / fps) > eps_s:
+            errors.append({"kind": "off_grid", "frame": i, "pts": pts, "nearest_slot": slot})
+        if previous is not None and pts <= previous:
+            errors.append({"kind": "non_increasing_pts", "frame": i, "pts": pts, "previous": previous})
+        previous = pts
+    counts = Counter(slots)
+    wanted = set(range(first_slot, end_slot))
+    seen = set(slots)
+    missing = sorted(wanted - seen)
+    unexpected = sorted(seen - wanted)
+    duplicates = sorted(k for k, n in counts.items() if n > 1)
+    if missing:
+        errors.append({"kind": "missing_slots", "slots": missing})
+    if unexpected:
+        errors.append({"kind": "unexpected_slots", "slots": unexpected})
+    if duplicates:
+        errors.append({"kind": "duplicate_slots", "slots": duplicates})
+    return errors
+
+
+def push_progress(p, pc):
+    """An independent reference for the push's move (Transitions.kt: thrown, gather, settle): how far (0..1) both pictures
+    have moved at progress p of the window, with the edit point at pc."""
+    p = min(1.0, max(0.0, p))
+    thrown, gather = 0.68, 1.15
+    if p < pc:
+        x = p / pc
+        return thrown * (math.exp(gather * x) - 1.0 - gather * x) / (math.exp(gather) - 1.0 - gather)
+    x = (p - pc) / (1.0 - pc)
+
+    def bez(t, a, b):
+        r = 1.0 - t
+        return 3 * r * r * t * a + 3 * r * t * t * b + t ** 3
+    lo, hi = 0.0, 1.0
+    for _ in range(40):
+        t = (lo + hi) / 2
+        if bez(t, 0.11, 0.0) < x:
+            lo = t
+        else:
+            hi = t
+    return thrown + (1.0 - thrown) * bez((lo + hi) / 2, 0.72, 1.0)
+
+
+def push_errors(codes, timeline):
+    """
+    What a push from a dark to a light picture must look like on every frame of its window: dark left of the edge, light
+    right of it, the edge at (1 − e)·width (the incoming picture comes from the right, the outgoing one leaves to the left),
+    e from push_progress – the levels calibrated from the file's plain parts. Returns (frames checked, layout errors,
+    wrong frames); raises on a timeline or file that can't be judged.
+    """
+    track = timeline["sequence"]["video"][0]
+    transitions = track.get("transitions", [])
+    if len(transitions) != 1:
+        raise ValueError("R6 must contain exactly one transition")
+    tr = transitions[0]
+    clips = {c["id"]: c for c in track["clips"]}
+    outgoing, incoming = clips[tr["from"]], clips[tr["to"]]
+    if outgoing["name"] != "push_dark.mp4" or incoming["name"] != "push_light.mp4":
+        raise ValueError("unexpected R6 clip pair")
+    t0, t1, cut = tr["start"], tr["start"] + tr["duration"], incoming["start"]
+    if not t0 < cut < t1:
+        raise ValueError("R6 cut is outside the transition")
+    end = max(c["start"] + c["duration"] for c in clips.values())
+    layout = layout_errors(codes, 0, math.ceil(end * FPS - 1e-6))
+    dark_s = [float(img.mean()) for pts, _, img in codes if 0.2 <= pts <= t0 - 0.1]
+    light_s = [float(img.mean()) for pts, _, img in codes if t1 + 0.1 <= pts <= end - 0.2]
+    if not dark_s or not light_s:
+        raise ValueError("no plain frames to calibrate with")
+    dark, light = float(np.median(dark_s)), float(np.median(light_s))
+    if not (20 <= dark <= 90 and 160 <= light <= 240 and light - dark >= 80):
+        raise ValueError(f"invalid calibration levels: {dark:.1f}/{light:.1f}")
+    bad, checked = [], 0
+    pc = (cut - t0) / (t1 - t0)
+    for i, (pts, _, img) in enumerate(codes):
+        if not t0 <= pts < t1:
+            continue
+        checked += 1
+        h, w = img.shape
+        e = push_progress((pts - t0) / (t1 - t0), pc)
+        boundary = (1.0 - e) * w
+        x = np.arange(w) + 0.5
+        valid = np.abs(x - boundary) > 4.0
+        profile = img[h // 4:3 * h // 4].astype(np.float32).mean(axis=0)
+        error = np.abs(profile - np.where(x < boundary, dark, light))[valid]
+        wrong = float(np.mean(error > 18.0))
+        mean = float(error.mean())
+        if wrong > 0.02 or mean > 6.0:
+            bad.append({"frame": i, "slot": round(pts * FPS), "pts": pts, "expected_boundary_px": round(boundary, 1),
+                        "wrong_fraction": round(wrong, 3), "mean_error": round(mean, 1)})
+    return checked, layout, bad
 
 
 def png_gray(path, crop=None, size=(320, 180)):
@@ -286,6 +407,10 @@ def build(ph, name, items):
         for f, off, dur in [("rq30.mp4", 0.8, 0.8), ("rq60.mp4", 0.6, 0.6)]:
             c = clip_at(f)
             ph.exec("clip.insertFrameHoldSegment", {"clip": c["id"], "time": round((c["start"] + off) * 25) * 254016000000 // 25, "seconds": dur})
+    elif name == "R6 push oracle":
+        place(ph, items["push_dark.mp4"], "V1", 0.0, 1.0, 2.0)
+        incoming = place(ph, items["push_light.mp4"], "V1", 2.0, 1.0, 2.0)
+        ph.exec("sequence.applyVideoTransition", {"clip": incoming, "effect": "push", "frames": 15, "edge": "in", "align": "center"})
     elif name == "A1 camera":
         # the main case: camera clips trimmed and in a row, film with node cache on two, a push between two, an upper layer
         # (seven clips; fewer files are used in turn, each with an in point of its own)
@@ -363,23 +488,50 @@ class Run:
         self.ph.adb("pull", f"{self.ph.files}/diag/{name}.mp4", local)
         return local
 
-    def identity_file(self, test, check, path, exp, skip, first_slot=0):
-        codes = video_codes(path)
-        bad = []
+    def identity_file(self, test, check, path, exp, skip, first_slot=0, *, end_slot):
+        """Two verdicts in one result: completeness (layout_errors: one frame per slot of the range asked for, transitions
+        included) and identity (each slot's source frame by the rule; transition windows aren't read – see R6)."""
+        try:
+            codes = video_codes(path)
+        except Exception as e:
+            self.result(test, check, False, f"decode failed: {e}")
+            return
+        layout = layout_errors(codes, first_slot, end_slot)
+        bad, checked = [], 0
         for i, (pts, code, img) in enumerate(codes):
             k = first_slot + round(pts * FPS)
-            if k in skip or k not in exp:
+            if not first_slot <= k < end_slot or k in skip or k not in exp:
                 continue
+            checked += 1
             if exp[k] // 2048 in CENTRAL:
                 code = decode_central(img)
             if code != exp[k]:
-                bad.append({"slot": k, "t": round(k / FPS, 3), "want": describe(exp[k]), "got": describe(code), "frame": i})
-        checked = sum(1 for (pts, _, _) in codes if (first_slot + round(pts * FPS)) in exp and (first_slot + round(pts * FPS)) not in skip)
+                bad.append({"slot": k, "t": round(k / FPS, 6), "want": describe(exp[k]), "got": describe(code), "frame": i})
         for b in bad[:6]:
             p = os.path.join(self.out, f"{test}_{check}_slot{b['slot']}.png".replace(" ", "_"))
-            subprocess.run(["ffmpeg", "-v", "quiet", "-y", "-i", path, "-vf", f"select=eq(n\\,{b['frame']}),scale=640:-1", "-frames:v", "1", p])
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-vf", f"select=eq(n\\,{b['frame']}),scale=640:-1",
+                            "-frames:v", "1", p], capture_output=True, check=True)
             b["image"] = os.path.basename(p)
-        self.result(test, check, not bad and checked > 0, f"{checked - len(bad)}/{checked} slots right" + (f", first wrong at {bad[0]['t']} s: {bad[0]['want']} expected, {bad[0]['got']} shown" if bad else ""), bad or None)
+        self.result(test, check, not layout and not bad and checked > 0,
+                    f"{len(codes)}/{end_slot - first_slot} frames; {checked - len(bad)}/{checked} identities right; {len(layout)} layout errors"
+                    + (f"; first wrong at {bad[0]['t']} s: {bad[0]['want']} expected, {bad[0]['got']} shown" if bad else ""),
+                    {"layout": layout, "identity": bad} if layout or bad else None)
+
+    def push_file(self, test, check, path, timeline):
+        """R6: every frame of the push against its reference (push_errors), not against another render."""
+        try:
+            checked, layout, bad = push_errors(video_codes(path), timeline)
+        except Exception as e:
+            self.result(test, check, False, f"push check failed: {e}")
+            return
+        for b in bad[:6]:
+            p = os.path.join(self.out, f"{test}_{check}_slot{b['slot']}.png")
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-vf", f"select=eq(n\\,{b['frame']}),scale=640:-1",
+                            "-frames:v", "1", p], capture_output=True, check=True)
+            b["image"] = os.path.basename(p)
+        self.result(test, check, not layout and not bad and checked > 0,
+                    f"{checked} transition frames checked; {len(bad)} wrong; {len(layout)} layout errors",
+                    {"layout": layout, "transition": bad} if layout or bad else None)
 
     def program_rect(self):
         r = self.ph.node_bounds("#programStack")
@@ -565,7 +717,8 @@ def main():
         # the test clips: on the phone once, imported once
         items = lambda: {r["name"]: r["item"] for r in ph.exec("project.items")["rows"]}
         names = items()
-        missing = [f for f in CLIPS if f not in names]
+        required_files = list(CLIPS) + list(PUSH_FILES)
+        missing = [f for f in required_files if f not in names]
         if missing:
             # (a folder of its own per test project: another set of clips under the same names)
             sub = "regress" if PROJECT == "Klipp regress" else "regress_" + re.sub(r"[^A-Za-z0-9]+", "_", PROJECT)
@@ -576,10 +729,10 @@ def main():
             for _ in range(60):
                 time.sleep(2)
                 names = items()
-                if all(f in names for f in CLIPS):
+                if all(f in names for f in required_files):
                     break
-            if any(f not in names for f in CLIPS):
-                raise RuntimeError(f"test clips not imported: {[f for f in CLIPS if f not in names]}")
+            if any(f not in names for f in required_files):
+                raise RuntimeError(f"test clips not imported: {[f for f in required_files if f not in names]}")
         if args.apv:
             paths = [x.strip() for x in args.apv.split(",") if x.strip()]
             want_names = [os.path.basename(x) for x in paths]
@@ -601,7 +754,7 @@ def main():
                 CLIPS[f] = (100 + i, fps_of(f))
             run.log("camera clips: " + ", ".join(f"{f} {CLIPS[f][1]} fps" for f in CAMERA))
         ph.call("set_mode", {"mode": "edit"})
-        tests = [("R1 straight", "R1"), ("R2 layers", "R2"), ("R3 push", "R3"), ("R4 stab cache", "R4"), ("R5 freeze", "R5")] + ([("A1 camera", "A1")] if args.apv else [])
+        tests = [("R1 straight", "R1"), ("R2 layers", "R2"), ("R3 push", "R3"), ("R4 stab cache", "R4"), ("R5 freeze", "R5"), ("R6 push oracle", "R6")] + ([("A1 camera", "A1")] if args.apv else [])
         for name, tag in tests:
             if not want(tag):
                 continue
@@ -613,6 +766,13 @@ def main():
             run.log(f"{tag}: built sequence {name!r} (steps: tools/regress/regress.py build()); clips: " + "; ".join(
                 f"{c['name']} {c['start']:.3f}+{c['duration']:.3f} in {c['sourceIn']:.4f} ×{c['speed']}" for t in tl["sequence"]["video"] for c in t["clips"]))
             end = max(c["start"] + c["duration"] for t in tl["sequence"]["video"] for c in t["clips"])
+            if tag == "R6":
+                # the push against its reference in every render (an error repeated in each would pass a repeat test)
+                for mode in ("export", "chunk"):
+                    for attempt in range(max(1, args.repeat)):
+                        label = f"{mode}_{attempt}"
+                        run.push_file(tag, label, run.render(f"{tag}_{label}", 0, end, mode), tl)
+                continue
             if tag == "A1":
                 # proxies, node caches and the transition first (the user's own order: pre-render, then look)
                 # (heavy pieces render only on Render unless the user turned auto render on: press it, as the user does)
@@ -636,8 +796,9 @@ def main():
                 run.log(f"A1: made: {ph.call('render_diag', {'op': 'status'})}")
                 ref = run.render(f"{tag}_export", 0, end, "export")
             else:
-                run.identity_file(tag, "export", run.render(f"{tag}_export", 0, end, "export"), exp, skip)
-                run.identity_file(tag, "chunk", run.render(f"{tag}_chunk", 0, end, "chunk"), exp, skip)
+                end_slot = math.ceil(end * FPS - 1e-6)
+                for mode in ("export", "chunk"):
+                    run.identity_file(tag, mode, run.render(f"{tag}_{mode}", 0, end, mode), exp, skip, end_slot=end_slot)
             if tag == "R3":
                 # transitions play only pre-rendered: wait for them
                 for _ in range(90):
@@ -687,6 +848,10 @@ def main():
                     fails += not run.results[-1]["ok"]
                 run.result(tag, f"playback attempts", fails == 0, f"{fails} of {args.repeat} attempts failed")
     finally:
+        # (an error before any failed check must not leave a green report and exit code 0)
+        pending_error = sys.exc_info()[1]
+        if pending_error is not None:
+            run.result("runner", "execution", False, f"{type(pending_error).__name__}: {pending_error}")
         try:
             ph.call("render_diag", {"op": "resume"})
         except Exception:

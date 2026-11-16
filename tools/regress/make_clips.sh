@@ -37,3 +37,13 @@ makec() { # name id fps gop
 }
 makec rs30 8 30 30
 makec rs60 9 60 60
+
+# For the push's reference (R6): a dark and a light plain picture, 25 fps.
+makeplain() { # name luma
+  ffmpeg -v error -y -f lavfi -i "color=c=black:s=1920x1080:r=25:d=8" \
+    -vf "format=yuv444p,lutyuv=y=$2:u=128:v=128,format=$PIX" \
+    $ENC -g 25 \
+    -color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv "$OUT/$1.mp4"
+}
+makeplain push_dark 48
+makeplain push_light 208
