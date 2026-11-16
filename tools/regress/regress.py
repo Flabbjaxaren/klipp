@@ -644,6 +644,9 @@ def main():
                     if "ready=false heavy=true" not in ph.call("render_diag", {"op": "chunks"}):
                         break
                     time.sleep(2)
+            if tag == "R5":
+                # (live playback plays freeze frames as short videos made in the background: a few seconds each)
+                time.sleep(12)
             if tag == "R4":
                 # playback reads the film clips from their node cache once it is there: wait for it
                 st = wait_node_cache(ph)
