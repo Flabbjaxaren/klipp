@@ -1,6 +1,9 @@
 package se.gendut.klipp.engine
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.media3.common.GlObjectsProvider
 import androidx.media3.common.GlTextureInfo
 import androidx.media3.effect.GlEffect
@@ -23,10 +26,20 @@ import androidx.media3.effect.PassthroughShaderProgram
  * the chain gets its frames ahead of time, like any frame inside an item. The frames before the item's start then come
  * through the decoder as well (they aren't skipped as after a seek): [PrerollDrop], first in the item's effects, drops
  * them before any work is done on them.
+ *
+ * Measured on the vivo (4K HEVC clips with a film grade, the chain at about 24 frames a second): every slot drawn on time
+ * at cuts between clips, into and out of pre-rendered pieces, between files of different codecs (the new decoder starts
+ * ahead of the cut) and into speed-changed clips; with prewarming 74–240 ms at each, with or without the edit point layer.
+ * The paused frame is the same pixel for pixel. Not covered: a clip after an empty stretch or a freeze frame – those are
+ * played by the image renderer, the video renderer starts again after them; the edit point layer ([se.gendut.klipp.Handoff])
+ * covers those cuts and only those.
  */
 object LiveCuts {
-    /** On for the player being made (diagnostics switch: the file diag/noprewarm in the app's external files). */
-    @Volatile var oneRenderer = false
+    /**
+     * On for the player being made: the default (diagnostics: the file diag/prewarm in the app's external files turns it
+     * off – Media3's prewarming, for comparison). Compose state: the edit point layer follows it.
+     */
+    var oneRenderer by mutableStateOf(true)
 }
 
 /** An item's effect: frames before the item's start ([startUs], composition time) are dropped (see [LiveCuts]). */

@@ -156,7 +156,7 @@ class EngineContractTest {
         val comp = CompositionBuilder.build(s, { Uri.parse("file:///m/$it.mp4") }, look)!!
         val v = comp.sequences[0].editedMediaItems.first { it.durationUs > 0 && it.mediaItem.localConfiguration != null }
         // the look sits on the whole composition (once), not on the clips
-        assertTrue(v.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty())
+        assertTrue(v.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }.isEmpty())
         // RGB + contrast + saturation in a single pass (LookEffect); without it: Media3's three effects
         // (and the timeline's frame grid last, as in the export)
         val own = comp.effects.videoEffects.filterNot { it is se.gendut.klipp.engine.FrameRateEffect }
@@ -167,13 +167,13 @@ class EngineContractTest {
         assertEquals("fallback: RGB + contrast + saturation", 3, std.effects.videoEffects.filterNot { it is se.gendut.klipp.engine.FrameRateEffect }.size)
         val a = comp.sequences[1].editedMediaItems.first { it.mediaItem.localConfiguration != null }
         assertEquals("A1 at −6 dB gets a volume processor (and the stereo upmix last)", 1, a.effects.audioProcessors.dropLast(1).size)
-        assertTrue(a.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty())
+        assertTrue(a.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }.isEmpty())
     }
 
     @Test
     fun neutralLookAddsNoEffects() {
         val comp = CompositionBuilder.build(snap(), { Uri.parse("file:///m/$it.mp4") })!!
-        assertTrue(comp.sequences.flatMap { it.editedMediaItems }.all { it.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty() && it.effects.audioProcessors.dropLast(1).isEmpty() })
+        assertTrue(comp.sequences.flatMap { it.editedMediaItems }.all { it.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }.isEmpty() && it.effects.audioProcessors.dropLast(1).isEmpty() })
     }
 
     @Test
@@ -196,7 +196,7 @@ class EngineContractTest {
         val comp = CompositionBuilder.build(fast, { Uri.parse("file:///m/$it.mp4") }, look)!!
         val v = comp.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration != null }
         // speed on the item (Media3's supported path), not as an audio-driven effect on the video
-        assertTrue("no speed effect among the video effects", v.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty())
+        assertTrue("no speed effect among the video effects", v.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }.isEmpty())
         assertEquals(2f, v.speedProvider.getSpeed(0), 1e-6f)
         assertTrue("the contrast on the composition", comp.effects.videoEffects.first() is se.gendut.klipp.engine.LookEffect)
         val a = comp.sequences[1].editedMediaItems.first { it.mediaItem.localConfiguration != null }
@@ -342,7 +342,7 @@ class EngineContractTest {
     fun singleLayerWithoutPropertiesStaysOnSimplePath() {
         val built = CompositionBuilder.buildFull(snap(), { Uri.parse("file:///m/$it.mp4") })!!
         assertTrue(!built.multi)
-        assertTrue(built.composition.sequences[0].editedMediaItems.all { it.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }.isEmpty() })
+        assertTrue(built.composition.sequences[0].editedMediaItems.all { it.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }.isEmpty() })
     }
 
     @Test
@@ -384,7 +384,7 @@ class EngineContractTest {
         assertTrue(c.hasMotion(1280, 720))
         // simple path: motion and opacity follow the time on the clip
         val built = CompositionBuilder.buildFull(s, { Uri.parse("file:///m/$it.mp4") }, overlays = false, forceSingle = true)!!
-        val fx = built.composition.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration != null }.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }
+        val fx = built.composition.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration != null }.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }
         val mm = fx.filterIsInstance<se.gendut.klipp.engine.MotionMatrix>().single()
         val p = floatArrayOf(0f, 0f, 1f, 0f)
         mm.getMatrix(2_000_000).mapPoints(p)

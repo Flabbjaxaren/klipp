@@ -114,11 +114,11 @@ class GradeTest {
         val first = s.sequence!!.video[0].clips[0]
         val g = ClipGrade(listOf(GradeNode(1, contrast = 1.3f), GradeNode(2, sat = 1.4f)))
         val comp = CompositionBuilder.build(s, { Uri.parse("file:///m/$it.mp4") }, se.gendut.klipp.engine.Look(contrast = 0.2f), grades = mapOf(first.id to g))!!
-        val fx = comp.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration != null }.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }
+        val fx = comp.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration != null }.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }
         assertEquals(2, fx.size)
         assertTrue(fx[0] is GradeNodeEffect && fx[1] is GradeNodeEffect)
         assertTrue("the timeline's look after the clips, on the whole composition", comp.effects.videoEffects.first() is se.gendut.klipp.engine.LookEffect)
-        val other = comp.sequences[0].editedMediaItems.filter { it.mediaItem.localConfiguration != null }[1].effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation }
+        val other = comp.sequences[0].editedMediaItems.filter { it.mediaItem.localConfiguration != null }[1].effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }
         assertEquals("ungraded clip: no effects of its own", 0, other.size)
     }
 }

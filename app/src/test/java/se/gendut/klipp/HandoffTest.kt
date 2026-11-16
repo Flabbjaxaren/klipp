@@ -46,6 +46,27 @@ class HandoffTest {
         assertNull(Handoff.layer(base) { true })
     }
 
+    @Test fun withOneRendererOnlyACutAfterAGapOrAFreezeFrameIsCovered() {
+        // (one video renderer across the items, see LiveCuts: a clip straight after a clip or a pre-rendered piece is on
+        // time in the main player; after an empty stretch or a freeze frame the video renderer starts again)
+        val chunk = -(1L shl 52) - 12345L
+        val base = Layer("V1", listOf(
+            seg(0.0, 2.0, 1),
+            seg(2.0, 2.0, 2),                                   // after a clip
+            seg(4.0, 1.0, chunk),                               // a pre-rendered piece (never covered)
+            seg(5.0, 2.0, 3),                                   // after the piece
+            seg(7.6, 1.0, 4),                                   // after a gap
+            Seg(8.6, 0.4, SegSrc.Still(4, 3.0), null),          // a freeze frame (never covered)
+            seg(9.0, 2.0, 5),                                   // after the freeze frame
+        ))
+        assertEquals(listOf(7.6, 9.0), Handoff.layer(base, oneRenderer = true) { true }!!.segs.map { it.start })
+        // without: every cut that isn't a piece
+        assertEquals(listOf(2.0, 5.0, 7.6, 9.0), Handoff.layer(base) { true }!!.segs.map { it.start })
+        // a timeline that begins with a gap: its first clip is covered
+        assertEquals(listOf(0.5), Handoff.layer(Layer("V1", listOf(seg(0.5, 2.0, 1), seg(2.5, 2.0, 2))), oneRenderer = true) { true }!!.segs.map { it.start })
+        assertNull(Handoff.layer(Layer("V1", listOf(seg(0.0, 2.0, 1), seg(2.0, 2.0, 2))), oneRenderer = true) { true })
+    }
+
     @Test fun aSegmentWithATransitionWindowIsNeverCovered() {
         // transitions between two clips reach playback only pre-rendered (RenderCache.playPlan) – the layer never draws one
         for (type in se.gendut.klipp.engine.TransitionType.entries) {

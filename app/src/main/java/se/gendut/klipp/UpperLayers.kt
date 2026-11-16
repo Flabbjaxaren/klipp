@@ -82,9 +82,10 @@ fun UpperLayers(
         // a shaking frame-coded clip: the background stands within 2 px through the layer's second, as in the main player)
         val stabilized = plan.layers.lastOrNull()?.segs.orEmpty().mapNotNull { it.clip?.id }.filter { id -> gradeOf(id)?.mblur != null }
         if (TRACE.on) for (l in plan.layers) TRACE.log("plan", "layer=${l.name} " + l.segs.joinToString(" ") { sg -> "%.2f+%.2f:%d%s%s".format(java.util.Locale.ROOT, sg.start, sg.dur, sg.src.item, if (sg.hasFx) "fx" else "", if (sg.ramp != null) "ramp" else "") })
-        val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized, se.gendut.klipp.engine.CutTrace.stabHandoff) {
+        val oneRenderer = se.gendut.klipp.engine.LiveCuts.oneRenderer
+        val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized, se.gendut.klipp.engine.CutTrace.stabHandoff, oneRenderer) {
             plan.layers.lastOrNull()?.let { base ->
-                Handoff.layer(base) { s ->
+                Handoff.layer(base, oneRenderer) { s ->
                     val u = controller.uriOf(s.src.item) ?: return@layer false
                     // (diagnostics: CutTrace.stabHandoff lets clips with motion blur in, to measure them first)
                     if (s.clip?.id in stabilized && !se.gendut.klipp.engine.CutTrace.stabHandoff) return@layer false
@@ -990,7 +991,9 @@ private object OverlayBitmaps {
  * black for a moment – worst the first time and with heavy originals. As in other editors (A/B roll, a pre-warmed
  * second decoder), the start of the next clip is therefore already decoded and paused on its first frame in a
  * separate player, which takes over the image for the first [SEC] seconds after the switch while the main player
- * gets going underneath. Preview only – export is not affected.
+ * gets going underneath. Preview only – export is not affected. Since the main player keeps one video renderer across
+ * the items (LiveCuts) a cut from clip to clip is on time there: the layer is left for a clip after an empty stretch or a
+ * freeze frame (see [Handoff.layer]).
  */
 /** Whether the edit point layer's frame covers the edit point (pure logic, testable). */
 internal object EditPointFrame {
@@ -1005,10 +1008,17 @@ internal object EditPointFrame {
 internal object Handoff {
     const val SEC = 1.0
 
-    /** The layer with segments [edit, edit + SEC] from the main layer [base]; null if there are no edit points. */
-    fun layer(base: Layer, usable: (Seg) -> Boolean): Layer? {
+    /**
+     * The layer with segments [edit, edit + SEC] from the main layer [base]; null if there are no edit points. With
+     * [oneRenderer] (the main player's one video renderer across the items, see LiveCuts) a cut straight from a clip or a
+     * pre-rendered piece is on time in the main player – the layer, a second 4K decoder and grade, only cost the vivo
+     * frames there (82–166 ms holds); it covers only a clip after an empty stretch or a freeze frame (the image renderer
+     * plays those, the video renderer starts again after them).
+     */
+    fun layer(base: Layer, oneRenderer: Boolean = false, usable: (Seg) -> Boolean): Layer? {
         val out = ArrayList<Seg>()
-        for (s in base.segs) {
+        for ((i, s) in base.segs.withIndex()) {
+            if (oneRenderer && i > 0 && base.segs[i - 1].let { p -> p.src is SegSrc.Media && kotlin.math.abs(p.end - s.start) < 1e-3 }) continue
             // the start of the timeline (no edit point), fades (the opacity or tint follows the fade in the main player) and
             // transparent clips (would be doubled on top of the main player's image) are skipped. Transitions between two
             // clips never reach here: playback shows them pre-rendered, as a file of their own (see RenderCache.playPlan)

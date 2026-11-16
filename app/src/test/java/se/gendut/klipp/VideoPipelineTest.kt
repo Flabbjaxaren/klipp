@@ -125,6 +125,7 @@ class VideoPipelineTest {
         val g = ClipGrade(listOf(GradeNode(1, contrast = 1.3f)))
         fun effectsOf(down: Boolean) = cb.buildFull(s, uriOf, grades = mapOf(first.id to g), forceSingle = true, liveGrades = true, previewShort = if (down) 1080 else 0)!!
             .composition.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration?.uri == uriOf(first.item) }.effects.videoEffects
+            .also { assertTrue("live cuts: the preroll drop first, before any work", it[0] is se.gendut.klipp.engine.PrerollDrop) }.drop(1)
         val on = effectsOf(true)
         assertTrue("the downscale first, before the nodes: $on", on[0] is androidx.media3.effect.Presentation && on[1] is se.gendut.klipp.engine.GradeNodeEffect)
         val off = effectsOf(false)
@@ -132,6 +133,7 @@ class VideoPipelineTest {
         assertEquals(on.size, off.size + 1)
         // the export builds without downscaling
         val exp = cb.build(s, uriOf, grades = mapOf(first.id to g))!!.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration?.uri == uriOf(first.item) }.effects.videoEffects
+            .filterNot { it is se.gendut.klipp.engine.PrerollDrop }
         assertTrue(exp[0] is se.gendut.klipp.engine.GradeNodeEffect)
     }
 
@@ -146,6 +148,7 @@ class VideoPipelineTest {
         val g = ClipGrade(listOf(GradeNode(1, contrast = 1.3f)))
         fun item(short: Int) = cb.buildFull(s, uriOf, grades = mapOf(first.id to g), forceSingle = true, liveGrades = true, previewShort = short)!!
             .composition.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration?.uri == uriOf(first.item) }.effects.videoEffects
+            .filterNot { it is se.gendut.klipp.engine.PrerollDrop }
         val p = item(1080)
         val down = p[0] as androidx.media3.effect.Presentation
         assertEquals("down to 1080 before the nodes", androidx.media3.common.util.Size(1920, 1080), down.configure(3840, 2160))
