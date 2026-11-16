@@ -127,7 +127,7 @@ data class SegFx(
             // tenths of the width off and lands almost at once, then settles. Both continue mirrored beyond their edges and
             // are smeared along the move, most just after the edit point
             TransitionType.WHIP -> {
-                val (shift, blur) = if (incoming) WhipCurve.incoming(WhipCurve.inTime(t, t0, t1, cut)) else WhipCurve.outgoing(WhipCurve.outTime(t, t0, t1, cut))
+                val (shift, blur) = if (incoming) WhipCurve.incomingAt(t, t0, t1, cut) else WhipCurve.outgoingAt(t, t0, t1, cut)
                 Geom(dx = sign * shift, blurX = blur, mirror = true, softBlur = true)
             }
             // rotate: no zoom, only the turn – the outgoing clip spins ever faster a third of the way round, the incoming one
@@ -175,7 +175,7 @@ data class SegFx(
         /** Exposure time of the zoom's motion blur: a 360° shutter at 25 fps. */
         const val SHUTTER_S = 1f / 25f
         /** The version of the moves above, in the render cache's keys: raise it when a transition's look changes. */
-        const val LOOK = 9
+        const val LOOK = 10
         /** How far the push and the whip have come at the edit point: about where the speeds on either side meet. */
         const val THROWN = 0.68f
         /** The most smear (the zoom's in log scale, the turn's in radians) – short transitions move very fast. */
@@ -270,15 +270,35 @@ object WhipCurve {
     private val BLUR_OUT = Cubic(0.0, 0.0, 0.095, -1.2, 0.15, 66.0, 0.17, 74.0)
     private val BLUR_IN = Cubic(0.0, 106.0, 0.06, 21.0, 0.044, -0.7, 0.33, 0.0)
 
-    /** The outgoing clip at [s] seconds of the base move (0..[OUT_S]): its shift (frame widths, left −) and smear (widths). */
-    fun outgoing(s: Double): Pair<Float, Float> = OUT.at(s).toFloat() to (BLUR_OUT.at(s).coerceAtLeast(0.0) * SMEAR_PER_PX).toFloat()
+    /**
+     * The outgoing clip at timeline time [t] of a transition [t0]–[t1] with its edit point at [cut]: its shift and smear. The
+     * move is stretched with a longer transition but never pressed below its base length (the part before the edit point
+     * permitting); the smear follows the edit point at the same scale – in a short whip it keeps its own duration, so more
+     * than two frames are smeared (a 0.32 s whip at 25 fps: six instead of three).
+     */
+    fun outgoingAt(t: Double, t0: Double, t1: Double, cut: Double): Pair<Float, Float> {
+        val sc = maxOf(scale(t0, t1), 1.0)
+        val shift = OUT.at(outTime(t, t0, t1, cut)).toFloat()
+        val sb = (OUT_S - (cut - t) / sc).coerceIn(0.0, OUT_S)
+        return shift to (BLUR_OUT.at(sb).coerceAtLeast(0.0) * SMEAR_PER_PX).toFloat()
+    }
 
-    /** The incoming clip at [s] seconds after the cut (0..[IN_S]). */
-    fun incoming(s: Double): Pair<Float, Float> = IN.at(s).toFloat() to (BLUR_IN.at(s).coerceAtLeast(0.0) * SMEAR_PER_PX).toFloat()
+    /**
+     * The incoming clip at [t]: the move pressed into the part after the edit point when that is shorter, the smear at its
+     * own pace (never pressed) and faded out by the transition's end.
+     */
+    fun incomingAt(t: Double, t0: Double, t1: Double, cut: Double): Pair<Float, Float> {
+        val sc = maxOf(scale(t0, t1), 1.0)
+        val shift = IN.at(inTime(t, t0, t1, cut)).toFloat()
+        val part = (t1 - cut).coerceAtLeast(1e-6)
+        val u = (t - cut).coerceIn(0.0, part)
+        val fade = 1.0 - (u / part).let { it * it * it }
+        return shift to (BLUR_IN.at(u / sc).coerceAtLeast(0.0) * fade * SMEAR_PER_PX).toFloat()
+    }
 
     /** The base move's time for the outgoing clip at timeline time [t] of a transition [t0]–[t1] with its edit point at [cut]. */
     fun outTime(t: Double, t0: Double, t1: Double, cut: Double): Double {
-        val len = minOf(cut - t0, OUT_S * scale(t0, t1)).coerceAtLeast(1e-6)
+        val len = minOf(cut - t0, OUT_S * maxOf(scale(t0, t1), 1.0)).coerceAtLeast(1e-6)
         return OUT_S * ((t - (cut - len)) / len).coerceIn(0.0, 1.0)
     }
 

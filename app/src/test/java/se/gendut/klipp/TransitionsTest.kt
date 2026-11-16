@@ -246,6 +246,21 @@ class TransitionsTest {
         assertEquals(-0.4040f, baseWhip(true, reverse = true).at(cut).dx, 2e-3f)
     }
 
+    @Test fun aShortWhipKeepsItsSmearLongerThanItsMove() {
+        // a 0.32 s whip at 25 fps, the edit point in the middle: the move is pressed, the smear keeps its own pace – six of
+        // its eight frames are smeared (more than 5 px of a 1920 wide frame), not three
+        val t0 = 3.24; val t1 = 3.56; val cut = 3.40
+        val px = 1920f / (kotlin.math.sqrt(12f) * SegFx.BASE_BLUR)
+        val smear = (0 until 8).map { k ->
+            val t = t0 + k * 0.04
+            SegFx(TransitionType.WHIP, t >= cut - 1e-9, false, t0, t1, cut, false).at(t).blurX * px
+        }
+        assertEquals(smear.toString(), 6, smear.count { it > 5f })
+        // the most at the edit point, none at the transition's end
+        assertEquals(106f, SegFx(TransitionType.WHIP, true, false, t0, t1, cut, false).at(cut).blurX * px, 0.5f)
+        assertEquals(0f, SegFx(TransitionType.WHIP, true, false, t0, t1, cut, false).at(t1).blurX, 1e-6f)
+    }
+
     @Test fun theWhipShowsOnePictureAtATime() {
         assertTrue(TransitionType.WHIP.sequential)
         assertFalse(SegFx(TransitionType.WHIP, true, true, 2.0, 4.0, 3.0, false).visible)
