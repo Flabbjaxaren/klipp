@@ -17,3 +17,6 @@ include(":app")
 // Media3 effect as source code with Klipp's changes (floating point through the whole video chain), see third_party/media3-effect/KLIPP.md
 include(":media3-effect")
 project(":media3-effect").projectDir = file("third_party/media3-effect")
+// Media3 transformer as source code with Klipp's changes (live cuts with one video renderer), see third_party/media3-transformer/KLIPP.md
+include(":media3-transformer")
+project(":media3-transformer").projectDir = file("third_party/media3-transformer")
