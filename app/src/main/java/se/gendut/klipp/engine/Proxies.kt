@@ -155,6 +155,9 @@ object Proxies {
 
     fun hasProxy(uri: Uri): Boolean = ready.containsKey(key(uri))
 
+    /** Its proxy is queued or being made. */
+    fun isPending(uri: Uri): Boolean = progress.containsKey(key(uri))
+
     /** The file playback should use for the picture. */
     fun videoUri(uri: Uri): Uri = if (enabled) ready[key(uri)]?.let { Uri.fromFile(it.file) } ?: uri else uri
 

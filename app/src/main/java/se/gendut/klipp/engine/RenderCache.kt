@@ -687,6 +687,14 @@ object RenderCache {
         }
     }
 
+    /** Whether a video clip within [a, b] (s) has its proxy queued or being made. */
+    private fun proxyPending(s: Snapshot, uriOf: (Long) -> Uri?, a: Double, b: Double): Boolean {
+        if (Proxies.progress.isEmpty()) return false
+        return s.sequence?.video.orEmpty().any { t ->
+            t.clips.any { c -> c.start < b && c.start + c.duration > a && uriOf(c.item)?.let { Proxies.isPending(it) } == true }
+        }
+    }
+
     /**
      * One render at a time, and never beside a join: two at once wrote the same temporary file – a chunk then failed
      * with "could not save", and two joins of the same run made one file from two muxers (in playback: the frames at
@@ -720,6 +728,14 @@ object RenderCache {
                 // the timeline changed: what is left is rendered with the new one
                 if (generation != gen) return Result.success(n)
                 if (isReady(c)) { done += c.b - c.a; continue }
+                // a clip's proxy still being made: wait for it. Rendered from the original meanwhile the chunk decoded the
+                // camera file beside the proxy's transcode and the node caches (APV 4K on the vivo: "Codec exception", the
+                // decoder's instances taken) – and the chunk's key holds whether a proxy is used, so it was rendered again
+                // once the proxy was there.
+                while (proxyPending(s, uriOf, c.a - preRollFor(context, s, uriOf, c.a, export = false), renderEnd(s, c))) {
+                    if (generation != gen || c.hash !in wanted) return Result.success(n)
+                    kotlinx.coroutines.delay(500)
+                }
                 val built = CompositionBuilder.buildFull(
                     s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
                     videoUriOf = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }, previewShort = short,
