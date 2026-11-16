@@ -789,8 +789,12 @@ class ProgramPlayback(private val context: Context) {
             // silently, once (the player otherwise stayed in the error state, and every tap on play reloaded and stopped).
             // A failed runtime check (an internal state race in CompositionPlayer's renderers or audio graph) gets the
             // same single retry with a fresh player.
+            // A frame processing failure gets it too before any fallback: one from a race in the chain (a frame reaching an
+            // effect released by a rebuild; vivo, paused seeks around a pre-rendered push) left the picture standing until the
+            // next play – and the fallbacks below would have given up the LUT shader or the tone mapping for good. A failure
+            // that comes back before a frame was shown goes on to them.
             if ((code == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ||
-                    code == androidx.media3.common.PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK) && !timeoutRetried) {
+                    code == androidx.media3.common.PlaybackException.ERROR_CODE_FAILED_RUNTIME_CHECK || frameIssue) && !timeoutRetried) {
                 timeoutRetried = true
                 val wasPlaying = player.playWhenReady
                 main.post { reload(pos); if (wasPlaying) player.play() }
