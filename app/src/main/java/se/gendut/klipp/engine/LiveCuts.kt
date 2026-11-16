@@ -59,8 +59,14 @@ object LiveCuts {
             before?.let { Perf.cachedHdr(it) } != true && Perf.cachedHdr(after) != true
 }
 
-/** An item's effect: frames before the item's start ([startUs], composition time) are dropped (see [LiveCuts]). */
-data class PrerollDrop(val startUs: Long) : GlEffect {
+/**
+ * An item's effect: frames before the item's start ([startUs], composition time) are dropped (see [LiveCuts]). The
+ * sequence's renderer already releases them from the decoder undrawn ([androidx.media3.transformer.KlippPreroll]); this
+ * drops any that still come through.
+ */
+data class PrerollDrop(val startUs: Long) : GlEffect, androidx.media3.transformer.KlippPreroll {
+    override fun klippPrerollStartUs(): Long = startUs
+
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(startUs)
 
     private class Program(private val startUs: Long) : PassthroughShaderProgram() {

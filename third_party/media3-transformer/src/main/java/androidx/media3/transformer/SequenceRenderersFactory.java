@@ -284,10 +284,20 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
   private static final class KlippStream {
     final long offsetToCompositionTimeUs;
     final ImmutableList<Effect> effects;
+    /** The composition time before which the stream's frames are pre-roll ({@link KlippPreroll}), or C.TIME_UNSET. */
+    final long prerollStartUs;
 
     KlippStream(long offsetToCompositionTimeUs, ImmutableList<Effect> effects) {
       this.offsetToCompositionTimeUs = offsetToCompositionTimeUs;
       this.effects = effects;
+      long start = C.TIME_UNSET;
+      for (int i = 0; i < effects.size(); i++) {
+        if (effects.get(i) instanceof KlippPreroll) {
+          start = ((KlippPreroll) effects.get(i)).klippPrerollStartUs();
+          break;
+        }
+      }
+      this.prerollStartUs = start;
     }
   }
 
@@ -475,6 +485,15 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
       long outputStreamOffsetUs = getOutputStreamOffsetUs();
       long presentationTimeUs = bufferPresentationTimeUs - outputStreamOffsetUs;
       if (targetFrameRateHelper.shouldDropOutputFrame(presentationTimeUs) && !isLastBuffer) {
+        skipOutputBuffer(checkNotNull(codec), bufferIndex, presentationTimeUs);
+        return true;
+      }
+      // Klipp: the item's pre-roll leaves the decoder undrawn (see KlippPreroll; the effect behind it drops what passes)
+      @Nullable KlippStream stream = klippOutputStream();
+      if (stream != null
+          && stream.prerollStartUs != C.TIME_UNSET
+          && !isLastBuffer
+          && bufferPresentationTimeUs + stream.offsetToCompositionTimeUs < stream.prerollStartUs) {
         skipOutputBuffer(checkNotNull(codec), bufferIndex, presentationTimeUs);
         return true;
       }

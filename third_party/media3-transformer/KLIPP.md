@@ -21,6 +21,10 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   renderers then flushed a released frame processor: `RejectedExecutionException`, "Unexpected runtime error" at every
   rebuild on a player (Klipp then made a new player each time). `CompositionPlayerInternal` releases the graph itself
   when the player is released.
+- `SequenceRenderersFactory.java`, `SequenceVideoRenderer.processOutputBuffer`, new `KlippPreroll.java`: an item whose
+  effects include a `KlippPreroll` (the app's `PrerollDrop`, live cuts with one renderer) has its frames before that
+  composition time released from the decoder undrawn (`skipOutputBuffer`). Through the effects each cost a surface update
+  and a pass of the chain before the effect dropped it: a second of 50 fps pre-roll held a cut up by 235 ms (OnePlus).
 - `SequenceRenderersFactory.java`, `SequenceVideoRenderer.canReuseCodec`: a change of colour information alone between
   two SDR streams of the same bit depth keeps the decoder (Media3 discards it: a camera file without transfer and
   primaries next to a proxy or a node cache with BT.709 gave a new decoder, 95–126 ms on the OnePlus, at every such
