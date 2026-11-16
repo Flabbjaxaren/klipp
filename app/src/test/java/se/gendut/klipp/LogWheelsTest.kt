@@ -12,7 +12,7 @@ import kotlin.math.abs
 import kotlin.math.max
 
 /**
- * The log wheels against reference renders (a neutral ramp through each wheel at several values, a combination and
+ * The log wheels against measured values (a neutral ramp through each wheel at several values, a combination and
  * other zone limits, rendered in float): log_wheels_ref.json over 0..1, log_wheels_wide_ref.json over −0.2..1.3 (values
  * below black and above white go through, each zone continuing straight).
  */
@@ -22,9 +22,9 @@ class LogWheelsTest {
     private fun cases(file: String) =
         JSONObject(LogWheelsTest::class.java.classLoader!!.getResourceAsStream(file)!!.readBytes().toString(Charsets.UTF_8)).getJSONArray("cases")
 
-    @Test fun theWheelsMatchTheReferenceRenders() = matches(cases("log_wheels_ref.json"))
+    @Test fun theWheelsMatchTheMeasuredValues() = matches(cases("log_wheels_ref.json"))
 
-    @Test fun belowBlackAndAboveWhiteMatchTheReferenceRenders() = matches(cases("log_wheels_wide_ref.json"))
+    @Test fun belowBlackAndAboveWhiteMatchTheMeasuredValues() = matches(cases("log_wheels_wide_ref.json"))
 
     private fun matches(ref: org.json.JSONArray) {
         for (k in 0 until ref.length()) {
@@ -107,7 +107,7 @@ class LogWheelsTest {
         val dark = floatArrayOf(-0.05f, -0.05f, -0.05f)
         GradeNode.apply(sat, dark)
         assertEquals(-0.05f, dark[1], 1e-5f)
-        // log highlight master −0.6 = −0.3 in reference units (amount = master·0.5): 1.1 → 0.934, 1.2 → 1.004 on the reference renders
+        // log highlight master −0.6 = an amount of −0.3 (amount = master·0.5): 1.1 → 0.934, 1.2 → 1.004 measured
         val hi = node("{\"id\":1,\"label\":\"N\",\"logH\":[0,0,-0.6]}")
         for ((x, want) in listOf(1.1f to 0.934f, 1.2f to 1.004f)) {
             val p = floatArrayOf(x, x, x)

@@ -508,8 +508,7 @@ data class GradeNode(
 
         /**
          * The log wheels on one channel, as a [CURVE_N]-entry table over code values [CURVE_LO]..[CURVE_HI] (at
-         * [curveX]; as measured on reference renders, which keep values below black and above white and continue each
-         * zone straight beyond them).
+         * [curveX]; values below black and above white are kept, each zone continuing straight beyond them).
          * Each wheel works on its own tonal zone, split at [low] and [top]:
          * - shadow: a lift of the zone below [low]. Lowered, black goes to `shadow`; raised, black goes to `shadow·low`
          *   (the slope there becomes 1 − shadow).
@@ -545,9 +544,9 @@ data class GradeNode(
         fun logTone(x: Float, shadow: Float, mid: Float, high: Float, low: Float, top: Float): Float =
             curveSample(logCurve(shadow, mid, high, low, top), x)
 
-        /** Half the width of the log wheels' transitions (code values), measured on reference renders. */
+        /** Half the width of the log wheels' transitions (code values). */
         const val LOG_SOFT = 0.063f
-        /** The power on the mid wheel's gamma ratio, measured on reference renders. */
+        /** The power on the mid wheel's gamma ratio. */
         private const val LOG_MID_POW = 1.25
 
         /**
@@ -667,7 +666,7 @@ data class GradeNode(
         /**
          * The composite curve tables ([Params.curves]: log wheels, then the curves): [CURVE_N] values per channel over
          * code values [CURVE_LO]..[CURVE_HI], so a camera's super-whites and sub-blacks and a lift above white go
-         * through (reference renders keep them); beyond that the end segments continue straight.
+         * through; beyond that the end segments continue straight.
          */
         const val CURVE_N = 512
         const val CURVE_LO = -0.5f
@@ -744,7 +743,7 @@ data class GradeNode(
             val hg = p.hueMat[3] * r + p.hueMat[4] * g + p.hueMat[5] * b
             val hb = p.hueMat[6] * r + p.hueMat[7] * g + p.hueMat[8] * b
             val luma = 0.2126f * hr + 0.7152f * hg + 0.0722f * hb
-            // not clamped: values below black and above white reach the curves (as on reference renders)
+            // not clamped: values below black and above white reach the curves
             rgb[0] = luma + (hr - luma) * p.sat
             rgb[1] = luma + (hg - luma) * p.sat
             rgb[2] = luma + (hb - luma) * p.sat
@@ -1484,7 +1483,7 @@ void main() {
   c = c * uWb;
   c = uHue * c;
   float y = dot(c, vec3(0.2126, 0.7152, 0.0722));
-  // not clamped: values below black and above white reach the curves (as on reference renders)
+  // not clamped: values below black and above white reach the curves
   c = vec3(y) + (c - vec3(y)) * uSat;
   // film density (see GradeNode.density)
   if (uDensity > 0.0) {

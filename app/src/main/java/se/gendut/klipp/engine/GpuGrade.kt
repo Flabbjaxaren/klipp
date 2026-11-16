@@ -731,7 +731,7 @@ half4 main(float2 pos) {
   c = c * uWb;
   c = uHue * c;
   float y = dot(c, float3(0.2126, 0.7152, 0.0722));
-  // not clamped: values below black and above white reach the curves (as on reference renders)
+  // not clamped: values below black and above white reach the curves
   c = float3(y) + (c - float3(y)) * uSat;
   // film density (see GradeNode.density)
   if (uDensity > 0.0) {

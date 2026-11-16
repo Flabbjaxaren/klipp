@@ -75,7 +75,7 @@ data class Geom(
     /** How far the light leak's clouds have drifted (the transition's progress, 0..1). */
     val drift: Float = 0f,
     /**
-     * The smear soft (Gaussian, as a directional blur) instead of even (a camera's shutter): the same spread,
+     * The smear soft (Gaussian) instead of even (a camera's shutter): the same spread,
      * reaching √3 times as far and fading out – no hard edges or copies of the picture at the smear's ends.
      */
     val softBlur: Boolean = false,
@@ -122,7 +122,7 @@ data class SegFx(
                 val logSpeed = if (incoming) ZOOM_IN * SETTLE_SPEED * v / (t1 - cut).toFloat() else ZOOM_OUT * GATHER_SPEED * v / (cut - t0).toFloat()
                 zoomed(u, (logSpeed * SHUTTER_S).coerceAtMost(MAX_ZOOM_BLUR), 1f)
             }
-            // whip: the whip curve (see WhipCurve) – one picture at a time, a cut in the middle of the move. The outgoing
+            // whip (see WhipCurve): one picture at a time, a cut in the middle of the move. The outgoing
             // clip slides off from rest, ever faster, a fifth of the width by the edit point; the incoming one arrives four
             // tenths of the width off and lands almost at once, then settles. Both continue mirrored beyond their edges and
             // are smeared along the move, most just after the edit point
@@ -224,13 +224,12 @@ data class SegFx(
 }
 
 /**
- * The whip after a whip (shift, mirrored edges and smear on the
- * outgoing and incoming clip; 0.5 s, the cut after 0.133 s). The
- * curves are Bézier segments – each [Cubic] is one segment's control points in (seconds, value),
- * positions as a shift of the picture's centre in frame widths, blurs as a smear spread in pixels of a 1920 wide
- * frame (see [SMEAR_PER_PX]).
+ * The whip's move: the outgoing and the incoming clip's shift, mirrored edges and smear over a base length of 0.5 s with
+ * the cut after 0.133 s. Each [Cubic] is a Bézier segment's control points in (seconds, value), positions as a shift of
+ * the picture's centre in frame widths, the smear as a soft blur's spread in pixels of a 1920 wide frame (see
+ * [SMEAR_PER_PX]).
  *
- * The reference has one length; here it is stretched with the transition's length ([TOTAL_S] = ×1) and laid
+ * The base length is stretched with the transition's length ([TOTAL_S] = ×1) and laid
  * around the edit point – the outgoing move ends there, the incoming one starts there – and pressed into the part before
  * or after the edit point when that part is shorter (an aligned or short transition).
  */
@@ -255,10 +254,8 @@ object WhipCurve {
     const val IN_S = 0.367033
     private const val WIDTH_PX = 1920.0
     /**
-     * A directional blur is a soft (Gaussian-like) smear whose value is its spread, not its length: a
-     * box smear as wide as √12 × that has the same spread. The
-     * smear is 3.4 × the value on every frame, the shift as the
-     * curves say – taking the value as the length gave a third of the intended motion blur.
+     * The smear values are a soft (Gaussian-like) blur's spread, not its length: a box smear as wide as √12 × that has the
+     * same spread (taking the spread as the length gave a third of the intended motion blur).
      */
     private val SMEAR_PER_PX = kotlin.math.sqrt(12.0) / WIDTH_PX
 
@@ -266,7 +263,7 @@ object WhipCurve {
     // the cut) to 0
     private val OUT = Cubic(0.0, 0.0, 0.171919, -0.015807, 0.183133, -0.575350, 0.200200, -0.666667)
     private val IN = Cubic(-0.016105, 0.463542, 0.079814, 0.041571, 0.056152, 0.0, 0.367033, 0.0)
-    // directional blur (px): rising to 70 at 0.167 s on the outgoing clip (of which the part to the cut is used); 100 at the
+    // smear (px): rising to 70 at 0.167 s on the outgoing clip (of which the part to the cut is used); 100 at the
     // cut on the incoming one, gone after a third of a second
     private val BLUR_OUT = Cubic(0.0, 0.0, 0.096867, -1.246381, 0.147405, 63.481342, 0.166833, 70.0)
     private val BLUR_IN = Cubic(0.0, 100.0, 0.062416, 19.725776, 0.041557, -0.696822, 0.333669, 0.0)

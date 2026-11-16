@@ -7,8 +7,8 @@ import se.gendut.klipp.engine.HslCurves
 import se.gendut.klipp.engine.HslKind
 
 /**
- * The HSL curves against reference renders: pixels from a test image (hue, saturation and luminance sweeps) through
- * known curves, read back from 16-bit files. Hue vs Hue allows a little more (the reference turns up to ~0.5° less
+ * The HSL curves against measured values: pixels from a test image (hue, saturation and luminance sweeps) through
+ * known curves, read back from 16-bit files. Hue vs Hue allows a little more (the measured values turn up to ~0.5° less
  * than the curve says, varying with the hue).
  */
 class HslCurvesTest {
@@ -312,7 +312,7 @@ class HslCurvesTest {
         )),
     )
 
-    @Test fun matchesReferenceRenders() {
+    @Test fun matchesTheMeasuredValues() {
         for (c in cases) {
             var hsl = HslCurves()
             for ((k, pts) in c.curves) hsl = hsl.with(k, HslCurve(pts))
@@ -321,7 +321,7 @@ class HslCurvesTest {
             val byHue = c.curves.keys.any { it.periodic }
             for (p in c.px) {
                 val rgb = floatArrayOf(p[0], p[1], p[2])
-                // the references apply hue curves in full down to gray; Klipp fades them there (hueWeight)
+                // the measured values have hue curves in full down to gray; Klipp fades them there (hueWeight)
                 val w = if (byHue) HslCurves.hueWeight(HslCurves.measure(rgb)[1]) else 1f
                 HslCurves.apply(t, rgb)
                 for (i in 0..2) assertEquals("${c.name} (${p[0]}, ${p[1]}, ${p[2]}) channel $i", p[i] + (p[3 + i] - p[i]) * w, rgb[i], tol)

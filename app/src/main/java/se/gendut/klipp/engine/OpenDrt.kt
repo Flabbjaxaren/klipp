@@ -251,7 +251,7 @@ object OpenDrt {
         7 -> if (x < 0.181f) (x - 0.125f) / 5.6f else exp10((x - 0.598206f) / 0.241514f) - 0.00873f
         8 -> if (x < 171.2102946929f / 1023f) (x * 1023f - 95f) * 0.01125f / (171.2102946929f - 95f) else exp10((x * 1023f - 420f) / 261.5f) * (0.18f + 0.01f) - 0.01f
         9 -> if (x < 0.100686685370811f) (x - 0.092864f) / 8.799461f else exp10((x - 0.384316f) / 0.245281f) / 5.555556f - 0.064829f / 5.555556f
-        // vivo Log (Klipp): measured from reference renders of vivo's log transform (no published spec)
+        // vivo Log (Klipp): measured (no published spec)
         10 -> if (x < 0.1285f) (x - 0.0928143f) / 5.775449f else exp2((x - 0.5805397f) / 0.08001879f) - 0.01377708f
         else -> x
     }
@@ -308,7 +308,7 @@ object OpenDrt {
         /**
          * vivo's colors: R 0.65556 0.32105, G 0.24884 0.67015, B 0.11791 −0.02807, D65 – fitted to vivo's own vivo Log →
          * Rec.709 LUT (its gray scale's tone curve on both, every hue weighted alike: saturation within −2…+5 %, hue within
-         * 2°). The gamut measured earlier from reference renders (R 0.7063 0.2957, G 0.1913 0.9623, B 0.1115 −0.0492) gave reds and
+         * 2°). An earlier measured gamut (R 0.7063 0.2957, G 0.1913 0.9623, B 0.1115 −0.0492) gave reds and
          * magentas up to 50 % more saturated than vivo's LUT.
          */
         val VIVOWG_TO_XYZ = floatArrayOf(0.5394539457861591f, 0.28440850331415873f, 0.1265934779513537f, 0.26419108870193925f, 0.7659440642856059f, -0.030135152987545277f, 0.01924798196292471f, 0.0925889804707227f, 0.977220788326231f)

@@ -5,7 +5,7 @@ import org.junit.Test
 import se.gendut.klipp.engine.GradeNode
 
 /**
- * The wheels with their luminance side against reference renders: per-channel lift/gain/gamma/offset (the colors) and
+ * The wheels with their luminance side against measured values: per-channel lift/gain/gamma/offset (the colors) and
  * the master values on the luma (or none – then the color changes keep the luminance), read back from 16-bit files.
  */
 class WheelLumaTest {
@@ -93,7 +93,7 @@ class WheelLumaTest {
         )),
     )
 
-    @Test fun matchesReferenceRenders() {
+    @Test fun matchesTheMeasuredValues() {
         for (c in cases) {
             val prim = (0..2).map { GradeNode.primaries(c.lift[it], c.gain[it], c.gamma) }
             // the master values: the cases set all channels alike for the master part (red's values carry it)

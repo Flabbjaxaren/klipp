@@ -370,7 +370,7 @@ class FilmFxTest {
         assertEquals(2.0, ra, 0.1)
         assertEquals(ra, rb, 0.02)
         assertTrue(abs(a.max() - b.max()) > 1f)
-        // small images (the reference renders) keep spektrafilm's brightest pixel
+        // small images (spektrafilm's own test images) keep spektrafilm's brightest pixel
         val small = FloatArray(96 * 64 * 3) { 0.2f }.also { it[77] = 3f }
         assertEquals(3.0, FilmFx.boostRef(small, 96, 64), 1e-6)
     }

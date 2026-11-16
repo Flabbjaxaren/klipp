@@ -5,8 +5,8 @@ import org.junit.Test
 import se.gendut.klipp.engine.GradeNode
 
 /**
- * The wheels' primaries against reference renders: a 16-bit gray ramp through known Lift/Gain/Gamma/Offset values
- * (the reference's offset unit adds 0.1835), read back from the file (16-bit integers, so cut to 0..1).
+ * The wheels' primaries against measured values: a 16-bit gray ramp through known Lift/Gain/Gamma/Offset values
+ * (an offset of 1 adds 0.1835), read back from the file (16-bit integers, so cut to 0..1).
  */
 class PrimariesTest {
     private class Case(val lift: Float, val gain: Float, val gamma: Float, val offset: Float, val x: FloatArray, val y: FloatArray)
@@ -20,7 +20,7 @@ class PrimariesTest {
         Case(-0.05f, 1.6f, 0.1f, 0.02f, floatArrayOf(0.0f, 0.06256f, 0.12512f, 0.25024f, 0.37537f, 0.50049f, 0.62561f, 0.75073f, 0.87977f, 1.0f), floatArrayOf(0.0f, 0.0407f, 0.16512f, 0.38965f, 0.60114f, 0.80528f, 1.0f, 1.0f, 1.0f, 1.0f)),
     )
 
-    @Test fun matchesReferenceRenders() {
+    @Test fun matchesTheMeasuredValues() {
         for (c in cases) {
             val (a, b, e) = GradeNode.primaries(c.lift, c.gain, c.gamma)
             val p = GradeNode.Params(
@@ -30,7 +30,7 @@ class PrimariesTest {
             for (i in c.x.indices) {
                 val rgb = floatArrayOf(c.x[i], c.x[i], c.x[i])
                 GradeNode.apply(p, rgb)
-                // the reference files are 16-bit integers: they hold 0..1 only (the node itself keeps values beyond)
+                // the measured files are 16-bit integers: they hold 0..1 only (the node itself keeps values beyond)
                 assertEquals("lift ${c.lift} gain ${c.gain} gamma ${c.gamma} offset ${c.offset} at ${c.x[i]}", c.y[i], rgb[0].coerceIn(0f, 1f), 0.002f)
             }
         }

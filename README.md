@@ -111,7 +111,8 @@ replace an installed Klipp.
 - Clips imported through the system photo picker get generic names (e.g. `28.mp4`) – Android hides the file names.
 - Projects live inside the app: export them (Projects → long-press → Export…, with the media files) before
   uninstalling Klipp or moving to another phone.
-- vivo Log has no published specification; its curve and gamut were measured.
+- vivo Log has no published specification; its curve was measured and its colors fitted to vivo's own vivo Log →
+  Rec.709 LUT.
 - Speech recognition runs on the CPU (the GPU path was tried and dropped: unstable drivers, slower on phones).
 
 ## 🧪 Tests
