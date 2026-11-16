@@ -38,6 +38,25 @@ class LiveCutsTest {
         }
     }
 
+    @Test fun aGapBeforeAClipPlaysAsBlackVideoInPlaybackOnly() {
+        val s0 = snap()
+        val q = s0.sequence!!
+        val last = q.video[0].clips.maxBy { it.start }
+        val s = s0.copy(sequence = q.copy(duration = q.duration + 0.6, video = q.video.mapIndexed { i, t ->
+            if (i == 0) t.copy(clips = t.clips.map { c -> if (c.id == last.id) c.copy(start = c.start + 0.6) else c }) else t
+        }))
+        val items = CompositionBuilder.buildFull(s, uriOf, forceSingle = true)!!.composition.sequences[0].editedMediaItems
+        val gap = items.single { it.mediaItem.localConfiguration?.uri == se.gendut.klipp.engine.LiveCuts.GAP_URI }
+        val clip = gap.mediaItem.clippingConfiguration
+        assertEquals(600_000L, clip.endPositionUs - clip.startPositionUs)
+        assertTrue(clip.startsAtKeyFrame)
+        // right before the clip after it
+        assertEquals(uriOf(last.item), items[items.indexOf(gap) + 1].mediaItem.localConfiguration?.uri)
+        // the export keeps Media3's gap
+        val exp = CompositionBuilder.build(s, uriOf, output = ExportSettings())!!.sequences[0].editedMediaItems
+        assertTrue(exp.none { it.mediaItem.localConfiguration?.uri == se.gendut.klipp.engine.LiveCuts.GAP_URI })
+    }
+
     @Test fun theExportKeepsMedia3sClipping() {
         val items = CompositionBuilder.build(snap(), uriOf, output = ExportSettings())!!.sequences[0].editedMediaItems
             .filter { it.mediaItem.localConfiguration != null }

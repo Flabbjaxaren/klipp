@@ -384,7 +384,8 @@ class EngineContractTest {
         assertTrue(c.hasMotion(1280, 720))
         // simple path: motion and opacity follow the time on the clip
         val built = CompositionBuilder.buildFull(s, { Uri.parse("file:///m/$it.mp4") }, overlays = false, forceSingle = true)!!
-        val fx = built.composition.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration != null }.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }
+        // (the first clip, not the black video of a stretch before it – see LiveCuts.gapAsVideo)
+        val fx = built.composition.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration.let { l -> l != null && l.uri != se.gendut.klipp.engine.LiveCuts.GAP_URI } }.effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }
         val mm = fx.filterIsInstance<se.gendut.klipp.engine.MotionMatrix>().single()
         val p = floatArrayOf(0f, 0f, 1f, 0f)
         mm.getMatrix(2_000_000).mapPoints(p)

@@ -40,6 +40,23 @@ object LiveCuts {
      * off – Media3's prewarming, for comparison). Compose state: the edit point layer follows it.
      */
     var oneRenderer by mutableStateOf(true)
+
+    /**
+     * An empty stretch before a clip, played as video: a black file of its own (256×144 H.264, 30 frames a second, a
+     * keyframe every second, [GAP_LENGTH_S] long) clipped to the stretch, so the one video renderer reads on through it.
+     * (Frames all through, as Media3's gap has: with a single frame at the start the paused pick inside a stretch found
+     * no frame and waited for its time limit.) Media3's gap is played by the image renderer:
+     * the video renderer was disabled at the clip's end and enabled again only just before the next clip – the black came
+     * 130 ms late and the clip after it 140 ms (vivo). An HDR clip on either side keeps Media3's gap (the black file is
+     * SDR), and so does a stretch at the timeline's end (nothing to read on into).
+     */
+    val GAP_URI: android.net.Uri = android.net.Uri.parse("asset:///gap/black.mp4")
+    const val GAP_LENGTH_S = 600.0
+
+    /** Whether the stretch of [sec] between a clip from [before] (null: the timeline's start) and one from [after] is played as video (original files). */
+    fun gapAsVideo(sec: Double, before: android.net.Uri?, after: android.net.Uri?): Boolean =
+        oneRenderer && after != null && sec > 0.0 && sec < GAP_LENGTH_S - 1.0 &&
+            before?.let { Perf.cachedHdr(it) } != true && Perf.cachedHdr(after) != true
 }
 
 /** An item's effect: frames before the item's start ([startUs], composition time) are dropped (see [LiveCuts]). */

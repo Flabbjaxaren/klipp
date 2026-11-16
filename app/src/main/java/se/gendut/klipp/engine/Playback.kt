@@ -259,6 +259,7 @@ object CompositionBuilder {
             val next = layer.segs.getOrNull(i + 1)?.start ?: plan.total
             return (next - layer.segs[i].end).coerceIn(0.0, UPPER_TAIL)
         }
+        val layerSegs = layer.segs
         for ((index, seg) in layer.segs.withIndex()) {
             val uri = uriOf(seg.src.item) ?: continue
             // freeze frame: the frame as an image (from the original, see FrameHolds); not ready yet = a gap until it is
@@ -368,7 +369,17 @@ object CompositionBuilder {
                 .setEffects(androidx.media3.transformer.Effects(emptyList(), effects))
                 .apply { if (speed != null) setSpeed(speed) }
                 .build()
-            if (seg.start > t + 0.001) videoGap(b, seg.start - t, multi || cfr, fps, fit, gapFill(t, seg.start))
+            if (seg.start > t + 0.001) {
+                // live playback with one renderer: the stretch as a black video, read on into by the same renderer (see LiveCuts)
+                val before = layerSegs.getOrNull(index - 1)?.let { p -> originalUriOf(p.src.item) }
+                if (oneRenderer && !multi && !cfr && LiveCuts.gapAsVideo(seg.start - t, before, originalUriOf(seg.src.item))) b.addItem(
+                    EditedMediaItem.Builder(clipped(LiveCuts.GAP_URI, 0.0, seg.start - t, 1.0, keyFrameStart = true))
+                        .setDurationUs(us(LiveCuts.GAP_LENGTH_S))
+                        .setRemoveAudio(true)
+                        .setEffects(androidx.media3.transformer.Effects(emptyList(), listOf(fit)))
+                        .build()
+                ) else videoGap(b, seg.start - t, multi || cfr, fps, fit, gapFill(t, seg.start))
+            }
             b.addItem(edited)
             t = seg.end + (if (still == null) tail(index) else 0.0)
             any = true

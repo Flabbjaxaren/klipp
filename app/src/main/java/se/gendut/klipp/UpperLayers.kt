@@ -85,7 +85,9 @@ fun UpperLayers(
         val oneRenderer = se.gendut.klipp.engine.LiveCuts.oneRenderer
         val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized, se.gendut.klipp.engine.CutTrace.stabHandoff, oneRenderer) {
             plan.layers.lastOrNull()?.let { base ->
-                Handoff.layer(base, oneRenderer) { s ->
+                Handoff.layer(base, oneRenderer, gapPlayed = { p, n ->
+                    se.gendut.klipp.engine.LiveCuts.gapAsVideo(n.start - (p?.end ?: 0.0), p?.let { controller.uriOf(it.src.item) }, controller.uriOf(n.src.item))
+                }) { s ->
                     val u = controller.uriOf(s.src.item) ?: return@layer false
                     // (diagnostics: CutTrace.stabHandoff lets clips with motion blur in, to measure them first)
                     if (s.clip?.id in stabilized && !se.gendut.klipp.engine.CutTrace.stabHandoff) return@layer false
@@ -1012,13 +1014,20 @@ internal object Handoff {
      * The layer with segments [edit, edit + SEC] from the main layer [base]; null if there are no edit points. With
      * [oneRenderer] (the main player's one video renderer across the items, see LiveCuts) a cut straight from a clip or a
      * pre-rendered piece is on time in the main player – the layer, a second 4K decoder and grade, only cost the vivo
-     * frames there (82–166 ms holds); it covers only a clip after an empty stretch or a freeze frame (the image renderer
-     * plays those, the video renderer starts again after them).
+     * frames there (82–166 ms holds); it covers only a clip after a freeze frame or an empty stretch that the image renderer
+     * plays (the video renderer starts again after them) – not one played as video ([gapPlayed]).
      */
-    fun layer(base: Layer, oneRenderer: Boolean = false, usable: (Seg) -> Boolean): Layer? {
+    fun layer(
+        base: Layer, oneRenderer: Boolean = false,
+        /** With [oneRenderer]: whether the empty stretch between [prev] (null: the timeline's start) and [next] is played as video (LiveCuts.gapAsVideo) – then the cut after it is on time too. */
+        gapPlayed: (prev: Seg?, next: Seg) -> Boolean = { _, _ -> false },
+        usable: (Seg) -> Boolean,
+    ): Layer? {
         val out = ArrayList<Seg>()
         for ((i, s) in base.segs.withIndex()) {
-            if (oneRenderer && i > 0 && base.segs[i - 1].let { p -> p.src is SegSrc.Media && kotlin.math.abs(p.end - s.start) < 1e-3 }) continue
+            val prev = base.segs.getOrNull(i - 1)
+            if (oneRenderer && prev != null && prev.src is SegSrc.Media && kotlin.math.abs(prev.end - s.start) < 1e-3) continue
+            if (oneRenderer && s.start > (prev?.end ?: 0.0) + 1e-3 && gapPlayed(prev, s)) continue
             // the start of the timeline (no edit point), fades (the opacity or tint follows the fade in the main player) and
             // transparent clips (would be doubled on top of the main player's image) are skipped. Transitions between two
             // clips never reach here: playback shows them pre-rendered, as a file of their own (see RenderCache.playPlan)
