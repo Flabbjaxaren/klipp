@@ -38,6 +38,7 @@ CLIPS = {                  # file → (clip id in the code, frame rate)
     "rs30.mp4": (8, 30.0), "rs60.mp4": (9, 60.0),
 }
 CENTRAL = {8, 9}
+CAMERA = []                # the camera clips of test A1 (--apv): file names, slowest frame rate first
 
 
 # ------------------------------------------------------------------ phone and bridge
@@ -265,6 +266,19 @@ def build(ph, name, items):
         ids = [place(ph, items[f], "V1", 2.0 * i, 1.5, 2.0) for i, f in enumerate(["rq30.mp4", "rq25.mp4", "rq60.mp4", "rq24.mp4", "rq50.mp4"])]
         for cid in ids[1:]:
             ph.exec("sequence.applyVideoTransition", {"clip": cid, "effect": "push", "frames": 15, "edge": "in", "align": "center"})
+    elif name == "A1 camera":
+        # the main case: camera clips trimmed and in a row, film with node cache on two, a push between two, an upper layer
+        ids, t = [], 0.0
+        for i, f in enumerate(CAMERA):
+            ids.append(place(ph, items[f], "V1", t, 1.013 + 0.3 * i, 1.4))
+            t = round(t + 1.4, 6)
+        film = {"nodes": [{"id": 1, "label": "Film", "film": {}, "cache": True}]}
+        for i in (1, 4):
+            if i < len(ids):
+                ph.callj("grade", {"op": "set", "clip": ids[i], "grade": film})
+        if len(ids) > 4:
+            ph.exec("sequence.applyVideoTransition", {"clip": ids[4], "effect": "push", "frames": 15, "edge": "in", "align": "center"})
+        place(ph, items[CAMERA[len(CAMERA) // 2]], tracks[1], 2.52, 2.0, 1.6)
     elif name == "R4 stab cache":
         # plain → stabilized → film with node cache → plain → stabilized + film cached → plain
         ids = []
@@ -419,6 +433,36 @@ class Run:
                     + (f" (worst {worst} ms" + (f", {at_once} released at once" if at_once else "") + ")" if late else ""),
                     {"missing": missing[:30], "late": late[:30], "trace": os.path.basename(tf)} if (missing or late) else None)
 
+    def appearance(self, test, ref, slots, label, tol):
+        """The paused picture against the export (no code in camera clips): it must look like the export's frame of its
+        slot – that frame the closest of the slots around it (identity by appearance; a still picture is ambiguous, not
+        wrong) and within [tol] (mean absolute difference, 8-bit gray at 320×180)."""
+        refs = {round(pts * FPS): img.astype(np.int16) for pts, _, img in video_codes(ref)}
+        r = self.program_rect()
+        bad, rows = [], []
+        for k in slots:
+            if k not in refs:
+                continue
+            self.ph.call("set_playhead", {"seconds": k / FPS})
+            time.sleep(2.5)
+            p = os.path.join(self.out, f"{test}_look_{label}_{k}.png".replace(" ", "_"))
+            self.ph.screencap(p)
+            w = int(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width", "-of", "csv=p=0", p], capture_output=True, text=True).stdout.split()[0])
+            k_ = w / (r[0] + r[2])
+            shot = png_gray(p, tuple(round(v * k_) for v in r)).astype(np.int16)
+            d = {j: float(np.abs(shot - refs[j]).mean()) for j in range(k - 3, k + 4) if j in refs}
+            best = min(d, key=d.get)
+            same = best == k or d[k] <= d[best] * 1.03 + 0.2
+            row = {"slot": k, "t": round(k / FPS, 3), "diff": round(d[k], 2), "closest": best, "closest_diff": round(d[best], 2), "image": os.path.basename(p)}
+            rows.append(row)
+            if not same or d[k] > tol:
+                bad.append(row)
+            else:
+                os.remove(p)
+        self.result(test, f"appearance ({label})", not bad and rows != [],
+                    f"{len(rows) - len(bad)}/{len(rows)} paused pictures match the export (tolerance {tol}, worst {max((x['diff'] for x in rows), default=0)})"
+                    + (f", first off at {bad[0]['t']} s: closest is slot {bad[0]['closest']}, diff {bad[0]['diff']}" if bad else ""), bad or None)
+
     def repeat(self, test, a, b, n, mode):
         """The same range rendered [n] times: every render must give the same frames as the first (an intermittent
         missing picture shows as a render that differs)."""
@@ -449,6 +493,7 @@ def main():
     ap.add_argument("--apv", default="", help="comma-separated paths on the phone of extra camera clips (test A1)")
     ap.add_argument("--only", default="", help="e.g. R1,R3")
     ap.add_argument("--repeat", type=int, default=5)
+    ap.add_argument("--tol", type=float, default=6.0, help="A1: the paused picture's mean difference to the export (8-bit gray)")
     ap.add_argument("--out", default="")
     ap.add_argument("--restore-to", default="", help="the project to open afterwards when the test project is the open one")
     args = ap.parse_args()
@@ -491,8 +536,25 @@ def main():
                 names = items()
                 if all(f in names for f in CLIPS):
                     break
+        if args.apv:
+            paths = [x.strip() for x in args.apv.split(",") if x.strip()]
+            want_names = [os.path.basename(x) for x in paths]
+            todo = [x for x in paths if os.path.basename(x) not in names]
+            if todo:
+                ph.call("import_files", {"paths": todo})
+                for _ in range(300):
+                    time.sleep(2)
+                    names = items()
+                    if all(f in names for f in want_names):
+                        break
+            rows = {r["name"]: r for r in ph.exec("project.items")["rows"]}
+            fps_of = lambda f: float(re.match(r"[\d.]+", rows[f]["cells"].get("Frame Rate", "0")).group(0))
+            CAMERA[:] = sorted(want_names, key=fps_of)
+            for i, f in enumerate(CAMERA):
+                CLIPS[f] = (100 + i, fps_of(f))
+            run.log("camera clips: " + ", ".join(f"{f} {CLIPS[f][1]} fps" for f in CAMERA))
         ph.call("set_mode", {"mode": "edit"})
-        tests = [("R1 straight", "R1"), ("R2 layers", "R2"), ("R3 push", "R3"), ("R4 stab cache", "R4")]
+        tests = [("R1 straight", "R1"), ("R2 layers", "R2"), ("R3 push", "R3"), ("R4 stab cache", "R4")] + ([("A1 camera", "A1")] if args.apv else [])
         for name, tag in tests:
             if not want(tag):
                 continue
@@ -504,8 +566,18 @@ def main():
             run.log(f"{tag}: built sequence {name!r} (steps: tools/regress/regress.py build()); clips: " + "; ".join(
                 f"{c['name']} {c['start']:.3f}+{c['duration']:.3f} in {c['sourceIn']:.4f} ×{c['speed']}" for t in tl["sequence"]["video"] for c in t["clips"]))
             end = max(c["start"] + c["duration"] for t in tl["sequence"]["video"] for c in t["clips"])
-            run.identity_file(tag, "export", run.render(f"{tag}_export", 0, end, "export"), exp, skip)
-            run.identity_file(tag, "chunk", run.render(f"{tag}_chunk", 0, end, "chunk"), exp, skip)
+            if tag == "A1":
+                # proxies, node caches and the transition first (the user's own order: pre-render, then look)
+                for _ in range(600):
+                    st = ph.callj("render_diag", {"op": "status"})
+                    if not st["proxies"] and not st["nodeCache"] and st["render"] is None and "ready=false heavy=true" not in ph.call("render_diag", {"op": "chunks"}):
+                        break
+                    time.sleep(3)
+                run.log(f"A1: made: {ph.call('render_diag', {'op': 'status'})}")
+                ref = run.render(f"{tag}_export", 0, end, "export")
+            else:
+                run.identity_file(tag, "export", run.render(f"{tag}_export", 0, end, "export"), exp, skip)
+                run.identity_file(tag, "chunk", run.render(f"{tag}_chunk", 0, end, "chunk"), exp, skip)
             if tag == "R3":
                 # transitions play only pre-rendered: wait for them
                 for _ in range(90):
@@ -520,12 +592,18 @@ def main():
             # the paused picture at every cut (the slot before, on and after it) and a few slots inside clips
             cuts = sorted(set(round(c["start"] * FPS) for t in tl["sequence"]["video"] for c in t["clips"]))
             slots = sorted(set([k + d for k in cuts for d in (-1, 0, 1)] + [round(end * FPS * f) for f in (0.2, 0.5, 0.8)]))
-            run.paused(tag, exp, skip, slots, "as opened")
+            if tag == "A1":
+                run.appearance(tag, ref, slots, "as opened", args.tol)
+            else:
+                run.paused(tag, exp, skip, slots, "as opened")
             run.log(f"{tag}: chunks before playback:\n" + ph.call("render_diag", {"op": "chunks"}))
             ph.call("render_diag", {"op": "rebuild"})
             run.log(f"{tag}: change before 'after rebuild': render_diag op=rebuild (the player builds its composition again, nothing deleted)")
             time.sleep(2)
-            run.paused(tag, exp, skip, slots[::2], "after rebuild")
+            if tag == "A1":
+                run.appearance(tag, ref, slots[::2], "after rebuild", args.tol)
+            else:
+                run.paused(tag, exp, skip, slots[::2], "after rebuild")
             secs = int(min(end, 16) + 2)
             run.play(tag, 0.0, secs, end, "first play", base, skip)
             ph.call("render_diag", {"op": "rebuild"})
