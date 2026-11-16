@@ -30,9 +30,10 @@ import androidx.media3.effect.PassthroughShaderProgram
  * Measured on the vivo (4K HEVC clips with a film grade, the chain at about 24 frames a second): every slot drawn on time
  * at cuts between clips, into and out of pre-rendered pieces, between files of different codecs (the new decoder starts
  * ahead of the cut) and into speed-changed clips; with prewarming 74–240 ms at each, with or without the edit point layer.
- * The paused frame is the same pixel for pixel. Not covered: a clip after an empty stretch or a freeze frame – those are
- * played by the image renderer, the video renderer starts again after them; the edit point layer ([se.gendut.klipp.Handoff])
- * covers those cuts and only those.
+ * The paused frame is the same pixel for pixel. Empty stretches play as a black video ([GAP_URI]) and freeze frames as a
+ * short video of their image ([HoldVideos]), so the renderer reads on through them as well; where that isn't possible (HDR
+ * next to them, the video not made yet) they are played by the image renderer, the video renderer starts again after
+ * them, and the edit point layer ([se.gendut.klipp.Handoff]) covers those cuts and only those.
  */
 object LiveCuts {
     /**

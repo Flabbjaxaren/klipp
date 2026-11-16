@@ -62,6 +62,8 @@ class HandoffTest {
         assertEquals(listOf(7.6, 9.0), Handoff.layer(base, oneRenderer = true) { true }!!.segs.map { it.start })
         // a gap played as video (LiveCuts.gapAsVideo): the clip after it is on time too; the freeze frame's still isn't
         assertEquals(listOf(9.0), Handoff.layer(base, oneRenderer = true, gapPlayed = { _, _ -> true }) { true }!!.segs.map { it.start })
+        // a freeze frame played as video (HoldVideos) too: nothing left to cover
+        assertNull(Handoff.layer(base, oneRenderer = true, gapPlayed = { _, _ -> true }, stillPlayed = { true }) { true })
         // without: every cut that isn't a piece
         assertEquals(listOf(2.0, 5.0, 7.6, 9.0), Handoff.layer(base) { true }!!.segs.map { it.start })
         // a timeline that begins with a gap: its first clip is covered

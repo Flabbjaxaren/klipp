@@ -383,7 +383,7 @@ fun KlippApp(
     }
     if (playback != null) LaunchedEffect(playback) {
         // freeze frames and reversed files: the picture is wrong until they exist (a gap, forwards) – swapped in at once
-        androidx.compose.runtime.snapshotFlow { Triple(se.gendut.klipp.engine.FrameHolds.revision, se.gendut.klipp.engine.Reversals.revision, se.gendut.klipp.engine.FrameSnap.revision) }.collect {
+        androidx.compose.runtime.snapshotFlow { listOf(se.gendut.klipp.engine.FrameHolds.revision, se.gendut.klipp.engine.Reversals.revision, se.gendut.klipp.engine.FrameSnap.revision, se.gendut.klipp.engine.HoldVideos.revision) }.collect {
             playback.refresh(state.playhead.toDouble())
         }
     }

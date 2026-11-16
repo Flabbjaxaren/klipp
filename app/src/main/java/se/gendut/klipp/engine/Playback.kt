@@ -266,6 +266,10 @@ object CompositionBuilder {
             val holdSrc = seg.src as? SegSrc.Still
             val still = holdSrc?.let { st -> FrameHolds.file(originalUriOf(st.item) ?: uri, st.sec) }
             if (holdSrc != null && still == null) continue
+            // live playback with one renderer: the freeze frame as a short video, read on into by the same renderer (see
+            // HoldVideos); made in the background – the image until it is there. Not next to HDR (the video is SDR).
+            val holdVideo = if (still == null || !oneRenderer || multi || cfr || Perf.cachedHdr(originalUriOf(holdSrc!!.item) ?: uri) == true) null
+                else HoldVideos.file(still, seg.dur).also { if (it == null) HoldVideos.ensure(still, seg.dur) }
             val src = seg.src as? SegSrc.Media ?: SegSrc.Media(seg.src.item, (seg.src as SegSrc.Still).sec, 1.0)
             // speed on the item (Media3's supported path). The old speed effect was driven by the audio –
             // on a video item without audio it caused stutter, lag and crashes when the speed changed
@@ -330,6 +334,7 @@ object CompositionBuilder {
             val scaleDown = if (!previewDownscale) null else {
                 val orig = originalUriOf(src.item)
                 val short = when {
+                    holdVideo != null && still != null -> HoldVideos.shortFor(still)
                     still != null -> FrameHolds.shortSide(still)
                     cachedPoint >= 0 || itemUri == orig -> orig?.let { Perf.cachedCodec(it) }?.let { k -> if (k.width > 0 && k.height > 0) minOf(k.width, k.height) else null }
                     else -> orig?.let { Proxies.proxyShort(it) }
@@ -354,9 +359,15 @@ object CompositionBuilder {
             val headroomFix = Headroom.decodeFor(itemUri)
             // one renderer across the items (LiveCuts): the item's frames from its keyframe on reach the chain – those
             // before its start are dropped first, before any work is done on them
-            val preroll = if (oneRenderer && still == null) PrerollDrop(Math.round((seg.start - plan.origin) * 1e6)) else null
+            val preroll = if (oneRenderer && (still == null || holdVideo != null)) PrerollDrop(Math.round((seg.start - plan.origin) * 1e6)) else null
             val effects = listOfNotNull(preroll, scaleDown, fill, decodeFix, headroomFix, keyFx) + grade + listOfNotNull(maskFx) + (if (multi) listOf(fit) else single) + listOfNotNull(transition)
-            val edited = if (still != null) {
+            val edited = if (holdVideo != null) {
+                EditedMediaItem.Builder(clipped(Uri.fromFile(holdVideo), 0.0, seg.dur, 1.0, VIDEO_LEAD_US, keyFrameStart = true))
+                    .setDurationUs(mediaUs(HoldVideos.lengthFor(seg.dur), 0.0, seg.dur, 1.0, VIDEO_LEAD_US))
+                    .setRemoveAudio(true)
+                    .setEffects(androidx.media3.transformer.Effects(emptyList(), effects))
+                    .build()
+            } else if (still != null) {
                 EditedMediaItem.Builder(MediaItem.Builder().setUri(Uri.fromFile(still)).setImageDurationMs(Math.round(seg.dur * 1000).coerceAtLeast(1)).build())
                     .setDurationUs(us(seg.dur).coerceAtLeast(1))
                     .setFrameRate(fps.takeIf { it.isFinite() && it >= 1.0 }?.let { Math.round(it).toInt() } ?: 25)
@@ -1008,7 +1019,7 @@ class ProgramPlayback(private val context: Context) {
         val playable = RenderCache.playable(chunks, windows)
         edges = CutSeek.edgesOf(s, chunks)
         cuts = runCatching { CompositionBuilder.playPlan(s, uriOf, chunks)?.let { CutSeek.cutsOf(it.layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
-        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#rev" + Reversals.revision
+        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
         LiveGrades.publish(grades)
         if (!force && key == lastKey && hasContent) {

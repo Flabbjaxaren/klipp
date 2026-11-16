@@ -83,10 +83,12 @@ fun UpperLayers(
         val stabilized = plan.layers.lastOrNull()?.segs.orEmpty().mapNotNull { it.clip?.id }.filter { id -> gradeOf(id)?.mblur != null }
         if (TRACE.on) for (l in plan.layers) TRACE.log("plan", "layer=${l.name} " + l.segs.joinToString(" ") { sg -> "%.2f+%.2f:%d%s%s".format(java.util.Locale.ROOT, sg.start, sg.dur, sg.src.item, if (sg.hasFx) "fx" else "", if (sg.ramp != null) "ramp" else "") })
         val oneRenderer = se.gendut.klipp.engine.LiveCuts.oneRenderer
-        val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized, se.gendut.klipp.engine.CutTrace.stabHandoff, oneRenderer) {
+        val handoff = remember(plan, se.gendut.klipp.engine.Proxies.revision, stabilized, se.gendut.klipp.engine.CutTrace.stabHandoff, oneRenderer, se.gendut.klipp.engine.HoldVideos.revision) {
             plan.layers.lastOrNull()?.let { base ->
                 Handoff.layer(base, oneRenderer, gapPlayed = { p, n ->
                     se.gendut.klipp.engine.LiveCuts.gapAsVideo(n.start - (p?.end ?: 0.0), p?.let { controller.uriOf(it.src.item) }, controller.uriOf(n.src.item))
+                }, stillPlayed = { sg ->
+                    (sg.src as? se.gendut.klipp.engine.SegSrc.Still)?.let { st -> se.gendut.klipp.engine.HoldVideos.playable(controller.uriOf(st.item), st.sec, sg.dur) } == true
                 }) { s ->
                     val u = controller.uriOf(s.src.item) ?: return@layer false
                     // (diagnostics: CutTrace.stabHandoff lets clips with motion blur in, to measure them first)
@@ -1021,12 +1023,15 @@ internal object Handoff {
         base: Layer, oneRenderer: Boolean = false,
         /** With [oneRenderer]: whether the empty stretch between [prev] (null: the timeline's start) and [next] is played as video (LiveCuts.gapAsVideo) – then the cut after it is on time too. */
         gapPlayed: (prev: Seg?, next: Seg) -> Boolean = { _, _ -> false },
+        /** With [oneRenderer]: whether a freeze frame is played as video (HoldVideos) – then the cut after it is on time too. */
+        stillPlayed: (Seg) -> Boolean = { false },
         usable: (Seg) -> Boolean,
     ): Layer? {
         val out = ArrayList<Seg>()
         for ((i, s) in base.segs.withIndex()) {
             val prev = base.segs.getOrNull(i - 1)
-            if (oneRenderer && prev != null && prev.src is SegSrc.Media && kotlin.math.abs(prev.end - s.start) < 1e-3) continue
+            if (oneRenderer && prev != null && (prev.src is SegSrc.Media || (prev.src is SegSrc.Still && stillPlayed(prev))) &&
+                kotlin.math.abs(prev.end - s.start) < 1e-3) continue
             if (oneRenderer && s.start > (prev?.end ?: 0.0) + 1e-3 && gapPlayed(prev, s)) continue
             // the start of the timeline (no edit point), fades (the opacity or tint follows the fade in the main player) and
             // transparent clips (would be doubled on top of the main player's image) are skipped. Transitions between two
