@@ -40,6 +40,9 @@ object RenderCache {
     var revision by mutableIntStateOf(0)
         private set
 
+    /** Diagnostics (test runs): playback builds its composition again, as when a chunk becomes ready – nothing is deleted. */
+    fun touch() { revision++ }
+
     /** The rendering in progress: fraction done (0..1), otherwise null. */
     var progress by mutableStateOf<Float?>(null)
         internal set

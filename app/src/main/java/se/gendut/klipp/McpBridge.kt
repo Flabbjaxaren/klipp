@@ -50,6 +50,8 @@ object McpBridge {
     @Volatile private var controller: ProjectController? = null
     /** The clips' grades (for the render diagnostics: a chunk's key holds them). */
     @Volatile var gradesOf: (() -> Map<Long, se.gendut.klipp.engine.ClipGrade>)? = null
+    /** The grades themselves (test runs set a clip's grade and stabilization through the tool "grade"). */
+    @Volatile var gradeState: GradeState? = null
     @Volatile private var server: LocalServerSocket? = null
     private val conns = java.util.Collections.synchronizedSet(HashSet<LocalSocket>())
 
@@ -290,6 +292,62 @@ object McpBridge {
             onMain { st().selected = id; if (id == null) st().multi = emptySet(); st().inspecting = id != null && a.optBoolean("inspect") }
             texts("selected $id")
         },
+        Tool("projects", "Projects: op=list (id, name, modified, current), op=open (id; the current one is saved first), " +
+                "op=new (name, width, height, fps: an empty project with one sequence, opened). For test runs that work in a " +
+                "project of their own and reopen the user's afterwards.",
+            JSONObject().put("op", prop("string", "list | open | new")).put("id", prop("string", "project id (open)"))
+                .put("name", prop("string", "new")).put("width", prop("number", "new")).put("height", prop("number", "new")).put("fps", prop("number", "new")),
+            listOf("op")) { a ->
+            val c = ctl()
+            when (a.getString("op")) {
+                "list" -> texts(JSONArray().apply {
+                    for (p in c.listProjects()) put(JSONObject().put("id", p.id).put("name", p.name).put("modified", p.modified).put("current", p.id == c.currentId))
+                }.toString())
+                "open" -> {
+                    val id = a.getString("id")
+                    runBlocking { c.openProject(id).join() }
+                    texts(JSONObject().put("current", c.currentId).put("opened", c.currentId == id).toString())
+                }
+                "new" -> {
+                    runBlocking { c.newProject(a.optString("name"), a.optInt("width", 1920), a.optInt("height", 1080), a.optDouble("fps", 25.0)).join() }
+                    texts(JSONObject().put("current", c.currentId).toString())
+                }
+                else -> error("op is list, open or new")
+            }
+        },
+        Tool("grade", "A clip's grade: op=get (the grade as JSON, with its node cache's status), op=set (grade: JSON as get " +
+                "returns it; {} = neutral), op=stabilize (strength 0–1: analyses the clip as the Stabilize button does), op=status " +
+                "(the stabilization running: clip, progress, message).",
+            JSONObject().put("op", prop("string", "get | set | stabilize | status")).put("clip", prop("number", "clip id"))
+                .put("grade", prop("object", "set")).put("strength", prop("number", "stabilize, default 0.6")),
+            listOf("op")) { a ->
+            val gs = gradeState ?: error("the app isn't showing yet")
+            val sv = StabService
+            when (a.getString("op")) {
+                "get" -> {
+                    val id = a.getLong("clip")
+                    val g = onMain { gs.of(id) }
+                    texts(JSONObject().put("clip", id).put("grade", g.toJson()).put("nodeCache", se.gendut.klipp.engine.NodeCache.status(id) ?: JSONObject.NULL).toString())
+                }
+                "set" -> {
+                    val id = a.getLong("clip")
+                    val g = se.gendut.klipp.engine.ClipGrade.fromJson(a.getJSONObject("grade"))
+                    onMain { gs.set(id, g) }
+                    texts(JSONObject().put("clip", id).put("grade", onMain { gs.of(id) }.toJson()).toString())
+                }
+                "stabilize" -> {
+                    val id = a.getLong("clip")
+                    val ctx = activity ?: error("no activity")
+                    onMain {
+                        val c = gs.clipInfo?.invoke(id) ?: error("clip $id isn't a video clip from a file")
+                        sv.start(ctx, gs, c, a.optDouble("strength", 0.6).toFloat())
+                    }
+                    texts("stabilizing $id")
+                }
+                "status" -> texts(onMain { JSONObject().put("clip", sv.target ?: JSONObject.NULL).put("progress", sv.progress?.toDouble() ?: JSONObject.NULL).put("message", sv.message ?: JSONObject.NULL) }.toString())
+                else -> error("op is get, set, stabilize or status")
+            }
+        },
         Tool("logs", "The app's recent event trail (the same as in crash reports).") { texts(CrashReport.trail().joinToString("\n")) },
         Tool("import_files", "Import files by path (e.g. the app's external files dir) through the app's own import, as the picker does.",
             JSONObject().put("paths", JSONObject().put("type", "array").put("items", prop("string", "absolute path")))) { a ->
@@ -298,8 +356,8 @@ object McpBridge {
             ctl().import(uris)
             texts("importing ${uris.size} files")
         },
-        Tool("render_diag", "Pre-render diagnostics: op=live deletes the renders and holds rendering (the timeline plays live), op=resume lets it render again; op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals; grades: overrides for this render only).",
-            JSONObject().put("op", prop("string", "live | resume | chunks | copy | render")).put("a", prop("number", "s")).put("b", prop("number", "s"))
+        Tool("render_diag", "Pre-render diagnostics: op=live deletes the renders (of every project) and holds rendering (the timeline plays live), op=resume lets it render again; op=hold holds rendering and keeps the renders; op=rebuild makes the player build its composition again (nothing deleted); op=chunks lists the timeline's chunks (a, b, ready); op=copy copies the chunk and joined files that exist to the app's external files/diag; op=render renders a..b into files/diag/<name>.mp4 without the cache (mode chunk: as a chunk, from the proxies; export: export settings from the originals; grades: overrides for this render only).",
+            JSONObject().put("op", prop("string", "live | resume | hold | rebuild | chunks | copy | render")).put("a", prop("number", "s")).put("b", prop("number", "s"))
                 .put("mode", prop("string", "chunk | export")).put("name", prop("string", "file name"))
                 .put("grades", prop("object", "op=render: grades for this render only, clip id → grade JSON (the project's grades are left as they are)"))
                 .put("passes", prop("boolean", "op=render: count Klipp's GPU stages (nodes, film, …) during the render – glFinish around each, so not for timing"))) { a ->
@@ -315,6 +373,10 @@ object McpBridge {
                 // the timeline live: nothing rendered and nothing being rendered, until "resume"
                 "live" -> { se.gendut.klipp.engine.RenderCache.hold = true; se.gendut.klipp.engine.RenderCache.clear(); texts("live: renders deleted, rendering held") }
                 "resume" -> { se.gendut.klipp.engine.RenderCache.hold = false; texts("rendering resumed") }
+                // (test runs: hold rendering without deleting anything – the renders of every project stay)
+                "hold" -> { se.gendut.klipp.engine.RenderCache.hold = true; texts("rendering held, renders kept") }
+                // (test runs: the player builds its composition again, nothing deleted – as after any change)
+                "rebuild" -> { onMain { se.gendut.klipp.engine.RenderCache.touch() }; texts("rebuild asked") }
                 "chunks" -> texts(chunks.joinToString("\n") { k -> "%.4f–%.4f ready=%s heavy=%s %s".format(java.util.Locale.ROOT, k.a, k.b, se.gendut.klipp.engine.RenderCache.isReady(k), k.heavy, k.hash.take(12)) })
                 "copy" -> {
                     dirOut.listFiles()?.filter { it.name.startsWith("chunk_") || it.name.startsWith("join_") }?.forEach { it.delete() }
