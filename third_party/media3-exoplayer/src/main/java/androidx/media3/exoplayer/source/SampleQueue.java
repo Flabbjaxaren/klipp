@@ -1138,8 +1138,11 @@ public class SampleQueue implements TrackOutput {
         absoluteSampleIndex - readEndTimeAbsoluteIndexCandidate + 1;
     boolean isKeyFrame = (sampleFlags & C.BUFFER_FLAG_KEY_FRAME) != 0;
     boolean isLastSample = (sampleFlags & C.BUFFER_FLAG_LAST_SAMPLE) != 0;
-    if ((consecutiveSamplesAfterEndCount >= getUpstreamMaxNumReorderSamples() + 1)
-        || isKeyFrame
+    int maxNumReorderSamples = getUpstreamMaxNumReorderSamples();
+    // Klipp: a keyframe after the end ends the read only without reordering. In an open GOP (HEVC's CRA, x265's default)
+    // the pictures shown just before a keyframe are decoded after it: the clip's last frames were cut off.
+    if ((consecutiveSamplesAfterEndCount >= maxNumReorderSamples + 1)
+        || (isKeyFrame && maxNumReorderSamples <= 0)
         || isLastSample) {
       readEndTimeAbsoluteIndex = readEndTimeAbsoluteIndexCandidate;
       readEndTimeAbsoluteIndexCandidate = C.INDEX_UNSET;

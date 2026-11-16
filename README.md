@@ -145,6 +145,8 @@ Parts from other projects:
   computes in floating point (RGBA16F) – see `third_party/media3-effect/KLIPP.md`.
 - **Media3 transformer** (Apache-2.0) as source code in `third_party/media3-transformer`, modified for live playback's cuts
   with one video renderer – see `third_party/media3-transformer/KLIPP.md`.
+- **Media3 ExoPlayer** (Apache-2.0) as source code in `third_party/media3-exoplayer`, modified so a clip ending before an
+  open GOP's keyframe keeps its last frames – see `third_party/media3-exoplayer/KLIPP.md`.
 
 ### The spektrafilm tables
 
