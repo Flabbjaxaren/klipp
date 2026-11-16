@@ -27,7 +27,7 @@ ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 if not os.path.exists(ADB):
     ADB = "adb"
 
-PROJECT = "Klipp regress"
+PROJECT = "Klipp regress"            # (--project: another, e.g. for the HEVC clips)
 FPS = 25.0
 LEAD_US = 1000            # FrameGrid.LEAD_US and Playback's VIDEO_LEAD_US
 BITS = 14                  # bits read (codes stay below 2^14; the program view's audio meter covers the right edge)
@@ -513,7 +513,9 @@ def main():
     ap.add_argument("--tol", type=float, default=6.0, help="A1: the paused picture's mean difference to the export (8-bit gray)")
     ap.add_argument("--out", default="")
     ap.add_argument("--restore-to", default="", help="the project to open afterwards when the test project is the open one")
+    ap.add_argument("--project", default=PROJECT, help="the test project's name (one per set of clips)")
     args = ap.parse_args()
+    globals()["PROJECT"] = args.project
     ph = Phone(args.serial, args.port, args.pkg)
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     out = args.out or os.path.join(HERE, "out", f"{stamp}-{args.serial}")
@@ -544,10 +546,12 @@ def main():
         names = items()
         missing = [f for f in CLIPS if f not in names]
         if missing:
-            ph.adb("shell", "mkdir", "-p", f"{ph.files}/regress")
+            # (a folder of its own per test project: another set of clips under the same names)
+            sub = "regress" if PROJECT == "Klipp regress" else "regress_" + re.sub(r"[^A-Za-z0-9]+", "_", PROJECT)
+            ph.adb("shell", "mkdir", "-p", f"{ph.files}/{sub}")
             for f in missing:
-                ph.adb("push", os.path.join(args.clips, f), f"{ph.files}/regress/{f}")
-            ph.call("import_files", {"paths": [f"/storage/emulated/0/Android/data/{ph.pkg}/files/regress/{f}" for f in missing]})
+                ph.adb("push", os.path.join(args.clips, f), f"{ph.files}/{sub}/{f}")
+            ph.call("import_files", {"paths": [f"/storage/emulated/0/Android/data/{ph.pkg}/files/{sub}/{f}" for f in missing]})
             for _ in range(60):
                 time.sleep(2)
                 names = items()
