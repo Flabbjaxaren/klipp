@@ -558,7 +558,9 @@ fun SourcePanel(
     var markIn by remember(m) { mutableStateOf(m.markIn) }
     var markOut by remember(m) { mutableStateOf(m.markOut) }
     var playing by remember(m) { mutableStateOf(false) }
-    val frame = 1.0 / (if (m.fps > 1) m.fps else 25.0)
+    // (the rate the frames are at, measured from the file when probed – see MediaProbe.rateOf)
+    val fps = se.gendut.klipp.engine.MediaProbe.frameRate(uri, m.fps)
+    val frame = 1.0 / (if (fps > 1) fps else 25.0)
     // the Text view instead of the picture, and its marked sentences
     var textMode by remember(m) { mutableStateOf(false) }
     var sentencesMarked by remember(m) { mutableStateOf<IntRange?>(null) }
@@ -592,7 +594,7 @@ fun SourcePanel(
             RoundIcon(Ic.Back, stringResource(R.string.realmode_close_source)) { playing = false; onClose() }
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.realmode_source_title, m.name), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${m.width}×${m.height} · ${"%.2f".format(m.fps)} fps · ${durText(m.duration)}", color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1)
+                Text("${m.width}×${m.height} · ${"%.2f".format(fps)} fps · ${durText(m.duration)}", color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1)
             }
             Text(
                 formatTc(pos.toFloat()), color = K.OnSurface, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,

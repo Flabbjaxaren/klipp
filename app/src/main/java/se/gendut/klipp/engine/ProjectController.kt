@@ -206,7 +206,9 @@ class ProjectController(
                         val first = snap.media.firstOrNull { it.hasVideo }
                         val p = newSeqParams()
                         if (first != null && first.width > 0) {
-                            p.put("width", first.width).put("height", first.height).put("fps", firstFps(first.fps, uris[first.id]))
+                            // (the rate the frames are at, measured from the file: a file can state another – see MediaProbe.rateOf)
+                            val measured = withContext(kotlinx.coroutines.Dispatchers.IO) { uris[first.id]?.let { MediaProbe.probe(context, it)?.fps } }
+                            p.put("width", first.width).put("height", first.height).put("fps", firstFps(measured ?: first.fps, uris[first.id]))
                         }
                         engine.exec("file.newSequence", p)
                     }
@@ -762,7 +764,7 @@ class ProjectController(
                     Proxies.videoUri(u).takeIf { it != u }?.let { MediaProbe.probe(context, it) }
                     if (a && info != null) {
                         any = true
-                        val frame = 1.0 / (m.fps.takeIf { it > 1 } ?: 25.0)
+                        val frame = 1.0 / (MediaProbe.frameRate(u, m.fps).takeIf { it > 1 } ?: 25.0)
                         if (m.duration > 0 && kotlin.math.abs(info.duration - m.duration) > frame) {
                             se.gendut.klipp.CrashReport.note("length differs: ${m.name} engine %.3f s, Media3 %.3f s".format(m.duration, info.duration))
                         }

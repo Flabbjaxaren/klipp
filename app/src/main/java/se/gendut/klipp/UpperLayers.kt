@@ -658,7 +658,7 @@ private fun LayerVideo(
     val offGrid = remember(segs, projectFps) {
         projectFps > 0.0 && segs.any { sg ->
             val m = sg.src as? SegSrc.Media ?: return@any false
-            val f = controller.snapshot.media.firstOrNull { it.id == m.item }?.fps ?: 0.0
+            val f = se.gendut.klipp.engine.MediaProbe.frameRate(controller.uriOf(m.item), controller.snapshot.media.firstOrNull { it.id == m.item }?.fps ?: 0.0)
             !se.gendut.klipp.engine.FrameGrid.onGrid(sg.start, m.srcIn, m.speed, f, projectFps)
         }
     }
