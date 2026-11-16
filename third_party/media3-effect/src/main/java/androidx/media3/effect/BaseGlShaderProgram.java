@@ -45,6 +45,14 @@ public abstract class BaseGlShaderProgram implements GlShaderProgram {
   private static final String TAG = "BaseGlShaderProgram";
   /* package */ final TexturePool outputTexturePool;
   private InputListener inputListener;
+
+  /**
+   * Klipp: released. A frame handed on to this program before the chain was rebuilt (a task already in the GL
+   * thread's queue: FrameConsumptionManager) can arrive after it was released – drawing it used the deleted GL
+   * program ("glError: invalid value" in glUseProgram, the player failed; seen on the vivo after a seek near a
+   * pre-rendered push). Such a frame is handed back undrawn.
+   */
+  private volatile boolean klippReleased;
   private OutputListener outputListener;
   private ErrorListener errorListener;
   private Executor errorListenerExecutor;
@@ -140,6 +148,12 @@ public abstract class BaseGlShaderProgram implements GlShaderProgram {
   @Override
   public void queueInputFrame(
       GlObjectsProvider glObjectsProvider, GlTextureInfo inputTexture, long presentationTimeUs) {
+    if (klippReleased) {
+      Log.w("KlippGl", getClass().getSimpleName() + ": a frame at " + presentationTimeUs + " after release – handed back undrawn");
+      KlippPrecision.composite("released program got frame " + presentationTimeUs + " " + getClass().getSimpleName());
+      inputListener.onInputFrameProcessed(inputTexture);
+      return;
+    }
     try {
       if (inputWidth != inputTexture.width
           || inputHeight != inputTexture.height
@@ -185,6 +199,9 @@ public abstract class BaseGlShaderProgram implements GlShaderProgram {
 
   @Override
   public void signalEndOfCurrentInputStream() {
+    if (klippReleased) {
+      return;
+    }
     outputListener.onCurrentOutputStreamEnded();
   }
 
@@ -201,6 +218,7 @@ public abstract class BaseGlShaderProgram implements GlShaderProgram {
   @Override
   @CallSuper
   public void release() throws VideoFrameProcessingException {
+    klippReleased = true;
     try {
       outputTexturePool.deleteAllTextures();
     } catch (GlUtil.GlException e) {

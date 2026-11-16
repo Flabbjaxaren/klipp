@@ -57,6 +57,10 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   - A flush or a redraw ends the wait.
   - The diagnostics also log the stream change steps (regstream, regframe, configpending, streamprocessed, flush,
     endofinput, etm, fsw).
+- `BaseGlShaderProgram.java`: a released program hands a late frame back undrawn (and logs it, tag `KlippGl`). A
+  frame handed on before the chain was rebuilt – a task already in the GL thread's queue (`FrameConsumptionManager`) –
+  could reach a program after its release: it drew with the deleted GL program ("glError: invalid value" in
+  `glUseProgram`) and the player failed, the picture standing still (vivo, paused seeks around a pre-rendered push).
 
 The resources (`res/raw`, shaders) and the manifest come from the AAR file of the same version.
 
