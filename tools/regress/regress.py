@@ -668,6 +668,8 @@ def main():
             else:
                 run.paused(tag, exp, skip, slots[::2], "after rebuild")
             secs = int(min(end, 16) + 2)
+            # (the timing is the live preview's: playback renders parts it didn't keep up with ahead – held during the plays)
+            ph.call("render_diag", {"op": "hold"})
             run.play(tag, 0.0, secs, end, "first play", base, skip)
             ph.call("render_diag", {"op": "rebuild"})
             time.sleep(1.5)
@@ -685,6 +687,10 @@ def main():
                     fails += not run.results[-1]["ok"]
                 run.result(tag, f"playback attempts", fails == 0, f"{fails} of {args.repeat} attempts failed")
     finally:
+        try:
+            ph.call("render_diag", {"op": "resume"})
+        except Exception:
+            pass
         try:
             if user:
                 ph.callj("projects", {"op": "open", "id": user})
