@@ -426,6 +426,17 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
                 state.setLive((state.live?.takeIf { l -> l.id == p.id } ?: p).copy(title = text))
                 if (pending.value == null) scope.launch { state.endLive() }
             }
+            }
+        }
+        1 -> {
+            PanelCard(Modifier.padding(top = 10.dp)) {
+            SectionLabel(stringResource(R.string.titleui_template))
+            androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (t in TitleTemplate.entries) SpringChip(t.label, look.template == t, { backend.setTitle(p.id, look = look.copy(template = t).encode()) })
+            }
+            }
+            // the text's look: size, color, its own opacity, font, weight, spacing
+            PanelCard(Modifier.padding(top = 10.dp)) {
             PropSlider(
                 stringResource(R.string.titleui_size), p.textSize, 8f, 400f, sizeFor(look.template, p.seqH).roundToInt().toFloat(), { "%.0f px".format(it) }, "size",
                 onLive = { v -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textSize = v)) },
@@ -434,7 +445,7 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
             ColorPicker(p.textColor and 0xFFFFFF, "titleColor",
                 onLive = { c -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textColor = c)) },
             ) { c -> backend.setTitle(p.id, color = c); scope.launch { state.endLive() } }
-            PropSlider(stringResource(R.string.titleui_opacity), look.opacity * 100f, 0f, 100f, 100f, { "%.0f %%".format(it) }, "titleOpacity", lane = false,
+            PropSlider(stringResource(R.string.titleui_text_opacity), look.opacity * 100f, 0f, 100f, 100f, { "%.0f %%".format(it) }, "titleOpacity", lane = false,
                 onLive = { live(look.copy(opacity = it / 100f)) }) { commit(look.copy(opacity = it / 100f)) }
             TitleFontRow(look.font) { commit(look.copy(font = it)) }
             // bold, italic, all capitals
@@ -452,14 +463,6 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
                     SpringChip(l, look.align == k, { commit(look.copy(align = k)) }, Modifier.testTag("title:align:$k"))
             }
             }
-        }
-        1 -> {
-            PanelCard(Modifier.padding(top = 10.dp)) {
-            SectionLabel(stringResource(R.string.titleui_template))
-            androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (t in TitleTemplate.entries) SpringChip(t.label, look.template == t, { backend.setTitle(p.id, look = look.copy(template = t).encode()) })
-            }
-            }
             if (look.template != TitleTemplate.ROLL) PanelCard(Modifier.padding(top = 10.dp)) { TitlePlateSection(look, ::live, ::commit) }
             PanelCard(Modifier.padding(top = 10.dp)) {
             Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -475,12 +478,12 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
             }
             PanelCard(Modifier.padding(top = 10.dp)) { TitleShadowSection(state, p, look, backend) }
         }
-        2 -> PanelCard(Modifier.padding(top = 10.dp)) {
+        3 -> PanelCard(Modifier.padding(top = 10.dp)) {
             SectionLabel(stringResource(R.string.titleui_entrance))
             AnimChips(look.template, look.anim) { backend.setTitle(p.id, look = look.copy(anim = it).encode()) }
             if (look.template == TitleTemplate.ROLL) Text(stringResource(R.string.titleui_roll_no_anim), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
         }
-        3 -> LocalGradeState.current?.let { gs -> PanelCard(Modifier.padding(top = 10.dp)) { FollowSection(state, p, gs) }; PanelCard(Modifier.padding(top = 10.dp)) { PinSection(state, p, gs) } }
+        2 -> LocalGradeState.current?.let { gs -> PanelCard(Modifier.padding(top = 10.dp)) { FollowSection(state, p, gs) }; PanelCard(Modifier.padding(top = 10.dp)) { PinSection(state, p, gs) } }
         else -> {}
     }
 }

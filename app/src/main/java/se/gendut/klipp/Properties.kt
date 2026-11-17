@@ -288,12 +288,12 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
                 ToolTab(stringResource(R.string.properties_volume), Ic.Speaker, "propTab:volume", p.levelDb != 0f),
                 ToolTab(stringResource(R.string.audioui_effects), Ic.Audio, "propTab:afx", p.afx.isNotEmpty()),
             )
+            // a title: what it says, how it looks, where it is, how it comes and goes
             p.isTitle -> listOf(
-                ToolTab(stringResource(R.string.titleui_tab_text), Ic.Text, "titleTab:0"),
+                ToolTab(stringResource(R.string.titleui_tab_content), Ic.Text, "titleTab:0"),
                 ToolTab(stringResource(R.string.titleui_tab_style), Ic.Sliders, "titleTab:1"),
-                ToolTab(stringResource(R.string.titleui_tab_animate), Ic.Bolt, "titleTab:2"),
-                ToolTab(stringResource(R.string.titleui_tab_track), Ic.Target, "titleTab:3", gsNow?.let { p.id in it.follows || p.id in it.pins } == true),
-                motionTab, fadeTab,
+                ToolTab(stringResource(R.string.titleui_tab_place), Ic.Center, "titleTab:place", moved || gsNow?.let { p.id in it.follows || p.id in it.pins } == true),
+                ToolTab(stringResource(R.string.titleui_tab_animation), Ic.Bolt, "titleTab:anim", fades),
             )
             else -> {
                 val crop = ToolTab(stringResource(R.string.properties_crop), Ic.Crop, "propTab:crop", layerFx?.crop != null)
@@ -335,7 +335,9 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
                 onLive = { v -> live { it.copy(scale = v) } }) { backend.setProps(p.id, scale = it); done() }
             PropSlider(stringResource(R.string.properties_rotation), p.rotation, -180f, 180f, 0f, { fmtNum(it, "°") }, "rotation", anim = anim("rotation"),
                 onLive = { v -> live { it.copy(rotation = v) } }) { backend.setProps(p.id, rotation = it); done() }
-            if (p.isTitle) opacitySlider()
+            // (a title's opacity as a clip – keyframes, fades – beside the text's own opacity in Style)
+            if (p.isTitle) PropSlider(stringResource(R.string.properties_clip_opacity), p.opacity, 0f, 100f, 100f, { fmtNum(it, " %") }, "opacity", anim = anim("opacity"),
+                onLive = { v -> live { it.copy(opacity = v) } }) { backend.setProps(p.id, opacity = it); done() }
             Text(stringResource(R.string.properties_motion_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
         }
         @Composable fun fade() = PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_fade)) {
@@ -351,9 +353,10 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
                     onLive = { v -> live { it.copy(levelDb = v) } }) { backend.setProps(p.id, levelDb = it); done() }
             } else PanelCard(Modifier.padding(top = 10.dp)) { AudioFxSection(state, p, backend) }
             p.isTitle -> {
+                // placement: the motion, then following an object or a surface; animation: the entrance, then the fades
+                if (current == 2) motion()
                 TitleSection(state, p, backend, current)
-                if (current == 4) motion()
-                if (current == 5) fade()
+                if (current == 3) fade()
             }
             else -> when (val t = tabs[current].tag) {
                 "propTab:motion" -> motion()

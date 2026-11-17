@@ -15,6 +15,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.doubleClick
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -157,10 +158,30 @@ class PropertiesUiTest {
     fun titleClipShowsTextSizeAndColors() {
         val fake = FakeProps().apply { p = p.copy(title = "Hej", name = "Hej", textSize = 97f) }
         val st = state(fake)
-        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { PropertiesPanel(st) { } } } }
+        // (following an object needs the grades: the app provides them)
+        rule.setContent { KlippTheme { androidx.compose.runtime.CompositionLocalProvider(LocalGradeState provides GradeState()) { Box(Modifier.fillMaxSize().background(K.Bg)) { PropertiesPanel(st) { } } } } }
         rule.waitForIdle()
-        rule.onNodeWithTag("prop:size").assertExists()
         rule.onRoot().captureRoboImage("$dir/22_titel.png")
+        // four groups: content, style, placement, animation
+        for (t in listOf("titleTab:0", "titleTab:1", "titleTab:place", "titleTab:anim")) rule.onNodeWithTag(t).assertExists()
+        // content: the text – the look is not here
+        assertEquals(0, rule.onAllNodesWithTag("prop:size").fetchSemanticsNodes().size)
+        // style: size, color, the text's own opacity, font
+        rule.onNodeWithTag("titleTab:1").performClick(); rule.waitForIdle()
+        rule.onNodeWithTag("prop:size").assertExists()
+        rule.onNodeWithTag("prop:titleOpacity").assertExists()
+        rule.onNodeWithText("Textens opacitet").assertExists()
+        rule.onNodeWithTag("title:bold").assertExists()
+        // placement: the motion with the clip's opacity (a name of its own), and following an object
+        rule.onNodeWithTag("titleTab:place").performClick(); rule.waitForIdle()
+        rule.onNodeWithTag("prop:x").assertExists()
+        rule.onNodeWithText("Klippets opacitet").assertExists()
+        rule.onNodeWithTag("follow:draw").performScrollTo().assertExists()
+        // animation: the entrance and the fades
+        rule.onNodeWithTag("titleTab:anim").performClick(); rule.waitForIdle()
+        rule.onNodeWithTag("anim:${se.gendut.klipp.engine.TitleAnim.entries.first().key}").assertExists()
+        rule.onNodeWithTag("fadeIn1.0").performScrollTo().performClick(); rule.waitForIdle()
+        assertEquals("fade in 1.0", fake.log.last())
     }
 
     @Test

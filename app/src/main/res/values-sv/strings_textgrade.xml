@@ -110,8 +110,6 @@
     <string name="captionui_words_all">Alla</string>
     <string name="titleui_tab_text">Text</string>
     <string name="titleui_tab_style">Stil</string>
-    <string name="titleui_tab_animate">Animera</string>
-    <string name="titleui_tab_track">Följ</string>
     <string name="titleui_tracking">Teckenavstånd</string>
     <string name="titleui_leading">Radavstånd</string>
     <string name="titleui_width">Bredd</string>
@@ -212,4 +210,9 @@
     <string name="titleui_replace_auto_title">Ersätta de automatiska undertexterna?</string>
     <string name="titleui_replace_auto_body">De %1$d undertexterna i ”%2$s” ersätts, även ändringar du har gjort i dem. Ångra tar tillbaka dem.</string>
     <string name="titleui_replace">Ersätt</string>
+    <string name="titleui_tab_content">Innehåll</string>
+    <string name="titleui_tab_place">Placering</string>
+    <string name="titleui_tab_animation">Animation</string>
+    <string name="titleui_text_opacity">Textens opacitet</string>
+    <string name="properties_clip_opacity">Klippets opacitet</string>
 </resources>
