@@ -25,8 +25,6 @@
     <string name="titleui_field_lines">Lines</string>
     <string name="titleui_field_text">Text</string>
     <string name="titleui_roll_hint">Lines ending in a colon become small headings. The text scrolls for the whole clip.</string>
-    <string name="titleui_panel_title">Text &amp; captions</string>
-    <string name="titleui_tab_titles">Titles</string>
     <string name="titleui_tpl_desc_lower_third">Name and role, bottom left</string>
     <string name="titleui_tpl_desc_chapter">Large heading in the middle</string>
     <string name="titleui_tpl_desc_roll">Credits rolling upwards</string>
@@ -35,7 +33,6 @@
     <string name="titleui_entrance">Entrance</string>
     <string name="titleui_content">Content</string>
     <string name="titleui_titles_on_timeline">Titles on the timeline</string>
-    <string name="titleui_captions">Captions</string>
     <string name="titleui_new_caption">New caption</string>
     <string name="titleui_import_captions">Import SRT / VTT</string>
     <string name="titleui_captions_hint">Captions appear in the picture and are burned in on export.</string>

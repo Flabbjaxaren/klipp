@@ -149,17 +149,6 @@ fun TranscriptView(controller: ProjectController, state: EditorState, modifier: 
     }
 }
 
-/** A way to the transcript view (the edit page's other view) from where the text features are listed. */
-@Composable
-fun TranscriptCard(state: EditorState, onOpen: () -> Unit) {
-    val haptics = rememberHaptics()
-    PanelCard(Modifier.padding(vertical = 6.dp), title = stringResource(R.string.transcript_title)) {
-        Text(stringResource(R.string.transcript_info), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))
-        PillButton(stringResource(R.string.transcript_open), { haptics.confirm(); state.editView = EditView.TRANSCRIPT; onOpen() },
-            Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("transcript:open"), icon = Ic.Transcript)
-    }
-}
-
 /** What a delete of the selected words does: the range, what is cut and what moves, what stays as it is. */
 @Composable
 internal fun TranscriptCutInfo(cut: TranscriptCut) {

@@ -427,6 +427,14 @@ internal fun EditPage(
                         )
                     mode(Ic.Center, stringResource(R.string.app_locked_playhead), state.centerPlayhead, "mode:center") { state.centerPlayhead = !state.centerPlayhead }
                     mode(Ic.VolLine, stringResource(R.string.app_volume_lines), state.volLines, "mode:vol") { state.volLines = !state.volLines }
+                    state.onAddAction?.let { add ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.design_captions_overview), color = K.OnSurface, fontWeight = FontWeight.Medium) },
+                            leadingIcon = { Icon(Ic.Subs, null, tint = K.OnSurfaceVar, modifier = Modifier.size(20.dp)) },
+                            onClick = { modesOpen = false; haptics.press(); add(AddAction.CAPTIONS) },
+                            modifier = Modifier.testTag("menu:captions"),
+                        )
+                    }
                     val anyMarkers = state.markers.isNotEmpty()
                     if (anyMarkers || onSettings != null) HorizontalDivider(color = K.OutlineVar, modifier = Modifier.padding(vertical = 4.dp))
                     if (anyMarkers) DropdownMenuItem(
@@ -606,11 +614,11 @@ private fun DockStep(label: String, on: Boolean, tag: String? = null, modifier: 
     ) { Text(label, color = if (on) K.PrimarySoft else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
 }
 
-private enum class DockKind { NONE, ADD, CLIP, MULTI, CAPTION, TRANSITION, AUDIO, TEXT }
+private enum class DockKind { NONE, ADD, CLIP, MULTI, CAPTION, TRANSITION, AUDIO }
 
 /**
  * The dock: on the edit page the actions for what is selected (a clip, several, a caption, a transition) or, with
- * nothing selected, the things to add; on the sound and text pages their tabs. Hidden on the color page (its tools are
+ * nothing selected, the things to add; on the sound page its tabs. Hidden on the color page (its tools are
  * in the page) and while a sheet is open over the timeline.
  */
 @Composable
@@ -620,7 +628,6 @@ internal fun Dock(state: EditorState, pageOf: () -> Float, audioTabs: List<ToolT
     val kind = when {
         page == 1 -> DockKind.NONE
         page == 2 -> DockKind.AUDIO
-        page == 3 -> if (state.props != null) DockKind.TEXT else DockKind.NONE
         state.inspecting && state.selected != null -> DockKind.NONE
         state.editingCaption && state.selectedCaption != null -> DockKind.NONE
         state.selected != null -> DockKind.CLIP
@@ -651,13 +658,6 @@ internal fun Dock(state: EditorState, pageOf: () -> Float, audioTabs: List<ToolT
                 DockKind.AUDIO -> DockItems(audioTabs.mapIndexed { i, t ->
                     DockItem(t.icon, t.label, t.tag, primary = i == state.audioTab.coerceIn(0, audioTabs.lastIndex), marked = t.marked) { state.audioTab = i }
                 })
-                DockKind.TEXT -> {
-                    val tabs = listOf(
-                        Ic.Text to stringResource(R.string.titleui_tab_titles), Ic.Subs to stringResource(R.string.titleui_captions),
-                        Ic.Transcript to stringResource(R.string.transcript_title),
-                    )
-                    DockItems(tabs.mapIndexed { i, (icon, label) -> DockItem(icon, label, "textTab:$i", primary = i == state.textTab) { state.textTab = i } })
-                }
                 DockKind.NONE -> {}
             }
         }

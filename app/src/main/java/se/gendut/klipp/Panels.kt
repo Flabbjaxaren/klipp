@@ -670,57 +670,6 @@ private fun ToggleSquare(label: String, on: Boolean, width: Dp = 28.dp, onClick:
 }
 
 @Composable
-fun TextPanel(title: TitleState) {
-    val haptics = rememberHaptics()
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        PanelTitle(stringResource(R.string.panels_text_title))
-        SectionLabel(stringResource(R.string.panels_templates))
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(R.string.panels_template_lower_third, R.string.panels_template_chapter, R.string.panels_template_credits).forEachIndexed { i, t ->
-                TemplateCard(stringResource(t), title.template == i, Modifier.weight(1f)) {
-                    haptics.confirm()
-                    title.template = i
-                    title.previewKey++
-                }
-            }
-        }
-        SectionLabel(stringResource(R.string.panels_content))
-        TextInput(stringResource(R.string.panels_name), title.name) { title.name = it; }
-        TextInput(stringResource(R.string.panels_role), title.role) { title.role = it }
-        SectionLabel(stringResource(R.string.panels_animation_in))
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TitleStyle.entries.forEach { s ->
-                SpringChip(stringResource(s.labelRes), title.style == s, { title.style = s; title.previewKey++ })
-            }
-            SpringChip(stringResource(R.string.panels_play), false, { title.previewKey++ })
-        }
-        Spacer(Modifier.height(LocalBarSpace.current + 36.dp))
-    }
-}
-
-@Composable
-private fun TemplateCard(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val src = remember { MutableInteractionSource() }
-    val radius by animateDpAsState(if (selected) 28.dp else 16.dp, androidx.compose.animation.core.spring(0.5f, 400f), label = "c")
-    val shape: Shape = RoundedCornerShape(radius)
-    Box(
-        modifier.pressPop(src, 0.92f)
-            .height(76.dp).clip(shape)
-            .background(if (selected) K.PrimaryContainer else K.Surface)
-            .border(1.5.dp, if (selected) K.PrimaryContainer else K.OutlineVar, shape)
-            .clickable(interactionSource = src, indication = null) {
-                onClick()
-            }
-            .padding(12.dp),
-        contentAlignment = Alignment.BottomStart
-    ) { Text(label, color = if (selected) K.PrimarySoft else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-}
-
-/**
- * A one-line text field with its label: beside it, or above it where the row is narrow ([stacked]). The field has the
- * dropdowns' look (a lighter tone with an outline), so it shows on a panel as well as in a dialog.
- */
-@Composable
 fun TextInput(
     label: String, value: String, modifier: Modifier = Modifier, stacked: Boolean = false,
     /** The field takes the keyboard when it appears, with the caret after the text (a dialog that asks for a name). */

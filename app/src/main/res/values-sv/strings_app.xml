@@ -34,7 +34,6 @@
     <string name="app_mode_edit">Redigera</string>
     <string name="app_mode_color">Färg</string>
     <string name="app_mode_audio">Ljud</string>
-    <string name="app_mode_text">Text</string>
     <string name="app_lut_imported">LUT importerad: %1$s</string>
     <string name="app_lut_read_failed">Kunde inte läsa LUT:en: %1$s</string>
     <string name="app_export_needs_clips">Export kräver riktiga klipp</string>

@@ -122,16 +122,6 @@
     <string name="panels_stop">■ Stoppa</string>
     <string name="panels_recording_hint">Spelar in – tidslinjen spelas tyst så att högtalaren inte hörs i mikrofonen.</string>
     <string name="panels_record_hint">Spelar in från spelhuvudet medan tidslinjen spelas, och lägger inspelningen på det valda spåret.</string>
-    <string name="panels_text_title">Text &amp; undertexter</string>
-    <string name="panels_templates">Mallar</string>
-    <string name="panels_template_lower_third">Namnskylt</string>
-    <string name="panels_template_chapter">Kapitelkort</string>
-    <string name="panels_template_credits">Rulltext</string>
-    <string name="panels_content">Innehåll</string>
-    <string name="panels_name">Namn</string>
-    <string name="panels_role">Roll</string>
-    <string name="panels_animation_in">Animation in</string>
-    <string name="panels_play">Spela</string>
 
     <!-- MaskTrack.kt -->
     <string name="masktrack_file_missing">Klippets fil saknas</string>

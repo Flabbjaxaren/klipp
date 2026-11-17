@@ -250,36 +250,6 @@ private fun AnimChips(template: TitleTemplate, anim: TitleAnim, onPick: (TitleAn
     }
 }
 
-/**
- * Text mode, in three tabs: titles (watch the chosen template play, pick it from the list and how it enters, write it,
- * insert at the playhead), captions, and editing by the transcript.
- */
-@Composable
-fun TitlesPanel(state: EditorState, dockTabs: Boolean = false, onEdit: () -> Unit) {
-    val backend = state.props ?: return
-    // the tab lives in the editor state: in the app the dock at the bottom shows the tabs (dockTabs), not the page
-    var tab by state::textTab
-    LaunchedEffect(state.openTab) { when (state.openTab) { "textTab:titles" -> { tab = 0; state.openTab = null }; "textTab:captions" -> { tab = 1; state.openTab = null } } }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("titles")) {
-        // (in the app the top bar names the page and the dock holds its tabs; on its own the page does both)
-        if (!dockTabs) {
-            PanelTitle(stringResource(R.string.titleui_panel_title))
-            ConnectedToggleGroup(
-                listOf(stringResource(R.string.titleui_tab_titles), stringResource(R.string.titleui_captions), stringResource(R.string.transcript_title)),
-                tab, { tab = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
-                tag = { "textTab:$it" },
-            )
-        }
-        Spacer(Modifier.height(if (dockTabs) 10.dp else 6.dp))
-        when (tab) {
-            0 -> TitlesTab(state, backend, onEdit)
-            1 -> CaptionsTab(state, backend, onEdit)
-            else -> if (backend is se.gendut.klipp.engine.ProjectController) TranscriptCard(state, onEdit)
-        }
-        Spacer(Modifier.height(LocalBarSpace.current + 36.dp))
-    }
-}
-
 @Composable
 internal fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
     val haptics = rememberHaptics()

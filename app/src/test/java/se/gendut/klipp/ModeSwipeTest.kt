@@ -32,7 +32,7 @@ class ModeSwipeTest {
     @Test fun dragStepsToTheModeUnderTheFinger() {
         val ui = setUp()
         rule.onNodeWithTag("modes").performTouchInput {
-            val item = width / 4f
+            val item = width / MODES.size.toFloat()
             val from = Offset(item * 0.5f, height / 2f)
             down(from)
             for (i in 1..20) { advanceEventTime(30); moveTo(Offset(from.x + item * 2f * i / 20, from.y)) }
@@ -42,7 +42,7 @@ class ModeSwipeTest {
         rule.waitForIdle()
         assertEquals(2f, ui.page.value, 0.01f)
         rule.onNodeWithTag("modes").performTouchInput {
-            val item = width / 4f
+            val item = width / MODES.size.toFloat()
             val from = Offset(item * 2.5f, height / 2f)
             down(from)
             for (i in 1..20) { advanceEventTime(30); moveTo(Offset(from.x - item * 2.2f * i / 20, from.y)) }
@@ -58,7 +58,7 @@ class ModeSwipeTest {
         val ui = setUp()
         rule.mainClock.autoAdvance = false
         rule.onNodeWithTag("modes").performTouchInput {
-            val item = width / 4f
+            val item = width / MODES.size.toFloat()
             val from = Offset(item * 0.5f, height / 2f)
             down(from)
             for (i in 1..20) { advanceEventTime(30); moveTo(Offset(from.x + viewConfiguration.touchSlop + item * 0.4f * i / 20, from.y)) }
@@ -74,7 +74,7 @@ class ModeSwipeTest {
     @Test fun flickGoesOneOn() {
         val ui = setUp()
         rule.onNodeWithTag("modes").performTouchInput {
-            val item = width / 4f
+            val item = width / MODES.size.toFloat()
             val from = Offset(item * 0.5f, height / 2f)
             down(from)
             for (i in 1..4) { advanceEventTime(10); moveTo(Offset(from.x + item * 0.35f * i / 4, from.y)) }

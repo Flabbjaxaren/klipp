@@ -415,7 +415,6 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var openTab by mutableStateOf<String?>(null)
     /** The audio and text pages' current tab (the dock at the bottom shows and changes it). */
     var audioTab by mutableStateOf(0)
-    var textTab by mutableStateOf(0)
     /**
      * Draw a box on the picture (what a title should follow): the box as center and half sides (fractions of the
      * picture, y down) goes to the callback; null = not drawing.

@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -227,16 +228,23 @@ class PropertiesUiTest {
     }
 
     @Test
-    fun titlesPanelAddsTitleAtPlayheadAndImportsCaptions() {
+    fun theTitleAndCaptionsSheetsAddATitleAndImportCaptions() {
         val fake = FakeProps()
         val st = EditorState().apply { props = fake; playhead = 3f; captions = listOf(UiCaption(1, 0.5f, 2f, "Första raden")) }
         var edited = false
-        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { TitlesPanel(st) { edited = true } } } }
+        var captionsSheet by androidx.compose.runtime.mutableStateOf(false)
+        // Add › Title and Add › Captions (the sheets' contents): a title and captions are made in their own flows
+        rule.setContent {
+            KlippTheme {
+                androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().background(K.Bg).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                    if (!captionsSheet) TitlesTab(st, fake) { edited = true } else CaptionsTab(st, fake) { edited = true }
+                }
+            }
+        }
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("$dir/24_text.png")
         rule.onNodeWithText("Lägg till vid", substring = true).performScrollTo().performClick()
-        // captions have their own tab
-        rule.onNodeWithTag("textTab:1").performScrollTo().performClick()
+        rule.runOnUiThread { captionsSheet = true }
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("$dir/24b_undertexter.png")
         rule.onNodeWithText("Importera SRT / VTT").performScrollTo().performClick()
@@ -256,7 +264,7 @@ class PropertiesUiTest {
         val fake = FakeProps()
         val st = EditorState().apply { props = fake; playhead = 1f }
         rule.mainClock.autoAdvance = false
-        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { TitlesPanel(st) { } } } }
+        rule.setContent { KlippTheme { androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().background(K.Bg).verticalScroll(androidx.compose.foundation.rememberScrollState())) { TitlesTab(st, fake) { } } } }
         rule.mainClock.advanceTimeBy(700)
         rule.onRoot().captureRoboImage("$dir/28_mallar.png")
         rule.onNodeWithTag("mall:kapitel").performClick()

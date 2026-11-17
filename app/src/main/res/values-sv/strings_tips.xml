@@ -6,7 +6,7 @@
     <string name="tip_scrub">Skrubba på linjalen eller i bilden och dra ner fingret för ½, ¼, ⅛ fart.</string>
     <string name="tip_undo">Tryck med två fingrar för att ångra, tre för att göra om.</string>
     <string name="tip_picture">Dubbeltryck på bilden för helskärm. Håll ett finger på den och tryck bredvid för att stega bildrutor.</string>
-    <string name="tip_text">I Text-läget kan du klippa med text: radera ord så klipps videon med.</string>
+    <string name="tip_text">Transkriptionen är tidslinjens andra vy i Redigera: ta bort ord där så klipps videon med.</string>
     <string name="tip_knife_button">Eller: markera klippet och tryck Dela i raden nedtill.</string>
     <string name="tip_out_button">Eller: markera klippet och tryck Radera.</string>
     <string name="tip_undo_button">Eller: ångra- och gör om-knapparna nere till vänster.</string>

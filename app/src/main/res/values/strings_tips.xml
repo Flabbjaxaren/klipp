@@ -6,7 +6,7 @@
     <string name="tip_scrub">Scrub on the ruler or the picture and slide your finger down for ½, ¼, ⅛ speed.</string>
     <string name="tip_undo">Tap with two fingers to undo, three fingers to redo.</string>
     <string name="tip_picture">Double-tap the picture for full screen. Hold a finger on it and tap beside it to step frames.</string>
-    <string name="tip_text">In Text mode you can edit by text: delete words and the video is cut along.</string>
+    <string name="tip_text">The transcript is the timeline\'s other view in Edit: delete words there and the video is cut along.</string>
     <string name="tip_knife_button">Or: select the clip and press Split in the row at the bottom.</string>
     <string name="tip_out_button">Or: select the clip and press Delete.</string>
     <string name="tip_undo_button">Or: the undo and redo buttons at the bottom left.</string>

@@ -122,16 +122,6 @@
     <string name="panels_stop">■ Stop</string>
     <string name="panels_recording_hint">Recording – the timeline plays muted so the speaker isn\'t picked up by the mic.</string>
     <string name="panels_record_hint">Records from the playhead while the timeline plays, and puts the recording on the selected track.</string>
-    <string name="panels_text_title">Text &amp; captions</string>
-    <string name="panels_templates">Templates</string>
-    <string name="panels_template_lower_third">Lower third</string>
-    <string name="panels_template_chapter">Chapter card</string>
-    <string name="panels_template_credits">Credits roll</string>
-    <string name="panels_content">Content</string>
-    <string name="panels_name">Name</string>
-    <string name="panels_role">Role</string>
-    <string name="panels_animation_in">Animation in</string>
-    <string name="panels_play">Play</string>
 
     <!-- MaskTrack.kt -->
     <string name="masktrack_file_missing">The clip\'s file is missing</string>

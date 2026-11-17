@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="transcript_title">Transkription</string>
-    <string name="transcript_info">Talet blir text, ord för ord. Radera ord så klipps videon bort med dem.</string>
-    <string name="transcript_open">Öppna transkriptionen</string>
     <string name="transcript_empty">Ingen transkription än. Välj en talmodell och låt telefonen lyssna på ljudspåren (inget lämnar telefonen).</string>
     <string name="transcript_transcribe">Transkribera</string>
     <string name="transcript_remove_pauses">Ta bort pauser</string>

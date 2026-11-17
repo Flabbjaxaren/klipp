@@ -195,7 +195,8 @@ object McpBridge {
         return result!!.getOrThrow()
     }
 
-    private val MODE_NAMES = listOf("edit", "color", "audio", "text")
+    // (no text mode since the UI build: titles and captions are added in Edit, the transcript is Edit's other view)
+    private val MODE_NAMES = listOf("edit", "color", "audio")
 
     private val TOOLS: List<Tool> by lazy { listOf(
         Tool("app_state", "Version, mode (edit/color/audio/text), playhead and playing, the selection, whether Properties is open.") {
@@ -280,7 +281,7 @@ object McpBridge {
             onMain { st().playing = false; st().playhead = t }
             texts("playhead at $t s")
         },
-        Tool("set_mode", "Switch mode: edit, color, audio or text.", JSONObject().put("mode", prop("string", "edit | color | audio | text")), listOf("mode")) { a ->
+        Tool("set_mode", "Switch mode: edit, color or audio.", JSONObject().put("mode", prop("string", "edit | color | audio")), listOf("mode")) { a ->
             val i = MODE_NAMES.indexOf(a.getString("mode").lowercase()).also { require(it >= 0) { "mode is one of $MODE_NAMES" } }
             val page = ui?.page ?: error("no app")
             runBlocking(Dispatchers.Main) { page.snapTo(i.toFloat()) }

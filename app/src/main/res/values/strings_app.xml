@@ -34,7 +34,6 @@
     <string name="app_mode_edit">Edit</string>
     <string name="app_mode_color">Color</string>
     <string name="app_mode_audio">Audio</string>
-    <string name="app_mode_text">Text</string>
     <string name="app_lut_imported">LUT imported: %1$s</string>
     <string name="app_lut_read_failed">Couldn\'t read the LUT: %1$s</string>
     <string name="app_export_needs_clips">Export needs real clips</string>

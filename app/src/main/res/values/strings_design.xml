@@ -38,4 +38,5 @@
     <string name="design_ripple_short">Close gap</string>
     <string name="design_sync_short">Sync</string>
     <string name="design_edit_short">Edit</string>
+    <string name="design_captions_overview">Captions…</string>
 </resources>

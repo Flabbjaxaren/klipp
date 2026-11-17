@@ -201,20 +201,20 @@ class ShellTest {
         assertTrue(rule.onNodeWithTag("properties").getUnclippedBoundsInRoot().right <= root.right)
     }
 
-    /** The sound and text pages there. */
+    /** The sound page there, and the add row: titles, captions and the voice-over are added from Edit (no text page). */
     @Config(sdk = [35], qualifiers = "sv-w360dp-h792dp-xxhdpi")
-    @Test fun theSoundAndTextPagesOnANarrowPhone() {
+    @Test fun theSoundPageAndTheAddRowOnANarrowPhone() {
         val st = EditorState().apply { props = FakeProps() }
         app(st)
         goTo(2)
         rule.onRoot().captureRoboImage("$dir/80_ljud_smal.png")
         assertTheDockHolds(listOf("audioTab:mixer", "audioTab:loudness"))
-        goTo(3)
-        rule.onRoot().captureRoboImage("$dir/81_text_smal.png")
-        assertTheDockHolds(listOf("textTab:0", "textTab:1", "textTab:2"))
-        rule.onNodeWithTag("textTab:1").performClick()
-        rule.waitForIdle()
-        rule.onRoot().captureRoboImage("$dir/82_undertexter_smal.png")
+        goTo(0)
+        rule.onRoot().captureRoboImage("$dir/81_lagg_till_smal.png")
+        assertTheDockHolds(listOf("add:media", "add:sound", "add:title", "add:captions", "add:voice"))
+        // three modes
+        for (i in 0..2) rule.onNodeWithTag("modeTab:$i").assertIsDisplayed()
+        rule.onNodeWithTag("modeTab:3").assertDoesNotExist()
     }
 
     @Test fun thePictureSheetHasItsToolsInARailAndUndoStays() {
@@ -284,12 +284,6 @@ class ShellTest {
         rule.waitForIdle()
         assertEquals(1, st.audioTab)
         rule.onNodeWithTag("undoRedo").assertIsDisplayed()
-        goTo(3)
-        rule.onRoot().captureRoboImage("$dir/67_skal_text.png")
-        assertEquals(1, rule.onAllNodesWithTag("textTab:1").fetchSemanticsNodes().size)
-        rule.onNodeWithTag("textTab:1").performClick()
-        rule.waitForIdle()
-        assertEquals(1, st.textTab)
         // the color page has its tools in the page: no dock, undo stays
         goTo(1)
         rule.onRoot().captureRoboImage("$dir/68_skal_farg.png")

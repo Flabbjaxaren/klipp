@@ -144,17 +144,14 @@ class KlippUiTest {
     }
 
     @Test
-    fun audioAndTextPanels() {
+    fun audioPanelAndThreeModes() {
         val (_, ui) = setUp()
         rule.onNodeWithTag("modeTab:2").performClick()
         rule.waitForIdle()
         assertEquals(2f, ui.page.value, 0.01f)
         rule.onRoot().captureRoboImage("$dir/08_ljud.png")
-        rule.onNodeWithTag("modeTab:3").performClick()
-        rule.waitForIdle()
-        rule.onNodeWithText("Namnskylt").performClick()
-        rule.mainClock.advanceTimeBy(600)
-        rule.onRoot().captureRoboImage("$dir/09_text.png")
+        // Edit, Color, Sound – the text features are in Edit
+        rule.onNodeWithTag("modeTab:3").assertDoesNotExist()
     }
 
     @Test

@@ -100,8 +100,9 @@ import kotlin.math.sign
 import kotlin.math.roundToInt
 
 var DEBUG_GESTURES = false
-internal val MODES = listOf(R.string.app_mode_edit, R.string.app_mode_color, R.string.app_mode_audio, R.string.app_mode_text)
-internal val MODE_ICONS = listOf(Ic.Edit, Ic.Color_, Ic.Audio, Ic.Text)
+// (the text features have their homes in Edit: Add › Title, Add › Captions, and the transcript view)
+internal val MODES = listOf(R.string.app_mode_edit, R.string.app_mode_color, R.string.app_mode_audio)
+internal val MODE_ICONS = listOf(Ic.Edit, Ic.Color_, Ic.Audio)
 /** The program monitor is never smaller than this in portrait. */
 private val MIN_MONITOR_H = 120.dp
 
@@ -647,8 +648,7 @@ fun KlippApp(
             when (what) {
                 AddAction.MEDIA -> if (controller != null) { if (controller.snapshot.media.isEmpty()) openImport() else mediaOpen = true } else state.addClipAtPlayhead()
                 AddAction.SOUND, AddAction.VOICE -> if (audioTools != null) addSheet = what else toaster.show(Str.t(R.string.app_prototype_mode))
-                AddAction.TITLE, AddAction.CAPTIONS -> if (state.props != null) addSheet = what
-                    else { state.openTab = if (what == AddAction.TITLE) "textTab:titles" else "textTab:captions"; goTo(3) }
+                AddAction.TITLE, AddAction.CAPTIONS -> if (state.props != null) addSheet = what else toaster.show(Str.t(R.string.app_prototype_mode))
             }
         }
         onDispose { state.onAddAction = null }
@@ -876,8 +876,7 @@ fun KlippApp(
                                             ColorPanel(grade, { lutTarget = null; lutPicker.launch(arrayOf("*/*")) }, scroll = false)
                                         }
                                     } else ColorPanel(grade, null)
-                                    2 -> { controller?.revision; AudioPanel(mix, state, audioTools, dockTabs = true) }
-                                    else -> if (state.props != null) TitlesPanel(state, dockTabs = true) { goTo(0) } else TextPanel(title)
+                                    else -> { controller?.revision; AudioPanel(mix, state, audioTools, dockTabs = true) }
                                 }
                             }
                         }

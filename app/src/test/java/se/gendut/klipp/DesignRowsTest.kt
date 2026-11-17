@@ -73,9 +73,10 @@ class DesignRowsTest {
         // (the new clip is selected and its own row shows; deselecting brings the add row back)
         st.selected = null
         rule.waitForIdle()
+        // (without a project there is no captions sheet: the app says so and stays on Edit – there is no text page)
         rule.onNodeWithTag("add:captions").performClick()
         rule.waitForIdle()
-        assertEquals(3f, ui.page.value, 0.01f)
+        assertEquals(0f, ui.page.value, 0.01f)
     }
 
     /** Title and captions open their sheet over the edit page (no jump to another page); nothing in the row is lit. */
