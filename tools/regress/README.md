@@ -74,3 +74,11 @@ there (force-stop): at the next start nothing of it may be left in Movies/Klipp,
 (`am stack remove` of its task, as a swipe in Recents; the process lives on in the foreground service): the copy is
 finished, the file must be whole (ffprobe length, decoded to the end without errors) and the notice must say it was
 saved. Whatever the app says must agree with what is in Movies/Klipp.
+
+`lifecycle_check.py --serial S --port P [--only …]` (the test build, same project; its sequence "X2 lifecycle export",
+252 s, encodes for about 25 s): HOME, Back, the lock, the test app swiped away in Recents (only its own card, at a strip
+no other card covers; every other task must remain), its task removed, and a screen reopened – each during the
+encoding. The same job must go on (export_status: same id, progress rising) to exactly one whole file (length, frame
+count, decoded by ffmpeg). Also Cancel during encoding and during the copy, the time limit and a refused foreground
+start (test points), a double tap, and the state after a saved, cancelled and failed export: codecs held, notification,
+export mark, background work, the preview playing. Report: `docs/export-lifecycle-report.md`.
