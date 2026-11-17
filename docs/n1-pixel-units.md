@@ -296,12 +296,32 @@ Prov på kandidatkoden:
 - Enhetstester (`testDebugUnitTest`, 413c8e2): 665 – 664 godkända, 0 misslyckade, 1 överhoppat (`FilmCpuRenderTest.renderCases`).
   En första körning (366b3dd, medan bryggan och APK:erna byggdes parallellt) föll på `ProjectsTest.withoutAFolderTheMenuOffersToChooseOne`
   (en Compose-nod hittades inte); klassen ensam 3/3 och hela sviten utan last godkänd två gånger – inte N1, troligen last.
-- OnePlus, testbygget 171 installerat som uppdatering: kallstart → projektet med 4K-kort ger `ref 2160` från första
-  programmet (ingen ref 0). Kort regression R1, R3, R4, R5: 33/33 (R4:s timing 0 saknade, 0 sena). Instrumenterade:
-  FilmGpuTest 4/4, FilmN1GpuTest 4/4, FilmDragStillTest 1/1, FilmFusedTest 2/3 (`effectsOnly`, baslinjefelet, samma siffror
-  12 708 mot 12 484).
-- Release-APK:n själv är inte installerad på någon telefon (den skulle uppdatera användarens riktiga app) – kontrollerad
-  statiskt: paket, version, signatur, inga testverktyg.
-- Vivo: väntar (bortkopplad) – återställs först, sedan samma rökprov.
+**Verifieringsläge:**
+- **Slutbygget verifierat på OnePlus** (CPH2581, Android 16) – testbygget 171 är samma commit (413c8e2) som
+  release-APK:n, med testverktygen påslagna; installerat som uppdatering över 169-n1:
+  - kallstart → projektet med 4K-kort ger `ref 2160` från första programmet (ingen ref 0);
+  - kort regression R1, R3, R4, R5: 33/33 (R4:s timing 0 saknade, 0 sena); R6 (övergångar, 5 exporter + 5 förrenderade):
+    10/10;
+  - instrumenterade: FilmGpuTest 4/4, FilmN1GpuTest 4/4, FilmDragStillTest 1/1, FilmFusedTest 2/3 (`effectsOnly`,
+    baslinjefelet, samma siffror 12 708 mot 12 484).
+- **Release-APK:n själv** (exakt den signerade filen, SHA-256 5413b834…) – inte installerad på någon telefon: en separat
+  Android-användare på OnePlus går inte, eftersom Android delar appens kod mellan användare (versionCode 99 för en
+  annan användare uppdaterar även användarens egen installation 0.19.2). Provad i stället i en ny, tom emulator
+  (Android 15, arm64, värd-GPU; skapad för provet och borttagen efteråt), utan att röra någon befintlig installation:
+  - testverktygen: bryggan av som standard (ingen socket); påslagen i appens inställningar listar den 20 verktyg, inget av
+    `frame_probe`, `film_test`, `export_latch`; anrop till dem avvisas ("no tool …"), `app_state` svarar (testbygget:
+    23 verktyg, alla tre svarar);
+  - funktion: nytt projekt, import, filmen på ett klipp, uppspelning (82 rutor genom kedjan på 3,5 s), export genom
+    exportkedjan 100/100 rutor 1920×1080 25p på 2,8 s, kornet rör sig mellan rutorna (RMS 1,84 på en stillbild); inga
+    krascher, inga fel i appens logg. En emulator är inte telefonens GPU eller kodare – provet visar att paketet installeras,
+    startar och fungerar, inte prestanda.
+- **Tidigare N1-byggen verifierade på vivo** (V2562, Android 17): 163-n1-koden – FilmGpuTest 4/4, FilmN1GpuTest 4/4,
+  FilmDragStillTest 1/1, FilmFusedTest 2/3 (samma baslinjefel), kornet före kodaren 0,997–1,021, nodcachen identisk;
+  165-n1 – kallstart, projektbyte, 4K/1080, övre lager, proxy, dragstillbild och nodcache med rätt referens (tabellen ovan).
+- **Slutligt vivo-prov återstår:** vivon är inte tillgänglig för datoranslutna tester. Den står kvar med testbygget
+  166-n1, testprojektet öppet och bryggan på – återställs först när den ansluts, sedan rökprov på 171.
+
+APK:erna, mappningsfilerna, bryggan, fullständiga hashvärden, byggmanifest och provloggar är sparade utanför repot och
+tmp (`~/AndroidStudioProjects/Klipp-builds/0.19.3-beta.2-internal/`: `MANIFEST.md`, `SHA256SUMS`, `smoke/`).
 
 Inget pushat, ingen release.
