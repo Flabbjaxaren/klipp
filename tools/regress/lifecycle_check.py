@@ -52,14 +52,16 @@ def lifecycle_sequence(ph):
     rows = {v["name"]: v["item"] for v in ph.exec("project.items")["rows"]}
     if LONG in rows:
         ph.exec("sequence.open", {"item": rows[LONG]})
+        # (set again: sequences built before the fix carry a film node the app couldn't take, see regress.FILM)
+        for c in ph.callj("timeline")["sequence"]["video"][0]["clips"]:
+            r.set_film(ph, c["id"])
         return
     ph.exec("file.newSequence", {"name": LONG, "width": 1920, "height": 1080, "fps": r.FPS})
-    film = {"nodes": [{"id": 1, "label": "Film", "film": {}}]}
     t = 0.0
     for i in range(N_CLIPS):
         f = e.FILES[i % len(e.FILES)]
         cid = r.place(ph, rows[f], "V1", t, 0.5, CLIP_S)
-        ph.callj("grade", {"op": "set", "clip": cid, "grade": film})
+        r.set_film(ph, cid)
         t += CLIP_S
 
 

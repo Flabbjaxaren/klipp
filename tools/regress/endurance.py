@@ -30,15 +30,18 @@ def build(ph, items):
     for row in ph.exec("project.items")["rows"]:
         if row["name"] == SEQ:
             ph.exec("sequence.open", {"item": row["item"]})
+            # (set again: sequences built before the fix carry a film node the app couldn't take, see regress.FILM)
+            v1 = ph.callj("timeline")["sequence"]["video"][0]["clips"]
+            for i in (1, 3):
+                r.set_film(ph, v1[i]["id"], cache=True)
             return
     ph.exec("file.newSequence", {"name": SEQ, "width": 1920, "height": 1080, "fps": r.FPS})
     tracks = [t["id"] for t in ph.callj("timeline")["sequence"]["video"]]
     ids = [r.place(ph, items[f], "V1", 2.0 * i, 1.5, 2.0) for i, f in enumerate(FILES)]
     for cid in ids[1:]:
         ph.exec("sequence.applyVideoTransition", {"clip": cid, "effect": "push", "frames": 15, "edge": "in", "align": "center"})
-    film = {"nodes": [{"id": 1, "label": "Film", "film": {}, "cache": True}]}
     for i in (1, 3):
-        ph.callj("grade", {"op": "set", "clip": ids[i], "grade": film})
+        r.set_film(ph, ids[i], cache=True)
     r.place(ph, items["rq60.mp4"], tracks[1], 1.2, 2.0, 2.4)
     r.place(ph, items["rq120.mp4"], tracks[2], 6.0, 3.0, 1.6)
 

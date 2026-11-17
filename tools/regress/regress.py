@@ -42,6 +42,28 @@ ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 if not os.path.exists(ADB):
     ADB = "adb"
 
+
+# A film node as the app itself saves it: the stock AND the paper. Without "print" the app read a negative with no paper,
+# its setup failed and the film was silently off (until build 162) – every "film" case before then ran without film.
+FILM = {"film": "kodak_portra_400", "print": "kodak_portra_endura", "lab": True, "v": 3}
+
+
+def film_grade(cache=False, **over):
+    node = {"id": 1, "label": "Film", "film": {**FILM, **over}}
+    if cache:
+        node["cache"] = True
+    return {"nodes": [node]}
+
+
+def set_film(ph, clip, cache=False, **over):
+    """Grades [clip] with the film; fails if the app reports it couldn't take it (a "spektrafilm:" line in its trail)."""
+    before = ph.call("logs").count("spektrafilm:")
+    ph.callj("grade", {"op": "set", "clip": clip, "grade": film_grade(cache, **over)})
+    time.sleep(0.5)
+    trail = ph.call("logs")
+    if trail.count("spektrafilm:") > before:
+        raise RuntimeError("the film node wasn't taken: " + [l for l in trail.splitlines() if "spektrafilm:" in l][-1])
+
 PROJECT = "Klipp regress"            # (--project: another, e.g. for the HEVC clips)
 FPS = 25.0
 LEAD_US = 1000            # FrameGrid.LEAD_US and Playback's VIDEO_LEAD_US
@@ -433,10 +455,9 @@ def build(ph, name, items):
         for i in range(max(7, len(CAMERA))):
             ids.append(place(ph, items[CAMERA[i % len(CAMERA)]], "V1", t, 1.013 + 0.3 * i, 1.4))
             t = round(t + 1.4, 6)
-        film = {"nodes": [{"id": 1, "label": "Film", "film": {}, "cache": True}]}
         for i in (1, 4):
             if i < len(ids):
-                ph.callj("grade", {"op": "set", "clip": ids[i], "grade": film})
+                set_film(ph, ids[i], cache=True)
         if len(ids) > 4:
             ph.exec("sequence.applyVideoTransition", {"clip": ids[4], "effect": "push", "frames": 15, "edge": "in", "align": "center"})
         place(ph, items[CAMERA[len(CAMERA) // 2]], tracks[1], 2.52, 2.0, 1.6)
@@ -447,9 +468,8 @@ def build(ph, name, items):
         for f, si in [("rq30.mp4", 1.0), ("rs60.mp4", 1.0), ("rq25.mp4", 2.0), ("rq50.mp4", 1.0), ("rs30.mp4", 2.0), ("rq24.mp4", 1.0)]:
             ids.append(place(ph, items[f], "V1", t, si, 1.6))
             t = round(t + 1.6, 6)
-        film = {"nodes": [{"id": 1, "label": "Film", "film": {}, "cache": True}]}
-        ph.callj("grade", {"op": "set", "clip": ids[2], "grade": film})
-        ph.callj("grade", {"op": "set", "clip": ids[4], "grade": film})
+        set_film(ph, ids[2], cache=True)
+        set_film(ph, ids[4], cache=True)
         for cid in (ids[1], ids[4]):
             ph.call("grade", {"op": "stabilize", "clip": cid, "strength": 0.6})
             for _ in range(300):
