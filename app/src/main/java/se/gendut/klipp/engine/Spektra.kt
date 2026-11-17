@@ -131,6 +131,28 @@ data class Film(
         .put("pgam", printGamma.toDouble()).put("edif", enlargerDiffusion ?: JSONObject.NULL).put("edifS", enlargerDiffusionStrength.toDouble())
         .put("sbl", scanBlur.toDouble()).put("fxo", effectsOnly).put("v", 3)
 
+    /**
+     * The film as it can be rendered: a known stock, and a negative printed on a known paper – a negative has no scan
+     * table of its own, so without a paper its setup failed and the film was silently off. A node that isn't (an old
+     * or hand-written project, the agent bridge) gets the stock's target paper (else the default paper; an unknown stock
+     * the default stock); the correction is noted. Without the stock list (not loaded) the film is returned as it is.
+     */
+    fun valid(): Film {
+        val ix = runCatching { Spektra.index }.getOrNull() ?: return this
+        val d = Film()
+        val stock = ix.films.firstOrNull { it.id == film }
+        val f = if (stock != null) this else copy(film = d.film)
+        val info = stock ?: ix.films.firstOrNull { it.id == d.film } ?: return this
+        if (info.positive) return f.also { if (it !== this) note(it) }
+        if (f.print != null && ix.prints.any { it.id == f.print }) return f.also { if (it !== this) note(it) }
+        val paper = info.targetPrint?.takeIf { t -> ix.prints.any { it.id == t } } ?: d.print
+        return f.copy(print = paper).also { note(it) }
+    }
+
+    private fun note(to: Film) = runCatching {
+        se.gendut.klipp.CrashReport.note("film node corrected: ${film}/${print ?: "no paper"} → ${to.film}/${to.print ?: "no paper"}")
+    }
+
     companion object {
         const val HALATION_MAX = 30f
         const val HALATION_SIZE_MAX = 6f
@@ -141,7 +163,8 @@ data class Film(
             fun num(k: String, def: Float, lo: Float, hi: Float) = o.optDouble(k, def.toDouble()).toFloat().let { if (it.isNaN()) def else it.coerceIn(lo, hi) }
             return Film(
                 o.optString("film", d.film).ifBlank { d.film },
-                if (o.isNull("print")) null else o.optString("print", d.print!!).ifBlank { d.print },
+                // (no key = the default paper; null = none, which only a slide film can be – see [valid])
+                when { !o.has("print") -> d.print; o.isNull("print") -> null; else -> o.optString("print").ifBlank { d.print } },
                 num("ev", 0f, -6f, 6f),
                 num("pe", 1f, 0.1f, 8f),
                 num("m", 0f, -200f, 200f),
@@ -183,7 +206,7 @@ data class Film(
                 num("edifS", 0.5f, 0.125f, 2f),
                 num("sbl", 0f, 0f, 5f),
                 o.optBoolean("fxo", false),
-            )
+            ).valid()
         }
     }
 }
@@ -193,7 +216,9 @@ object Spektra {
     const val WL = 81
     private const val K = 3
 
-    class StockInfo(val id: String, val name: String, val type: String, val use: String?, val targetPrint: String?, val support: String?)
+    class StockInfo(val id: String, val name: String, val type: String, val use: String?, val targetPrint: String?, val support: String?) {
+        val positive get() = type == "positive"
+    }
 
     class Index(
         val films: List<StockInfo>,
