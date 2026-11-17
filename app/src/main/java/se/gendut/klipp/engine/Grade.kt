@@ -789,6 +789,13 @@ data class ClipGrade(
     fun forOtherClip(keepStab: Stabilization?, keepLayer: LayerFx? = null, keepBlur: MotionBlur? = null): ClipGrade =
         copy(stab = keepStab, layer = keepLayer, mblur = keepBlur, nodes = nodes.map { n -> if (n.win.track == null) n else n.copy(win = n.win.copy(track = null)) })
 
+    /**
+     * Color › Reset: what the color page owns – the nodes (wheels, curves, adjustments, LUTs, qualifiers, windows with
+     * their tracking, film) – back to one fresh primary node. What Edit › Picture owns stays as it is, keyframes and all:
+     * the layer (keying, mask, blend, crop), the stabilization and the motion blur.
+     */
+    fun colorReset(): ClipGrade = ClipGrade(stab = stab, layer = layer, mblur = mblur)
+
     /** The grade at source time [src]: tracked windows moved there (stills, scopes, the CPU path). */
     fun at(src: Double?): ClipGrade = if (!hasTrack) this else copy(nodes = nodes.map { n -> if (n.win.track == null) n else n.copy(win = n.win.at(src)) })
 

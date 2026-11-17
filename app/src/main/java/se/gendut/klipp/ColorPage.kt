@@ -764,7 +764,7 @@ private fun ColorMore(
                         val cg = gs.of(current.id)
                         gs.setAll(clips.filter { it.id != current.id }.associate { it.id to cg.forOtherClip(gs.of(it.id).stab, gs.of(it.id).layer, gs.of(it.id).mblur) })
                     }
-                    ActionTile(stringResource(R.string.colorpage_reset), Ic.Reset, Modifier.weight(1f).testTag("grade:reset"), danger = true) { haptics.heavy(); gs.set(current.id, ClipGrade()); setNode(1) }
+                    ActionTile(stringResource(R.string.colorpage_reset), Ic.Reset, Modifier.weight(1f).testTag("grade:reset"), danger = true) { haptics.heavy(); gs.set(current.id, gs.of(current.id).colorReset()); setNode(1) }
                     // (stabilization and motion blur are on the clip: Picture in the edit page)
                 }
                 else -> {
