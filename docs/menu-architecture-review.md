@@ -715,7 +715,7 @@ ModeSwipeTest.
 
 **Regression på OnePlus:**
 - 172-fix, R1, R3–R6: 43/43.
-- 175-ui, R1, R3–R6: se tillägget nedan.
+- 175-ui, R1, R3–R6: 43/43 (export, förrenderat, pausbild, timing, upprepning, övergångar). UI-omstruktureringen ändrade inte bild, ljud eller export.
 
 **Telefonprov på OnePlus** (testpaketet, egna testprojekt):
 
