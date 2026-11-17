@@ -601,3 +601,154 @@ Tryck räknas från Redigera-sidan med inget markerat. Väljare och skrivande r�
    ha?
 4. Tidsknapparna i undertextinspektören ("Start/Slut vid spelhuvudet", ruta för ruta) är knappalternativ till en
    befintlig gest. Är de inom ramen?
+
+---
+
+# Etapp 2 – genomförd (2026-11-17)
+
+Godkänt: alternativ B. Felen F1–F5 rättades först i ett eget rättningsbygge. Ordlistan med preciseringar och
+knapparna för undertextens start och slut ingick. Inga ändringar i motorns redigeringssemantik, färgmatematiken,
+filmkedjan, bildvalsregeln, uppspelningen, exportens livscykel eller projektformatet. All nytt tillstånd lever bara i
+UI:t: vy, dockrad, valt undertextspår och färgrutnätet.
+
+Gren: `ui/menu-architecture`. Testbyggen (testpaketet, release-nyckeln):
+- **172-fix** (`f47ad64`): F1–F5, ingen ny navigering.
+- **175-ui** (`dbfd579`): alternativ B (173-ui och 174-ui var mellanbyggen; deras fel är rättade, se nedan).
+
+Den frysta betan och beta.2-kandidaten är orörda. Inget är pushat, taggat eller publicerat.
+
+## 1. Före och efter
+
+```
+FÖRE                                              EFTER
+[Projekt] [Redigera|Färg|Ljud|Text] [Exportera]   [Projekt] [Redigera|Färg|Ljud] [Exportera film]
+Redigera, inget markerat:                         Redigera, inget markerat (Lägg till):
+  Media · Ljud · Titel · Textning · Röst            Media · Ljudbibliotek · Titel · Undertexter · Spela in
+Text-läget: Titlar | Undertexter | Klipp med text  (borttaget – allt har en ingång i Redigera)
+  Klipp med text → kort → "Öppna utskriften" → ark Redigera: [Tidslinje | Transkription]-knappen i raden
+                                                    → "Transkription · sekvens" i tidslinjens plats
+Undertexter: två redigerare, stil på "första"     En översikt (Lägg till › Undertexter, ⋯ › Undertexter…)
+  spåret, tid bara genom att dra                    och en redigerare: spårets namn, start/slut,
+                                                    "Sätt start/slut vid spelhuvudet", "Stil – alla
+                                                    undertexter i ”spår”" (spåret väljs om flera)
+Titel: Text · Stil · Animera · Följ · Rörelse ·    Titel: Innehåll · Stil · Placering · Animation
+  Övertoning; två "Opacitet"                        ("Textens opacitet" / "Klippets opacitet")
+Tillbaka: lämnade appen från dockrader,            Tillbaka: ett lager per tryck, innerst först;
+  undertextredigeraren, markering                   appen lämnas först när inget är öppet
+Färg › Återställ: raderade Bild-inställningar      Färg › Återställ: bara färgsidans noder
+Projektinställningar: appvida renderingsval        Inställningar › Uppspelning: "Rendera automatiskt
+                                                    (alla projekt)", "Ta bort renderingar (alla projekt)"
+```
+
+## 2. Commits
+
+| Commit | Innehåll |
+|---|---|
+| `3998b48` | F1 Färg › Återställ: bara noderna (`ClipGrade.colorReset`) – nyckling, mask, blandning, beskärning med nyckelrutor, stabilisering, rörelseoskärpa kvar; ett ångrasteg |
+| `425b9f6` | F2 Tillbaka: `backLayer()` (Back.kt), dockrad och färgrutnät i tillståndet, export oförändrad |
+| `9bdffe2` | F4 Media-arkets namnkort: Tillbaka stänger kortet först, kortet stängs med arket |
+| `2f6c977` | F3 En undertextredigerare (`CaptionTextField`): sparar själv, ett ångrasteg per redigeringstillfälle, tom text sparas inte |
+| `c5d7abd` | F5 Tidigare versioner: "Återställ som nytt projekt", meddelandet namnger projektet |
+| `f47ad64` | Testbygge 172-fix |
+| `f423873` | Steg 1 Namn (EN+SV) enligt ordlistan |
+| `7c84881` | Steg 2 Undertexter: översikt, en redigerare, spårets namn och val, start/slut vid spelhuvudet, varning innan automatiska ersätts |
+| `58168ac` | Steg 3 Transkription som Redigeras andra vy; påverkansraden före borttagning |
+| `aee6e33` | Steg 4 Titelns fyra grupper |
+| `15ee478` | Steg 5 Omfattning: renderingsförval, proxy "alla projekt", klippvolym med nyckelruta, mixerns reglage |
+| `7bf01c3` | Steg 6 Tre lägen (Text-läget borttaget efter att allt fått nya ingångar) |
+| `394ce7f` | Steg 7 En kopiera/klistra in för färg |
+| `6ca6553` | Steg 8 Övertoning som knappar för ljud och i videons Bild-ark |
+| `4a237a1` | Steg 9 Större text: dockans namn bryts vid mjukt bindestreck, "Spela in", rubriken utan dubblering |
+| `7eaaed6`, `ee64b72` | Transkriptionsvyn slutar ovanför dockan (hittat vid telefonprovet) |
+| `b1ab70b`, `6a78fa0`, `dbfd579` | Testbyggen 173-ui, 174-ui, 175-ui |
+
+Ändrade filer i appen: Back.kt (ny), CaptionEdits.kt (ny), TranscriptCut.kt (ny), CaptionUi.kt, ColorPage.kt,
+ColorUi.kt (`PillButton(enabled)`), McpBridge.kt, MediaLibrary.kt, Model.kt, Panels.kt, ProjectsScreen.kt,
+Properties.kt, Settings.kt, Shell.kt, SourceTextUi.kt, TitleUi.kt, TranscriptUi.kt, engine/Grade.kt,
+engine/ProjectController.kt, strängar i `values` och `values-sv`.
+
+## 3. Var varje tidigare funktion finns nu
+
+| Tidigare | Nu |
+|---|---|
+| Text-läget › Titlar | Lägg till › Titel (samma `TitlesTab`; listan "Titlar på tidslinjen" finns kvar där) |
+| Text-läget › Undertexter | Lägg till › Undertexter; ⋯ › Undertexter… (när något är markerat) |
+| Text-läget › Klipp med text › Öppna utskriften | Redigera › transkriptionsknappen i tidslinjens rad |
+| Lägg till "Textning" / "Röst" / "Ljud" | "Undertexter" / "Spela in" (läses upp som "Berättarröst") / "Ljudbibliotek" |
+| Undertextlistans redigerare (Spara) | listraden öppnar undertextredigeraren (sparar själv) |
+| "Typsnitt & stil" (första spåret) | "Stil – alla undertexter i ”spår”" (valt spår) |
+| Undertextens tid (bara dra) | dra, eller "Sätt start/slut vid spelhuvudet" i redigeraren |
+| Källans "Text" | "Transkription" (rubrik "Transkription · källklipp") |
+| Klippdockan "Kopiera" / "Volym" / "Effekter" | "Visa i källan" / "Klippvolym" / "Ljudeffekter" |
+| Titel: Text, Stil, Animera, Följ, Rörelse, Övertoning | Innehåll, Stil, Placering (rörelse + följ/fäst), Animation (entré + toning) |
+| Projektinställningar: Rendera automatiskt, Ta bort renderingar | Inställningar › Uppspelning (båda "alla projekt") |
+| Färg › Tidslinje › "Original" | samma plats: "Spela original, inte proxy (alla projekt)" |
+| Färg: hjulens kopiera/klistra in, rutnätets, stillbildens | samma platser, en gemensam regel |
+| Toning för ljud/video: bara hörnhandtaget | hörnhandtaget, eller fliken Övertoning |
+| Projektmenyn "Exportera med media till en fil…" / "Exportera bara projektfilen…" | "Spara projektpaket med media…" / "Spara bara projektfilen…" |
+| ⋯ "Låst spelhuvud" | ⋯ "Spelhuvudet i mitten" |
+
+Test-ID:n som ändrats (för MCP-skript):
+- **Borttagna:** `modeTab:3`, `textTab:*`, `titleTab:2`, `titleTab:3` samt titlarnas `propTab:motion` och `propTab:fade`.
+- **Nya:** `view:transcript`, `view:timeline`, `view:title`, `transcriptView`, `tx:cut*`, `tx:captions`,
+  `tx:deselect`, `menu:captions`, `capTrack:<id>`, `capTrackChoose`, `capStyle`, `caption:row:<id>`, `captionTimes`,
+  `captionSetStart`, `captionSetEnd`, `captionEdgeWhy`, `captionBlank`, `titleTab:place`, `titleTab:anim`,
+  `set:renderAuto`, `mixer:scope`, `mixer:auto`, `sourceText:title`.
+- **Fortfarande giltiga:** `titleTab:0` (Innehåll) och `titleTab:1` (Stil).
+- **Bryggan:** `set_mode` tar bara emot edit, color och audio. `tools/regress` använder bara `set_mode edit` och
+  läget som var öppet, så skripten behövde inte ändras.
+
+## 4. Tester
+
+**Enhetssviten** (`testDebugUnitTest`): 711 tester, 710 godkända, 0 misslyckade, 1 överhoppat
+(`FilmCpuRenderTest.renderCases`, sedan tidigare).
+
+Nya testklasser:
+- ColorResetTest, ColorCopyTest;
+- BackLayerTest, MediaSheetBackTest;
+- CaptionEditingTest, CaptionEditsTest;
+- TranscriptCutTest, TranscriptViewTest;
+- ScopeLabelsTest, LargeTextTest.
+
+Avsiktligt ändrade testklasser: BackTest, PropertiesUiTest, ProjectsTest, KlippUiTest, ShellTest, DesignRowsTest och
+ModeSwipeTest.
+
+**Regression på OnePlus:**
+- 172-fix, R1, R3–R6: 43/43.
+- 175-ui, R1, R3–R6: se tillägget nedan.
+
+**Telefonprov på OnePlus** (testpaketet, egna testprojekt):
+
+| Prov | Resultat |
+|---|---|
+| F1 | Återställ ger 1 nod och mättnad 1,0; Bild-inställningarna inklusive maskens nyckelrutor finns kvar; ett Ångra återställer allt |
+| F2, F4 | Ett lager per tryck: färgrutnät, färgsida, hastighets-/Mer-/frysrad, markering, undertextredigerare, undertext, namnkort, Media-ark |
+| F3 | Text skriven i två omgångar med paus autosparas; ett Ångra ger originalet; Gör om ger allt |
+| F5 | Dialogens text och raden "Restore as a new project" |
+| Uppgift 1 | Lägg till › Titel › Namnskylt; egenskaperna öppnas med de fyra grupperna; fet stil på Stil, markeringen kvar; Tillbaka stänger, sedan avmarkera |
+| Uppgift 2 | Två undertextspår: översikten frågar efter spår och visar ingen stilknapp förrän ett spår är valt; "Style – all captions in ”Rättat”"; ruta "None" ändrade bara det spåret |
+| Uppgift 3 | Listraden öppnar redigeraren med spårets namn; "Set end at the playhead" 2,48 → 1,6 s; Ångra återställer tiden; text i två omgångar ångras i ett steg |
+| Uppgift 5 | Alla vyer ovan plus transkriptionsvyn (markering och spelhuvud kvar), titel-, undertext-, ljudbiblioteks- och inspelningsarket, egenskaperna; appen lämnas först när inget är öppet |
+
+## 5. Oprövat och kända problem
+
+- **Uppgift 4 är inte verifierad på telefon.** Telefonen hade ingen internetanslutning, så talmodellen (59 MB) kunde
+  inte laddas ned. Påverkansraden och vyväxlingen är enhetstestade (TranscriptCutTest, TranscriptViewTest). På
+  telefonen är bara vyväxlingen och Tillbaka provade.
+- **F6 är bekräftat men inte rättat (fanns före UI-ändringen):** när V1–V3 redan är upptagna vid spelhuvudet lägger
+  motorn en ny titel på V4 eller högre. Tidslinjen visar bara V1–V3, så titeln syns inte, och vid nästa ändring släpps
+  markeringen. Detta kräver ett separat beslut om tidslinjen eller titelns placering.
+- **Bryggans `tap`** når inte ark och dialoger i egna fönster (ModalBottomSheet, AlertDialog, DropdownMenu).
+  Telefonskripten använder därför riktiga tryck via `adb input tap` på koordinater från `ui_nodes`.
+- **Inte gjort:** klippremsans långtryck för att kopiera eller klistra in färg (förslagets extra genväg). Funktionen
+  finns på hjulen och i rutnätet.
+- **Inte provat:** export efter UI-ändringen. UI-ändringen rör inte exportkedjan, och regressionen exporterar varje
+  fall.
+- **Inte provat:** landskapsläge med den nya verktygsraden.
+- **Mellanbyggen:** 173-ui hade transkriptionsvyns nedladdningsknapp under dockan (rättat i `7eaaed6` och `ee64b72`).
+
+## 6. Tre uppgifter för externa testare (utan hjälp)
+
+1. Lägg en namnskylt med ditt namn i början av filmen och gör texten fet.
+2. Skapa en undertext där någon pratar, rätta stavningen och låt den sluta exakt där meningen tar slut.
+3. Ta bort en mening ur filmen med hjälp av texten, och säg innan du gör det vilka klipp som kommer att kortas.
