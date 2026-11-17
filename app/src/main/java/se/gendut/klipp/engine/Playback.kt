@@ -195,17 +195,16 @@ object CompositionBuilder {
         return even(w * k) to even(h * k)
     }
 
-    /**
-     * Playback's downscale before the effects: the preview's short side, if the played image's short side [srcShort] is
-     * clearly larger (otherwise null – no extra pass for material that is already small enough).
-     */
-    /** The short side of [uri]'s video as probed (the film's reference size, see [FilmFx.Frame]), 0 = not known yet. */
     /** The film's reference size for a clip of [uri]: the source file's short side (see SourceSizes); 0 = not known (scale 1). */
     fun filmRefOf(uri: Uri?): Int = if (testUnscaledFilm) 0 else SourceSizes.short(uri) ?: 0
 
     /** Test builds (measuring N1's cost): the film unscaled, as before N1 – same chain otherwise. */
     @Volatile var testUnscaledFilm = false
 
+    /**
+     * Playback's downscale before the effects: the preview's short side, if the played image's short side [srcShort] is
+     * clearly larger (otherwise null – no extra pass for material that is already small enough).
+     */
     fun previewShortSide(srcShort: Int?, planW: Int, planH: Int): Int? {
         if (srcShort == null || srcShort <= 0 || planW <= 0 || planH <= 0) return null
         val target = minOf(planW, planH)
