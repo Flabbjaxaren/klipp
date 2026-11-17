@@ -212,4 +212,5 @@
     <string name="titleui_tab_animation">Animation</string>
     <string name="titleui_text_opacity">Textens opacitet</string>
     <string name="properties_clip_opacity">Klippets opacitet</string>
+    <string name="titleui_speech_from_track">Tal från spår</string>
 </resources>

@@ -558,6 +558,8 @@ private fun AutoCaptionsCard(controller: se.gendut.klipp.engine.ProjectControlle
         }
         val ready = downloaded || transcribed
         if (tracks.size > 1) {
+            // which audio track the speech is on (the camera's sound, usually A1 – music or effects elsewhere don't become text)
+            SectionLabel(stringResource(R.string.titleui_speech_from_track))
             androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((i, t) in tracks.withIndex()) ToggleChip(if (t.clips.isEmpty()) stringResource(R.string.titleui_track_empty, i + 1) else "A${i + 1}", track == i, { track = i }, Modifier.testTag("asr:track$i"))
             }

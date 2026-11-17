@@ -212,4 +212,5 @@
     <string name="titleui_tab_animation">Animation</string>
     <string name="titleui_text_opacity">Text opacity</string>
     <string name="properties_clip_opacity">Clip opacity</string>
+    <string name="titleui_speech_from_track">Speech from track</string>
 </resources>
