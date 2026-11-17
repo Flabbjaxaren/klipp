@@ -75,7 +75,7 @@ def main():
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--pkg", default="se.gendut.klipp.designtest")
     ap.add_argument("--project", default="Klipp endurance 156")
-    ap.add_argument("--only", default="killed,closed")
+    ap.add_argument("--only", default="killed,published,closed")
     ap.add_argument("--out", default="")
     args = ap.parse_args()
     ph = r.Phone(args.serial, args.port, args.pkg)
@@ -129,6 +129,44 @@ def main():
             result("process killed in the copy", ok, d)
             if said:
                 x.tap_tag(ph, "exportInterruptedOk" if said["tag"] == "exportInterrupted" else "exportSavedLateOk")
+                time.sleep(1)
+            prepare()
+
+        if "published" in args.only:
+            # killed right after the file was published, before the export noted it: the next start must find the
+            # file whole in Movies by its recorded URI, keep it and say it was saved
+            before_m, before_f = e.movies(ph), files(ph)
+            latch(ph, "arm", seconds=120, at="published")
+            x.start_export(ph)
+            t0 = time.time()
+            while not latch(ph, "status").startswith("held published"):
+                if time.time() - t0 > 600:
+                    raise RuntimeError("never held after publishing")
+                time.sleep(0.3)
+            ph.adb("shell", "am", "force-stop", ph.pkg)
+            time.sleep(2)
+            left_note = e.notified(ph)
+            x.bring(ph)
+            time.sleep(3)
+            said = notice(ph)
+            time.sleep(2)
+            after_m = {k: v for k, v in e.movies(ph).items() if k not in before_m}
+            after_f = {k: v for k, v in files(ph).items() if k not in before_f}
+            whole = None
+            if len(after_m) == 1:
+                local = os.path.join(out, "published_then_killed.mp4")
+                ph.adb("pull", f"{DIR}/{list(after_m.values())[0]}", local)
+                probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", local], capture_output=True, text=True)
+                dec = subprocess.run(["ffmpeg", "-v", "error", "-i", local, "-f", "null", "-"], capture_output=True, text=True)
+                dur = float(json.loads(probe.stdout or "{}").get("format", {}).get("duration", 0))
+                whole = {"duration": round(dur, 3), "decode_errors": dec.stderr.strip()[:200], "ok": abs(dur - 56.0) < 0.2 and not dec.stderr.strip()}
+                os.remove(local)
+            d = {"notification_left": left_note, "published": list(after_m.values()), "on_disk": after_f, "file": whole, "notice": said}
+            ok = (not left_note and len(after_m) == 1 and whole and whole["ok"] and not any(k.startswith(".pending") for k in after_f)
+                  and said is not None and said["tag"] == "exportSavedLate")
+            result("process killed right after publishing", ok, d)
+            if said:
+                x.tap_tag(ph, said["tag"] + "Ok")
                 time.sleep(1)
             prepare()
 

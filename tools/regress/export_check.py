@@ -44,6 +44,20 @@ def bring(ph):
     raise RuntimeError(f"the test app didn't come to the front (top: {top(ph)})")
 
 
+NOTICES = ("exportSavedLate", "exportInterrupted", "exportFailedLate")
+
+
+def take_notice(ph):
+    """The editor's dialog about an export that ended unseen (since build 159 an export ended in the background says
+    so there): its tag, closed with its OK – or None."""
+    for tag in NOTICES:
+        if ph.node_bounds(tag):
+            tap_tag(ph, tag + "Ok")
+            time.sleep(1)
+            return tag
+    return None
+
+
 def tap_tag(ph, tag):
     if top(ph) != ph.pkg:
         raise RuntimeError(f"not tapping {tag}: {top(ph)} is on top")
@@ -122,6 +136,9 @@ def main():
     out = args.out or os.path.join(r.HERE, "out", time.strftime("%Y%m%d-%H%M%S") + "-export")
     os.makedirs(out, exist_ok=True)
     bring(ph)
+    left = take_notice(ph)
+    if left:
+        print("closed a notice left from before:", left)
     projects = ph.callj("projects", {"op": "list"})
     user = next((p["id"] for p in projects if p["current"]), None)
     if any(p["current"] and p["name"] == args.project for p in projects):
@@ -148,8 +165,10 @@ def main():
         start_export(ph)
         ph.adb("shell", "input", "keyevent", "HOME")
         d = wait_done(ph, before)
-        result("background (HOME)", bool(d["saved"]) and d["notification_seen"] and not e.notified(ph), d)
         bring(ph)
+        time.sleep(2)
+        d["said"] = take_notice(ph)
+        result("background (HOME)", bool(d["saved"]) and d["notification_seen"] and not e.notified(ph) and d["said"] in (None, "exportSavedLate"), d)
 
         # 2. BACK while it runs: to the background, not closed
         before = e.movies(ph)
@@ -163,8 +182,10 @@ def main():
         acts = ph.adb("shell", "dumpsys", "activity", "activities", check=False)
         alive = f"{ph.pkg}/se.gendut.klipp.MainActivity" in acts
         d.update({"top_after_back": after_back, "same_process": same, "activity_kept": alive})
-        result("back while exporting", bool(d["saved"]) and same and alive and not e.notified(ph), d)
         bring(ph)
+        time.sleep(2)
+        d["said"] = take_notice(ph)
+        result("back while exporting", bool(d["saved"]) and same and alive and not e.notified(ph) and d["said"] in (None, "exportSavedLate"), d)
 
         # 3. the process killed in the middle
         before = e.movies(ph)
