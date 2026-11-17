@@ -376,7 +376,8 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
         snapshotFlow { state.scrubbing }.collect { on -> if (on && !state.playing) runCatching { playback.player.isScrubbingModeEnabled = true } }
     }
     // a proxy became ready (or was turned on/off): switch files while playback is stopped
-    LaunchedEffect(se.gendut.klipp.engine.Proxies.revision, se.gendut.klipp.engine.Perf.hdrRevision, se.gendut.klipp.engine.VideoPipeline.previewShort, state.playing) {
+    // (or a source's size became known: the film's reference and the preview's downscale, see SourceSizes)
+    LaunchedEffect(se.gendut.klipp.engine.Proxies.revision, se.gendut.klipp.engine.Perf.hdrRevision, se.gendut.klipp.engine.VideoPipeline.previewShort, se.gendut.klipp.engine.SourceSizes.revision, state.playing) {
         if (!state.playing) playback.refresh(state.playhead.toDouble())
     }
     // the playhead set when playback paused (see there) – the scrub watch leaves it alone

@@ -151,7 +151,7 @@ object Perf {
     fun cachedCodec(uri: Uri): Codec? = synchronized(codecCache) { codecCache[uri.toString()] }
 
     /** For tests: a probed codec without a file. */
-    internal fun rememberCodec(uri: Uri, c: Codec) { synchronized(codecCache) { codecCache[uri.toString()] = c } }
+    internal fun rememberCodec(uri: Uri, c: Codec) { synchronized(codecCache) { codecCache[uri.toString()] = c }; SourceSizes.probed(uri, c.width, c.height) }
 
     /** Probe the video track's codec (background thread). null = could not be read. */
     fun codec(context: Context, uri: Uri): Codec? {
@@ -180,6 +180,8 @@ object Perf {
             }
         }.getOrNull() ?: return null
         synchronized(codecCache) { codecCache[key] = r }
+        // the film's reference size where the project has none (see SourceSizes)
+        SourceSizes.probed(uri, r.width, r.height)
         return r
     }
 

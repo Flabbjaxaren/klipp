@@ -200,7 +200,8 @@ object CompositionBuilder {
      * clearly larger (otherwise null – no extra pass for material that is already small enough).
      */
     /** The short side of [uri]'s video as probed (the film's reference size, see [FilmFx.Frame]), 0 = not known yet. */
-    fun filmRefOf(uri: Uri?): Int = uri?.let { Perf.cachedCodec(it) }?.let { k -> minOf(k.width, k.height) }?.takeIf { it > 0 } ?: 0
+    /** The film's reference size for a clip of [uri]: the source file's short side (see SourceSizes); 0 = not known (scale 1). */
+    fun filmRefOf(uri: Uri?): Int = SourceSizes.short(uri) ?: 0
 
     fun previewShortSide(srcShort: Int?, planW: Int, planH: Int): Int? {
         if (srcShort == null || srcShort <= 0 || planW <= 0 || planH <= 0) return null
@@ -328,7 +329,8 @@ object CompositionBuilder {
             }
             // the film's sizes in pixels follow the export's input – the original, unscaled (see FilmFx.Frame); at the
             // export itself that is this image, so the scale is 1 there
-            val filmRef = if (still != null) 0 else filmRefOf(originalUriOf(src.item))
+            // (a freeze frame: the image made from the original, which the export runs the film on – its own size)
+            val filmRef = if (still != null) FrameHolds.shortSide(still) ?: 0 else filmRefOf(originalUriOf(src.item))
             val grade = c?.let { cl ->
                 val g = grades[cl.id] ?: return@let null
                 if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades, filmRef = filmRef)
@@ -342,7 +344,7 @@ object CompositionBuilder {
                 val short = when {
                     holdVideo != null && still != null -> HoldVideos.shortFor(still)
                     still != null -> FrameHolds.shortSide(still)
-                    cachedPoint >= 0 || itemUri == orig -> orig?.let { Perf.cachedCodec(it) }?.let { k -> if (k.width > 0 && k.height > 0) minOf(k.width, k.height) else null }
+                    cachedPoint >= 0 || itemUri == orig -> SourceSizes.short(orig)
                     else -> orig?.let { Proxies.proxyShort(it) }
                 }
                 previewShortSide(short, fw, fh)?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
