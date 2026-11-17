@@ -23,11 +23,13 @@ import java.nio.ShortBuffer
  * [live] = (clip, node): the settings are read from [LiveGrades] every frame (playback), otherwise fixed (export).
  */
 @UnstableApi
-class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Boolean = false) : GlEffect {
+class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Boolean = false,
+                 /** The short side of the clip's original (the film's input in the export), 0 = unknown: see [FilmFx.Frame]. */
+                 val refShort: Int = 0) : GlEffect {
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram {
         if (FilmGl.floatTargets()) {
             try {
-                return FilmGl.Program(film, live, useHdr, main)
+                return FilmGl.Program(film, live, useHdr, main, refShort)
             } catch (e: Exception) {
                 se.gendut.klipp.CrashReport.note("film: GPU path could not start (${e.message}) – color only")
             }
@@ -40,8 +42,8 @@ class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Bo
         return GradeNodeEffect(p).toGlShaderProgram(context, useHdr)
     }
 
-    override fun equals(other: Any?) = other is FilmEffect && other.film == film && other.live == live && other.main == main
-    override fun hashCode() = (film.hashCode() * 31 + (live?.hashCode() ?: 0)) * 31 + main.hashCode()
+    override fun equals(other: Any?) = other is FilmEffect && other.film == film && other.live == live && other.main == main && other.refShort == refShort
+    override fun hashCode() = ((film.hashCode() * 31 + (live?.hashCode() ?: 0)) * 31 + main.hashCode()) * 31 + refShort
 }
 
 @UnstableApi
@@ -633,7 +635,8 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
     // ------------------------------------------------------------------------------------------- the program
 
     /** [main]: in the main player's chain (see Occlusion.hideMain). */
-    class Program(private var film: Film, private val live: Pair<Long, Int>?, useHdr: Boolean, private val main: Boolean = false) : BaseGlShaderProgram(useHdr, 1) {
+    class Program(private var film: Film, private val live: Pair<Long, Int>?, useHdr: Boolean, private val main: Boolean = false,
+                  private val refShort: Int = 0) : BaseGlShaderProgram(useHdr, 1) {
         private val expose = Prog(EXPOSE)
         private val blur = Prog(BLUR)
         private val blurVHalf = Prog(BLUR_V_HALF)
@@ -710,8 +713,8 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
 
         private fun prepare() {
             if (frame != null) return
-            FilmFx.noteSize(w, h)
-            val fr = setup.forImage(w, h)
+            FilmFx.noteSize(w, h, refShort)
+            val fr = setup.forImage(w, h, refShort)
             frame = fr
             val shift = maxOf(FilmFx.Pyramid.padShift(fr.camera), fr.couplers?.let { FilmFx.Pyramid.padShift(it) } ?: 0, fr.enlarger?.let { FilmFx.Pyramid.padShift(it) } ?: 0)
             val step = 1 shl shift

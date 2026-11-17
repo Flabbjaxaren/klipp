@@ -199,6 +199,9 @@ object CompositionBuilder {
      * Playback's downscale before the effects: the preview's short side, if the played image's short side [srcShort] is
      * clearly larger (otherwise null – no extra pass for material that is already small enough).
      */
+    /** The short side of [uri]'s video as probed (the film's reference size, see [FilmFx.Frame]), 0 = not known yet. */
+    fun filmRefOf(uri: Uri?): Int = uri?.let { Perf.cachedCodec(it) }?.let { k -> minOf(k.width, k.height) }?.takeIf { it > 0 } ?: 0
+
     fun previewShortSide(srcShort: Int?, planW: Int, planH: Int): Int? {
         if (srcShort == null || srcShort <= 0 || planW <= 0 || planH <= 0) return null
         val target = minOf(planW, planH)
@@ -323,10 +326,13 @@ object CompositionBuilder {
             val slotClock: ((Long) -> Double?)? = if (clock == null || planner == null) null else c?.let { cl ->
                 { pts: Long -> time.seconds(pts)?.let { t -> Reversals.originalTime(cl.item, cl.sourceAt(t)) } }
             }
+            // the film's sizes in pixels follow the export's input – the original, unscaled (see FilmFx.Frame); at the
+            // export itself that is this image, so the scale is 1 there
+            val filmRef = if (still != null) 0 else filmRefOf(originalUriOf(src.item))
             val grade = c?.let { cl ->
                 val g = grades[cl.id] ?: return@let null
-                if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades)
-                else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock)
+                if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades, filmRef = filmRef)
+                else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock, filmRef = filmRef)
             }.orEmpty()
             // playback: 4K material is downscaled to the preview size before the nodes and the film (same
             // image on screen, a fraction of the work). The size of the file being played: the original (the node cache

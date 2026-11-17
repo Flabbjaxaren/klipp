@@ -686,7 +686,8 @@ private fun LayerVideo(
             val st = clock.seg?.startSec
             (if (st != null) list.minByOrNull { kotlin.math.abs(it.first - st) } else list.getOrNull(act))?.second ?: false
         }
-        val fx = listOfNotNull(headroomFx, keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)
+        val filmRef = gc?.let { se.gendut.klipp.engine.CompositionBuilder.filmRefOf(controller.uriOf(it.item)) } ?: 0
+        val fx = listOfNotNull(headroomFx, keyFx) + gc?.let { grade?.effects(it.id, clock = src, filmRef = filmRef) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)
         // (no effects: none – the downscale alone would add a pass the plain picture doesn't need)
         val down = scaleShort?.takeIf { fx.isNotEmpty() }?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
         // on the timeline's frame grid, as the main player and the export (see LayerGridEffect): a slowed 120 fps clip gave

@@ -69,10 +69,10 @@ object GlStill {
      * [src] graded with [grade] and [look] (code values, as playback's chain sees them), null when this path doesn't
      * work (then the caller uses its own). Blocks until the image is done.
      */
-    fun apply(src: Bitmap, grade: ClipGrade, look: Look): Bitmap? {
+    fun apply(src: Bitmap, grade: ClipGrade, look: Look, filmRef: Int = 0): Bitmap? {
         if (broken != null) return null
         val ctx = app ?: return null
-        val task = FutureTask { runCatching { render(ctx, src, grade, look) }.getOrElse { e ->
+        val task = FutureTask { runCatching { render(ctx, src, grade, look, filmRef) }.getOrElse { e ->
             broken = e.message ?: e.javaClass.simpleName
             se.gendut.klipp.CrashReport.note("still film off: $broken")
             freeAll()
@@ -93,7 +93,7 @@ object GlStill {
         if (!FilmGl.floatTargets()) error("no float render targets")
     }
 
-    private fun render(ctx: android.content.Context, src0: Bitmap, grade: ClipGrade, look: Look): Bitmap? {
+    private fun render(ctx: android.content.Context, src0: Bitmap, grade: ClipGrade, look: Look, filmRef: Int): Bitmap? {
         val src = if (src0.config == Bitmap.Config.HARDWARE) src0.copy(Bitmap.Config.RGBA_F16, false) ?: return null else src0
         ensureContext()
         val sw = src.width; val sh = src.height
@@ -105,7 +105,7 @@ object GlStill {
         // the nodes' settings as playback reads them while a slider moves
         val nodes = grade.chain.filter { !it.isNeutral }
         for (n in nodes) LiveGrades.put(CLIP, n)
-        val nodeFx = ClipGrade(nodes).effects(clip = CLIP)
+        val nodeFx = ClipGrade(nodes).effects(clip = CLIP, filmRef = filmRef)
         val lookFx = CompositionBuilder.videoEffects(look)
         val effects = nodeFx + lookFx
         // the nodes by their place (their settings come live); the look's effects by the look (new objects every call)

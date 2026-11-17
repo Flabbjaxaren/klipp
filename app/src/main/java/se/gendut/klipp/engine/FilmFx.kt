@@ -691,12 +691,15 @@ object FilmFx {
             }
         }
 
-        /** The kernels and the grain for an image ([w]×[h] pixels): the pixel's size on the film follows the format. */
-        fun forImage(w: Int, h: Int): Frame = synchronized(frames) {
-            frames.getOrPut(w to h) { Frame(this, w, h) }
+        /**
+         * The kernels and the grain for an image ([w]×[h] pixels): the pixel's size on the film follows the format.
+         * [refShort]: the short side this clip's film has in the export (its original's); 0 = this image's own.
+         */
+        fun forImage(w: Int, h: Int, refShort: Int = 0): Frame = synchronized(frames) {
+            frames.getOrPut(Triple(w, h, refShort)) { Frame(this, w, h, refShort) }
         }
-        private val frames = object : LinkedHashMap<Pair<Int, Int>, Frame>(4, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Pair<Int, Int>, Frame>?) = size > 4
+        private val frames = object : LinkedHashMap<Triple<Int, Int, Int>, Frame>(4, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Triple<Int, Int, Int>, Frame>?) = size > 4
         }
     }
 
@@ -747,8 +750,16 @@ object FilmFx {
         return synchronized(tables) { tables[k] } ?: Tables(k).also { t -> synchronized(tables) { tables[k] = t } }
     }
 
-    /** What depends on the image size: the weights for the blurs and the grain count per pixel. */
-    class Frame(val s: Setup, val w: Int, val h: Int) {
+    /**
+     * What depends on the image size: the weights for the blurs and the grain count per pixel.
+     *
+     * The sizes spektrafilm gives in pixels (the scanner's unsharp mask, the scan blur, the grain blur's own 0.65) are
+     * pixels of the export: in an image smaller than the export's ([refShort], e.g. a 4K clip at the 1080 preview) they
+     * shrink with it ([pxScale]) – otherwise the preview showed wider sharpening halos and softer grain than the export.
+     * At the export's size (or without [refShort]) the scale is exactly 1.
+     */
+    class Frame(val s: Setup, val w: Int, val h: Int, val refShort: Int = 0) {
+        val pxScale: Double = if (refShort > 0) minOf(w, h).toDouble() / refShort else 1.0
         val pixelUm = s.f.format * 1000.0 / max(w, h)
         val camera: Fit = fit(cameraKernel(s.f, s.sp, pixelUm), w, h)
         val couplers: Fit? = if (s.couplersOn) couplerKernel(s.sp, pixelUm)?.let { fit(it, w, h) } else null
@@ -775,15 +786,63 @@ object FilmFx {
          * The grain blur: the dye cloud size on the film (µm → pixels) together with spektrafilm's 0.65 pixels
          * (the pixel's own filter). The same at all resolutions measured on the film: the proxy and the original get the same grain.
          */
-        val grainSigmaPx: Double = sqrt((s.cloudSigmaUm * s.f.grainClouds / pixelUm).pow(2) + s.f.grainBlur.toDouble().pow(2)).coerceAtMost(3.5)
+        val grainSigmaPx: Double = run {
+            // the export's grain blur (its pixels: the clouds measured on the film, spektrafilm's 0.65 of the pixel)
+            val refUm = if (pxScale < 1.0) pixelUm * pxScale else pixelUm
+            val full = sqrt((s.cloudSigmaUm * s.f.grainClouds / refUm).pow(2) + s.f.grainBlur.toDouble().pow(2)).coerceAtMost(3.5)
+            // smaller than the export: the blur that leaves the grain as strong as the export's brought down to this
+            // size (a sub-pixel blur can't simply be scaled – its few taps barely blur, and the downscale itself smooths)
+            if (pxScale < 1.0) matchedGrainSigma(full, if (s.f.sharpen > 0f) s.sp.unsharpSigma else 0.0, s.f.sharpen.toDouble(), pxScale) else full
+        }
         // (spektrafilm: with sublayers the grain is blurred at any σ > 0, without them only above 0.4 pixels)
         val grainBlur: FloatArray? = if (grainOn && grainSigmaPx > (if (s.hasLayers) 0.0 else 0.4)) smallTaps(grainSigmaPx) else null
-        val unsharp: FloatArray? = if (s.f.sharpen > 0f && s.sp.unsharpSigma > 0) smallTaps(s.sp.unsharpSigma) else null
+        val unsharp: FloatArray? = if (s.f.sharpen > 0f && s.sp.unsharpSigma > 0) smallTaps(s.sp.unsharpSigma * pxScale) else null
         /** The enlarger's diffusion filter (on the paper's exposure), null = none. */
         val enlarger: Fit? = if (!s.printing || s.f.enlargerDiffusion == null) null else
             diffusionKernel(s.f.enlargerDiffusion, s.f.enlargerDiffusionStrength, pixelUm).let { k -> fitLean(k, w, h).takeUnless { it.isIdentity } }
         /** The scanner's blur (before sharpening), null = none. */
-        val scanBlur: FloatArray? = if (s.f.scanBlur > 0f) smallTaps(s.f.scanBlur.toDouble().coerceAtMost(3.5)) else null
+        val scanBlur: FloatArray? = if (s.f.scanBlur > 0f) smallTaps((s.f.scanBlur * pxScale).coerceAtMost(3.5)) else null
+    }
+
+    /**
+     * The grain blur σ for an image [scale] (< 1) times the export's that gives grain of the same strength as the
+     * export's (blur [sigmaFull], then the scanner's unsharp mask [usmSigma]·[usmAmount]) averaged down to this size.
+     * Grain is white noise per film area; the export's noise through its kernel K (Gaussian, then the mask) and an m×m
+     * average (m = 1/[scale]) has variance Σ(box⊛K)²; this size's pixels already hold the average (variance 1/m²)
+     * and go through its own kernel (the mask's σ scaled): Σ K'² = m²·Σ(box⊛K)², solved for the blur by bisection.
+     * Both kernels are separable sums ((1+a)·g·gᵀ − a·h·hᵀ, h = mask ⊛ g), so the sums are exact.
+     */
+    internal fun matchedGrainSigma(sigmaFull: Double, usmSigma: Double, usmAmount: Double, scale: Double): Double {
+        if (scale >= 1.0 || sigmaFull <= 0.0) return sigmaFull
+        val m = 1.0 / scale
+        val a = if (usmSigma > 0) usmAmount else 0.0
+        fun taps(sigma: Double): DoubleArray = if (sigma <= 0) doubleArrayOf(1.0) else smallTaps(sigma).map { it.toDouble() }.toDoubleArray()
+        fun conv(x: DoubleArray, y: DoubleArray): DoubleArray {
+            val r = DoubleArray(x.size + y.size - 1)
+            for (i in x.indices) for (j in y.indices) r[i + j] += x[i] * y[j]
+            return r
+        }
+        fun pad(x: DoubleArray, n: Int): DoubleArray = DoubleArray(n).also { o -> val off = (n - x.size) / 2; for (i in x.indices) o[off + i] = x[i] }
+        /** Σ over the plane of ((1+a)·u·uᵀ − a·v·vᵀ)², u and v centred alike. */
+        fun energy(u0: DoubleArray, v0: DoubleArray): Double {
+            val n = maxOf(u0.size, v0.size); val u = pad(u0, n); val v = pad(v0, n)
+            val uu = u.sumOf { it * it }; val vv = v.sumOf { it * it }; var uv = 0.0
+            for (i in 0 until n) uv += u[i] * v[i]
+            return (1 + a) * (1 + a) * uu * uu - 2 * (1 + a) * a * uv * uv + a * a * vv * vv
+        }
+        // the m-wide average (fractional ends), odd length so it stays centred
+        val whole = m.toInt(); val frac = m - whole
+        val box = if (frac < 1e-9 && whole % 2 == 1) DoubleArray(whole) { 1.0 / m } else
+            DoubleArray(whole + 2) { i -> (if (i == 0 || i == whole + 1) frac / 2 else 1.0) / m }
+        val gF = taps(sigmaFull); val hF = conv(taps(usmSigma), gF)
+        val target = m * m * energy(conv(box, gF), conv(box, hF))
+        val uS = taps(usmSigma * scale)
+        fun at(sigma: Double): Double { val g = taps(sigma); return energy(g, conv(uS, g)) }
+        if (at(0.0) <= target) return 0.0
+        if (at(sigmaFull) >= target) return sigmaFull
+        var lo = 0.0; var hi = sigmaFull
+        repeat(40) { val mid = (lo + hi) / 2; if (at(mid) > target) lo = mid else hi = mid }
+        return (lo + hi) / 2
     }
 
     /** spektrafilm's small Gaussian filters (truncate 3: radius int(3σ + 0.5)). */
@@ -803,10 +862,10 @@ object FilmFx {
     fun setup(f: Film): Setup = synchronized(setups) { setups[f] } ?: Setup(with(Spektra) { f.forEffects() }).also { s -> synchronized(setups) { setups[f] = s } }
 
     /** The image sizes playback used most recently (to prepare the kernels in advance, not on the GL thread). */
-    private val recentSizes = java.util.concurrent.CopyOnWriteArrayList<Pair<Int, Int>>()
+    private val recentSizes = java.util.concurrent.CopyOnWriteArrayList<Triple<Int, Int, Int>>()
 
-    fun noteSize(w: Int, h: Int) {
-        val p = w to h
+    fun noteSize(w: Int, h: Int, refShort: Int = 0) {
+        val p = Triple(w, h, refShort)
         if (recentSizes.firstOrNull() == p) return
         recentSizes.remove(p); recentSizes.add(0, p)
         while (recentSizes.size > 3) recentSizes.removeAt(recentSizes.size - 1)
@@ -815,7 +874,7 @@ object FilmFx {
     /** Prepare the settings and the kernels for the most recent image sizes (called on a background thread). */
     fun warm(f: Film) {
         val s = setup(f)
-        for ((w, h) in recentSizes) s.forImage(w, h)
+        for ((w, h, ref) in recentSizes) s.forImage(w, h, ref)
         // effects only: the film's colors alone, which the GPU divides out (otherwise baked on the GL thread)
         if (f.effectsOnly) Spektra.composite(null, 0f, f)
     }
@@ -886,10 +945,10 @@ object FilmFx {
      * The whole film on an image in input code values (0..1, [w]·[h]·3) → display code values. [seed] = the frame
      * (grain and glare are re-randomized for each).
      */
-    fun applyEncoded(s: Setup, img: FloatArray, w: Int, h: Int, seed: Long): FloatArray {
+    fun applyEncoded(s: Setup, img: FloatArray, w: Int, h: Int, seed: Long, refShort: Int = 0): FloatArray {
         val lin = FloatArray(img.size)
         for (i in img.indices) lin[i] = curve1(s.decode, img[i])
-        val out = processLinear(s, lin, w, h, seed)
+        val out = processLinear(s, lin, w, h, seed, refShort)
         return if (s.f.effectsOnly) keepColors(s, img, out) else out
     }
 
@@ -957,10 +1016,11 @@ object FilmFx {
     /** The steps one by one (the tests compare with spektrafilm's taps). */
     class Taps(val logEFilm: FloatArray, val cmyFilm: FloatArray, val cmyGrain: FloatArray, val out: FloatArray)
 
-    fun processLinear(s: Setup, lin: FloatArray, w: Int, h: Int, seed: Long): FloatArray = process(s, lin, w, h, seed).out
+    fun processLinear(s: Setup, lin: FloatArray, w: Int, h: Int, seed: Long, refShort: Int = 0): FloatArray = process(s, lin, w, h, seed, refShort).out
 
-    fun process(s: Setup, lin: FloatArray, w: Int, h: Int, seed: Long): Taps {
-        val fr = s.forImage(w, h)
+    /** [refShort]: the short side of the export's image of this frame (the film's sizes in pixels follow it, see [Frame]); 0 = this one's. */
+    fun process(s: Setup, lin: FloatArray, w: Int, h: Int, seed: Long, refShort: Int = 0): Taps {
+        val fr = s.forImage(w, h, refShort)
         val np = w * h
         // 1. the exposure and the camera's blurs (in light, linear)
         val raw0 = FloatArray(np * 3)

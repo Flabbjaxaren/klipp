@@ -39,10 +39,12 @@ object GpuGrade {
      * [filmColorOnly]: a node's film as its colors only (spektrafilm's chain baked into a LUT, as playback's fallback)
      * when the whole film on the GPU ([GlStill]) isn't available – the CPU's full film can't keep up with the frames.
      */
-    fun apply(src: Bitmap, grade: ClipGrade?, look: Look, keyOf: Int? = null, filmColorOnly: Boolean = false): Bitmap? {
+    fun apply(src: Bitmap, grade: ClipGrade?, look: Look, keyOf: Int? = null, filmColorOnly: Boolean = false,
+              /** The short side of the clip's original (the film's sizes in pixels, see [FilmFx.Frame]); 0 = unknown. */
+              filmRef: Int = 0): Bitmap? {
         // a film node: the whole chain through playback's own GPU programs, so the still is the played picture (the
         // film's couplers, halation and sharpening work across neighbouring pixels – a LUT was a few code values off)
-        if (keyOf == null && grade != null && GlStill.wants(grade)) GlStill.apply(src, grade, look)?.let { return it }
+        if (keyOf == null && grade != null && GlStill.wants(grade)) GlStill.apply(src, grade, look, filmRef)?.let { return it }
         if (android.os.Build.VERSION.SDK_INT < 33 || !supported || broken) return null
         // the full film (grain, halation, diffusion) only exists on the CPU and in playback's GL path
         if (!filmColorOnly && grade?.chain?.any { !it.isNeutral && it.film != null } == true) return null
