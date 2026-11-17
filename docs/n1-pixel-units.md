@@ -1,69 +1,99 @@
 # N1: filmens pixelstorlekar följer exporten
 
-Gren `n1/pixel-units` (från `design-test` aa6dd9b): 8ccd078 (ändringen), testbygge `0.19.3-beta.1-designtest.162-n1`.
-Inte i betan, inte pushat.
+Gren `n1/pixel-units`. Inte i betan, inte pushat. Testbygge `0.19.3-beta.1-designtest.163-n1` (OnePlus).
 
-## Problem
+| Commit | Innehåll |
+|---|---|
+| 8ccd078 | N1: referensstorlek (originalets kortsida) genom kedjan; mask och skanneroskärpa skalas; kornoskärpan variansmatchas |
+| 969c295 | GPU: maskens horisontella pass lagras som detalj när bilden är mindre än exporten (rättar kornfel före kodning) |
+| 80d041e | Färgsidans stillbild: programmen nycklas även på referensstorleken |
+| 7953b57 | GPU-tester (instrumenterade): skalade storlekar, korn före kodning, mask på korn, dragstillbild |
 
-Den oskarpa masken (σ 0,7 px), skanneroskärpan och kornoskärpan (0,65 px) angavs i pixlar av den bild filmen körde på.
-Exporten kör filmen på originalet (ingen nedskalning före graderingen); uppspelning och förrendering på förhandsvisningen
-(1080 kortsida). I ett 4K-projekt fick förhandsvisningen därför bredare skärpningskanter och svagare korn än exporten.
+N1 består av två delar med olika beläggsgrad – de redovisas var för sig.
 
-## Ändring
+## Del A – skärpa: oskarp mask och skanneroskärpa (belagd)
 
-- `FilmFx.Frame(s, w, h, refShort)`: `refShort` = kortsidan hos klippets original (filmens indata i exporten);
-  `pxScale = min(w, h) / refShort`.
-- Oskarp mask och skanneroskärpa: σ · pxScale.
-- Kornoskärpan: den σ som ger samma kornstyrka som exporten nedskalad (variansmatchning genom oskärpan och masken;
-  en sub-pixel-oskärpa kan inte skalas rakt – dess få vikter oskärper knappt, och nedskalningen jämnar själv ut).
-- Referensen följer kompositionen (`CompositionBuilder.filmRefOf`: originalets probade storlek) → `Grade.effects` →
-  `FilmEffect` → `FilmFx`; även övre lager och färgsidans stillbild. Okänd storlek: skala 1 (som förut).
-- I exportens egen storlek är skalan exakt 1. `RenderCache` VERSION 18 → 19; nodcachen renderar originalet (skala 1)
-  och behåller sina filer.
-- Glarens brus per pixel lämnas (0,024 kodvärden i exporten, 0,039 i förhandsvisningen – osynligt).
+σ · (bildens kortsida / originalets kortsida). Exporten kör filmen på originalet: skala exakt 1.
 
-## Resultat
-
-### CPU (`FilmResolutionTest`, Klipps `FilmFx`, 768×432 mot 384×216, kodvärden ×255)
-
-| Fall (halv storlek mot full nedskalad) | Före | Efter |
+| Belägg | Före | Efter |
 |---|---|---|
-| Standard, korn och glare av: medelfel / p99 | 0,641 / 11,89 | **0,275 / 5,98** |
-| Mörk kant vid ljus kant, avvikelse från exporten | 13,38 | **0,37** |
-| Skanneroskärpa 1,5: medelfel / p99 | 2,057 / 15,17 | **0,198 / 3,00** |
-| Kornets RMS, kvot mot exporten | 0,713 | **1,000** |
-| Kornets RMS utan oskarp mask | 0,661 | **1,001** |
-| Exporten i sin egen storlek (tre filmer, korn och glare på) | – | **bitidentisk** |
+| CPU, halv storlek mot export↓: medelfel / mörk kant (avvikelse) | 0,641 / 13,38 | 0,275 / 0,37 |
+| CPU, skanneroskärpa 1,5: medelfel | 2,057 | 0,198 |
+| GPU (OnePlus, före kodning): GPU mot CPU i skala 0,5 | – | medel 0,0010, p99 0,0020; mörk kant 3,36 mot 3,50 |
+| GPU: masken pixel för pixel mot CPU (3 och 5 vikter) | – | medel ≤ 0,0006; skärpningsenergi x och y 1,000 |
+| GPU genom H.264 (förrenderad bit mot 4K-export↓): mörk kant | 5,26 (export 3,57) | 3,71 |
+| Export: CPU (tre filmer) och 4K-export på GPU 161 / 162-n1 / 163-n1 | – | bitidentisk |
 
-Krav i testet (gröna): medelfel ≤ 0,3, mörk kant inom 1 kodvärde, kornkvot 0,95–1,05, exporten bitidentisk.
+## Del B – kornoskärpan (variansmatchad – godkänd före kodning på OnePlus, inte färdigprövad)
 
-### GPU (OnePlus 12, Android 16; testbygge 161 före, 162-n1 efter)
+En sub-pixel-oskärpa kan inte skalas rakt (σ/2 gav 25 % för starkt korn). Den väljs i stället så att kornets varians
+efter oskärpa och mask blir exportens nedskalade. **Samma RMS betyder inte samma kornutseende** – därför mättes också
+struktur.
 
-Eget projekt "Klipp N1 4K" (3840×2160, 25 fps), syntetiskt 4K-testkort med Portra 400 / Endura (standard),
-`render_diag op=render` 1,0–2,0 s: förrenderad bit (1080) mot export (4K) nedskalad till 1080 (area), ruta 1,6 s.
-Kornets mönster skiljer mellan bit och export (fröet, se kornkontraktet), så strukturella mått: mörk kant i medel över
-~600 rader, gallrets amplitud, kornets RMS på jämn grå yta (minus 15×15-medel). Skript:
-scratchpad `n1gpu/n1_gpu.py`.
+Före kodning (FilmN1GpuTest, OnePlus 12, flyttal, fem toner × sex rutor, halv storlek mot full↓):
 
-| Mått | Före (161) | Efter (162-n1) | Export (referens) |
+| Ton | RMS-kvot före → efter | Spektrumband (6) efter | Autokorrelation x/y efter (export↓) |
 |---|---|---|---|
-| Mörk kant vid ljus kant | 5,26 | **3,82** | 3,57 |
-| Gallrets amplitud | 58,67 | 58,48 | 58,95 |
-| Kornets RMS (kvot) | 1,38 (0,897) | 1,65 (**1,072**) | 1,53 |
-| 4K-export 161 mot 162-n1 | – | **max skillnad 0** (identisk) | – |
-| Renderingstid bit / export | 988 / 3186 ms | 979 / 3265 ms | – |
+| 0,15 | 0,690 → 0,997 | 0,95–1,00 | 0,116/0,114 (0,138/0,140) |
+| 0,30 | 0,715 → 1,007 | 0,95–1,03 | 0,111/0,112 (0,139/0,139) |
+| 0,45 | 0,728 → 1,021 | 0,95–1,07 | 0,103/0,105 (0,140/0,138) |
+| 0,60 | 0,740 → 1,016 | 0,97–1,05 | 0,111/0,112 (0,140/0,137) |
+| 0,75 | 0,744 → 1,020 | 0,98–1,05 | 0,116/0,118 (0,138/0,137) |
 
-Kornkvoten på GPU mäts genom H.264 (biten kodas i 1080 med annan bithastighet än 4K-exporten); före kodning är den
-1,000 (CPU). Instrumenterade GPU-tester (`FilmGpuTest`, `FilmFusedTest`) kördes inte: de kräver ett debug-signerat
-testpaket på telefonen.
+Före-värdena för spektrum: högsta banden 0,23–0,31 (för slätt). Kravet 0,95–1,05 sattes före mätningen och har inte
+ändrats.
 
-### Regressioner
+**GPU-felet som hittades och rättades (969c295):** utan rättningen gav GPU:n 1,026–1,081 och riktat korn (0,070/0,126
+vid 0,75) medan CPU:n gav 0,997–1,000. Utredningen: råkornet är vitt på båda (±0,001); en jämn bild utan korn förblir
+jämn; masken ensam stämmer med CPU pixel för pixel; men masken på kornstora signaler med 3 vikter avvek (GPU mot
+Klipps mask för hand på samma korn: 1,022/1,042, full skala 1,012/1,002). Det horisontella passet, lagrat som
+halvflyttal, förlorade maskens svaga högpass. Efter rättningen: 1,021/1,003, symmetriskt.
 
-Hela enhetssviten på grenen: 660 tester, 659 godkända, 0 misslyckade, 1 överhoppat (`FilmCpuRenderTest.renderCases`,
-sedan tidigare).
+**Kvarstående skillnader (redovisas, inte dolda):**
+- Förhandsvisningens korn är något finare än exportens nedskalade: autokorrelation ≈ 0,11 mot 0,14 – även på CPU
+  (0,118 mot 0,136). Variansmatchningen ger rätt styrka och nära rätt spektrum (±7 %), men inte exakt samma struktur.
+- Genom H.264 (förrenderad bit 1080 mot 4K-export↓): kornkvot 1,065 (före N1 0,897). Kodningen höjer kvoten även före
+  N1 (0,73 före kodning → 0,897 genom H.264), troligen för att 4K-exporten får färre bitar per pixel – en tolkning,
+  inte bevisad.
+- Vivo: **inte provad** (inte ansluten under passet).
 
-## Kvar
+## Nodcachen
 
-- Förhandsvisning och export har fortfarande olika kornmönster (fröet) – se `docs/grain-time-contract.md` (förslag).
-- Export i en annan storlek än originalets: filmen körs då fortfarande på originalet (som i dag) – oförändrat.
-- Om originalets storlek inte är probad än skalas inget i förhandsvisningen (som förut) tills den är det.
+Nodcachen renderar originalet i dess storlek (`NodeCache.kt` 300: `effects(null, clock)` utan referens → skala 1) och
+efter cachepunkten körs bara noderna efter den live. Allt N1 ändrar är skala < 1; i skala 1 är beräkningen exakt den
+gamla (CPU bitidentisk; GPU:s detaljläge bara vid skala < 1). Cachens nyckel och innehåll är därför oförändrade:
+befintliga cachefiler är fortfarande rätt, ingen versionshöjning behövs. Spelad cache skalas ned efteråt – den visar
+exportens utseende redan före N1; det är live-vägen som N1 rättar.
+
+Prov (OnePlus, eget projekt "Klipp N1 nodecache", 4K-kort med film och nodcache, pausad bild via `adb screencap`):
+
+| Bild | Mörk kant (skärmskala) |
+|---|---|
+| Cache renderad av 162-n1 | 3,3046 |
+| Live, 162-n1 | 3,3736 |
+| Cache renderad av 163-n1 | 3,3046 (identisk) |
+| Live, 163-n1 | 3,3678 |
+
+Inte provat: en cache renderad av ett bygge före N1 (161) – OnePlus kan inte nedgraderas utan avinstallation; vivon har
+161 och provet görs där. (Ett andra klipp med cache återanvände samma cachefil – nyckeln täcker hela den 4 s långa
+filen – och räknas inte.)
+
+## Dragförhandsvisningen (färgsidans stillbild)
+
+`GlStill` kör uppspelningens program på en stillbild. Testet visade att den återanvände sitt filmprogram oavsett
+referensstorlek (en annan klipps skala följde med) – rättat i 80d041e. Efter: stillbilden = uppspelningens film i samma
+skala (medel 0,0013, p99 0,0021) och skiljer sig från den oskalade (0,0028).
+
+## Tester
+
+- Enhetstester på grenen: 660, 659 godkända, 0 misslyckade, 1 överhoppat (sedan tidigare).
+- Instrumenterade i `gpuTest`-paketet (eget app-id, installeras och tas bort av gradle), OnePlus: FilmGpuTest 4/4,
+  FilmN1GpuTest 4/4, FilmDragStillTest 1/1. FilmFusedTest 2/3 – `effectsOnly` faller **även utan N1** (samma siffror
+  på `design-test`: 12 708 mot 12 484 värden utanför) – ett befintligt, marginellt villkor, separat uppgift.
+
+## Inte klart
+
+1. Vivo: GPU-testerna, N1 före/efter och nodcache från bygge 161.
+2. Kornets struktur (autokorrelation 0,11 mot 0,14) – godtas eller kräver en modell som matchar spektrum, inte bara
+   varians.
+3. Beslut om N1 tas in i en ny kandidat, helt eller bara del A.
