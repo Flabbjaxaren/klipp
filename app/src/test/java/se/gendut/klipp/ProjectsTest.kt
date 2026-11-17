@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -140,6 +141,9 @@ class ProjectsTest {
         val fake = FakeProjects().apply { folder = "Klipp-kopior"; info = BackupInfo(java.util.GregorianCalendar(2026, 10, 11, 14, 20).timeInMillis, changed = true, complete = true) }
         rule.setContent { KlippTheme { ProjectsScreen(fake) {} } }
         rule.waitForIdle()
+        // (the list and the backup info load on Dispatchers.IO, which waitForIdle doesn't wait for: on a slower machine –
+        // CI – the card wasn't there yet)
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("heroBackup").fetchSemanticsNodes().isNotEmpty() }
         // the hero card says the project changed since the backup
         rule.onNodeWithTag("heroBackup").assertTextContains("Ändrad sedan säkerhetskopian", substring = true)
         rule.onNodeWithTag("projectMenu:p1").performClick()
