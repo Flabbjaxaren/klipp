@@ -38,6 +38,17 @@ class MainActivity : ComponentActivity() {
         AppLife.starts++
     }
 
+    // the export's end is said on a screen the user sees; ended while none was resumed, it waits as a notice
+    override fun onResume() {
+        super.onResume()
+        se.gendut.klipp.engine.ExportJobs.watching = true
+    }
+
+    override fun onPause() {
+        se.gendut.klipp.engine.ExportJobs.watching = false
+        super.onPause()
+    }
+
     override fun onStop() {
         super.onStop()
         // save changes now – the process may be killed in the background before a delayed save has run
@@ -53,8 +64,6 @@ class MainActivity : ComponentActivity() {
         se.gendut.klipp.engine.FrameHook.install()
         BuildConfigShim.version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
         CrashReport.install(applicationContext)
-        // the test build's export latch (tests stop an export in its copy into Movies); never in Klipp itself
-        se.gendut.klipp.engine.ExportLatch.enabled = packageName.endsWith(".designtest")
         // the first start in this process: an export marked as running was cut off with the old process (checked once
         // per process – the activity can come back with saved state after the process was killed)
         se.gendut.klipp.engine.ExportGuard.checkOnce(applicationContext)

@@ -1485,9 +1485,12 @@ object Exporter {
     private suspend fun exportTo(context: Context, comp: Composition, out: File, name: String, st: ExportSettings, tenBit: Boolean, expect: Pair<Int, Int>?, onProgress: (Int) -> Unit): Result<Uri> {
         val result = transform(context, comp, out, st, tenBit, expect = expect, onProgress = onProgress)
         result.exceptionOrNull()?.let { return Result.failure(it) }
-        // a copy once begun is finished even if the export's screen goes away (a cancel waits for it): the file is then
-        // either whole in Movies or not there at all, and ExportGuard knows which (what the app says follows it)
-        return withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) { runCatching { saveToMovies(context, out, name) } }
+        // the copy stops at a cancel (its half entry removed) up to the moment it is published; once published, the file
+        // stays and the export counts as saved even if a cancel comes after (ExportGuard knows – ExportJobs says it)
+        return withContext(Dispatchers.IO) {
+            val job = coroutineContext[kotlinx.coroutines.Job]
+            runCatching { saveToMovies(context, out, name) { job?.isActive == false } }
+        }
     }
 
     /**
@@ -1556,7 +1559,8 @@ object Exporter {
         return Str.t(R.string.playback_export_size_mismatch, ew, eh)
     }
 
-    private fun saveToMovies(context: Context, file: File, name: String): Uri {
+    /** [file] → Movies/Klipp as [name] (pending until whole); [cancelled] is asked during the copy, never after publishing. */
+    private fun saveToMovies(context: Context, file: File, name: String, cancelled: () -> Boolean): Uri {
         val values = ContentValues().apply {
             put(MediaStore.Video.Media.DISPLAY_NAME, "$name.mp4")
             put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
@@ -1570,7 +1574,7 @@ object Exporter {
         // recorded before a byte is written: if the process dies in the copy, the next start removes the half file
         ExportGuard.writing(context, uri)
         try {
-            (resolver.openOutputStream(uri) ?: error(Str.t(R.string.playback_write_file_failed))).use { o -> file.inputStream().use { copyFile(it, o, file.length()) } }
+            (resolver.openOutputStream(uri) ?: error(Str.t(R.string.playback_write_file_failed))).use { o -> file.inputStream().use { copyFile(it, o, file.length(), cancelled) } }
             if (Build.VERSION.SDK_INT >= 29) {
                 values.clear(); values.put(MediaStore.Video.Media.IS_PENDING, 0)
                 if (resolver.update(uri, values, null, null) < 1) error(Str.t(R.string.playback_write_file_failed))
@@ -1586,17 +1590,21 @@ object Exporter {
         return uri
     }
 
-    /** [i] → [o]; halfway (the bytes so far in the file) the test build's [ExportLatch] may hold it. */
-    internal fun copyFile(i: java.io.InputStream, o: java.io.OutputStream, size: Long) {
+    /**
+     * [i] → [o]; stops with a CancellationException when [cancelled] (checked every 64 KiB). Halfway (the bytes so far in
+     * the file) the test build's [ExportLatch] may hold it.
+     */
+    internal fun copyFile(i: java.io.InputStream, o: java.io.OutputStream, size: Long, cancelled: () -> Boolean = { false }) {
         val buf = ByteArray(1 shl 16)
         var n = 0L
         var half = false
         while (true) {
+            if (cancelled()) throw kotlinx.coroutines.CancellationException("export cancelled in the copy into Movies")
             val r = i.read(buf)
             if (r < 0) break
             o.write(buf, 0, r)
             n += r
-            if (!half && n >= size / 2) { half = true; o.flush(); ExportLatch.atCopy(n) }
+            if (!half && n >= size / 2) { half = true; o.flush(); ExportLatch.atCopy(n, cancelled) }
         }
     }
 }

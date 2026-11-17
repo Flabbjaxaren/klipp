@@ -12,46 +12,81 @@ import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.provider.MediaStore
+import kotlinx.coroutines.cancel
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationCompat
 import se.gendut.klipp.R
 import se.gendut.klipp.Str
 
 /**
- * Keeps the app in the foreground while a video export runs (with a notification and its progress), so Android does
- * not stop it when the app is left. The export itself runs in the app as before; this only holds the process.
+ * The export's owner while it runs: in the foreground (a notification with its progress) it runs the job [ExportJobs]
+ * hands it, in its own scope, and stops when the job has ended. The screen that asked for the export may go away (HOME,
+ * Back, the lock, swiped from Recents) – the job goes on as long as the process and this service live.
  *
+ * Not allowed into the foreground: the job is not run (the screen says so, nothing is made). Android's time limit
+ * ([onTimeout]) or the service stopped from outside ([onDestroy]): the job is cancelled, not left to run unprotected.
  * If the process dies anyway, [ExportGuard] notices it at the next start: the export is reported as saved only if its
  * file was published whole, otherwise as interrupted with its half-written entry and temporary files removed.
  */
 class ExportService : Service() {
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate)
+    private var running = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val id = intent?.getLongExtra(EXTRA_ID, -1L) ?: -1L
+        // (one job per service: a second start while one runs is not a new job)
+        if (running) return START_NOT_STICKY
         val n = notification(this, intent?.getStringExtra(EXTRA_NAME).orEmpty(), -1)
         // (the type must be named on Android 14+; media processing exists from Android 15, data sync before it)
         val type = if (Build.VERSION.SDK_INT >= 35) ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-        runCatching { startForeground(ID, n, type) }.onFailure {
-            // (not allowed to start in the foreground now: the export still runs, only without the protection)
-            se.gendut.klipp.CrashReport.note("export service: ${it.javaClass.simpleName} ${it.message}")
-            stopSelf()
+        try {
+            startForeground(ID, n, type)
+        } catch (e: Exception) {
+            // not allowed into the foreground now (Android 12+ from the background, the time limit used up …): the job
+            // is not started – an export without the protection would be lost the moment the app is left
+            se.gendut.klipp.CrashReport.note("export service: ${e.javaClass.simpleName} ${e.message}")
+            ExportJobs.denied(id, e)
+            stopSelf(startId)
+            return START_NOT_STICKY
         }
+        current = this
+        running = ExportJobs.run(applicationContext, id, scope) { done() }
+        if (!running) done()
         return START_NOT_STICKY
     }
 
+    private fun done() {
+        running = false
+        runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+        stopSelf()
+    }
+
     /**
-     * Android 15+: the media processing type's time is up (six hours in a day). The service must stop at once or the app
-     * is ended with an error; the export goes on without the protection (if the process is lost after all, ExportGuard
-     * reports it at the next start).
+     * Android 15+: the media processing type's time is up (six hours in a day). The job is stopped, and the service at
+     * once (Android ends the app if it doesn't stop within seconds); the job's end follows as cancelled.
      */
     override fun onTimeout(startId: Int, fgsType: Int) {
-        se.gendut.klipp.CrashReport.note("export service: time limit reached (type $fgsType) – the export goes on unprotected")
-        stopSelf()
+        se.gendut.klipp.CrashReport.note("export service: time limit reached (type $fgsType) – the export is stopped")
+        ExportJobs.cancel(ExportJobs.Reason.TIMEOUT)
+        done()
+    }
+
+    override fun onDestroy() {
+        if (current === this) current = null
+        // stopped from outside while the job runs: the job goes with it (a no-op after the job's own end)
+        ExportJobs.cancel(ExportJobs.Reason.SERVICE_STOPPED)
+        scope.cancel()
+        super.onDestroy()
     }
 
     companion object {
         private const val ID = 4711
         private const val CHANNEL = "export"
         private const val EXTRA_NAME = "name"
+        private const val EXTRA_ID = "id"
 
         private fun notification(c: Context, name: String, percent: Int): Notification {
             val nm = c.getSystemService(NotificationManager::class.java)
@@ -73,30 +108,22 @@ class ExportService : Service() {
                 .build()
         }
 
-        /** Between [start] and [stop]: a progress that comes after the export ended posts no notification. */
-        @Volatile private var active = false
+        /** The running service (the test build's time limit test point calls its [onTimeout]). */
+        @Volatile var current: ExportService? = null
+            private set
 
-        fun start(c: Context, name: String) {
-            active = true
-            runCatching { c.startForegroundService(Intent(c, ExportService::class.java).putExtra(EXTRA_NAME, name)) }
-                .onFailure { se.gendut.klipp.CrashReport.note("export service not started: ${it.message}") }
+        /** Asks for the service for job [id]; throws if Android refuses (ForegroundServiceStartNotAllowedException). */
+        fun start(c: Context, id: Long, name: String) {
+            if (ExportTestPoints.takeRefusal()) {
+                val msg = "test point: the foreground start refused"
+                throw if (Build.VERSION.SDK_INT >= 31) android.app.ForegroundServiceStartNotAllowedException(msg) else IllegalStateException(msg)
+            }
+            c.startForegroundService(Intent(c, ExportService::class.java).putExtra(EXTRA_ID, id).putExtra(EXTRA_NAME, name))
         }
 
-        private var lastPercent = -1
-
-        /** The notification's progress (only when it changes by a whole percent). */
+        /** The notification's progress (only while a job runs – [ExportJobs] decides). */
         fun progress(c: Context, name: String, percent: Int) {
-            // (a late progress after the end would put up an ongoing notification nothing takes down)
-            if (!active || percent == lastPercent) return
-            lastPercent = percent
             runCatching { c.getSystemService(NotificationManager::class.java).notify(ID, notification(c, name, percent)) }
-        }
-
-        fun stop(c: Context) {
-            active = false
-            lastPercent = -1
-            runCatching { c.stopService(Intent(c, ExportService::class.java)) }
-            runCatching { c.getSystemService(NotificationManager::class.java).cancel(ID) }
         }
     }
 }
@@ -108,11 +135,14 @@ class ExportService : Service() {
  * only when none is left (a half-written entry is removed).
  */
 object ExportGuard {
-    /** What the editor says about an export that ended while it wasn't watching: its name, and whether its file was saved. */
-    data class Notice(val name: String, val saved: Boolean)
+    /**
+     * What the editor says about an export that ended while no screen watched: its name, and whether its file was saved
+     * ([failure]: it failed, with this error, rather than being stopped).
+     */
+    data class Notice(val name: String, val saved: Boolean, val failure: String? = null)
 
-    /** Set when the last export ended unseen (cut off with the process, or its screen closed); shown once by the editor. */
-    var notice: Notice? = null
+    /** Set when the last export ended unseen (cut off with the process, ended with no screen); shown once by the editor. */
+    var notice by androidx.compose.runtime.mutableStateOf<Notice?>(null)
 
     /** The export's entries in Movies (MediaStore; tests put in their own). */
     interface Entries {
@@ -137,9 +167,9 @@ object ExportGuard {
         Thread({ runCatching { sweep(c) } }, "export-sweep").start()
     }
 
+    /** The job has begun (in the foreground): marked before any work. */
     fun begin(c: Context, name: String) {
         prefs(c).edit().putString("running", name).putLong("since", System.currentTimeMillis()).remove("file").remove("published").commit()
-        ExportService.start(c, name)
     }
 
     /** The export's entry in Movies was made (pending, nothing written yet): recorded first, so a death leaves no trace. */
@@ -152,22 +182,12 @@ object ExportGuard {
         prefs(c).edit().putBoolean("published", true).commit()
     }
 
-    fun progress(c: Context, name: String, percent: Int) = ExportService.progress(c, name, percent)
+    /** Whether this export's file has been published (whole, in Movies). */
+    fun isPublished(c: Context) = prefs(c).getBoolean("published", false)
 
+    /** The job has ended (its end decided): the marks go. */
     fun end(c: Context) {
         prefs(c).edit().remove("running").remove("since").remove("file").remove("published").commit()
-        ExportService.stop(c)
-    }
-
-    /**
-     * The export was stopped from outside while the process lives (its coroutine cancelled: the screen that ran it went
-     * away). Said the next time the editor shows – as saved if its file was published (a copy once begun is finished),
-     * otherwise as interrupted. Call before [end].
-     */
-    fun stopped(c: Context, name: String) {
-        val saved = prefs(c).getBoolean("published", false)
-        notice = Notice(name, saved)
-        se.gendut.klipp.CrashReport.note("export ended unseen while running: $name (${if (saved) "saved" else "no file"})")
     }
 
     /**

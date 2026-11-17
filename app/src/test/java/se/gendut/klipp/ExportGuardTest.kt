@@ -24,8 +24,6 @@ class ExportGuardTest {
     @Test fun anExportCutOffIsReportedOnceAndItsFilesGo() {
         Str.init(c)
         ExportGuard.begin(c, "Sommarfilm")
-        // the service was asked to hold the app in the foreground
-        assertEquals(ExportService::class.java.name, Shadows.shadowOf(c).nextStartedService?.component?.className)
         val tmp = File(c.cacheDir, "export_123.mp4").apply { writeText("x") }
         val pkg = File(c.cacheDir, "package_9.klipp").apply { writeText("x") }
         val other = File(c.cacheDir, "thumbs.bin").apply { writeText("x") }
@@ -42,42 +40,6 @@ class ExportGuardTest {
         ExportGuard.begin(c, "Klar")
         ExportGuard.end(c)
         assertNull(ExportGuard.interrupted(c))
-    }
-
-    @Test fun aProgressAfterTheEndPostsNoNotification() {
-        Str.init(c)
-        val nm = c.getSystemService(android.app.NotificationManager::class.java)
-        ExportGuard.begin(c, "Sen")
-        ExportGuard.progress(c, "Sen", 40)
-        assertEquals(1, Shadows.shadowOf(nm).allNotifications.size)
-        ExportGuard.end(c)
-        assertEquals(0, Shadows.shadowOf(nm).allNotifications.size)
-        // a progress callback that comes after the end (the encoder's last report)
-        ExportGuard.progress(c, "Sen", 99)
-        assertEquals("no ongoing notification left behind", 0, Shadows.shadowOf(nm).allNotifications.size)
-    }
-
-    @Test fun anExportStoppedBeforeItsFileWasPublishedIsSaidAsInterrupted() {
-        Str.init(c)
-        ExportGuard.notice = null
-        ExportGuard.begin(c, "Avbruten")
-        ExportGuard.writing(c, Uri.parse("content://media/external/video/media/7"))
-        ExportGuard.stopped(c, "Avbruten")
-        ExportGuard.end(c)
-        assertEquals(ExportGuard.Notice("Avbruten", saved = false), ExportGuard.notice)
-        ExportGuard.notice = null
-    }
-
-    @Test fun anExportStoppedAfterItsFileWasPublishedIsSaidAsSaved() {
-        Str.init(c)
-        ExportGuard.notice = null
-        ExportGuard.begin(c, "Hel")
-        ExportGuard.writing(c, Uri.parse("content://media/external/video/media/8"))
-        ExportGuard.published(c)
-        ExportGuard.stopped(c, "Hel")
-        ExportGuard.end(c)
-        assertEquals(ExportGuard.Notice("Hel", saved = true), ExportGuard.notice)
-        ExportGuard.notice = null
     }
 
     /** MediaStore as the tests set it: entry → pending (true), published (false); gone when absent. */
@@ -177,12 +139,4 @@ class ExportGuardTest {
         }
     }
 
-    @Test fun theServiceStopsItselfWhenItsTimeIsUp() {
-        Str.init(c)
-        val controller = org.robolectric.Robolectric.buildService(ExportService::class.java).create()
-        val service = controller.get()
-        service.onStartCommand(android.content.Intent(), 0, 1)
-        service.onTimeout(1, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING)
-        assertTrue(Shadows.shadowOf(service).isStoppedBySelf)
-    }
 }

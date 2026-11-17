@@ -165,7 +165,8 @@ fun KlippApp(
     /** The edit page's add sheet that is open (sound, a voice-over, a title, captions), or null. */
     var addSheet by remember { mutableStateOf<AddAction?>(null) }
     var sourceMedia by remember { mutableStateOf<se.gendut.klipp.engine.MediaInfo?>(null) }
-    var exportProgress by remember { mutableStateOf<Int?>(null) }
+    /** The export job (it belongs to the export service, not to this screen: a new screen finds it running). */
+    val exportJob = se.gendut.klipp.engine.ExportJobs.status
     var confirmNew by remember { mutableStateOf(false) }
     var showProjects by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
@@ -206,17 +207,18 @@ fun KlippApp(
     LaunchedEffect(state.selectedCaption) { if (state.selectedCaption == null) state.editingCaption = false }
     var exportAsk by remember { mutableStateOf(false) }
     val notifyPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
-    // an export that ended while the editor wasn't watching (cut off with the process, or its screen closed): a dialog
-    // that stays until read (a toast would be gone, or pushed aside by "Project restored") – saved only if its file is
-    var lastExport by remember { mutableStateOf(se.gendut.klipp.engine.ExportGuard.notice) }
-    lastExport?.let { n ->
-        val tag = if (n.saved) "exportSavedLate" else "exportInterrupted"
+    // an export that ended while no screen watched (cut off with the process, ended with the app left or closed): a
+    // dialog that stays until read (a toast would be gone, or pushed aside by "Project restored") – saved only if its
+    // file is whole in Movies
+    se.gendut.klipp.engine.ExportGuard.notice?.let { n ->
+        val tag = when { n.saved -> "exportSavedLate"; n.failure != null -> "exportFailedLate"; else -> "exportInterrupted" }
+        val close = { se.gendut.klipp.engine.ExportGuard.notice = null }
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { lastExport = null; se.gendut.klipp.engine.ExportGuard.notice = null },
-            title = { Text(stringResource(if (n.saved) R.string.app_export_saved_late_title else R.string.app_export_interrupted_title)) },
-            text = { Text(stringResource(if (n.saved) R.string.app_export_saved_late else R.string.app_export_interrupted, n.name)) },
+            onDismissRequest = close,
+            title = { Text(stringResource(when { n.saved -> R.string.app_export_saved_late_title; n.failure != null -> R.string.app_export_failed_title; else -> R.string.app_export_interrupted_title })) },
+            text = { Text(if (n.failure != null) stringResource(R.string.app_export_failed, n.failure) else stringResource(if (n.saved) R.string.app_export_saved_late else R.string.app_export_interrupted, n.name)) },
             confirmButton = {
-                FlatTextButton(onClick = { lastExport = null; se.gendut.klipp.engine.ExportGuard.notice = null }, modifier = Modifier.testTag(tag + "Ok")) {
+                FlatTextButton(onClick = close, modifier = Modifier.testTag(tag + "Ok")) {
                     Text(stringResource(R.string.app_ok))
                 }
             },
@@ -236,48 +238,74 @@ fun KlippApp(
         state.playing = false
         exportAsk = true
     }
+    /** The last export asked for (its settings and name): "Try again" when the foreground was refused. */
+    var lastExportAsk by remember { mutableStateOf<Pair<se.gendut.klipp.engine.ExportSettings, String>?>(null) }
     fun runExport(settings: se.gendut.klipp.engine.ExportSettings, name: String) {
         val c = controller ?: return
         se.gendut.klipp.engine.ExportSettings.save(context, c.currentId, settings)
+        lastExportAsk = settings to name
         // color-graded clips always become SDR (grading is done in SDR)
         val graded = gs.grades.values.any { !it.isNeutral } || !lookOf(grade).isNeutral
         val st = if (graded) settings.copy(hdr = false) else settings
-        exportProgress = 0
-        // held in the foreground while it runs (and marked, so an export lost with the process is reported next time)
-        se.gendut.klipp.engine.ExportGuard.begin(context, name)
-        // the export goes first: background jobs hold, the preview lets go of its decoders (see BackgroundWork)
+        // everything the export reads, taken now: the job outlives this screen (and its controller)
+        val snap = c.snapshot
+        val uris = c.frozenUris()
+        val look = lookOf(grade)
+        val master = mixMaster(mix)
+        val grades = HashMap(gs.grades)
         state.playing = false
-        se.gendut.klipp.engine.BackgroundWork.export(true)
-        playback?.let { p -> runCatching { p.player.stop() } }
-        scope.launch {
-            val r = try {
-                se.gendut.klipp.engine.Exporter.export(context, c.snapshot, c::uriOf, name, lookOf(grade), mixMaster(mix), HashMap(gs.grades), st) {
-                    exportProgress = it; se.gendut.klipp.engine.ExportGuard.progress(context, name, it)
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                // the screen running the export went away while the process lives: said when the editor shows again,
-                // as saved or as interrupted – whichever its file in Movies is (a copy begun was finished first)
-                se.gendut.klipp.engine.ExportGuard.stopped(context, name)
-                throw e
-            } finally {
-                se.gendut.klipp.engine.ExportGuard.end(context)
-                se.gendut.klipp.engine.BackgroundWork.export(false)
-                // the picture back at the playhead
-                playback?.let { p -> runCatching { p.reload(state.playhead.toDouble()) } }
-            }
-            exportProgress = null
-            r.onSuccess { haptics.confirm(); toaster.show(Str.t(R.string.app_export_saved) + (se.gendut.klipp.engine.Exporter.lastResult?.let { " · $it" } ?: "")) }
-                .onFailure {
-                    // in the trail (crash reports): what went wrong and where
-                    val e = it as? androidx.media3.transformer.ExportException
-                    se.gendut.klipp.CrashReport.note("export failed: ${e?.errorCodeName ?: it.javaClass.simpleName} ${it.message} ${it.cause?.let { c -> "(${c.javaClass.simpleName}: ${c.message})" } ?: ""}")
-                    toaster.show(Str.t(R.string.app_export_failed, it.message ?: ""))
-                }
+        // run by the export service once it is in the foreground (refused: the dialog below, nothing made)
+        se.gendut.klipp.engine.ExportJobs.start(context, name) { ctx, onProgress ->
+            se.gendut.klipp.engine.Exporter.export(ctx, snap, uris, name, look, master, grades, st, onProgress)
         }
     }
-    // Back while an export runs: the app goes to the background instead of being closed (Android 10–11 closed the
-    // activity, and the export with it); 12+ does this itself on the first screen
-    androidx.activity.compose.BackHandler(enabled = exportProgress != null) {
+    // while an export runs the preview lets go of its decoders (a screen that comes back during one too); after it,
+    // the picture back at the playhead
+    val exportRunning = exportJob?.active == true
+    var previewHeld by remember { mutableStateOf(false) }
+    LaunchedEffect(exportRunning) {
+        if (exportRunning) {
+            state.playing = false
+            playback?.let { p -> runCatching { p.player.stop() } }
+            previewHeld = true
+        } else if (previewHeld) {
+            previewHeld = false
+            playback?.let { p -> runCatching { p.reload(state.playhead.toDouble()) } }
+        }
+    }
+    // the export's end, said on this screen (it was watching; otherwise ExportGuard.notice above)
+    LaunchedEffect(exportJob) {
+        val j = exportJob ?: return@LaunchedEffect
+        when (j.phase) {
+            se.gendut.klipp.engine.ExportJobs.Phase.SAVED -> { haptics.confirm(); toaster.show(Str.t(R.string.app_export_saved) + (j.message?.let { " · $it" } ?: "")) }
+            se.gendut.klipp.engine.ExportJobs.Phase.FAILED -> toaster.show(Str.t(R.string.app_export_failed, j.message ?: ""))
+            se.gendut.klipp.engine.ExportJobs.Phase.CANCELLED -> toaster.show(Str.t(if (j.reason == se.gendut.klipp.engine.ExportJobs.Reason.TIMEOUT) R.string.app_export_time_limit else R.string.app_export_cancelled))
+            else -> return@LaunchedEffect
+        }
+        se.gendut.klipp.engine.ExportJobs.ack(j.id)
+    }
+    // the foreground refused: not started, nothing made – said, with Try again
+    if (exportJob?.phase == se.gendut.klipp.engine.ExportJobs.Phase.DENIED) {
+        val close = { se.gendut.klipp.engine.ExportJobs.ack(exportJob.id) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = close,
+            title = { Text(stringResource(R.string.app_export_denied_title)) },
+            text = { Text(stringResource(R.string.app_export_denied)) },
+            confirmButton = {
+                FlatTextButton(onClick = { close(); lastExportAsk?.let { (st, n) -> runExport(st, n) } }, modifier = Modifier.testTag("exportDeniedRetry")) {
+                    Text(stringResource(R.string.app_try_again))
+                }
+            },
+            dismissButton = {
+                FlatTextButton(onClick = close, modifier = Modifier.testTag("exportDeniedClose")) { Text(stringResource(R.string.app_cancel)) }
+            },
+            containerColor = K.SurfaceHigh,
+            modifier = Modifier.testTag("exportDenied"),
+        )
+    }
+    // Back while an export runs: the app goes to the background instead of being closed (the export would go on
+    // either way – it isn't this screen's – but the user comes back to the same screen)
+    androidx.activity.compose.BackHandler(enabled = exportRunning) {
         (context as? android.app.Activity)?.moveTaskToBack(true)
     }
     if (exportAsk && controller != null) {
@@ -947,7 +975,7 @@ fun KlippApp(
 
         if (controller != null && sourcePlayback != null) {
             MediaSheet(mediaOpen, remember(controller) { controllerLibrary(controller) }, ::openImport, onOpen = { state.playing = false; playback?.player?.pause(); sourceMedia = it; mediaOpen = false; goTo(0) }, onClose = { mediaOpen = false })
-            ExportOverlay(exportProgress)
+            ExportOverlay(exportJob?.takeIf { it.active }?.percent) { se.gendut.klipp.engine.ExportJobs.cancel(se.gendut.klipp.engine.ExportJobs.Reason.USER) }
         }
 
         } // end of the editor (not full screen)

@@ -790,7 +790,7 @@ fun ScrubBar(
 // ------------------------------------------------------------------ export
 
 @Composable
-fun ExportOverlay(progress: Int?, modifier: Modifier = Modifier) {
+fun ExportOverlay(progress: Int?, modifier: Modifier = Modifier, onCancel: () -> Unit = {}) {
     AnimatedVisibility(progress != null, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
         Box(Modifier.fillMaxSize().background(Color(0xCC000000)).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { }, contentAlignment = Alignment.Center) {
             Column(
@@ -803,6 +803,9 @@ fun ExportOverlay(progress: Int?, modifier: Modifier = Modifier) {
                 WavyProgress(p, Modifier.width(240.dp).height(20.dp))
                 Spacer(Modifier.height(10.dp))
                 Text("${progress ?: 0} %", color = K.OnSurfaceVar, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                Spacer(Modifier.height(8.dp))
+                // stops the export itself (it runs on whether this screen stays or not)
+                FlatTextButton(onClick = onCancel, modifier = Modifier.testTag("exportCancel")) { Text(stringResource(R.string.app_cancel)) }
             }
         }
     }

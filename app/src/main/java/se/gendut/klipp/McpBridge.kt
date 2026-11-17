@@ -425,16 +425,34 @@ object McpBridge {
             if (a.optBoolean("read")) texts(se.gendut.klipp.engine.CutTrace.drain())
             else texts("trace=${se.gendut.klipp.engine.CutTrace.on} mode=${se.gendut.klipp.engine.CutTrace.mode} stab=${se.gendut.klipp.engine.CutTrace.stabHandoff}")
         },
-    ) + listOfNotNull(if (!se.gendut.klipp.engine.ExportLatch.enabled) null else
-        Tool("export_latch", "Test build only: op=arm holds the next export's copy into Movies halfway (until op=release or seconds, default 60); " +
-            "op=status: idle, armed, held <bytes>, released or timed out.",
-            JSONObject().put("op", prop("string", "arm | release | status")).put("seconds", prop("number", "how long arm holds at most")), listOf("op")) { a ->
+        Tool("export_status", "The export job: the one running or waiting to be said (id, phase starting/running/saved/failed/cancelled/denied, " +
+            "percent, message, reason), the last one ended, whether its foreground service runs, and the notice waiting for the editor.") {
+            fun j(x: se.gendut.klipp.engine.ExportJobs.Status?): Any = x?.let {
+                JSONObject().put("id", it.id).put("name", it.name).put("phase", it.phase.name.lowercase()).put("percent", it.percent)
+                    .put("message", it.message ?: JSONObject.NULL).put("reason", it.reason?.name?.lowercase() ?: JSONObject.NULL)
+            } ?: JSONObject.NULL
+            val o = onMain {
+                val n = se.gendut.klipp.engine.ExportGuard.notice
+                JSONObject().put("job", j(se.gendut.klipp.engine.ExportJobs.status)).put("last", j(se.gendut.klipp.engine.ExportJobs.last))
+                    .put("service", se.gendut.klipp.engine.ExportService.current != null)
+                    .put("watching", se.gendut.klipp.engine.ExportJobs.watching)
+                    .put("notice", n?.let { JSONObject().put("name", it.name).put("saved", it.saved).put("failure", it.failure ?: JSONObject.NULL) } ?: JSONObject.NULL)
+            }
+            texts(o.toString())
+        },
+    ) + listOfNotNull(if (!BuildConfig.TEST_HOOKS) null else
+        Tool("export_latch", "Test build only (TEST_HOOKS): op=arm holds the next export's copy into Movies halfway (until op=release, " +
+            "a cancel or seconds, default 60); op=status: idle, armed, held <bytes>, released, cancelled or timed out; op=deny_start: the next " +
+            "export's foreground start is refused; op=timeout: Android's time limit reached now for the running export service.",
+            JSONObject().put("op", prop("string", "arm | release | status | deny_start | timeout")).put("seconds", prop("number", "how long arm holds at most")), listOf("op")) { a ->
             val l = se.gendut.klipp.engine.ExportLatch
             when (a.getString("op")) {
                 "arm" -> l.arm(a.optLong("seconds", 60))
                 "release" -> l.release()
                 "status" -> Unit
-                else -> error("op is arm, release or status")
+                "deny_start" -> { se.gendut.klipp.engine.ExportTestPoints.refuseNextStart(); return@Tool texts("the next foreground start is refused") }
+                "timeout" -> { onMain { se.gendut.klipp.engine.ExportTestPoints.timeout() }; return@Tool texts("onTimeout called") }
+                else -> error("op is arm, release, status, deny_start or timeout")
             }
             texts(l.state)
         }) }

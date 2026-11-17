@@ -33,6 +33,8 @@ android {
         externalNativeBuild { cmake { arguments += listOf("-DCMAKE_BUILD_TYPE=Release", "-DANDROID_STL=c++_shared") } }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["appLabel"] = "Klipp"
+        // the export's test points: off everywhere but the designTest build
+        buildConfigField("boolean", "TEST_HOOKS", "false")
     }
     // the GPU tests on a phone (src/androidTest): their own app id beside the installed Klipp, so running them never
     // replaces it or touches its projects (`./gradlew connectedGpuTestAndroidTest`)
@@ -82,6 +84,8 @@ android {
             initWith(getByName("release"))
             applicationIdSuffix = ".designtest"
             versionNameSuffix = "-designtest.158"
+            // the export's test points (the copy's latch, a refused foreground start, the time limit): this build only
+            buildConfigField("boolean", "TEST_HOOKS", "true")
             manifestPlaceholders["appLabel"] = "Klipp test"
             matchingFallbacks += "release"
         }
@@ -92,6 +96,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
