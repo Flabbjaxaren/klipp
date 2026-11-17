@@ -653,15 +653,16 @@ fun KlippApp(
         }
         onDispose { state.onAddAction = null }
     }
-    // the system back closes what is open, innermost first, and only then leaves the app (it used to leave from
-    // everywhere); the projects and settings pages have their own (they are composed later and win while shown)
-    val pageNow = page.targetValue.roundToInt()
-    androidx.activity.compose.BackHandler(enabled = mediaOpen || sourceMedia != null || state.inspecting || pageNow != 0) {
-        when {
-            mediaOpen -> mediaOpen = false
-            sourceMedia != null -> sourceMedia = null
-            state.inspecting -> state.inspecting = false
-            else -> goTo(0)
+    // the system back closes what is open, innermost first and one layer per press, and only then leaves the app
+    // (see Back.kt); the projects and settings pages have their own (they are composed later and win while shown)
+    EditorBack(state, of = { state.backState(mediaOpen, sourceMedia != null, gs.grid, page.targetValue.roundToInt(), exportRunning) }) { l ->
+        when (l) {
+            BackLayer.MEDIA -> mediaOpen = false
+            BackLayer.SOURCE -> sourceMedia = null
+            BackLayer.PROPERTIES -> state.inspecting = false
+            BackLayer.COLOR_GRID -> gs.grid = false
+            BackLayer.PAGE -> goTo(0)
+            else -> {}
         }
     }
     fun undo() { if (state.undo()) { haptics.confirm(); toaster.show(Str.t(R.string.app_undone)) } }

@@ -457,6 +457,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
     /** Selected caption in the timeline, and whether its editor is open. */
     var selectedCaption by mutableStateOf<Long?>(null)
     var editingCaption by mutableStateOf(false)
+    /** A row of steps that replaced the dock's actions (back closes it first, see Back.kt). */
+    var dockRow by mutableStateOf(DockRow.NONE)
     var playhead by mutableFloatStateOf(14f)
     var playing by mutableStateOf(false)
     var selected by mutableStateOf<Long?>(null)
@@ -1138,6 +1140,9 @@ class EditorState(initial: List<Clip> = initialClips()) {
 
 /** The properties panel's tool group for a clip's picture (see [EditorState.inspectGroup]). */
 const val GROUP_PICTURE = 1
+
+/** The rows of steps that can replace the dock's actions for a selection. */
+enum class DockRow { NONE, SPEED, FREEZE, VOLUME, LABEL, MORE }
 
 /** What the row for an empty selection adds. */
 enum class AddAction { MEDIA, SOUND, TITLE, CAPTIONS, VOICE }

@@ -596,6 +596,8 @@ internal fun Dock(state: EditorState, pageOf: () -> Float, audioTabs: List<ToolT
         state.onAddAction != null -> DockKind.ADD
         else -> DockKind.NONE
     }
+    // a row of steps belongs to what was selected: another kind of dock starts without it
+    LaunchedEffect(kind) { state.dockRow = DockRow.NONE }
     AnimatedContent(
         kind, modifier,
         transitionSpec = { (fadeIn() + scaleIn(spring(0.6f, 500f), initialScale = 0.94f)) togetherWith fadeOut() },
@@ -651,26 +653,23 @@ private fun AddDock(state: EditorState) {
 @Composable
 private fun ClipDock(state: EditorState) {
     val haptics = rememberHaptics()
-    var speedMode by remember { mutableStateOf(false) }
-    var freezeMode by remember { mutableStateOf(false) }
-    var volumeMode by remember { mutableStateOf(false) }
-    var labelMode by remember { mutableStateOf(false) }
-    var moreMode by remember { mutableStateOf(false) }
-    LaunchedEffect(state.selected) { speedMode = false; freezeMode = false; volumeMode = false; labelMode = false; moreMode = false }
+    // the row of steps lives in the editor state: back closes it before anything else (see Back.kt)
+    fun row(r: DockRow) { state.dockRow = r }
+    LaunchedEffect(state.selected) { state.dockRow = DockRow.NONE }
     val sel = state.clips.firstOrNull { it.id == state.selected }
     val isSound = sel?.kind == ClipKind.AUDIO || sel?.kind == ClipKind.MUSIC
     val isTitle = sel?.kind == ClipKind.TITLE
     val back = stringResource(R.string.app_back)
     // the label and on/off: behind More, or in the row itself where there is room (a title)
-    val labelItem = DockItem(Ic.Tag, stringResource(R.string.app_label), "ctx:label", primary = sel?.label != null) { moreMode = false; labelMode = true }
+    val labelItem = DockItem(Ic.Tag, stringResource(R.string.app_label), "ctx:label", primary = sel?.label != null) { row(DockRow.LABEL) }
     val powerItem = DockItem(Ic.Power, stringResource(if (sel?.enabled == false) R.string.app_enable else R.string.app_disable), "ctx:power") {
         state.selected?.let { state.toggleEnabled(listOf(it)) }
     }
     AnimatedContent(
-        listOf(speedMode, freezeMode, volumeMode, labelMode, moreMode),
+        state.dockRow,
         transitionSpec = { (fadeIn() + scaleIn(spring(0.6f, 500f), initialScale = 0.94f)) togetherWith fadeOut() }, label = "ctx",
-    ) { (speed, freeze, volume, label, more) ->
-        if (speed) DockScroll(onBack = { speedMode = false }) {
+    ) { r ->
+        if (r == DockRow.SPEED) DockScroll(onBack = { row(DockRow.NONE) }) {
             val cur = sel?.speed ?: 1f
             for (p in listOf(25, 50, 100, 150, 200, 400)) {
                 // (the speed the clip has is never out of sight)
@@ -686,17 +685,17 @@ private fun ClipDock(state: EditorState) {
                         for (r in SpeedRamp.entries) {
                             DropdownMenuItem(
                                 text = { Text(r.label, color = K.OnSurface, fontWeight = FontWeight.Medium) },
-                                onClick = { open = false; state.selected?.let { haptics.confirm(); ramp(it, r); speedMode = false } },
+                                onClick = { open = false; state.selected?.let { haptics.confirm(); ramp(it, r); row(DockRow.NONE) } },
                                 modifier = Modifier.testTag("ramp:${r.name}"),
                             )
                         }
                     }
                 }
             }
-        } else if (volume) Row(Modifier.fillMaxSize().padding(start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        } else if (r == DockRow.VOLUME) Row(Modifier.fillMaxSize().padding(start = 4.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             // the clip's level, set freely: heard while dragging, saved on release (keyframes are in the clip's sheet).
             // The slider lies in a well of the page's surface: its track has the dock's own color
-            RoundIcon(Ic.Back, back, modifier = Modifier.size(44.dp, 56.dp)) { volumeMode = false }
+            RoundIcon(Ic.Back, back, modifier = Modifier.size(44.dp, 56.dp)) { row(DockRow.NONE) }
             val p = state.selected?.let { id -> state.props?.props(id) }
             if (p != null) Box(Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(24.dp)).background(K.Surface).padding(top = 2.dp).testTag("dockVolume")) {
                 val scope = rememberCoroutineScope()
@@ -707,26 +706,26 @@ private fun ClipDock(state: EditorState) {
                     ) { state.props?.setProps(p.id, levelDb = it); scope.launch { state.endLive() } }
                 }
             }
-        } else if (label) DockScroll(onBack = { labelMode = false }) {
-            LabelPicker(sel?.label) { l -> state.selected?.let { haptics.confirm(); state.setLabel(listOf(it), l); labelMode = false } }
-        } else if (freeze) Row(Modifier.fillMaxSize().padding(start = 4.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        } else if (r == DockRow.LABEL) DockScroll(onBack = { row(DockRow.NONE) }) {
+            LabelPicker(sel?.label) { l -> state.selected?.let { haptics.confirm(); state.setLabel(listOf(it), l); row(DockRow.NONE) } }
+        } else if (r == DockRow.FREEZE) Row(Modifier.fillMaxSize().padding(start = 4.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             // freeze frame at the playhead: choose how long the frame is held (the four lengths share the row)
-            RoundIcon(Ic.Back, back, modifier = Modifier.size(44.dp, 56.dp)) { freezeMode = false }
+            RoundIcon(Ic.Back, back, modifier = Modifier.size(44.dp, 56.dp)) { row(DockRow.NONE) }
             Text(stringResource(R.string.app_freeze), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.padding(horizontal = 6.dp))
             for (sec in listOf(1f, 2f, 3f, 5f)) {
                 DockStep(stringResource(R.string.app_seconds, sec.toInt()), false, "freeze:${sec.toInt()}", Modifier.weight(1f), tight = true) {
-                    state.selected?.let { state.freezeFrame(it, state.playhead, sec); freezeMode = false }
+                    state.selected?.let { state.freezeFrame(it, state.playhead, sec); row(DockRow.NONE) }
                 }
             }
-        } else if (more) {
+        } else if (r == DockRow.MORE) {
             // the rest of the clip's actions, behind More
             val items = buildList {
-                add(DockItem(Ic.Back, back) { moreMode = false })
+                add(DockItem(Ic.Back, back) { row(DockRow.NONE) })
                 // (a video clip has Copy in its row)
                 if (isSound) state.onCopyToSource?.let { copy ->
                     add(DockItem(Ic.Copy, stringResource(R.string.app_copy)) { state.selected?.let { copy(it) } })
                 }
-                if (sel?.kind == ClipKind.VIDEO) add(DockItem(Ic.Freeze, stringResource(R.string.app_freeze)) { moreMode = false; freezeMode = true })
+                if (sel?.kind == ClipKind.VIDEO) add(DockItem(Ic.Freeze, stringResource(R.string.app_freeze)) { row(DockRow.FREEZE) })
                 sel?.takeIf { (it.kind == ClipKind.VIDEO || it.kind == ClipKind.AUDIO) && !it.hold }?.let { c ->
                     add(DockItem(Ic.Reverse, stringResource(if (c.reverse) R.string.app_forward else R.string.app_reverse)) { state.toggleReverse(c.id) })
                 }
@@ -753,20 +752,20 @@ private fun ClipDock(state: EditorState) {
                     isSound -> {
                         add(split)
                         if (state.props != null) {
-                            add(DockItem(Ic.Speaker, stringResource(R.string.app_volume), "ctx:volume") { volumeMode = true })
+                            add(DockItem(Ic.Speaker, stringResource(R.string.app_volume), "ctx:volume") { row(DockRow.VOLUME) })
                             add(DockItem(Ic.Audio, stringResource(R.string.design_sound_fx), "ctx:afx") { state.openTab = "propTab:afx"; open(0) })
                         }
-                        add(DockItem(Ic.Speed, stringResource(R.string.app_speed), "ctx:speed") { speedMode = true })
+                        add(DockItem(Ic.Speed, stringResource(R.string.app_speed), "ctx:speed") { row(DockRow.SPEED) })
                     }
                     else -> {
                         // the picture: position, crop, blending, keying, mask, stabilization, motion blur
                         if (state.props != null) add(DockItem(Ic.Crop, stringResource(R.string.design_picture), "ctx:picture") { open(GROUP_PICTURE) })
                         state.onCopyToSource?.let { copy -> add(DockItem(Ic.Copy, stringResource(R.string.app_copy), "ctx:copy") { state.selected?.let { copy(it) } }) }
                         add(split)
-                        add(DockItem(Ic.Speed, stringResource(R.string.app_speed), "ctx:speed") { speedMode = true })
+                        add(DockItem(Ic.Speed, stringResource(R.string.app_speed), "ctx:speed") { row(DockRow.SPEED) })
                     }
                 }
-                if (!isTitle) add(DockItem(Ic.More, stringResource(R.string.design_more), "ctx:more") { moreMode = true })
+                if (!isTitle) add(DockItem(Ic.More, stringResource(R.string.design_more), "ctx:more") { row(DockRow.MORE) })
             }
             DockItems(items)
         }
@@ -780,12 +779,11 @@ private fun ClipDock(state: EditorState) {
 @Composable
 private fun MultiDock(state: EditorState) {
     val haptics = rememberHaptics()
-    var labelMode by remember { mutableStateOf(false) }
     val nClips = state.multi.size
-    if (labelMode) {
-        DockScroll(onBack = { labelMode = false }) {
+    if (state.dockRow == DockRow.LABEL) {
+        DockScroll(onBack = { state.dockRow = DockRow.NONE }) {
             val labels = state.multi.map { id -> state.clips.firstOrNull { it.id == id }?.label }.toSet()
-            LabelPicker(labels.singleOrNull()) { l -> haptics.confirm(); state.setLabel(state.multi, l); labelMode = false }
+            LabelPicker(labels.singleOrNull()) { l -> haptics.confirm(); state.setLabel(state.multi, l); state.dockRow = DockRow.NONE }
         }
         return
     }
@@ -800,7 +798,7 @@ private fun MultiDock(state: EditorState) {
             if (whole) add(DockItem(Ic.Ungroup, stringResource(R.string.app_ungroup)) { state.setGrouped(state.multi, false) })
             else add(DockItem(Ic.Group, stringResource(R.string.app_group)) { state.setGrouped(state.multi, true) })
         }
-        if (nClips > 0) add(DockItem(Ic.Tag, stringResource(R.string.app_label), "multi:label") { labelMode = true })
+        if (nClips > 0) add(DockItem(Ic.Tag, stringResource(R.string.app_label), "multi:label") { state.dockRow = DockRow.LABEL })
         if (nClips > 0) add(DockItem(Ic.Power, stringResource(R.string.app_toggle_enabled), "multi:power") { state.toggleEnabled(state.multi) })
         // separate sound (a recorder, another camera): lined up by the audio
         if (state.props != null && nClips > 1) add(DockItem(Ic.SyncAudio, stringResource(R.string.design_sync_short), "syncAudio", desc = stringResource(R.string.app_sync_audio)) { state.syncByAudio(state.multi) })

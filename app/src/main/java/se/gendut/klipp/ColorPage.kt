@@ -129,6 +129,8 @@ class GradeState {
     var clipboard by mutableStateOf<ClipGrade?>(null)
     /** The color page's selected tool (the tab). */
     var editor by mutableStateOf(0)
+    /** The color page's grid (gallery, clip grade, timeline look) is open – back closes it first. */
+    var grid by mutableStateOf(false)
     /** The clip the grade in [clipboard] was copied from. */
     var clipboardFrom: Long? = null
     /** Increments on every committed change (playback rebuilds). */
@@ -343,7 +345,7 @@ fun ColorPage(
     // when the page is left and when the neighboring pages are composed in during a swipe
     var editor by gs::editor
     // the grid button: the gallery, the clip's grade and the timeline's look instead of the node's tools
-    var more by rememberSaveable { mutableStateOf(false) }
+    var more by gs::grid
     var nodeMenu by remember { mutableStateOf<GradeNode?>(null) }
     var stillMenu by remember { mutableStateOf<Still?>(null) }
     var renaming by remember { mutableStateOf<GradeNode?>(null) }
