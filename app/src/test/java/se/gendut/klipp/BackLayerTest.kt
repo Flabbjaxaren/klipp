@@ -20,6 +20,7 @@ class BackLayerTest {
                 BackLayer.CAPTION_EDITOR -> s.copy(editingCaption = false)
                 BackLayer.DOCK_ROW -> s.copy(dockRow = false)
                 BackLayer.COLOR_GRID -> s.copy(colorGrid = false)
+                BackLayer.TRANSCRIPT -> s.copy(transcript = false)
                 BackLayer.PAGE -> s.copy(page = 0)
                 BackLayer.TRANSITION -> s.copy(transition = false)
                 BackLayer.CUT -> s.copy(cut = false)
@@ -59,6 +60,10 @@ class BackLayerTest {
         assertEquals(listOf(BackLayer.COLOR_GRID, BackLayer.PAGE, BackLayer.SELECTION, BackLayer.NONE), pressAll(BackState(page = 1, colorGrid = true, selection = true)))
         // the grid only counts on the color page
         assertEquals(BackLayer.PAGE, backLayer(BackState(page = 2, colorGrid = true)))
+    }
+
+    @Test fun theTranscriptViewGoesBackToTheTimelineBeforeTheSelection() {
+        assertEquals(listOf(BackLayer.DOCK_ROW, BackLayer.TRANSCRIPT, BackLayer.SELECTION, BackLayer.NONE), pressAll(BackState(dockRow = true, transcript = true, selection = true)))
     }
 
     @Test fun anotherPageGoesToEditFirst() {

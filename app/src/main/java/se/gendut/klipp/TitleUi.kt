@@ -274,7 +274,7 @@ fun TitlesPanel(state: EditorState, dockTabs: Boolean = false, onEdit: () -> Uni
         when (tab) {
             0 -> TitlesTab(state, backend, onEdit)
             1 -> CaptionsTab(state, backend, onEdit)
-            else -> (backend as? se.gendut.klipp.engine.ProjectController)?.let { TranscriptCard(it, state) }
+            else -> if (backend is se.gendut.klipp.engine.ProjectController) TranscriptCard(state, onEdit)
         }
         Spacer(Modifier.height(LocalBarSpace.current + 36.dp))
     }

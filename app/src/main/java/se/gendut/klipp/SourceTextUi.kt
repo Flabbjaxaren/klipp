@@ -111,6 +111,9 @@ fun SourceTextView(
     val parts = remember(ws) { ws?.let { sentences(it) }.orEmpty() }
     var redo by remember(item) { mutableStateOf(false) }
     Column(modifier.background(K.Deep).testTag("sourceText")) {
+        // which transcript this is: the source clip's (the sequence's is the edit page's other view)
+        Text(stringResource(R.string.transcript_source_title), color = K.OnSurfaceVar, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 16.dp, top = 6.dp).testTag("sourceText:title"))
         val busy = ac.progress
         when {
             busy != null && ac.item == item -> Column(Modifier.padding(16.dp)) {

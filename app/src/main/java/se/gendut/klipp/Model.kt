@@ -467,6 +467,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var captionTrack by mutableStateOf<Long?>(null)
     /** A row of steps that replaced the dock's actions (back closes it first, see Back.kt). */
     var dockRow by mutableStateOf(DockRow.NONE)
+    /** The edit page shows the timeline or the sequence's transcript. */
+    var editView by mutableStateOf(EditView.TIMELINE)
     var playhead by mutableFloatStateOf(14f)
     var playing by mutableStateOf(false)
     var selected by mutableStateOf<Long?>(null)
@@ -1148,6 +1150,9 @@ class EditorState(initial: List<Clip> = initialClips()) {
 
 /** The properties panel's tool group for a clip's picture (see [EditorState.inspectGroup]). */
 const val GROUP_PICTURE = 1
+
+/** The edit page's two views of the sequence: the timeline, or its transcript (same picture, playhead and selection). */
+enum class EditView { TIMELINE, TRANSCRIPT }
 
 /** The rows of steps that can replace the dock's actions for a selection. */
 enum class DockRow { NONE, SPEED, FREEZE, VOLUME, LABEL, MORE }

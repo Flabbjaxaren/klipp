@@ -869,6 +869,7 @@ fun KlippApp(
                                     0 -> EditPage(
                                         state, tool, { tool = it }, toaster, tips = controller != null && !landscape, overlays = sourceMedia == null,
                                         onSettings = if (controller != null) ({ showSettings = true }) else null, onAppSettings = { showAppSettings = true },
+                                        transcript = controller?.let { c -> { m: Modifier -> TranscriptView(c, state, m) } },
                                     )
                                     1 -> if (controller != null) {
                                         ColorPage(state, gs, colorClips(), lookOf(grade), onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) }) {

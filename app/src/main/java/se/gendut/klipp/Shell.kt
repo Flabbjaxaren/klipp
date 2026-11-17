@@ -316,15 +316,39 @@ internal fun EditPage(
     /** The project's settings (null without a project) and the app's, in the menu. */
     onSettings: (() -> Unit)? = null,
     onAppSettings: () -> Unit = {},
+    /** The sequence's transcript, the timeline's other view (null without a project). */
+    transcript: (@Composable (Modifier) -> Unit)? = null,
 ) {
     // the cards sit above the dock (portrait); in landscape the dock is elsewhere
     val bar = LocalBarSpace.current
     val barPad = if (bar > 0.dp) bar + 8.dp else 12.dp
     val haptics = rememberHaptics()
+    val inTranscript = transcript != null && state.editView == EditView.TRANSCRIPT
     Column(Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(K.Surface)) {
-        Row(
+      // the row's room: on a narrow phone the tool shows its icon only (its name is in its menu and read out)
+      BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val narrow = maxWidth < 400.dp
+        if (inTranscript) Row(
             Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // the transcript: back to the timeline, and what this view is (the sequence's – the source's is in the source)
+            Row(
+                Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh)
+                    .clickable { haptics.press(); state.editView = EditView.TIMELINE }.padding(start = 8.dp, end = 12.dp).testTag("view:timeline"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Ic.Back, null, tint = K.OnSurface, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(stringResource(R.string.edit_view_timeline), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+            Text(stringResource(R.string.transcript_view_title), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+                modifier = Modifier.weight(1f).padding(start = 6.dp).testTag("view:title"))
+            ShellButton(Ic.Gear, stringResource(R.string.app_app_settings), 14.dp, K.SurfaceHigh, Modifier.testTag("appSettings"), tint = K.OnSurfaceVar) { onAppSettings() }
+        } else Row(
+            Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (narrow && transcript != null) 2.dp else 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val tools = listOf(
@@ -340,9 +364,11 @@ internal fun EditPage(
                         .clickable { haptics.press(); toolsOpen = true }.padding(start = 12.dp, end = 8.dp).testTag("tool:menu"),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(icon, null, tint = K.OnSurface, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(label, color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Icon(icon, if (narrow && transcript != null) label else null, tint = K.OnSurface, modifier = Modifier.size(18.dp))
+                    if (!(narrow && transcript != null)) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(label, color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
                     Icon(Ic.ChevronDown, stringResource(R.string.design_tool), tint = K.OnSurfaceVar, modifier = Modifier.padding(start = 4.dp).size(16.dp))
                 }
                 DropdownMenu(expanded = toolsOpen, onDismissRequest = { toolsOpen = false }, shape = RoundedCornerShape(20.dp), containerColor = K.SurfaceHighest) {
@@ -355,6 +381,12 @@ internal fun EditPage(
                 }
             }
             Spacer(Modifier.weight(1f))
+            // the other view: the sequence's transcript (same picture, playhead and selection)
+            if (transcript != null) HeaderToggle(Ic.Transcript, stringResource(R.string.edit_view_transcript), false, "view:transcript") {
+                state.playing = false
+                state.dockRow = DockRow.NONE
+                state.editView = EditView.TRANSCRIPT
+            }
             HeaderToggle(Ic.Magnet, stringResource(R.string.app_magnetic_snapping), state.magnet, "mode:magnet") {
                 state.magnet = !state.magnet
                 toaster.show(Str.t(if (state.magnet) R.string.app_snapping_on else R.string.app_snapping_off))
@@ -419,9 +451,11 @@ internal fun EditPage(
             }
             ShellButton(Ic.Gear, stringResource(R.string.app_app_settings), 14.dp, K.SurfaceHigh, Modifier.testTag("appSettings"), tint = K.OnSurfaceVar) { onAppSettings() }
         }
+      }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            Timeline(state, tool, Modifier.fillMaxSize())
-            if (overlays) {
+            if (inTranscript) transcript!!(Modifier.fillMaxSize())
+            else Timeline(state, tool, Modifier.fillMaxSize())
+            if (overlays && !inTranscript) {
                 // (the chip first: a card that reaches up to it lies over it, not under)
                 // (the selected clips' stretch: the chip can render just that)
                 val sel = (state.multi + listOfNotNull(state.selected)).let { ids -> state.clips.filter { it.id in ids } }

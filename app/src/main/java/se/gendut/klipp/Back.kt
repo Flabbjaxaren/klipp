@@ -25,6 +25,8 @@ enum class BackLayer {
     DOCK_ROW,
     /** The color page's grid (gallery, clip grade, timeline look). */
     COLOR_GRID,
+    /** The edit page's transcript view: back to the timeline (the selection and the playhead stay). */
+    TRANSCRIPT,
     /** Another page: back to Edit. */
     PAGE,
     /** A selected transition (its card). */
@@ -45,6 +47,7 @@ data class BackState(
     val editingCaption: Boolean = false,
     val dockRow: Boolean = false,
     val colorGrid: Boolean = false,
+    val transcript: Boolean = false,
     val page: Int = 0,
     val transition: Boolean = false,
     val cut: Boolean = false,
@@ -61,6 +64,7 @@ fun backLayer(s: BackState): BackLayer = when {
     !s.exporting && s.page == 0 && s.editingCaption -> BackLayer.CAPTION_EDITOR
     !s.exporting && s.page == 0 && s.dockRow -> BackLayer.DOCK_ROW
     !s.exporting && s.page == 1 && s.colorGrid -> BackLayer.COLOR_GRID
+    !s.exporting && s.page == 0 && s.transcript -> BackLayer.TRANSCRIPT
     s.page != 0 -> BackLayer.PAGE
     s.exporting -> BackLayer.NONE
     s.transition -> BackLayer.TRANSITION
@@ -72,6 +76,7 @@ fun backLayer(s: BackState): BackLayer = when {
 fun EditorState.backState(mediaOpen: Boolean, sourceOpen: Boolean, colorGrid: Boolean, page: Int, exporting: Boolean) = BackState(
     mediaOpen = mediaOpen, sourceOpen = sourceOpen, inspecting = inspecting,
     editingCaption = editingCaption && selectedCaption != null, dockRow = dockRow != DockRow.NONE, colorGrid = colorGrid, page = page,
+    transcript = editView == EditView.TRANSCRIPT,
     transition = selectedTransition != null, cut = selectedCut != null,
     selection = selected != null || multi.isNotEmpty() || multiCaptions.isNotEmpty() || selectedCaption != null,
     exporting = exporting,
@@ -89,6 +94,7 @@ internal fun EditorBack(state: EditorState, of: () -> BackState, close: (BackLay
         when (val l = backLayer(now())) {
             BackLayer.CAPTION_EDITOR -> state.editingCaption = false
             BackLayer.DOCK_ROW -> state.dockRow = DockRow.NONE
+            BackLayer.TRANSCRIPT -> state.editView = EditView.TIMELINE
             BackLayer.TRANSITION -> state.selectedTransition = null
             BackLayer.CUT -> state.selectedCut = null
             BackLayer.SELECTION -> state.clearSelection()

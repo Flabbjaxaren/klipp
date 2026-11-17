@@ -23,4 +23,23 @@
     <string name="source_text_selected">Markerat: %1$s</string>
     <string name="source_transcribing_other">En annan transkribering pågår.</string>
     <string name="medialibrary_has_text">Har transkription</string>
+    <string name="transcript_view_title">Transkription · sekvens</string>
+    <string name="transcript_source_title">Transkription · källklipp</string>
+    <string name="edit_view_timeline">Tidslinje</string>
+    <string name="edit_view_transcript">Transkription</string>
+    <string name="transcript_make_captions">Skapa undertexter</string>
+    <string name="transcript_bulk_scope">Pauser och utfyllnadsord tas bort på alla olåsta spår, och luckorna stängs.</string>
+    <string name="transcript_cut_range">Tas bort: %1$s – %2$s (%3$s s)</string>
+    <string name="transcript_cut_nothing">Inget spår är målspår eller synklåst – inget skulle tas bort. Tryck på ett spårhuvud i tidslinjen för att göra det till målspår.</string>
+    <string name="transcript_cut_later_moves">Det som kommer efter flyttas %1$s s tidigare på de spåren.</string>
+    <string name="transcript_cut_nothing_after">Inget kommer efter på de spåren.</string>
+    <string name="transcript_cut_untouched">Ändras inte: %1$s (inte målspår eller synklåsta, eller låsta) – de kan hamna i otakt.</string>
+    <plurals name="transcript_cut_tracks">
+        <item quantity="one">Klipps ur %1$s: %2$d klipp</item>
+        <item quantity="other">Klipps ur %1$s: %2$d klipp</item>
+    </plurals>
+    <plurals name="transcript_cut_captions">
+        <item quantity="one">%1$d undertext ligger i området – dess text ändras inte.</item>
+        <item quantity="other">%1$d undertexter ligger i området – deras text ändras inte.</item>
+    </plurals>
 </resources>

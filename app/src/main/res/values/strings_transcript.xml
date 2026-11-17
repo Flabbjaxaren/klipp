@@ -23,4 +23,23 @@
     <string name="source_text_selected">Marked: %1$s</string>
     <string name="source_transcribing_other">Another transcription is running.</string>
     <string name="medialibrary_has_text">Has a transcript</string>
+    <string name="transcript_view_title">Transcript · sequence</string>
+    <string name="transcript_source_title">Transcript · source clip</string>
+    <string name="edit_view_timeline">Timeline</string>
+    <string name="edit_view_transcript">Transcript</string>
+    <string name="transcript_make_captions">Make captions</string>
+    <string name="transcript_bulk_scope">Pauses and filler words are removed on all unlocked tracks, and the gaps close.</string>
+    <string name="transcript_cut_range">Removed: %1$s – %2$s (%3$s s)</string>
+    <string name="transcript_cut_nothing">No track is targeted or sync-locked – nothing would be removed. Tap a track header in the timeline to target it.</string>
+    <string name="transcript_cut_later_moves">What comes after moves %1$s s earlier on those tracks.</string>
+    <string name="transcript_cut_nothing_after">Nothing comes after it on those tracks.</string>
+    <string name="transcript_cut_untouched">Left as they are: %1$s (not targeted or sync-locked, or locked) – they can fall out of step.</string>
+    <plurals name="transcript_cut_tracks">
+        <item quantity="one">Cut from %1$s: %2$d clip</item>
+        <item quantity="other">Cut from %1$s: %2$d clips</item>
+    </plurals>
+    <plurals name="transcript_cut_captions">
+        <item quantity="one">%1$d caption lies in the range – its text is not changed.</item>
+        <item quantity="other">%1$d captions lie in the range – their text is not changed.</item>
+    </plurals>
 </resources>
