@@ -239,4 +239,20 @@ class ExportJobsTest {
             latch.enabled = false
         }
     }
+
+    @Test fun theEncoderFailureTestPointFiresOnceAndOnlyInATestBuild() {
+        val tp = se.gendut.klipp.engine.ExportTestPoints
+        val latch = se.gendut.klipp.engine.ExportLatch
+        assertFalse("off unless the build has TEST_HOOKS", latch.enabled)
+        try { tp.failNextEncode(); throw AssertionError("allowed outside the test build") } catch (_: IllegalStateException) {}
+        latch.enabled = true
+        try {
+            tp.failNextEncode()
+            assertFalse("not before the encoding is under way", tp.takeFailure(2))
+            assertTrue(tp.takeFailure(6))
+            assertFalse("once", tp.takeFailure(7))
+        } finally {
+            latch.enabled = false
+        }
+    }
 }

@@ -167,8 +167,13 @@ object ExportGuard {
         Thread({ runCatching { sweep(c) } }, "export-sweep").start()
     }
 
+    /** The export marked as running (as in the preferences; diagnostics). */
+    @Volatile var marked: String? = null
+        private set
+
     /** The job has begun (in the foreground): marked before any work. */
     fun begin(c: Context, name: String) {
+        marked = name
         prefs(c).edit().putString("running", name).putLong("since", System.currentTimeMillis()).remove("file").remove("published").commit()
     }
 
@@ -187,6 +192,7 @@ object ExportGuard {
 
     /** The job has ended (its end decided): the marks go. */
     fun end(c: Context) {
+        marked = null
         prefs(c).edit().remove("running").remove("since").remove("file").remove("published").commit()
     }
 

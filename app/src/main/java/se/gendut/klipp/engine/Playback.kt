@@ -1539,7 +1539,15 @@ object Exporter {
                 val poll = object : Runnable {
                     override fun run() {
                         if (!cont.isActive) return
-                        if (transformer.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) onProgress(holder.progress)
+                        if (transformer.getProgress(holder) == Transformer.PROGRESS_STATE_AVAILABLE) {
+                            // (the test build's encoder failure: Transformer stopped and the export failed, as onError does)
+                            if (note && ExportTestPoints.takeFailure(holder.progress)) {
+                                transformer.cancel(); boost.close()
+                                cont.resume(Result.failure(IllegalStateException("test point: the encoder failed")))
+                                return
+                            }
+                            onProgress(holder.progress)
+                        }
                         handler.postDelayed(this, 200)
                     }
                 }

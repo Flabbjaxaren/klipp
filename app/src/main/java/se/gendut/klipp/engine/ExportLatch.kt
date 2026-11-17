@@ -65,7 +65,7 @@ object ExportLatch {
 
 /**
  * The test build's other test points for the export (the agent bridge's export_latch tool, listed only there): the
- * next foreground start refused, Android's time limit now. Each refuses to act outside the test build.
+ * next foreground start refused, the next encoder failing, Android's time limit now. Each refuses to act outside the test build.
  */
 object ExportTestPoints {
     @Volatile private var refuseNext = false
@@ -79,6 +79,21 @@ object ExportTestPoints {
     internal fun takeRefusal(): Boolean {
         if (!refuseNext || !ExportLatch.enabled) return false
         refuseNext = false
+        return true
+    }
+
+    @Volatile private var failNext = false
+
+    /** The next export's encoder fails once it is under way (as Transformer's onError: the job released, a failure). */
+    fun failNextEncode() {
+        check(ExportLatch.enabled) { "only in the test build" }
+        failNext = true
+    }
+
+    /** From the export's progress poll: true once (at [percent] ≥ 5) if a failure was asked for. */
+    internal fun takeFailure(percent: Int): Boolean {
+        if (!failNext || !ExportLatch.enabled || percent < 5) return false
+        failNext = false
         return true
     }
 
