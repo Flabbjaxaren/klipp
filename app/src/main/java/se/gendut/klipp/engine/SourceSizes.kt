@@ -70,4 +70,10 @@ object SourceSizes {
 
     /** For tests. */
     internal fun clear() = synchronized(sizes) { sizes.clear(); missing.clear() }
+
+    /** Test builds: a size forgotten (as on a cold start without it) – the players are rebuilt without it. */
+    fun forgetForTest(uri: Uri) { synchronized(sizes) { sizes.remove(uri.toString()) }; bump() }
+
+    /** Test builds: the players rebuilt (a test switch changed what they read). */
+    fun touchForTest() = bump()
 }

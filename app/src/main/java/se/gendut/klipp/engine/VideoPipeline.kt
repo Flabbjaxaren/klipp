@@ -80,6 +80,9 @@ object VideoPipeline {
     }
 
     fun setDisplayTenBit(c: Context, on: Boolean) { displayTenBit = on; prefs(c).edit().putBoolean("video10display", on).apply() }
+    /** Test builds: the preview size for this session only (not saved). */
+    fun previewShortForSession(v: Int) { previewShort = v.takeIf { it in PREVIEW_SIZES } ?: 1080 }
+
     fun setPreviewShort(c: Context, v: Int) { previewShort = v.takeIf { it in PREVIEW_SIZES } ?: 1080; prefs(c).edit().putInt("videoPreviewShort", previewShort).apply() }
     fun setHdrToneMap(c: Context, v: Int) { hdrToneMap = v.coerceIn(0, 1); prefs(c).edit().putInt("videoToneMap", hdrToneMap).apply() }
 

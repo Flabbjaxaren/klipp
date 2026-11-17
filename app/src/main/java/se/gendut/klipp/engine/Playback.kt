@@ -201,7 +201,10 @@ object CompositionBuilder {
      */
     /** The short side of [uri]'s video as probed (the film's reference size, see [FilmFx.Frame]), 0 = not known yet. */
     /** The film's reference size for a clip of [uri]: the source file's short side (see SourceSizes); 0 = not known (scale 1). */
-    fun filmRefOf(uri: Uri?): Int = SourceSizes.short(uri) ?: 0
+    fun filmRefOf(uri: Uri?): Int = if (testUnscaledFilm) 0 else SourceSizes.short(uri) ?: 0
+
+    /** Test builds (measuring N1's cost): the film unscaled, as before N1 – same chain otherwise. */
+    @Volatile var testUnscaledFilm = false
 
     fun previewShortSide(srcShort: Int?, planW: Int, planH: Int): Int? {
         if (srcShort == null || srcShort <= 0 || planW <= 0 || planH <= 0) return null
@@ -1042,7 +1045,7 @@ class ProgramPlayback(private val context: Context) {
         cuts = runCatching { CompositionBuilder.playPlan(s, uriOf, chunks)?.let { CutSeek.cutsOf(it.layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
         val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision +
             // the film's reference and the preview's downscale follow the sources' sizes: a size that came late rebuilds
-            "#sizes" + SourceSizes.revision
+            "#sizes" + SourceSizes.revision + (if (CompositionBuilder.testUnscaledFilm) "#unscaled" else "")
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
         LiveGrades.publish(grades)
         if (!force && key == lastKey && hasContent) {

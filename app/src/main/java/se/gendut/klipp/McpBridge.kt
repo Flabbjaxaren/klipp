@@ -494,6 +494,36 @@ object McpBridge {
                 }
                 else -> error("op is arm or save")
             }
+        },
+        Tool("film_test", "Test build only (TEST_HOOKS): op=unscaled with on=true plays the film unscaled (as before N1: reference 0) " +
+            "and rebuilds the player; on=false back to normal. op=preview with short sets the preview size for this session only (0 = full).",
+            JSONObject().put("op", prop("string", "unscaled | preview")).put("on", prop("boolean", "")).put("short", prop("number", "")).put("clip", prop("number", "op=late"))
+                .put("delay_ms", prop("number", "op=late")), listOf("op")) { a ->
+            when (a.getString("op")) {
+                "unscaled" -> {
+                    se.gendut.klipp.engine.CompositionBuilder.testUnscaledFilm = a.optBoolean("on", false)
+                    se.gendut.klipp.engine.SourceSizes.touchForTest()
+                    texts("film unscaled: ${se.gendut.klipp.engine.CompositionBuilder.testUnscaledFilm}")
+                }
+                // the preview size for this session only (not saved): 0 = full resolution – the export's own chain
+                "preview" -> {
+                    onMain { se.gendut.klipp.engine.VideoPipeline.previewShortForSession(a.optInt("short", 1080)) }
+                    texts("preview short side (this session): ${se.gendut.klipp.engine.VideoPipeline.previewShort}")
+                }
+                // proxies for this session only (not saved): the originals played
+                "proxies" -> { onMain { se.gendut.klipp.engine.Proxies.switchForSession(a.optBoolean("on", true)) }; texts("proxies (this session): ${se.gendut.klipp.engine.Proxies.enabled}") }
+                // a size that comes late: forgotten now (the players rebuilt without it), back after delay_ms as the probe gives it
+                "late" -> {
+                    val c = ctl()
+                    val cl = c.snapshot.sequence?.video?.flatMap { it.clips }?.firstOrNull { it.id == a.getLong("clip") } ?: error("no such clip")
+                    val u = c.uriOf(cl.item) ?: error("no file")
+                    val m = c.snapshot.media.firstOrNull { it.id == cl.item } ?: error("no media")
+                    se.gendut.klipp.engine.SourceSizes.forgetForTest(u)
+                    Thread({ Thread.sleep(a.optLong("delay_ms", 4000)); se.gendut.klipp.engine.SourceSizes.probed(u, m.width, m.height) }, "late-size").start()
+                    texts("size of ${u.lastPathSegment} forgotten; back in ${a.optLong("delay_ms", 4000)} ms")
+                }
+                else -> error("op is unscaled, preview, proxies or late")
+            }
         }) }
 
     // ------------------------------------------------------------------ screen
