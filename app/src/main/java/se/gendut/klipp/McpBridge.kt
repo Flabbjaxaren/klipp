@@ -459,7 +459,8 @@ object McpBridge {
             }
             texts(l.state)
         },
-        Tool("frame_probe", "Test build only (TEST_HOOKS): the player's output frame before the screen's scaling. op=arm keeps every frame " +
+        // (each test tool behind its own TEST_HOOKS: listOfNotNull's arguments are separate – an if covers only the first)
+        if (!BuildConfig.TEST_HOOKS) null else Tool("frame_probe", "Test build only (TEST_HOOKS): the player's output frame before the screen's scaling. op=arm keeps every frame " +
             "drawn from now on (the last one); op=save writes the last one to diag/probe_<tag>.raw and returns its size, time and format, " +
             "the video views' sizes (SurfaceView: its buffer) and each clip's played file (original or proxy).",
             JSONObject().put("op", prop("string", "arm | save")).put("tag", prop("string", "op=save: file name part")), listOf("op")) { a ->
@@ -495,7 +496,8 @@ object McpBridge {
                 else -> error("op is arm or save")
             }
         },
-        Tool("film_test", "Test build only (TEST_HOOKS): op=unscaled with on=true plays the film unscaled (as before N1: reference 0) " +
+        // (each test tool behind its own TEST_HOOKS: listOfNotNull's arguments are separate – an if covers only the first)
+        if (!BuildConfig.TEST_HOOKS) null else Tool("film_test", "Test build only (TEST_HOOKS): op=unscaled with on=true plays the film unscaled (as before N1: reference 0) " +
             "and rebuilds the player; on=false back to normal. op=preview with short sets the preview size for this session only (0 = full). " +
             "op=proxies with on turns proxies on/off for this session only. op=late with clip and delay_ms forgets the clip's source size and gives it back after the delay.",
             JSONObject().put("op", prop("string", "unscaled | preview | proxies | late")).put("on", prop("boolean", "")).put("short", prop("number", "")).put("clip", prop("number", "op=late"))
