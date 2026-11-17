@@ -117,7 +117,7 @@
     <string name="panels_volume_automation">Volymautomation</string>
     <string name="panels_automation_hint">◆ lägger en nyckelruta vid spelhuvudet med faderns värde (eller tar bort den som ligger där). Med nyckelrutor följer fadern dem, och när du drar i den skrivs en ny ruta.</string>
     <string name="panels_clear_track">Rensa A%1$d</string>
-    <string name="panels_voice_over">Voice-over</string>
+    <string name="panels_voice_over">Berättarröst</string>
     <string name="panels_record">● Spela in</string>
     <string name="panels_stop">■ Stoppa</string>
     <string name="panels_recording_hint">Spelar in – tidslinjen spelas tyst så att högtalaren inte hörs i mikrofonen.</string>

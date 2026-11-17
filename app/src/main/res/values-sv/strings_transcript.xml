@@ -1,26 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="transcript_title">Klipp med text</string>
+    <string name="transcript_title">Transkription</string>
     <string name="transcript_info">Talet blir text, ord för ord. Radera ord så klipps videon bort med dem.</string>
-    <string name="transcript_open">Öppna utskriften</string>
-    <string name="transcript_empty">Ingen utskrift än. Välj en talmodell och låt telefonen lyssna på ljudspåren (inget lämnar telefonen).</string>
-    <string name="transcript_transcribe">Skriv ut talet</string>
+    <string name="transcript_open">Öppna transkriptionen</string>
+    <string name="transcript_empty">Ingen transkription än. Välj en talmodell och låt telefonen lyssna på ljudspåren (inget lämnar telefonen).</string>
+    <string name="transcript_transcribe">Transkribera</string>
     <string name="transcript_remove_pauses">Ta bort pauser</string>
     <string name="transcript_remove_fillers">Ta bort utfyllnadsord</string>
     <string name="transcript_hint">Tryck på ett ord för att hoppa dit. Tryck på ett annat ord för att markera allt emellan.</string>
-    <string name="transcript_hint_selected">Radera klipper bort orden ur video, ljud och undertexter.</string>
+    <string name="transcript_hint_selected">Ta bort klipper bort orden ur video och ljud på målspåren och stänger luckan. Undertexter i området kortas, men deras text ändras inte.</string>
     <plurals name="transcript_delete_words">
-        <item quantity="one">Radera %1$d ord</item>
-        <item quantity="other">Radera %1$d ord</item>
+        <item quantity="one">Ta bort %1$d ord och stäng luckan</item>
+        <item quantity="other">Ta bort %1$d ord och stäng luckan</item>
     </plurals>
-    <string name="transcript_redo">Skriv ut igen</string>
-    <string name="transcript_redo_hint">Lyssna igen, till exempel på ett annat språk eller med högre kvalitet. Den nya utskriften ersätter den gamla.</string>
-    <string name="source_text">Text</string>
-    <string name="source_show_text">Visa klippet som text</string>
+    <string name="transcript_redo">Transkribera igen</string>
+    <string name="transcript_redo_hint">Lyssna igen, till exempel på ett annat språk eller med högre kvalitet. Den nya transkriptionen ersätter den gamla.</string>
+    <string name="source_text">Transkription</string>
+    <string name="source_show_text">Visa klippets transkription</string>
     <string name="source_show_picture">Visa bilden</string>
-    <string name="source_text_empty">Inget transkript ännu. Transkribera klippet och välj dess meningar som text – inget lämnar telefonen.</string>
+    <string name="source_text_empty">Ingen transkription ännu. Transkribera klippet och välj dess meningar som text – inget lämnar telefonen.</string>
     <string name="source_text_hint">Tryck på en mening för att markera den, tryck på en till för att utöka. Sedan Infoga eller Skriv över.</string>
     <string name="source_text_selected">Markerat: %1$s</string>
     <string name="source_transcribing_other">En annan transkribering pågår.</string>
-    <string name="medialibrary_has_text">Har transkript</string>
+    <string name="medialibrary_has_text">Har transkription</string>
 </resources>

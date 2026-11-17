@@ -164,7 +164,7 @@
     <string name="audiofxcatalog_boost">Förstärkning</string>
     <string name="audiofxcatalog_on">på</string>
     <string name="audiofxcatalog_off">av</string>
-    <string name="projectcontroller_undo_delete_text">Radera text</string>
+    <string name="projectcontroller_undo_delete_text">Ta bort ord</string>
     <string name="projectcontroller_undo_remove_pauses">Ta bort pauser</string>
     <string name="projectcontroller_undo_remove_fillers">Ta bort utfyllnadsord</string>
     <string name="projectcontroller_nothing_removed">Inget att ta bort</string>

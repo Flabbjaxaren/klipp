@@ -214,7 +214,7 @@
     <string name="colorpage_clip_grade">Clip grade</string>
     <string name="colorpage_copy">Copy</string>
     <string name="colorpage_paste">Paste</string>
-    <string name="colorpage_all_clips">All clips</string>
+    <string name="colorpage_all_clips">All video clips in the sequence</string>
     <string name="colorpage_reset">Reset</string>
     <string name="colorpage_scope_none">No scopes</string>
     <string name="colorpage_scope_waveform">Waveform</string>

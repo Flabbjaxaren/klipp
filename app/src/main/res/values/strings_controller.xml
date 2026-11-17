@@ -164,7 +164,7 @@
     <string name="audiofxcatalog_boost">Boost</string>
     <string name="audiofxcatalog_on">on</string>
     <string name="audiofxcatalog_off">off</string>
-    <string name="projectcontroller_undo_delete_text">Delete text</string>
+    <string name="projectcontroller_undo_delete_text">Delete words</string>
     <string name="projectcontroller_undo_remove_pauses">Remove pauses</string>
     <string name="projectcontroller_undo_remove_fillers">Remove filler words</string>
     <string name="projectcontroller_nothing_removed">Nothing to remove</string>

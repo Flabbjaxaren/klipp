@@ -739,7 +739,7 @@ private fun ClipDock(state: EditorState) {
             // rest; each group opens its sheet
             fun open(group: Int) { state.inspectGroup = group; state.inspecting = true }
             val items = buildList {
-                add(DockItem(Ic.Delete, stringResource(R.string.app_delete), "ctx:delete", tint = K.Error, strong = true) { state.selected?.let { state.requestRemove(it, false) } })
+                add(DockItem(Ic.Delete, stringResource(R.string.app_delete), "ctx:delete", tint = K.Error, strong = true, desc = stringResource(R.string.app_delete_leave_gap)) { state.selected?.let { state.requestRemove(it, false) } })
                 val split = DockItem(Ic.Split, stringResource(R.string.app_split), "ctx:split") { state.selected?.let { state.split(it, state.playhead) } }
                 when {
                     isTitle -> {
@@ -789,7 +789,7 @@ private fun MultiDock(state: EditorState) {
     }
     val items = buildList {
         // (delete first, as in a clip's row; six share the dock, so two have short names – the whole ones are read out)
-        add(DockItem(Ic.Delete, stringResource(R.string.app_delete), "multi:delete", tint = K.Error, strong = true) { state.removeGroup(false) })
+        add(DockItem(Ic.Delete, stringResource(R.string.app_delete), "multi:delete", tint = K.Error, strong = true, desc = stringResource(R.string.app_delete_leave_gap)) { state.removeGroup(false) })
         if (nClips > 0) add(DockItem(Ic.Ripple, stringResource(R.string.design_ripple_short), "multi:ripple", strong = true, desc = stringResource(R.string.app_ripple_delete)) { state.removeGroup(true) })
         // compound clip: selected, moved and graded together
         if (state.props != null && nClips > 0) {

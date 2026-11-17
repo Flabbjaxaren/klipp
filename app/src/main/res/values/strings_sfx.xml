@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="sfx_title">Sound effects</string>
+    <string name="sfx_title">Sound library</string>
     <string name="sfx_license_note">All sounds are CC0 – free to use in any film, no credit required.</string>
     <string name="sfx_tab_packs">Packs</string>
-    <string name="sfx_tab_speech">Speech</string>
+    <string name="sfx_tab_speech">Text to speech</string>
     <string name="sfx_tab_files">Files</string>
     <string name="sfx_files_hint">Music or a sound from your phone. It is copied into Klipp and placed at the playhead.</string>
     <string name="sfx_file_choose">Choose an audio file</string>

@@ -123,8 +123,8 @@ class ProjectsTest {
         rule.waitForIdle()
         assertTrue("nothing opened", fake.log.isEmpty())
         assertEquals(0, closed)
-        rule.onNodeWithText("Exportera med media till en fil…").assertExists()
-        rule.onNodeWithText("Exportera bara projektfilen…").assertExists()
+        rule.onNodeWithText("Spara projektpaket med media…").assertExists()
+        rule.onNodeWithText("Spara bara projektfilen…").assertExists()
         rule.onNodeWithTag("safetyNote").assertExists()
         rule.onRoot().captureRoboImage("build/shots/35_projekt_meny.png")
         // earlier versions: said plainly that they are no backup
@@ -147,7 +147,7 @@ class ProjectsTest {
         // the long press still opens the same menu
         rule.onNodeWithTag("project:p1").performTouchInput { longClick() }
         rule.waitForIdle()
-        rule.onNodeWithText("Exportera med media till en fil…").assertExists()
+        rule.onNodeWithText("Spara projektpaket med media…").assertExists()
         assertTrue(fake.log.isEmpty())
     }
 

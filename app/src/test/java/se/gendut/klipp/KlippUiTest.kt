@@ -272,7 +272,7 @@ class KlippUiTest {
         rule.waitForIdle()
         rule.onNodeWithTag("timeline").performTouchInput { click(pt(10.5f, v1Center)) }
         rule.waitForIdle()
-        rule.onNodeWithText("Kopiera").performClick()
+        rule.onNodeWithText("Visa i källan").performClick()
         rule.waitForIdle()
         assertEquals(2L, copied)
         rule.onRoot().captureRoboImage("$dir/14_kopiera.png")

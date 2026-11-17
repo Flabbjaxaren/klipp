@@ -6,13 +6,13 @@
     <string name="design_motion_blur">Motion blur</string>
     <string name="design_position">Position</string>
     <string name="design_add_media">Media</string>
-    <string name="design_add_sound">Sound</string>
+    <string name="design_add_sound">Sound library</string>
     <string name="design_add_title">Title</string>
     <string name="design_add_captions">Captions</string>
-    <string name="design_add_voice">Voice</string>
+    <string name="design_add_voice">Voice-over</string>
     <string name="design_timeline_modes">Timeline modes</string>
     <string name="design_tool">Tool</string>
-    <string name="design_sound_fx">Effects</string>
+    <string name="design_sound_fx">Audio effects</string>
     <string name="theme_accent_lime">Lime</string>
     <string name="theme_accent_custom">Custom</string>
     <string name="theme_tone_button">Play</string>
@@ -35,7 +35,7 @@
     <string name="design_color_more">Gallery, grade and timeline</string>
     <string name="design_color_cancel_pick">Cancel</string>
     <!-- Short names for the dock, where six actions share the width (the whole names are read out) -->
-    <string name="design_ripple_short">Ripple</string>
+    <string name="design_ripple_short">Close gap</string>
     <string name="design_sync_short">Sync</string>
     <string name="design_edit_short">Edit</string>
 </resources>

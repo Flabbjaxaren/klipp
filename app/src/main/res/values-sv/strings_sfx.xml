@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="sfx_title">Ljudeffekter</string>
+    <string name="sfx_title">Ljudbibliotek</string>
     <string name="sfx_license_note">Alla ljud är CC0 – fria att använda i vilken film som helst, utan namnangivelse.</string>
     <string name="sfx_tab_packs">Paket</string>
-    <string name="sfx_tab_speech">Tal</string>
+    <string name="sfx_tab_speech">Text till tal</string>
     <string name="sfx_tab_files">Filer</string>
     <string name="sfx_files_hint">Musik eller ett ljud från telefonen. Det kopieras in i Klipp och läggs vid spelhuvudet.</string>
     <string name="sfx_file_choose">Välj en ljudfil</string>

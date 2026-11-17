@@ -63,7 +63,7 @@
     <string name="app_selection_rendered">Markeringen är renderad</string>
     <string name="app_lut_fallback">Färgpasset fungerade inte på den här GPU:n – använder standardeffekter (trilinjär LUT)</string>
     <string name="app_marker_at">Markör vid %1$s</string>
-    <string name="app_copied_to_source">Kopierat till källan – välj plats och infoga</string>
+    <string name="app_copied_to_source">Visas i källan – välj plats och infoga</string>
     <string name="app_undone">Ångrat</string>
     <string name="app_redone">Gjort om</string>
     <string name="app_prototype_mode">Prototypläge</string>
@@ -86,7 +86,7 @@
     <string name="app_projects">Projekt</string>
     <string name="app_undo">Ångra</string>
     <string name="app_redo">Gör om</string>
-    <string name="app_export">Exportera</string>
+    <string name="app_export">Exportera film</string>
     <string name="app_add_marker">Lägg till markör</string>
     <string name="app_remove_marker">Ta bort markören</string>
     <string name="app_marker_removed">Markören borttagen</string>
@@ -104,7 +104,7 @@
     <string name="app_linked_selection">Länkad markering</string>
     <string name="app_linked_on">Länkad markering på – bild och ljud följer varandra</string>
     <string name="app_linked_off">Länkad markering av – bild och ljud var för sig</string>
-    <string name="app_locked_playhead">Låst spelhuvud</string>
+    <string name="app_locked_playhead">Spelhuvudet i mitten</string>
     <string name="app_magnetic_snapping">Magnetisk fästning</string>
     <string name="app_snapping_on">Magnetisk fästning på</string>
     <string name="app_snapping_off">Magnetisk fästning av</string>
@@ -124,15 +124,16 @@
     <string name="label_purple">Lila</string>
     <string name="app_seconds">%1$d s</string>
     <string name="app_half_second">0,5 s</string>
-    <string name="app_copy">Kopiera</string>
+    <string name="app_copy">Visa i källan</string>
     <string name="app_split">Dela</string>
     <string name="app_speed">Hastighet</string>
     <string name="app_forward">Framlänges</string>
     <string name="app_reverse">Baklänges</string>
     <string name="app_enable">Slå på</string>
     <string name="app_disable">Stäng av</string>
-    <string name="app_delete">Radera</string>
-    <string name="app_ripple_delete">Ripple-radera</string>
+    <string name="app_delete">Ta bort</string>
+    <string name="app_delete_leave_gap">Ta bort (luckan blir kvar)</string>
+    <string name="app_ripple_delete">Ta bort och stäng luckan</string>
     <plurals name="app_n_clips">
         <item quantity="one">%1$d klipp</item>
         <item quantity="other">%1$d klipp</item>
@@ -141,7 +142,7 @@
         <item quantity="one">%1$d undertext</item>
         <item quantity="other">%1$d undertexter</item>
     </plurals>
-    <string name="app_toggle_enabled">Av/på</string>
+    <string name="app_toggle_enabled">Slå på/av</string>
     <string name="app_ungroup">Dela upp</string>
     <string name="app_group">Gruppera</string>
     <string name="app_deselect">Avmarkera</string>
@@ -166,7 +167,7 @@
     <string name="app_remove">Ta bort</string>
     <string name="app_sync_audio">Synka ljud</string>
     <string name="app_edit_text">Redigera text</string>
-    <string name="app_volume">Volym</string>
+    <string name="app_volume">Klippvolym</string>
     <string name="app_go_to_time">Gå till tid</string>
     <string name="app_go">Gå</string>
     <string name="app_timecode_hint">Siffror fylls från höger: 1512 = 15 s 12 bildrutor. +200 = 2 s framåt.</string>
