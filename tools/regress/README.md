@@ -66,3 +66,11 @@ with BACK, and one whose process is killed (am force-stop) four seconds in – a
 the first two; no file, no notification and the "Export interrupted" notice in the last. A release-signed build can't
 list its cache (run-as), so the temporary file's removal is left to the unit test there. force-stop can bring another
 app to the front: every tap first checks that the test app is on top.
+
+`copy_check.py --serial S --port P` (the test build, same project): the export stopped exactly in its copy into
+Movies – the test build's latch (bridge tool `export_latch`, never in Klipp itself) holds the copy halfway. Killed
+there (force-stop): at the next start nothing of it may be left in Movies/Klipp, pending `.pending-*` entries included
+(listed with `ls -la`, hidden from `content query`), and the notice must say no file was saved. Screen closed there
+(`am stack remove` of its task, as a swipe in Recents; the process lives on in the foreground service): the copy is
+finished, the file must be whole (ffprobe length, decoded to the end without errors) and the notice must say it was
+saved. Whatever the app says must agree with what is in Movies/Klipp.
