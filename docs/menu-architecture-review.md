@@ -752,3 +752,32 @@ ModeSwipeTest.
 1. Lägg en namnskylt med ditt namn i början av filmen och gör texten fet.
 2. Skapa en undertext där någon pratar, rätta stavningen och låt den sluta exakt där meningen tar slut.
 3. Ta bort en mening ur filmen med hjälp av texten, och säg innan du gör det vilka klipp som kommer att kortas.
+
+---
+
+# Uppföljning efter första provet (2026-11-17/18)
+
+Feedback: titel- och undertextarken kändes som en lång lista med funktioner; texten skrevs längst ned trots att
+man väljer text före utseende. Arken studsade efter ett snabbt kast uppåt. "Ljudbibliotek" bröts på två rader.
+A1–A3 under Whisper saknade förklaring.
+
+| Ändring | Commit |
+|---|---|
+| Knappen "Sounds"/"Ljudklipp" med nottecken (arket och uppläsningen heter fortfarande "Sound library"/"Ljudbibliotek"); dockans namn på en rad, krymper hellre än bryts | `159812c` |
+| Arken studsade efter ett snabbt kast uppåt (resten av kastet gick till arket, som aldrig kom till vila) – stoppat i titel-, undertext- och ljudbiblioteksarket; dra nedåt stänger som förut | `eb21e50` |
+| "Speech from track"/"Tal från spår" över A1–A3 i automatiska undertexter | `7a4d62b` |
+| Titelarket: förhandsvisning → 1 · Text (mallens exempel som ledtråd) → 2 · Utseende (byte behåller texten) → 3 · Så kommer den in; "Lägg till vid …" fast längst ned; utkastet sparas om arket stängs; titlarna på tidslinjen i en egen flik | `b48c796` |
+| Undertextarket i tre delar: **Från tal** (automatiska), **Skriv själv** (skriv en rad, lägg till vid spelhuvudet – spelhuvudet flyttas till radens slut så nästa följer; spår vid flera; import av SRT/VTT), **I projektet** (spår, stil med omfattning, synlighet, listan). Öppnar på "I projektet" när det finns undertexter, annars "Från tal" | `b48c796` |
+| Skriv själv: raden kortas till platsen före nästa undertext på spåret; står spelhuvudet i en undertext eller saknas plats säger knappen varför (motorn vägrar överlapp) | `1c1de6a` |
+
+Telefonprov på OnePlus, 177-ui och 179-ui (testpaketet, eget testprojekt):
+
+| Prov | Resultat |
+|---|---|
+| Kast uppåt i titel-, undertext- och ljudbiblioteksarket | Arket står kvar på samma plats (y 362) efter kastet, innehållet rullar, drag nedåt stänger |
+| Titel | Textfältet ovanför utseendet; "Maja Lind" skriven, utseendet bytt till Kapitelkort; titeln las till med texten; knappen syns hela tiden |
+| Undertexter › Skriv själv | I en undertext: knappen avstängd med förklaring, inget läggs till. Vid 4 s: "Goes in 00:00:04:00 – 00:00:06:00"; två rader i följd hamnar på 4–6 s och 6–8 s, spelhuvudet följer |
+| Undertextarket öppnar på "In project (5)" | ja |
+
+Enhetssviten (`5c56258`): 714 tester, 713 godkända, 0 misslyckade, 1 överhoppat (`FilmCpuRenderTest.renderCases`).
+Nya testklasser: AddSheetsFlowTest. CaptionEditsTest har utökats med platsen för skrivna rader.
