@@ -208,6 +208,24 @@ class GradeState {
     var scopeKind by mutableStateOf(0)
     /** The clips the copied grade has been pasted to (the wheels' button offers pasting once per clip). */
     val pasted = androidx.compose.runtime.mutableStateListOf<Long>()
+
+    /** Copy a clip's grade – the one clipboard for the wheels' button and the grid's Copy. */
+    fun copyGrade(id: Long) { clipboard = of(id); clipboardFrom = id; pasted.clear() }
+
+    /**
+     * A grade onto a clip – the one rule for paste, a still's grade and all clips: the color (the nodes) carries over;
+     * the clip keeps what Edit › Picture set on it (key, mask, blend, crop, stabilization, motion blur) and a tracked
+     * window's track (it belongs to the other file) does not carry over. One undo step.
+     */
+    fun applyGrade(id: Long, g: ClipGrade) = set(id, g.forOtherClip(of(id).stab, of(id).layer, of(id).mblur))
+
+    /** Paste the copied grade onto [id] (onto the clip it was copied from: that clip's grade back, whole). */
+    fun pasteGrade(id: Long): ClipGrade? {
+        val cb = clipboard ?: return null
+        if (clipboardFrom == id) set(id, cb) else applyGrade(id, cb)
+        pasted.add(id)
+        return of(id)
+    }
     /** The program image as displayed (PixelCopy) – for scopes during playback. */
     var capture: (suspend () -> Bitmap?)? = null
 
@@ -397,7 +415,7 @@ fun ColorPage(
                 Column {
                     if (cid != null) NodeMenuRow(stringResource(R.string.colorpage_apply_still_grade)) {
                         // the still may come from another clip: the color carries over, not stabilization or tracking
-                        stillMenu = null; gs.set(cid, st.grade.forOtherClip(gs.of(cid).stab, gs.of(cid).layer, gs.of(cid).mblur)); nodeId = st.grade.nodes.first().id
+                        stillMenu = null; gs.applyGrade(cid, st.grade); nodeId = st.grade.nodes.first().id
                     }
                     NodeMenuRow(if (gs.compare?.id == st.id) stringResource(R.string.colorpage_stop_comparing) else stringResource(R.string.colorpage_compare_split)) {
                         stillMenu = null; gs.compare = if (gs.compare?.id == st.id) null else st
@@ -620,14 +638,8 @@ private fun NodeTools(
     val canPaste = gs.clipboard != null && gs.clipboardFrom != current.id && current.id !in gs.pasted
     fun copyOrPaste() {
         haptics.confirm()
-        val cb = gs.clipboard
-        if (canPaste && cb != null) {
-            // another clip gets the color – not the copied clip's stabilization and tracking
-            val g = cb.forOtherClip(gs.of(current.id).stab, gs.of(current.id).layer, gs.of(current.id).mblur)
-            gs.set(current.id, g); gs.pasted.add(current.id); setNode(g.nodes.first().id)
-        } else {
-            gs.clipboard = gs.of(current.id); gs.clipboardFrom = current.id; gs.pasted.clear()
-        }
+        if (canPaste) gs.pasteGrade(current.id)?.let { setNode(it.nodes.first().id) }
+        else gs.copyGrade(current.id)
     }
 
     val tabs = listOf(
@@ -751,15 +763,11 @@ private fun ColorMore(
                 }
                 1 -> if (current == null) NoClip() else Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
                     ActionTile(stringResource(R.string.colorpage_copy), Ic.Copy, Modifier.weight(1f).testTag("grade:copy")) {
-                        haptics.confirm(); gs.clipboard = gs.of(current.id); gs.clipboardFrom = current.id; gs.pasted.clear()
+                        haptics.confirm(); gs.copyGrade(current.id)
                     }
                     ActionTile(stringResource(R.string.colorpage_paste), Ic.Paste, Modifier.weight(1f).testTag("grade:paste"), enabled = gs.clipboard != null) {
-                        gs.clipboard?.let {
-                            haptics.confirm()
-                            // another clip gets the color – not the copied clip's stabilization and tracking
-                            val g = if (gs.clipboardFrom == current.id) it else it.forOtherClip(gs.of(current.id).stab, gs.of(current.id).layer, gs.of(current.id).mblur)
-                            gs.set(current.id, g); setNode(g.nodes.first().id)
-                        }
+                        haptics.confirm()
+                        gs.pasteGrade(current.id)?.let { setNode(it.nodes.first().id) }
                     }
                     ActionTile(stringResource(R.string.colorpage_all_clips), Ic.Layers, Modifier.weight(1f).testTag("grade:all")) {
                         haptics.confirm()
