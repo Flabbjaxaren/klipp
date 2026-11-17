@@ -44,6 +44,8 @@
     <string name="app_export_interrupted">Exporten av ”%1$s” stoppades när appen stängdes. Ingen fil sparades – exportera igen.</string>
     <string name="app_ok">OK</string>
     <string name="app_export_interrupted_title">Exporten avbröts</string>
+    <string name="app_export_saved_late_title">Exporten sparades</string>
+    <string name="app_export_saved_late">”%1$s” sparades i Filmer/Klipp – appen stängdes innan den hann säga det.</string>
     <string name="app_hdr_blocked">Klippen är färgkorrigerade – färgningen görs i SDR, så exporten blir SDR för rätt färger.</string>
     <string name="app_mic_failed">Mikrofonen kunde inte startas: %1$s</string>
     <string name="app_nothing_recorded">Inget spelades in</string>

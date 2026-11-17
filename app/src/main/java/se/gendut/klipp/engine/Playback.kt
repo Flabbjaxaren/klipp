@@ -1485,7 +1485,9 @@ object Exporter {
     private suspend fun exportTo(context: Context, comp: Composition, out: File, name: String, st: ExportSettings, tenBit: Boolean, expect: Pair<Int, Int>?, onProgress: (Int) -> Unit): Result<Uri> {
         val result = transform(context, comp, out, st, tenBit, expect = expect, onProgress = onProgress)
         result.exceptionOrNull()?.let { return Result.failure(it) }
-        return withContext(Dispatchers.IO) { runCatching { saveToMovies(context, out, name) } }
+        // a copy once begun is finished even if the export's screen goes away (a cancel waits for it): the file is then
+        // either whole in Movies or not there at all, and ExportGuard knows which (what the app says follows it)
+        return withContext(Dispatchers.IO + kotlinx.coroutines.NonCancellable) { runCatching { saveToMovies(context, out, name) } }
     }
 
     /**
@@ -1565,12 +1567,15 @@ object Exporter {
         }
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: error(Str.t(R.string.playback_create_file_failed))
+        // recorded before a byte is written: if the process dies in the copy, the next start removes the half file
+        ExportGuard.writing(context, uri)
         try {
             (resolver.openOutputStream(uri) ?: error(Str.t(R.string.playback_write_file_failed))).use { o -> file.inputStream().use { copyFile(it, o, file.length()) } }
             if (Build.VERSION.SDK_INT >= 29) {
                 values.clear(); values.put(MediaStore.Video.Media.IS_PENDING, 0)
-                resolver.update(uri, values, null, null)
+                if (resolver.update(uri, values, null, null) < 1) error(Str.t(R.string.playback_write_file_failed))
             }
+            ExportGuard.published(context)
         } catch (e: Exception) {
             // no half-written (pending) file left in Movies
             runCatching { resolver.delete(uri, null, null) }

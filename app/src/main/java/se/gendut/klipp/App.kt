@@ -206,21 +206,22 @@ fun KlippApp(
     LaunchedEffect(state.selectedCaption) { if (state.selectedCaption == null) state.editingCaption = false }
     var exportAsk by remember { mutableStateOf(false) }
     val notifyPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) {}
-    // an export cut off with the process last time: a dialog that stays until read (a toast would be gone, or pushed
-    // aside by "Project restored"), never shown as saved
-    var interruptedExport by remember { mutableStateOf(se.gendut.klipp.engine.ExportGuard.notice) }
-    interruptedExport?.let { n ->
+    // an export that ended while the editor wasn't watching (cut off with the process, or its screen closed): a dialog
+    // that stays until read (a toast would be gone, or pushed aside by "Project restored") – saved only if its file is
+    var lastExport by remember { mutableStateOf(se.gendut.klipp.engine.ExportGuard.notice) }
+    lastExport?.let { n ->
+        val tag = if (n.saved) "exportSavedLate" else "exportInterrupted"
         androidx.compose.material3.AlertDialog(
-            onDismissRequest = { interruptedExport = null; se.gendut.klipp.engine.ExportGuard.notice = null },
-            title = { Text(stringResource(R.string.app_export_interrupted_title)) },
-            text = { Text(stringResource(R.string.app_export_interrupted, n)) },
+            onDismissRequest = { lastExport = null; se.gendut.klipp.engine.ExportGuard.notice = null },
+            title = { Text(stringResource(if (n.saved) R.string.app_export_saved_late_title else R.string.app_export_interrupted_title)) },
+            text = { Text(stringResource(if (n.saved) R.string.app_export_saved_late else R.string.app_export_interrupted, n.name)) },
             confirmButton = {
-                FlatTextButton(onClick = { interruptedExport = null; se.gendut.klipp.engine.ExportGuard.notice = null }, modifier = Modifier.testTag("exportInterruptedOk")) {
+                FlatTextButton(onClick = { lastExport = null; se.gendut.klipp.engine.ExportGuard.notice = null }, modifier = Modifier.testTag(tag + "Ok")) {
                     Text(stringResource(R.string.app_ok))
                 }
             },
             containerColor = K.SurfaceHigh,
-            modifier = Modifier.testTag("exportInterrupted"),
+            modifier = Modifier.testTag(tag),
         )
     }
     fun export() {
@@ -254,8 +255,9 @@ fun KlippApp(
                     exportProgress = it; se.gendut.klipp.engine.ExportGuard.progress(context, name, it)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // the screen running the export went away while the process lives: said when the editor shows again
-                se.gendut.klipp.engine.ExportGuard.cutOff(name)
+                // the screen running the export went away while the process lives: said when the editor shows again,
+                // as saved or as interrupted – whichever its file in Movies is (a copy begun was finished first)
+                se.gendut.klipp.engine.ExportGuard.stopped(context, name)
                 throw e
             } finally {
                 se.gendut.klipp.engine.ExportGuard.end(context)
