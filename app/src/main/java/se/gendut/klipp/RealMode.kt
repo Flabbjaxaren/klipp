@@ -340,17 +340,17 @@ fun ProgramMonitor(
 }
 
 @Composable
-fun BigButton(label: String, onClick: () -> Unit, color: Color = K.SurfaceHighest, textColor: Color = K.OnSurface, modifier: Modifier = Modifier) {
+fun BigButton(label: String, onClick: () -> Unit, color: Color = K.SurfaceHighest, textColor: Color = K.OnSurface, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val src = remember { MutableInteractionSource() }
     Box(
         modifier.pressPop(src, 0.9f)
             .height(52.dp).clip(RoundedCornerShape(26.dp)).background(color)
-            .clickable(interactionSource = src, indication = null) {
+            .clickable(enabled = enabled, interactionSource = src, indication = null, role = androidx.compose.ui.semantics.Role.Button) {
                 onClick()
             }
             .padding(horizontal = 24.dp),
         contentAlignment = Alignment.Center
-    ) { Text(label, color = textColor, fontSize = 15.sp, fontWeight = FontWeight.Bold) }
+    ) { Text(label, color = if (enabled) textColor else textColor.copy(alpha = 0.45f), fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
 }
 
 /** Syncs playback with the timeline: playhead, play/pause and reloading after edits. */

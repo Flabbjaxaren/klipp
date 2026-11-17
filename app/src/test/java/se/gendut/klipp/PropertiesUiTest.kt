@@ -59,6 +59,9 @@ class FakeProps : PropsBackend {
     val textSessions = mutableListOf<Any?>()
     override fun setCaptionText(id: Long, text: String, session: Any?) { log += "captiontext $id $text"; textSessions += session }
     override fun deleteCaption(id: Long) { log += "deletecaption $id" }
+    /** The id the next added caption gets (a test puts a caption with it in the state, as the engine's refresh would). */
+    var nextCaption = 99L
+    override fun addCaption(at: Float, text: String?, track: Long?, onAdded: (Long) -> Unit) { log += "addcaption @$at ${text ?: "-"} ${track ?: "-"}"; onAdded(nextCaption) }
     override fun toggleAnimation(id: Long, key: String, at: Float) { log += "anim $key @$at" }
     override fun toggleKeyframe(id: Long, key: String, at: Float) { log += "kf $key @$at" }
     override fun moveKeyframe(id: Long, key: String, mt: Long, to: Float) { log += "move $key $mt -> $to" }
@@ -270,7 +273,12 @@ class PropertiesUiTest {
         rule.runOnUiThread { captionsSheet = true }
         rule.waitForIdle()
         rule.onRoot().captureRoboImage("$dir/24b_undertexter.png")
+        // the captions sheet in parts: importing a file is under Write, the captions themselves under In the project
+        rule.onNodeWithTag("capsPart:write").performClick()
+        rule.waitForIdle()
         rule.onNodeWithText("Importera SRT / VTT").performScrollTo().performClick()
+        rule.onNodeWithTag("capsPart:existing").performClick()
+        rule.waitForIdle()
         rule.onNodeWithText("Första raden").performScrollTo().performClick()
         rule.waitForIdle()
         assertTrue(edited)
@@ -290,12 +298,14 @@ class PropertiesUiTest {
         rule.setContent { KlippTheme { androidx.compose.foundation.layout.Column(Modifier.fillMaxSize().background(K.Bg).verticalScroll(androidx.compose.foundation.rememberScrollState())) { TitlesTab(st, fake) { } } } }
         rule.mainClock.advanceTimeBy(700)
         rule.onRoot().captureRoboImage("$dir/28_mallar.png")
-        rule.onNodeWithTag("mall:kapitel").performClick()
+        // the text first, then the look: a typed name stays when the template changes
+        rule.onNodeWithTag("mall:kapitel").performScrollTo().performClick()
         rule.mainClock.advanceTimeBy(300)
-        rule.onNodeWithTag("anim:skala").performScrollTo().performClick()
-        rule.mainClock.advanceTimeBy(500)
-        rule.onRoot().captureRoboImage("$dir/29_kapitel_skala.png")
+        // (scrolling animates: the clock runs again)
         rule.mainClock.autoAdvance = true
+        rule.onNodeWithTag("anim:skala").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onRoot().captureRoboImage("$dir/29_kapitel_skala.png")
         rule.onNodeWithText("Lägg till vid", substring = true).performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals("title Kapitel 2\nHavet @1.0 klipp:mall=kapitel;in=skala", fake.log.last())

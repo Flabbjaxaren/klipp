@@ -31,9 +31,6 @@
     <string name="titleui_tpl_desc_free">Your own text, anywhere</string>
     <string name="titleui_template">Template</string>
     <string name="titleui_entrance">Entrance</string>
-    <string name="titleui_content">Content</string>
-    <string name="titleui_titles_on_timeline">Titles on the timeline</string>
-    <string name="titleui_new_caption">New caption</string>
     <string name="titleui_import_captions">Import SRT / VTT</string>
     <string name="titleui_captions_hint">Captions appear in the picture and are burned in on export.</string>
     <string name="titleui_add_at">Add at %1$s</string>
@@ -213,4 +210,20 @@
     <string name="titleui_text_opacity">Text opacity</string>
     <string name="properties_clip_opacity">Clip opacity</string>
     <string name="titleui_speech_from_track">Speech from track</string>
+    <string name="titleui_step_text">1 · Text</string>
+    <string name="titleui_step_look">2 · Look</string>
+    <string name="titleui_step_entrance">3 · How it comes in</string>
+    <string name="titleui_tab_new">New title</string>
+    <string name="titleui_tab_on_timeline">On the timeline (%1$d)</string>
+    <string name="titleui_caps_from_speech">From speech</string>
+    <string name="titleui_caps_write">Write</string>
+    <string name="titleui_caps_existing">In project (%1$d)</string>
+    <string name="titleui_caps_speech_needs_project">Captions from speech need a project.</string>
+    <string name="titleui_caps_write_hint">Type what is said. The line goes in at the playhead, %1$s s long; then the playhead moves to its end, so the next line follows on.</string>
+    <string name="titleui_caps_write_placeholder">What is said here…</string>
+    <string name="titleui_caps_write_track">Goes to the track</string>
+    <string name="titleui_caps_import_title">Already have a captions file?</string>
+    <string name="titleui_caps_import_hint">An SRT or VTT file becomes a caption track of its own.</string>
+    <string name="titleui_caps_none">No captions yet. Make them from the speech, or write them yourself.</string>
+    <string name="titleui_caps_list">Captions</string>
 </resources>

@@ -209,16 +209,17 @@ private fun TemplateRow(t: TitleTemplate, anim: TitleAnim, selected: Boolean, mo
 
 /** Text fields for the title's lines, by template. */
 @Composable
-private fun TitleFields(template: TitleTemplate, lines: List<String>, onChange: (List<String>) -> Unit) {
+private fun TitleFields(template: TitleTemplate, lines: List<String>, placeholders: List<String> = emptyList(), onChange: (List<String>) -> Unit) {
     fun at(i: Int) = lines.getOrElse(i) { "" }
+    fun ph(i: Int) = placeholders.getOrNull(i)
     when (template) {
         TitleTemplate.LOWER_THIRD -> {
-            TextInput(stringResource(R.string.titleui_field_name), at(0)) { onChange(listOf(it, at(1))) }
-            TextInput(stringResource(R.string.titleui_field_role), at(1)) { onChange(listOf(at(0), it)) }
+            TextInput(stringResource(R.string.titleui_field_name), at(0), Modifier.testTag("titleField:0"), placeholder = ph(0)) { onChange(listOf(it, at(1))) }
+            TextInput(stringResource(R.string.titleui_field_role), at(1), Modifier.testTag("titleField:1"), placeholder = ph(1)) { onChange(listOf(at(0), it)) }
         }
         TitleTemplate.CHAPTER -> {
-            TextInput(stringResource(R.string.titleui_field_heading), at(0)) { onChange(listOf(it, at(1))) }
-            TextInput(stringResource(R.string.titleui_field_sub), at(1)) { onChange(listOf(at(0), it)) }
+            TextInput(stringResource(R.string.titleui_field_heading), at(0), Modifier.testTag("titleField:0"), placeholder = ph(0)) { onChange(listOf(it, at(1))) }
+            TextInput(stringResource(R.string.titleui_field_sub), at(1), Modifier.testTag("titleField:1"), placeholder = ph(1)) { onChange(listOf(at(0), it)) }
         }
         TitleTemplate.ROLL, TitleTemplate.FREE -> {
             Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth()) {
@@ -229,7 +230,13 @@ private fun TitleFields(template: TitleTemplate, lines: List<String>, onChange: 
                     textStyle = TextStyle(color = K.OnSurface, fontSize = 15.sp),
                     cursorBrush = SolidColor(K.Primary),
                     modifier = Modifier.weight(1f).height(if (template == TitleTemplate.ROLL) 140.dp else 72.dp)
-                        .clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh).padding(horizontal = 14.dp, vertical = 12.dp),
+                        .clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh).padding(horizontal = 14.dp, vertical = 12.dp).testTag("titleField:0"),
+                    decorationBox = { inner ->
+                        Box {
+                            if (lines.joinToString("").isEmpty() && placeholders.isNotEmpty()) Text(placeholders.joinToString("\n"), color = K.OnSurfaceVar.copy(alpha = 0.6f), fontSize = 15.sp)
+                            inner()
+                        }
+                    },
                 )
             }
             if (template == TitleTemplate.ROLL) Text(
@@ -250,96 +257,236 @@ private fun AnimChips(template: TitleTemplate, anim: TitleAnim, onPick: (TitleAn
     }
 }
 
+/** What a title being made shows: what was typed, else the template's example. */
+internal fun TitleDraft.shownText(): String = lines.joinToString("\n").trim('\n').ifBlank { sampleText(template) }
+
+/**
+ * A new title (Add › Title), in the order it is made: the text first, then how it looks, then how it comes in – with a
+ * preview on top that shows what is typed. Changing the look keeps the text. The add button is below, always in view
+ * ([TitleAddButton]).
+ */
 @Composable
-internal fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
+internal fun TitleNew(state: EditorState) {
     val haptics = rememberHaptics()
-    var template by remember { mutableStateOf(TitleTemplate.LOWER_THIRD) }
-    var anim by remember { mutableStateOf(TitleAnim.BOUNCE) }
-    var lines by remember { mutableStateOf(sampleText(TitleTemplate.LOWER_THIRD).split('\n')) }
+    val d = state.titleDraft
     var replay by remember { mutableStateOf(0) }
     Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        TitlePreview(TitleLook(template, anim), lines.joinToString("\n"), Modifier.fillMaxWidth(), replayKey = replay)
+        TitlePreview(TitleLook(d.template, d.anim), d.shownText(), Modifier.fillMaxWidth(), replayKey = replay)
     }
-    SectionLabel(stringResource(R.string.titleui_template))
+    SectionLabel(stringResource(R.string.titleui_step_text))
+    TitleFields(d.template, d.lines, placeholders = sampleText(d.template).split('\n')) { d.lines = it }
+    SectionLabel(stringResource(R.string.titleui_step_look))
     for (pair in TitleTemplate.entries.chunked(2)) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (t in pair) TemplateRow(t, anim, template == t, Modifier.weight(1f)) {
-            haptics.confirm()
-            if (template != t) { template = t; lines = sampleText(t).split('\n') }
-            replay++
+        for (t in pair) TemplateRow(t, d.anim, d.template == t, Modifier.weight(1f)) {
+            // (the text stays: only the look changes)
+            haptics.confirm(); d.template = t; replay++
         }
     }
-    if (template != TitleTemplate.ROLL) SectionLabel(stringResource(R.string.titleui_entrance))
-    AnimChips(template, anim) { anim = it; replay++; haptics.tick() }
-    SectionLabel(stringResource(R.string.titleui_content))
-    TitleFields(template, lines) { lines = it }
-    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        AddAtPlayhead(state) {
-            haptics.confirm()
-            val text = lines.joinToString("\n").trim('\n').ifBlank { Str.t(R.string.titleui_title) }
-            backend.addTitle(text, state.playhead, TitleLook(template, anim).encode())
-            onEdit()
-        }
+    if (d.template != TitleTemplate.ROLL) {
+        SectionLabel(stringResource(R.string.titleui_step_entrance))
+        AnimChips(d.template, d.anim) { d.anim = it; replay++; haptics.tick() }
     }
-    val titles = state.clips.filter { it.kind == ClipKind.TITLE }.sortedBy { it.start }
-    if (titles.isNotEmpty()) {
-        SectionLabel(stringResource(R.string.titleui_titles_on_timeline))
-        for (t in titles) ListRow(formatTc(t.start), t.name) {
-            haptics.tick()
-            state.playing = false
-            state.playhead = t.start
-            state.selected = t.id
-            state.inspectGroup = 0
-            state.inspecting = true
+}
+
+/** Add the title being made at the playhead – below the sheet's content, always in view. */
+@Composable
+internal fun TitleAddButton(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
+    val haptics = rememberHaptics()
+    Row(Modifier.fillMaxWidth().background(K.Surface).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        AddAtPlayhead(state, Modifier.fillMaxWidth().testTag("title:add")) {
+            haptics.confirm()
+            val d = state.titleDraft
+            backend.addTitle(d.shownText(), state.playhead, TitleLook(d.template, d.anim).encode())
+            d.lines = emptyList()
             onEdit()
         }
     }
 }
 
-/** Captions: shown or hidden, new / import, made from the speech, their style, and the list to correct. */
+/** The titles already on the timeline: a row opens the title's properties. */
+@Composable
+internal fun TitlesOnTimeline(state: EditorState, onEdit: () -> Unit) {
+    val haptics = rememberHaptics()
+    val titles = state.clips.filter { it.kind == ClipKind.TITLE }.sortedBy { it.start }
+    for (t in titles) ListRow(formatTc(t.start), t.name, "title:row:${t.id}") {
+        haptics.tick()
+        state.playing = false
+        state.playhead = t.start
+        state.selected = t.id
+        state.inspectGroup = 0
+        state.inspecting = true
+        onEdit()
+    }
+}
+
+/** The title sheet's two tabs: a new title, and (when there are any) the titles on the timeline. */
+@Composable
+internal fun TitleTabs(state: EditorState, tab: Int, onTab: (Int) -> Unit) {
+    val n = state.clips.count { it.kind == ClipKind.TITLE }
+    if (n == 0) return
+    ConnectedToggleGroup(
+        listOf(stringResource(R.string.titleui_tab_new), stringResource(R.string.titleui_tab_on_timeline, n)), tab, onTab,
+        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(), tag = { listOf("titleTab:new", "titleTab:list")[it] },
+    )
+}
+
+/** Add › Title's content in one column (the sheet itself puts the tabs on top and the button at the bottom). */
+@Composable
+internal fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
+    var tab by remember { mutableStateOf(0) }
+    TitleTabs(state, tab) { tab = it }
+    if (tab == 0 || state.clips.none { it.kind == ClipKind.TITLE }) {
+        TitleNew(state)
+        TitleAddButton(state, backend, onEdit)
+    } else TitlesOnTimeline(state, onEdit)
+}
+
+/** The captions sheet's parts: made from the speech, written by hand (or imported), and those in the project. */
+enum class CaptionsPart { SPEECH, WRITE, EXISTING }
+
+@Composable
+internal fun CaptionTabs(state: EditorState, part: CaptionsPart, onPart: (CaptionsPart) -> Unit) {
+    ConnectedToggleGroup(
+        listOf(stringResource(R.string.titleui_caps_from_speech), stringResource(R.string.titleui_caps_write), stringResource(R.string.titleui_caps_existing, state.captions.size)),
+        part.ordinal, { onPart(CaptionsPart.entries[it]) },
+        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(), tag = { "capsPart:${CaptionsPart.entries[it].name.lowercase()}" },
+    )
+}
+
+/** The first part shown: the captions in the project when there are any, else making them from the speech. */
+internal fun firstCaptionsPart(state: EditorState) = if (state.captions.isNotEmpty()) CaptionsPart.EXISTING else CaptionsPart.SPEECH
+
+/** One part of the captions sheet. */
+@Composable
+internal fun CaptionsPartContent(state: EditorState, backend: PropsBackend, part: CaptionsPart, onPart: (CaptionsPart) -> Unit, onEdit: () -> Unit) {
+    when (part) {
+        CaptionsPart.SPEECH -> {
+            (backend as? se.gendut.klipp.engine.ProjectController)?.let { AutoCaptionsCard(it) }
+                ?: Text(stringResource(R.string.titleui_caps_speech_needs_project), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(16.dp))
+            // made: the captions are shown (the generation ends with them on the timeline)
+            val n = state.captions.size
+            var before by remember { mutableStateOf(n) }
+            LaunchedEffect(n, se.gendut.klipp.engine.AutoCaptions.running) {
+                if (n > before && !se.gendut.klipp.engine.AutoCaptions.running) onPart(CaptionsPart.EXISTING)
+                before = n
+            }
+        }
+        CaptionsPart.WRITE -> CaptionsWrite(state, backend)
+        CaptionsPart.EXISTING -> CaptionsExisting(state, backend, onPart, onEdit)
+    }
+}
+
+/** The captions sheet's content in one column (the sheet itself puts the tabs on top and the add button at the bottom). */
 @Composable
 internal fun CaptionsTab(state: EditorState, backend: PropsBackend, onEdit: () -> Unit) {
-    val haptics = rememberHaptics()
-    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+    var part by remember { mutableStateOf(firstCaptionsPart(state)) }
+    CaptionTabs(state, part) { part = it }
+    CaptionsPartContent(state, backend, part, { part = it }, onEdit)
+    if (part == CaptionsPart.WRITE) CaptionWriteButton(state, backend)
+}
+
+/** The caption track new lines go to and the style applies to: the chosen one, else the first visible one. */
+@Composable
+private fun CaptionTrackChips(state: EditorState, backend: PropsBackend, tracks: List<CaptionTrackUi>, target: Long?) {
+    if (tracks.size <= 1) return
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PillButton(stringResource(R.string.titleui_new_caption), {
-            backend.addCaption(state.playhead) { id -> state.selectedCaption = id; state.editingCaption = true; onEdit() }
-        }, icon = Ic.Plus)
-        PillButton(stringResource(R.string.titleui_import_captions), { backend.importCaptions() }, filled = false)
+        val haptics = rememberHaptics()
+        for (t in tracks) SpringChip(stringResource(R.string.titleui_caption_track_count, t.name, t.count), target == t.id,
+            { haptics.tick(); state.captionTrack = t.id }, Modifier.testTag("capTrack:${t.id}"))
     }
-    (backend as? se.gendut.klipp.engine.ProjectController)?.let { AutoCaptionsCard(it) }
+}
+
+/**
+ * Write captions by hand: type a line, add it at the playhead – the playhead then goes to its end, so the next line
+ * follows on. (A file of captions is imported here too: it becomes a track of its own.)
+ */
+@Composable
+internal fun CaptionsWrite(state: EditorState, backend: PropsBackend) {
+    val haptics = rememberHaptics()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Text(stringResource(R.string.titleui_caps_write_hint, "%.0f".format(AppPrefs.captionSeconds(ctx).toDouble())), color = K.OnSurfaceVar, fontSize = 13.sp,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+    BasicTextField(
+        value = state.captionDraft, onValueChange = { state.captionDraft = it },
+        textStyle = TextStyle(color = K.OnSurface, fontSize = 16.sp), cursorBrush = SolidColor(K.Primary),
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth().height(96.dp).clip(RoundedCornerShape(14.dp))
+            .background(K.SurfaceHigh).padding(14.dp).testTag("captionWriteText"),
+        decorationBox = { inner ->
+            Box {
+                if (state.captionDraft.isEmpty()) Text(stringResource(R.string.titleui_caps_write_placeholder), color = K.OnSurfaceVar.copy(alpha = 0.6f), fontSize = 16.sp)
+                inner()
+            }
+        },
+    )
+    // which track the line goes to (when there are several)
+    val tracks = backend.captionTracks
+    val target = captionStyleTrack(tracks, state.captionTrack) ?: tracks.firstOrNull { it.enabled }?.id
+    if (tracks.size > 1) {
+        SectionLabel(stringResource(R.string.titleui_caps_write_track))
+        CaptionTrackChips(state, backend, tracks, target)
+    }
+    SectionLabel(stringResource(R.string.titleui_caps_import_title))
+    Text(stringResource(R.string.titleui_caps_import_hint), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+    PillButton(stringResource(R.string.titleui_import_captions), { haptics.tick(); backend.importCaptions() },
+        Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("capsImport"), icon = Ic.Download, filled = false)
+}
+
+/** Add the line being written at the playhead – below the sheet's content, always in view. */
+@Composable
+internal fun CaptionWriteButton(state: EditorState, backend: PropsBackend) {
+    val haptics = rememberHaptics()
+    val tracks = backend.captionTracks
+    val target = captionStyleTrack(tracks, state.captionTrack) ?: tracks.firstOrNull { it.enabled }?.id
+    Row(Modifier.fillMaxWidth().background(K.Surface).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        AddAtPlayhead(state, Modifier.fillMaxWidth().testTag("captionWriteAdd"), enabled = state.captionDraft.isNotBlank()) {
+            haptics.confirm()
+            val text = state.captionDraft.trim()
+            backend.addCaption(state.playhead, text, target) { id ->
+                // the next line follows on: the playhead to this one's end, the field empty again
+                state.captions.firstOrNull { it.id == id }?.let { state.playhead = it.end }
+                state.captionDraft = ""
+            }
+        }
+    }
+}
+
+/** The captions in the project: the track (chosen when there are several), the style named by its track, the list. */
+@Composable
+internal fun CaptionsExisting(state: EditorState, backend: PropsBackend, onPart: (CaptionsPart) -> Unit, onEdit: () -> Unit) {
+    val haptics = rememberHaptics()
     if (state.captions.isEmpty()) {
-        Text(
-            stringResource(R.string.titleui_captions_hint),
-            color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-        )
+        Text(stringResource(R.string.titleui_caps_none), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            PillButton(stringResource(R.string.titleui_caps_from_speech), { onPart(CaptionsPart.SPEECH) }, icon = Ic.Subs, filled = false)
+            PillButton(stringResource(R.string.titleui_caps_write), { onPart(CaptionsPart.WRITE) }, icon = Ic.Text, filled = false)
+        }
         return
     }
+    Text(stringResource(R.string.titleui_captions_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
     // the tracks: a style is the track's – with several, the one it applies to is chosen (never silently the first)
     val tracks = backend.captionTracks
     val target = captionStyleTrack(tracks, state.captionTrack)
     if (tracks.size > 1) {
         SectionLabel(stringResource(R.string.titleui_caption_tracks))
-        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (t in tracks) SpringChip(stringResource(R.string.titleui_caption_track_count, t.name, t.count), target == t.id,
-                { haptics.tick(); state.captionTrack = t.id }, Modifier.testTag("capTrack:${t.id}"))
-        }
+        CaptionTrackChips(state, backend, tracks, target)
         if (target == null) Text(stringResource(R.string.titleui_caption_track_choose), color = K.OnSurfaceVar, fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("capTrackChoose"))
     }
-    // shown / hidden (all tracks) and the style (the chosen track's, said on the button)
+    // the style (the chosen track's, said on the button) and shown / hidden (all tracks)
     var styleOpen by remember { mutableStateOf(false) }
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val name = tracks.firstOrNull { it.id == target }?.name
+        if (name != null) SpringChip(stringResource(R.string.captionui_style_scope, name), styleOpen, { haptics.tick(); styleOpen = !styleOpen }, Modifier.testTag("capStyle"))
         if (backend.hasCaptionTrack) {
             val vis = backend.captionsVisible
             SpringChip(stringResource(if (vis) R.string.titleui_captions_shown_all else R.string.titleui_captions_hidden_all), vis, { backend.setCaptionsVisible(!vis) })
         }
-        val name = tracks.firstOrNull { it.id == target }?.name
-        if (name != null) SpringChip(stringResource(R.string.captionui_style_scope, name), styleOpen, { haptics.tick(); styleOpen = !styleOpen }, Modifier.testTag("capStyle"))
     }
     if (target != null) androidx.compose.animation.AnimatedVisibility(styleOpen) { Column { CaptionStyleEditor(backend, target) } }
     // the captions: a row opens the caption editor (text, times, style) – the same one as tapping it in the timeline
+    SectionLabel(stringResource(R.string.titleui_caps_list))
     for (c in state.captions.take(300)) key(c.id) {
         ListRow(formatTc(c.start), c.text.replace('\n', ' '), "caption:row:${c.id}") {
             haptics.tick(); state.playing = false; state.playhead = c.start
@@ -351,8 +498,8 @@ internal fun CaptionsTab(state: EditorState, backend: PropsBackend, onEdit: () -
 
 /** Its own recomposition scope: only the button follows the playhead, not the whole panel. */
 @Composable
-private fun AddAtPlayhead(state: EditorState, onClick: () -> Unit) {
-    BigButton(stringResource(R.string.titleui_add_at, formatTc(state.playhead)), onClick)
+private fun AddAtPlayhead(state: EditorState, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
+    BigButton(stringResource(R.string.titleui_add_at, formatTc(state.playhead)), onClick, color = K.PrimaryContainer, textColor = K.PrimarySoft, modifier = modifier, enabled = enabled)
 }
 
 /** The title's part of Properties: template, animation, text, size and color – changes show in the picture immediately. */

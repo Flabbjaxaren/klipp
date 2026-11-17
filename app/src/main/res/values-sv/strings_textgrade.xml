@@ -31,9 +31,6 @@
     <string name="titleui_tpl_desc_free">Egen text, var som helst</string>
     <string name="titleui_template">Mall</string>
     <string name="titleui_entrance">Kommer in</string>
-    <string name="titleui_content">Innehåll</string>
-    <string name="titleui_titles_on_timeline">Titlar på tidslinjen</string>
-    <string name="titleui_new_caption">Ny undertext</string>
     <string name="titleui_import_captions">Importera SRT / VTT</string>
     <string name="titleui_captions_hint">Undertexterna visas i bilden och bränns in vid export.</string>
     <string name="titleui_add_at">Lägg till vid %1$s</string>
@@ -213,4 +210,20 @@
     <string name="titleui_text_opacity">Textens opacitet</string>
     <string name="properties_clip_opacity">Klippets opacitet</string>
     <string name="titleui_speech_from_track">Tal från spår</string>
+    <string name="titleui_step_text">1 · Text</string>
+    <string name="titleui_step_look">2 · Utseende</string>
+    <string name="titleui_step_entrance">3 · Så kommer den in</string>
+    <string name="titleui_tab_new">Ny titel</string>
+    <string name="titleui_tab_on_timeline">På tidslinjen (%1$d)</string>
+    <string name="titleui_caps_from_speech">Från tal</string>
+    <string name="titleui_caps_write">Skriv själv</string>
+    <string name="titleui_caps_existing">I projektet (%1$d)</string>
+    <string name="titleui_caps_speech_needs_project">Undertexter från tal kräver ett projekt.</string>
+    <string name="titleui_caps_write_hint">Skriv det som sägs. Raden läggs vid spelhuvudet och blir %1$s s lång; sedan flyttas spelhuvudet till dess slut, så att nästa rad kommer efter.</string>
+    <string name="titleui_caps_write_placeholder">Det som sägs här…</string>
+    <string name="titleui_caps_write_track">Läggs i spåret</string>
+    <string name="titleui_caps_import_title">Har du redan en undertextfil?</string>
+    <string name="titleui_caps_import_hint">En SRT- eller VTT-fil blir ett eget undertextspår.</string>
+    <string name="titleui_caps_none">Inga undertexter än. Skapa dem från talet, eller skriv dem själv.</string>
+    <string name="titleui_caps_list">Undertexter</string>
 </resources>

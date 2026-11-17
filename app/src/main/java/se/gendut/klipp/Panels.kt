@@ -676,6 +676,8 @@ fun TextInput(
     focus: Boolean = false,
     /** Digits only: the number keyboard. */
     number: Boolean = false,
+    /** Shown, dimmed, while the field is empty. */
+    placeholder: String? = null,
     onChange: (String) -> Unit,
 ) {
     // the caret is kept here (the caller owns the text, and may filter what is typed)
@@ -696,6 +698,12 @@ fun TextInput(
             modifier = m.focusRequester(requester).onFocusChanged { focused = it.isFocused }
                 .clip(shape).background(K.SurfaceHighest).border(1.dp, if (focused) K.Primary else K.OutlineVar, shape)
                 .padding(horizontal = 14.dp, vertical = 12.dp),
+            decorationBox = { inner ->
+                Box {
+                    if (field.text.isEmpty() && placeholder != null) Text(placeholder, color = K.OnSurfaceVar.copy(alpha = 0.6f), fontSize = 15.sp, maxLines = 1)
+                    inner()
+                }
+            },
         )
     }
     if (stacked) Column(modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth()) {

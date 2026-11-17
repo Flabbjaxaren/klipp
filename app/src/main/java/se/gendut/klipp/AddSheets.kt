@@ -13,6 +13,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
@@ -44,6 +48,10 @@ private fun AddSheet(
     canClose: () -> Boolean = { true },
     /** Tall sheets scroll; a short one (the voice-over) keeps the picture in view above it. */
     tall: Boolean = true,
+    /** Above the content, not scrolled with it (the sheet's tabs). */
+    top: (@Composable ColumnScope.() -> Unit)? = null,
+    /** Below the content, always in view (the sheet's main action). */
+    bottom: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { it != SheetValue.Hidden || canClose() })
@@ -53,10 +61,12 @@ private fun AddSheet(
     ) {
         Column((if (tall) Modifier.fillMaxHeight(0.9f) else Modifier).fillMaxWidth().upwardStaysInside().testTag(tag)) {
             SheetHeader(title) { if (canClose()) onDismiss() }
+            top?.invoke(this)
             Column(if (tall) Modifier.weight(1f).verticalScroll(rememberScrollState()) else Modifier) {
                 content()
                 Spacer(Modifier.height(24.dp))
             }
+            bottom?.invoke(this)
         }
     }
 }
@@ -69,20 +79,37 @@ internal fun VoiceSheet(vo: VoiceOverUi, onDismiss: () -> Unit) {
     }
 }
 
-/** A title: the template, how it enters and its text, added at the playhead. */
+/**
+ * A title: its text first, then its look and how it comes in, added at the playhead (the button always in view);
+ * the titles already on the timeline in a tab of their own.
+ */
 @Composable
 internal fun TitleSheet(state: EditorState, onDismiss: () -> Unit) {
     val backend = state.props ?: return
-    AddSheet(stringResource(R.string.design_add_title), "titleSheet", onDismiss) {
-        TitlesTab(state, backend, onDismiss)
+    var tab by remember { mutableStateOf(0) }
+    val list = tab == 1 && state.clips.any { it.kind == ClipKind.TITLE }
+    AddSheet(
+        stringResource(R.string.design_add_title), "titleSheet", onDismiss,
+        top = { TitleTabs(state, tab) { tab = it } },
+        bottom = if (list) null else ({ TitleAddButton(state, backend, onDismiss) }),
+    ) {
+        if (list) TitlesOnTimeline(state, onDismiss) else TitleNew(state)
     }
 }
 
-/** Captions: a new one at the playhead, imported, or made from the speech. */
+/**
+ * Captions, in three parts: made from the speech, written by hand (or a file imported), and those in the project
+ * (their track, style and list). Writing has its add button below, always in view.
+ */
 @Composable
 internal fun CaptionsSheet(state: EditorState, onDismiss: () -> Unit) {
     val backend = state.props ?: return
-    AddSheet(stringResource(R.string.design_add_captions), "captionsSheet", onDismiss) {
-        CaptionsTab(state, backend, onDismiss)
+    var part by remember { mutableStateOf(firstCaptionsPart(state)) }
+    AddSheet(
+        stringResource(R.string.design_add_captions), "captionsSheet", onDismiss,
+        top = { CaptionTabs(state, part) { part = it } },
+        bottom = if (part == CaptionsPart.WRITE) ({ CaptionWriteButton(state, backend) }) else null,
+    ) {
+        CaptionsPartContent(state, backend, part, { part = it }, onDismiss)
     }
 }

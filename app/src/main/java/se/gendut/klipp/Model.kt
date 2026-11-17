@@ -350,7 +350,8 @@ interface PropsBackend {
     /** Drag an edge [dt] seconds (in = start). */
     fun trimCaption(id: Long, inEdge: Boolean, dt: Float) {}
     /** New caption at [at]; [onAdded] receives its id. */
-    fun addCaption(at: Float, onAdded: (Long) -> Unit = {}) {}
+    /** A caption at [at]: with [text] (else the default words) on [track] (else the first visible caption track). */
+    fun addCaption(at: Float, text: String? = null, track: Long? = null, onAdded: (Long) -> Unit = {}) {}
     fun splitCaption(id: Long, at: Float) {}
     /** The track's style (applies to all lines on the track), e.g. "font" to "Serif", "size" to 60. */
     fun setCaptionStyle(track: Long, values: Map<String, Any>) {}
@@ -464,6 +465,10 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var editingCaption by mutableStateOf(false)
     /** The caption track the overview's style applies to, when there are several (see captionStyleTrack). */
     var captionTrack by mutableStateOf<Long?>(null)
+    /** Add › Title being made: the text typed first, then its look (kept if the sheet closes; cleared when added). */
+    val titleDraft = TitleDraft()
+    /** Add › Captions › Write: the line being typed (kept if the sheet closes). */
+    var captionDraft by mutableStateOf("")
     /** A row of steps that replaced the dock's actions (back closes it first, see Back.kt). */
     var dockRow by mutableStateOf(DockRow.NONE)
     /** The edit page shows the timeline or the sequence's transcript. */
@@ -1149,6 +1154,13 @@ class EditorState(initial: List<Clip> = initialClips()) {
 
 /** The properties panel's tool group for a clip's picture (see [EditorState.inspectGroup]). */
 const val GROUP_PICTURE = 1
+
+/** A title being made in Add › Title. [lines] empty = nothing typed yet (the template's example shows). */
+class TitleDraft {
+    var template by mutableStateOf(se.gendut.klipp.engine.TitleTemplate.LOWER_THIRD)
+    var anim by mutableStateOf(se.gendut.klipp.engine.TitleAnim.BOUNCE)
+    var lines by mutableStateOf(listOf<String>())
+}
 
 /** The edit page's two views of the sequence: the timeline, or its transcript (same picture, playhead and selection). */
 enum class EditView { TIMELINE, TRANSCRIPT }

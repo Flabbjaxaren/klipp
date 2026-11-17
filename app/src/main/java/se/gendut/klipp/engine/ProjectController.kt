@@ -2042,12 +2042,12 @@ class ProjectController(
         } }
     }
 
-    override fun addCaption(at: Float, onAdded: (Long) -> Unit) {
+    override fun addCaption(at: Float, text: String?, track: Long?, onAdded: (Long) -> Unit) {
         scope.launch { editLock.withLock {
             if (snapshot.sequence == null) engine.exec("file.newSequence", newSeqParams())
-            // on its own, visible track (the engine creates one if there is none)
-            val track = snapshot.sequence?.captionTracks?.firstOrNull { it.enabled }?.id
-            val p = JSONObject().put("seconds", at.toDouble()).put("text", Str.t(R.string.projectcontroller_new_caption)).put("durationSeconds", se.gendut.klipp.AppPrefs.captionSeconds(context).toDouble())
+            // the given track, else the first visible one (the engine creates one if there is none)
+            val track = track?.takeIf { t -> snapshot.sequence?.captionTracks?.any { it.id == t } == true } ?: snapshot.sequence?.captionTracks?.firstOrNull { it.enabled }?.id
+            val p = JSONObject().put("seconds", at.toDouble()).put("text", text?.takeIf { it.isNotBlank() } ?: Str.t(R.string.projectcontroller_new_caption)).put("durationSeconds", se.gendut.klipp.AppPrefs.captionSeconds(context).toDouble())
             track?.let { p.put("track", it) }
             engine.tryExec("captions.add", p)
                 .onSuccess { r -> refresh(); onAdded(r.optLong("caption")) }
