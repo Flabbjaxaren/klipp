@@ -1,6 +1,6 @@
 # Rapport: exporten överlever att redigeringsskärmen stängs
 
-Skriven 2026-11-17. Gren `design-test`, lokala commits `d7de0fa..1fa0d32` (inte pushade, ingen release).
+Skriven 2026-11-17. Gren `design-test`, commits `d7de0fa..8a31902` (ingen release). Avsnitt 8: samma bygge på vivon.
 Telefon: **OnePlus 12 (CPH2581), Android 16 (SDK 36), CPH2581_16.0.10.601(EX01)**, testpaketet
 `se.gendut.klipp.designtest`. Slutligt telefonbygge: **0.19.2-designtest.161** (commit `13a92a4`, kod `ff5518b`).
 Bygger på föregående pass (kopiering till Movies och återhämtning efter processdöd, commits `10ef11e..4ec8182`).
@@ -154,3 +154,38 @@ port-forward), stayon av, ingen exporttjänst eller notis, Movies/Klipp innehål
 filer (alla testexporter raderade via sina registrerade MediaStore-id). Användarens riktiga Klipp-app och dess uppgift
 orörda; svepfallet kontrollerade att ingen annan uppgift försvann. Aviseringsbehörighet och andra telefoninställningar
 oförändrade i detta pass. Testprojekten ("Klipp endurance 156" med sekvenserna X1/X2 m.fl.) ligger kvar i testappen.
+
+## 8. Samma bygge på vivo X300 Ultra (V2562, Android 17, PD2547BF_EX_A_17.1.7.2.W20)
+
+Bygge **0.19.2-designtest.161** installerat i testpaketet (uppgraderat från 146, inga data rensade). Inga ström-, sov-
+eller väckningsknappar skickades (`lifecycle_check.py --no-power-keys`); skärmlåsfallet kördes därför inte på vivon.
+Testprojekt: "Klipp regress" (sekvenserna X1/X2 lades till där) och ett nytt "Klipp tal 161".
+
+| Prov | Resultat |
+|---|---|
+| Taligenkänning från början till slut (CPU-kontrollen ändrad i `e288734`) | GODKÄNT: biblioteket laddades, KB-Whisper base, 13 s svenskt syntetiskt tal → 29 ord på 1,7 s; av referensens 27 ord 26 rätt (versaler oräknade), "taligenkänningen" blev "talligen klänningen" (modellens fel, inte ett laddningsfel) |
+| R1/R3/R6, `--repeat 2` | GODKÄNT 21/21 |
+| Export efter att testappens uppgift tagits bort (`am stack remove`, det ett svep gör) | GODKÄNT: aktiviteten förstörd, processen och tjänsten kvar, samma jobb fortsatte, en fil 252,000 s / 6 300 bilder, avkodas utan fel, "Export saved" |
+| Ny skärm under exporten | GODKÄNT: samma jobb visas pågående med Avbryt |
+| Avbryt under kodning och tillbaka till redigeringen | GODKÄNT: slut på 0,1 s, ingen fil; efteråt ingen kodare kvar, inga extra codecs, förhandsvisningen spelar (105 rutor, 0 sena, 0 tappade) |
+| Processdöd under kopieringen | GODKÄNT: halvfilen borta efter omstart, "Export interrupted" |
+| Processdöd direkt efter publicering | GODKÄNT: filen kvar och hel (56,000 s), "Export saved" |
+
+Svepet i Senaste-vyn gjordes **inte** på vivon: `KEYCODE_APP_SWITCH` öppnade där hemskärmen (användarens appikoner),
+inte Senaste – verktyget hittade inget testkort och rörde ingenting. Uppgiften togs i stället bort med `am stack remove`;
+det riktiga svepet är verifierat på OnePlus. På vivon låg en gammal aktivitetspost kvar i rotationshistoriken i
+`dumpsys activity activities`, vilket först lästes som en levande aktivitet; verktyget läser nu uppgiftslistan
+(`8a31902`), och aktiviteten var förstörd.
+
+Vivons slutläge: testappen med sitt eget projekt "Project 14 Nov 09:44" öppet på 00:00:38:17, bryggan och stayon av,
+ingen exporttjänst eller notis, inga testexporter kvar i Movies/Klipp, talprovsfilen borttagen; den riktiga Klipp-appen
+och dess uppgift orörda. Aviseringsbehörigheten för testappen var redan beviljad sedan tidigare.
+
+## 9. CI före push
+
+`design-test` på GitHub hade varit röd sedan 2026-11-16 15:56 (före detta pass), av två skäl utanför exportändringen:
+`lintRelease` stoppade på två HalfFloat-fel i `VideoStill.kt` (falsklarm: halvfloat skrivs som råa 16 bitar, nu
+undertryckt med motivering), och `ProjectsTest.backupsGoToTheChosenFolderAndTheCardTellsHowItStands` föll i CI (kortet
+laddas på `Dispatchers.IO`, testet frågade för tidigt; väntar nu). Lokalt efter rättningarna: ProjectsTest 8/8,
+`lintRelease` 0 fel, `assembleRelease` klart. Release-APK:n innehåller inga testpunkter (`export_latch`, `deny_start`,
+`fail_encode`, testpunkternas texter: 0 träffar i dex; i designTest finns de), bara läsverktyget `export_status`.
