@@ -535,6 +535,9 @@ internal class DockItem(
     val tint: Color? = null, val marked: Boolean = false, val strong: Boolean = false, val desc: String? = null, val onClick: () -> Unit,
 )
 
+/** The smallest a dock name shrinks to on one line before it breaks onto two. */
+private val ONE_LINE_MIN = 8.5.sp
+
 @Composable
 internal fun DockAction(item: DockItem, modifier: Modifier = Modifier) {
     val haptics = rememberHaptics()
@@ -560,17 +563,23 @@ internal fun DockAction(item: DockItem, modifier: Modifier = Modifier) {
             }
         }
         Spacer(Modifier.height(3.dp))
-        // a long name shrinks to its place on a narrow phone instead of running into the next one; with large text a
-        // long compound word may break onto a second line where its name has a soft hyphen (Ljud-/bibliotek)
-        BasicText(
-            item.label, color = { item.tint ?: K.OnSurface }, maxLines = 2,
-            style = IconLabel.merge(TextStyle(
-                fontSize = 11.sp, fontWeight = if (item.primary) FontWeight.Bold else FontWeight.SemiBold, textAlign = TextAlign.Center,
-                hyphens = androidx.compose.ui.text.style.Hyphens.Auto, lineHeight = 1.05.em,
-            )),
-            autoSize = TextAutoSize.StepBased(minFontSize = 7.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
-            modifier = Modifier.padding(horizontal = 1.dp),
-        )
+        // a long name shrinks to its place on one line; only when it doesn't fit even a little smaller (large text on a
+        // narrow phone) does it break onto a second line, where its name has a soft hyphen (Under-/texter) – never cut
+        val style = IconLabel.merge(TextStyle(
+            fontSize = 11.sp, fontWeight = if (item.primary) FontWeight.Bold else FontWeight.SemiBold, textAlign = TextAlign.Center,
+            hyphens = androidx.compose.ui.text.style.Hyphens.Auto, lineHeight = 1.05.em,
+        ))
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.padding(horizontal = 1.dp), contentAlignment = Alignment.Center) {
+            val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val room = constraints.maxWidth
+            val oneLine = remember(item.label, room, style) {
+                measurer.measure(item.label, style.copy(fontSize = ONE_LINE_MIN), maxLines = 1, softWrap = false).size.width <= room
+            }
+            BasicText(
+                item.label, color = { item.tint ?: K.OnSurface }, maxLines = if (oneLine) 1 else 2, softWrap = !oneLine, style = style,
+                autoSize = TextAutoSize.StepBased(minFontSize = if (oneLine) ONE_LINE_MIN else 7.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
+            )
+        }
     }
 }
 
@@ -680,7 +689,8 @@ private fun AddDock(state: EditorState) {
     DockItems(
         listOf(
             DockItem(Ic.Media, stringResource(R.string.design_add_media), "add:media") { add(AddAction.MEDIA) },
-            DockItem(Ic.Audio, stringResource(R.string.design_add_sound), "add:sound") { add(AddAction.SOUND) },
+            // (a short name on the button; the sheet and the read-out name say what it is: the sound library)
+            DockItem(Ic.Note, stringResource(R.string.design_add_sound), "add:sound", desc = stringResource(R.string.sfx_title)) { add(AddAction.SOUND) },
             DockItem(Ic.Text, stringResource(R.string.design_add_title), "add:title") { add(AddAction.TITLE) },
             DockItem(Ic.Subs, stringResource(R.string.design_add_captions), "add:captions") { add(AddAction.CAPTIONS) },
             // (the action on the button, what it makes read out: a voice-over)

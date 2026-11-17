@@ -68,7 +68,7 @@ fun SoundFxSheet(
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = K.Surface) {
         var tab by remember { mutableStateOf(0) }
         Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f).testTag("sfxSheet")) {
-            Text(stringResource(if (speech) R.string.design_add_sound else R.string.sfx_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
+            Text(stringResource(R.string.sfx_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
             if (tab < 2) Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
             val tabs = listOf(stringResource(R.string.sfx_tab_packs), "Freesound") +
                 (if (speech) listOf(stringResource(R.string.sfx_tab_speech)) else emptyList()) + stringResource(R.string.sfx_tab_files)

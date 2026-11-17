@@ -70,6 +70,8 @@ object Ic {
     val Edit = stroke("edit", "M4 7h16", "M4 12h16", "M4 17h16")
     val Color_ = stroke("color", "M12 3a9 9 0 1 0 0.01 0", "M12 3v18")
     val Audio = stroke("audio", "M4 10v4", "M8 6v12", "M12 9v6", "M16 4v16", "M20 10v4")
+    /** A sound to add (a note) – apart from the Sound mode's waveform. */
+    val Note = shifted("note", 0.25f, 0.63f, "M9 17V5l11-2v12", "M9 9l11-2", "M3.5 17a2.75 2.75 0 105.5 0a2.75 2.75 0 10-5.5 0", "M14.5 15a2.75 2.75 0 105.5 0a2.75 2.75 0 10-5.5 0")
     val Text = stroke("text", "M5 6V4h14v2", "M12 4v16", "M9 20h6")
     val Delete = stroke("delete", "M4 7h16", "M10 11v6", "M14 11v6", "M6 7l1 13h10l1-13", "M9 7V4h6v3")
     val Split = stroke("split", "M12 3v18", "M8 8l-4 4 4 4", "M16 8l4 4-4 4")
