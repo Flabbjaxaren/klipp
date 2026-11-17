@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -74,6 +75,22 @@ class TranscriptViewTest {
         rule.onNodeWithTag("view:timeline").performClick()
         rule.waitForIdle()
         assertEquals(EditView.TIMELINE, st.editView)
+    }
+
+    /** The transcript ends above the dock (the floating bar): none of its buttons lie under it. */
+    @Test fun theTranscriptEndsAboveTheDock() {
+        val st = EditorState().apply { editView = EditView.TRANSCRIPT }
+        rule.setContent {
+            KlippTheme {
+                androidx.compose.runtime.CompositionLocalProvider(LocalBarSpace provides 84.dp) {
+                    Box(Modifier.fillMaxSize().background(K.Bg)) { EditPage(st, Tool.SELECT, {}, Toaster(), transcript = { m -> Box(m.testTag("fakeTranscript")) }) }
+                }
+            }
+        }
+        rule.waitForIdle()
+        val root = rule.onRoot().getUnclippedBoundsInRoot()
+        val t = rule.onNodeWithTag("fakeTranscript").getUnclippedBoundsInRoot()
+        assertTrue("ends ${t.bottom} above the bar (${root.bottom} - 84)", t.bottom <= root.bottom - 84.dp + 0.5.dp)
     }
 
     @Test fun theCutIsSaidBeforeItIsMade() {

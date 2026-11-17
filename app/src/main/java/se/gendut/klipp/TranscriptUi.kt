@@ -78,7 +78,7 @@ fun TranscriptView(controller: ProjectController, state: EditorState, modifier: 
             else PillButton(stringResource(R.string.transcript_transcribe), { haptics.confirm(); redo = false; ac.transcript(ctx, controller, model, pick.language) },
                 Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("tx:start"), icon = Ic.Transcript)
             if (redo) ToggleChip(stringResource(R.string.titleui_cancel), false, { redo = false }, Modifier.padding(horizontal = 14.dp))
-            Spacer(Modifier.height(LocalBarSpace.current + 24.dp))
+            Spacer(Modifier.height(24.dp))
         } else {
             if (sel != null) {
                 // what the delete does, before it is done
@@ -146,7 +146,7 @@ fun TranscriptView(controller: ProjectController, state: EditorState, modifier: 
                         }
                     }
                 }
-                item { Spacer(Modifier.width(1.dp).padding(bottom = (LocalBarSpace.current + 40.dp))) }
+                item { Spacer(Modifier.width(1.dp).padding(bottom = 24.dp)) }
             }
         }
         ac.message?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("tx:msg")) }

@@ -462,7 +462,8 @@ internal fun EditPage(
         }
       }
         Box(Modifier.weight(1f).fillMaxWidth()) {
-            if (inTranscript) transcript!!(Modifier.fillMaxSize())
+            // (the transcript ends above the dock: none of its words or buttons lie under the floating bar)
+            if (inTranscript) transcript!!(Modifier.fillMaxSize().padding(bottom = bar))
             else Timeline(state, tool, Modifier.fillMaxSize())
             if (overlays && !inTranscript) {
                 // (the chip first: a card that reaches up to it lies over it, not under)
