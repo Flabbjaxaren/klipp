@@ -617,6 +617,8 @@ object CompositionBuilder {
             // (a live clip after a pre-rendered piece begins at a cut: not pinned, see Seg.cut)
             val cutStarts = plan.layers.lastOrNull()?.segs.orEmpty().filter { it.cut }.map { Math.round((it.start - plan.origin) * 1e6) }.toLongArray()
             if (output == null && s.fps > 0.0) fx += FrameRateEffect(s.fps, starts, nominals, itemEnds = true, originUs = Math.round(plan.origin * 1e6), pick = pick, cutsUs = cutStarts)
+            // test builds: the output frame readable before the screen's scaling (see FrameProbe)
+            if (output == null && se.gendut.klipp.BuildConfig.TEST_HOOKS) fx += FrameProbe.Effect()
             // the export's frame rate and size last (titles and captions are already drawn at the project size)
             if (output != null) {
                 // always: clips can have a different (or variable) frame rate than the project – the file gets a constant one

@@ -458,6 +458,42 @@ object McpBridge {
                 else -> error("op is arm, release, status, deny_start or timeout")
             }
             texts(l.state)
+        },
+        Tool("frame_probe", "Test build only (TEST_HOOKS): the player's output frame before the screen's scaling. op=arm keeps every frame " +
+            "drawn from now on (the last one); op=save writes the last one to diag/probe_<tag>.raw and returns its size, time and format, " +
+            "the video views' sizes (SurfaceView: its buffer) and each clip's played file (original or proxy).",
+            JSONObject().put("op", prop("string", "arm | save")).put("tag", prop("string", "op=save: file name part")), listOf("op")) { a ->
+            val p = se.gendut.klipp.engine.FrameProbe
+            when (a.getString("op")) {
+                "arm" -> { p.arm(); texts("armed") }
+                "save" -> {
+                    val ctx = activity ?: error("no activity")
+                    val dirOut = java.io.File(ctx.getExternalFilesDir(null), "diag").apply { mkdirs() }
+                    val f = p.save(dirOut, a.optString("tag", "frame")) ?: error("no frame drawn since arm")
+                    val views = JSONArray()
+                    onMain {
+                        fun walk(v: View) {
+                            if (v is android.view.SurfaceView || v is android.view.TextureView) {
+                                val pos = v.screenPos()
+                                val o = JSONObject().put("kind", v.javaClass.simpleName).put("shown", v.isShown).put("x", pos[0]).put("y", pos[1]).put("w", v.width).put("h", v.height)
+                                if (v is android.view.SurfaceView) v.holder.surfaceFrame.let { r -> o.put("bufferW", r.width()).put("bufferH", r.height()) }
+                                views.put(o)
+                            }
+                            if (v is android.view.ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+                        }
+                        walk(window().decorView)
+                    }
+                    val c = ctl()
+                    val clips = JSONArray()
+                    for (cl in c.snapshot.sequence?.video?.flatMap { it.clips }.orEmpty()) {
+                        val u = c.uriOf(cl.item) ?: continue
+                        clips.put(JSONObject().put("clip", cl.id).put("proxy", se.gendut.klipp.engine.Proxies.videoUri(u) != u).put("proxyShort", se.gendut.klipp.engine.Proxies.proxyShort(u) ?: JSONObject.NULL))
+                    }
+                    texts(JSONObject().put("w", f.w).put("h", f.h).put("ptsUs", f.ptsUs).put("float", f.float).put("frames", p.frames)
+                        .put("views", views).put("clips", clips).toString())
+                }
+                else -> error("op is arm or save")
+            }
         }) }
 
     // ------------------------------------------------------------------ screen

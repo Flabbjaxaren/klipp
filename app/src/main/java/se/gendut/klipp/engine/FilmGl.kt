@@ -703,7 +703,11 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
         }
 
         override fun configure(inputWidth: Int, inputHeight: Int): Size {
-            if (inputWidth != w || inputHeight != h) { w = inputWidth; h = inputHeight; frame = null; freeImages() }
+            if (inputWidth != w || inputHeight != h) {
+                w = inputWidth; h = inputHeight; frame = null; freeImages()
+                // test builds: the film's working size and reference (the trail, see FrameProbe)
+                if (se.gendut.klipp.BuildConfig.TEST_HOOKS) se.gendut.klipp.CrashReport.note("film program ${w}×$h ref $refShort")
+            }
             PassTimes.noteSize(inputWidth, inputHeight)
             return Size(inputWidth, inputHeight)
         }
