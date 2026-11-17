@@ -14,10 +14,23 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+
+/**
+ * A sheet's content keeps what is left of an upward scroll or fling to itself: at the end of its list the rest went to
+ * the sheet, which tried to go on past its top and never came to rest (a quick throw upwards left the sheet bouncing
+ * up and down for good). Downward stays the sheet's: from the top of the content a pull down still closes it.
+ */
+internal fun Modifier.upwardStaysInside(): Modifier = nestedScroll(object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+    override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset, source: androidx.compose.ui.input.nestedscroll.NestedScrollSource) =
+        if (available.y < 0f) androidx.compose.ui.geometry.Offset(0f, available.y) else androidx.compose.ui.geometry.Offset.Zero
+    override suspend fun onPostFling(consumed: androidx.compose.ui.unit.Velocity, available: androidx.compose.ui.unit.Velocity) =
+        if (available.y < 0f) androidx.compose.ui.unit.Velocity(0f, available.y) else androidx.compose.ui.unit.Velocity.Zero
+})
 
 /**
  * What the edit page's dock adds, each in a sheet of its own over the edit page: the page stays where it is, and what
@@ -38,7 +51,7 @@ private fun AddSheet(
         onDismissRequest = { if (canClose()) onDismiss() }, sheetState = sheet, containerColor = K.Surface,
         scrimColor = if (tall) K.Bg.copy(alpha = 0.5f) else Color.Transparent,
     ) {
-        Column((if (tall) Modifier.fillMaxHeight(0.9f) else Modifier).fillMaxWidth().testTag(tag)) {
+        Column((if (tall) Modifier.fillMaxHeight(0.9f) else Modifier).fillMaxWidth().upwardStaysInside().testTag(tag)) {
             SheetHeader(title) { if (canClose()) onDismiss() }
             Column(if (tall) Modifier.weight(1f).verticalScroll(rememberScrollState()) else Modifier) {
                 content()
