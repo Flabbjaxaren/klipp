@@ -20,10 +20,15 @@ object ExportLatch {
 
     @Volatile private var gate: CountDownLatch? = null
     @Volatile private var holdSeconds = 60L
+    /** Where it holds: "copy" (halfway through the copy) or "published" (the file just published, before that is noted). */
+    @Volatile var at = "copy"
+        private set
 
     /** The next copy is held halfway, until [release] or [seconds] have passed. */
-    @Synchronized fun arm(seconds: Long = 60) {
+    @Synchronized fun arm(seconds: Long = 60, where: String = "copy") {
         check(enabled) { "only in the test build" }
+        require(where == "copy" || where == "published") { "at is copy or published" }
+        at = where
         gate = CountDownLatch(1)
         holdSeconds = seconds.coerceIn(1, 600)
         state = "armed"
@@ -35,9 +40,18 @@ object ExportLatch {
 
     /** In the copy, with [written] bytes in the file: waits there if armed (once), until released, timed out or [cancelled]. */
     fun atCopy(written: Long, cancelled: () -> Boolean = { false }) {
+        if (at == "copy") hold("held $written", cancelled)
+    }
+
+    /** The file just published (whole, visible), before the export has noted it: waits there if armed for it. */
+    fun atPublished() {
+        if (at == "published") hold("held published") { false }
+    }
+
+    private fun hold(what: String, cancelled: () -> Boolean) {
         val g = synchronized(this) { gate?.takeIf { state == "armed" } ?: return }
-        state = "held $written"
-        se.gendut.klipp.CrashReport.note("export latch: copy held at $written bytes")
+        state = what
+        se.gendut.klipp.CrashReport.note("export latch: $what")
         val until = System.nanoTime() + holdSeconds * 1_000_000_000L
         var end = "timed out"
         while (System.nanoTime() < until) {

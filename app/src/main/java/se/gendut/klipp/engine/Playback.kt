@@ -1579,6 +1579,7 @@ object Exporter {
                 values.clear(); values.put(MediaStore.Video.Media.IS_PENDING, 0)
                 if (resolver.update(uri, values, null, null) < 1) error(Str.t(R.string.playback_write_file_failed))
             }
+            ExportLatch.atPublished()
             ExportGuard.published(context)
         } catch (e: Exception) {
             // no half-written (pending) file left in Movies

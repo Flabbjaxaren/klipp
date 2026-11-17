@@ -441,13 +441,13 @@ object McpBridge {
             texts(o.toString())
         },
     ) + listOfNotNull(if (!BuildConfig.TEST_HOOKS) null else
-        Tool("export_latch", "Test build only (TEST_HOOKS): op=arm holds the next export's copy into Movies halfway (until op=release, " +
-            "a cancel or seconds, default 60); op=status: idle, armed, held <bytes>, released, cancelled or timed out; op=deny_start: the next " +
+        Tool("export_latch", "Test build only (TEST_HOOKS): op=arm holds the next export's copy into Movies halfway (at=copy) or right after its file is published, before the export has noted it (at=published) – until op=release, " +
+            "a cancel or seconds (default 60); op=status: idle, armed, held <bytes>, released, cancelled or timed out; op=deny_start: the next " +
             "export's foreground start is refused; op=timeout: Android's time limit reached now for the running export service.",
-            JSONObject().put("op", prop("string", "arm | release | status | deny_start | timeout")).put("seconds", prop("number", "how long arm holds at most")), listOf("op")) { a ->
+            JSONObject().put("op", prop("string", "arm | release | status | deny_start | timeout")).put("seconds", prop("number", "how long arm holds at most")).put("at", prop("string", "copy | published")), listOf("op")) { a ->
             val l = se.gendut.klipp.engine.ExportLatch
             when (a.getString("op")) {
-                "arm" -> l.arm(a.optLong("seconds", 60))
+                "arm" -> l.arm(a.optLong("seconds", 60), a.optString("at", "copy"))
                 "release" -> l.release()
                 "status" -> Unit
                 "deny_start" -> { se.gendut.klipp.engine.ExportTestPoints.refuseNextStart(); return@Tool texts("the next foreground start is refused") }

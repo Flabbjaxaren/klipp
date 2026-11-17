@@ -220,4 +220,23 @@ class ExportJobsTest {
         }
         assertTrue(out.size() < data.size)
     }
+
+    @Test fun theAfterPublishingTestPointHoldsOnlyThere() {
+        val latch = se.gendut.klipp.engine.ExportLatch
+        latch.enabled = true
+        try {
+            latch.arm(30, "published")
+            latch.atCopy(10)   // not this one
+            assertEquals("armed", latch.state)
+            val t = Thread { latch.atPublished() }.apply { start() }
+            var waited = 0
+            while (latch.state != "held published" && waited < 5000) { Thread.sleep(10); waited += 10 }
+            assertEquals("held published", latch.state)
+            latch.release()
+            t.join(5000)
+            assertEquals("released", latch.state)
+        } finally {
+            latch.enabled = false
+        }
+    }
 }
