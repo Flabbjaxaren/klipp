@@ -189,3 +189,14 @@ undertryckt med motivering), och `ProjectsTest.backupsGoToTheChosenFolderAndTheC
 laddas på `Dispatchers.IO`, testet frågade för tidigt; väntar nu). Lokalt efter rättningarna: ProjectsTest 8/8,
 `lintRelease` 0 fel, `assembleRelease` klart. Release-APK:n innehåller inga testpunkter (`export_latch`, `deny_start`,
 `fail_encode`, testpunkternas texter: 0 träffar i dex; i designTest finns de), bara läsverktyget `export_status`.
+
+## 10. CI efter push och betakandidat
+
+Pushat `7af07d2..7b78a59` till `design-test`. GitHub Actions, körning **44053704757** på `7b78a59`: alla tre jobben
+gröna – App (enhetstester 653: 651 godkända, 0 misslyckade, 2 överhoppade – `ColorToolsTest.shadersCompile` och
+`FilmCpuRenderTest.renderCases`; lint och release-APK klara), Engine bridge (Rust: 41 godkända, 0 fel, 4 ignorerade),
+Regression checks (self-test: alla kontroller beter sig).
+
+**Betakandidat: `7b78a59`.** Appkoden där är densamma som i bygge 161 som provats på båda telefonerna; det som tillkommit
+efter `ff5518b` är verktyg, dokumentation, en testväntan och en lint-annotering utan körtidseffekt. Motorn ändras inte
+under det första användarprovet om inget blockerande fel hittas.
