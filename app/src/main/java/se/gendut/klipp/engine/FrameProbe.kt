@@ -29,6 +29,8 @@ object FrameProbe {
 
     /** [dir]/probe_[tag].raw: "KPRB", w, h, 1 = floats (RGBA f32) / 0 = bytes (RGBA8), pts µs, then the rows as read (row 0 = GL's bottom). */
     fun save(dir: File, tag: String): Frame? {
+        // (saving ends the reading: every frame read back costs the player its pace)
+        armed = false
         val f = last ?: return null
         val out = File(dir, "probe_$tag.raw")
         out.outputStream().buffered().use { o ->
