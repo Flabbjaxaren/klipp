@@ -356,7 +356,7 @@ internal fun CaptionsTab(state: EditorState, backend: PropsBackend, onEdit: () -
     androidx.compose.animation.AnimatedVisibility(styleOpen) { Column { CaptionStyleEditor(backend, state.captions.first().track) } }
     var editing by remember { mutableStateOf<Long?>(null) }
     for (c in state.captions.take(300)) key(c.id) {
-        ListRow(formatTc(c.start), c.text.replace('\n', ' ')) {
+        ListRow(formatTc(c.start), c.text.replace('\n', ' '), "caption:row:${c.id}") {
             haptics.tick(); state.playing = false; state.playhead = c.start
             editing = if (editing == c.id) null else c.id
         }
@@ -533,10 +533,10 @@ private fun TitleShadowSection(state: EditorState, p: ClipProps, look: TitleLook
 }
 
 @Composable
-fun ListRow(time: String, text: String, onClick: () -> Unit) {
+fun ListRow(time: String, text: String, tag: String? = null, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp).clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick).padding(horizontal = 6.dp, vertical = 10.dp),
+            .clickable(onClick = onClick).then(if (tag != null) Modifier.testTag(tag) else Modifier).padding(horizontal = 6.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(time, color = K.OnSurfaceVar, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.width(96.dp))
@@ -544,19 +544,17 @@ fun ListRow(time: String, text: String, onClick: () -> Unit) {
     }
 }
 
-/** Edit a caption: the text (multiple lines) and delete. Tap the row again to close. */
+/**
+ * Edit a caption from the list: the same text editor as the caption editor over the timeline (it saves by itself, also
+ * when the row closes), delete, and done. Tap the row again to close.
+ */
 @Composable
 private fun CaptionEditor(c: UiCaption, backend: PropsBackend, onDone: () -> Unit) {
     val haptics = rememberHaptics()
-    var text by remember(c.id) { mutableStateOf(c.text) }
     Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(K.Surface).padding(10.dp)) {
-        BasicTextField(
-            value = text, onValueChange = { text = it },
-            textStyle = TextStyle(color = K.OnSurface, fontSize = 15.sp), cursorBrush = SolidColor(K.Primary),
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(K.SurfaceHigh).padding(12.dp).testTag("caption:${c.id}"),
-        )
+        CaptionTextField(c, backend, Modifier, tag = "caption:${c.id}")
         Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SpringChip(stringResource(R.string.titleui_save), false, { haptics.confirm(); backend.setCaptionText(c.id, text); onDone() })
+            SpringChip(stringResource(R.string.properties_done), false, { haptics.confirm(); onDone() }, Modifier.testTag("caption:done"))
             SpringChip(stringResource(R.string.titleui_delete), false, { haptics.heavy(); backend.deleteCaption(c.id); onDone() })
             Text("${formatTc(c.start)} – ${formatTc(c.end)}", color = K.OnSurfaceVar, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.CenterVertically))
         }

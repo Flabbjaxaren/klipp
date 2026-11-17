@@ -45,7 +45,6 @@
     <string name="titleui_captions_hint">Undertexterna visas i bilden och bränns in vid export.</string>
     <string name="titleui_add_at">Lägg till vid %1$s</string>
     <string name="titleui_size">Storlek</string>
-    <string name="titleui_save">Spara</string>
     <string name="titleui_delete">Ta bort</string>
     <string name="titleui_auto_captions_title">Skapa undertexter automatiskt</string>
     <string name="titleui_auto_captions_info">Talet blir text direkt på telefonen – inget ljud skickas någonstans. Whisper (OpenAI) på ett hundratal språk; svenska använder KB-Whisper från Kungliga biblioteket. Välj det talade språket – det är säkrare än att låta det kännas igen.</string>
@@ -83,6 +82,7 @@
     <string name="captionui_new">Ny</string>
     <string name="captionui_delete">Ta bort</string>
     <string name="captionui_playhead_inside">Ställ spelhuvudet inne i undertexten</string>
+    <string name="captionui_blank_not_saved">En tom undertext sparas inte – ta bort den med Ta bort.</string>
     <string name="captionui_caption">Undertext</string>
     <string name="captionui_select_caption">Markera en undertext i tidslinjen</string>
     <string name="captionui_time_hint">%1$s – %2$s  ·  dra blocket i tidslinjen för att flytta, kanterna för att ändra längden</string>

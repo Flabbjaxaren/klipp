@@ -1997,10 +1997,22 @@ class ProjectController(
         } }
     }
 
-    override fun setCaptionText(id: Long, text: String) {
+    /** The last save of a caption editing session: (session, caption, the undo step it made). */
+    private var captionTextStep: Triple<Any, Long, Long>? = null
+
+    override fun setCaptionText(id: Long, text: String, session: Any?) {
         scope.launch { editLock.withLock {
-            engine.tryExec("captions.setText", JSONObject().put("caption", id).put("text", text)).onFailure { onMessage(friendly(it.message)) }
+            // the same session saving again, and its step still the latest: that step is replaced (undone and made
+            // again with the new text) – the session stays one undo step, not one per pause in the typing
+            val last = captionTextStep
+            if (session != null && last != null && last.first === session && last.second == id && snapshot.undoIds.lastOrNull() == last.third) {
+                engine.tryExec("edit.undo", JSONObject())
+                refresh()
+            }
+            val before = snapshot.sequence?.captions?.firstOrNull { it.id == id }?.text
+            if (before != text) engine.tryExec("captions.setText", JSONObject().put("caption", id).put("text", text)).onFailure { onMessage(friendly(it.message)) }
             refresh()
+            captionTextStep = if (session != null && before != text) Triple(session, id, snapshot.undoIds.lastOrNull() ?: -1L) else null
         } }
     }
 

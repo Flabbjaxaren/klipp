@@ -314,7 +314,11 @@ interface PropsBackend {
     fun addTitle(text: String, at: Float, look: String = "")
     fun setTitle(id: Long, text: String? = null, size: Float? = null, color: Int? = null, look: String? = null)
     fun importCaptions()
-    fun setCaptionText(id: Long, text: String) {}
+    /**
+     * A caption's text. [session] = the editor that typed it (one editing session): a later save from the same session
+     * replaces the step its earlier one made, so a session is one undo step (unless something else was done between).
+     */
+    fun setCaptionText(id: Long, text: String, session: Any? = null) {}
     /** The stopwatch: turn animation on (keyframe at the playhead) or off (all keyframes removed, the value at the playhead stays). */
     fun toggleAnimation(id: Long, key: String, at: Float) {}
     /** Add a keyframe at [at] with the current value, or remove the keyframe already there. */

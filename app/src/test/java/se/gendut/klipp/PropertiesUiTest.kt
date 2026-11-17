@@ -53,7 +53,9 @@ class FakeProps : PropsBackend {
     override fun addTitle(text: String, at: Float, look: String) { log += "title $text @$at $look".trimEnd() }
     override fun setTitle(id: Long, text: String?, size: Float?, color: Int?, look: String?) { log += "settitle $text $size $color $look" }
     override fun importCaptions() { log += "captions" }
-    override fun setCaptionText(id: Long, text: String) { log += "captiontext $id $text" }
+    /** The editing session of each caption text save (see PropsBackend.setCaptionText). */
+    val textSessions = mutableListOf<Any?>()
+    override fun setCaptionText(id: Long, text: String, session: Any?) { log += "captiontext $id $text"; textSessions += session }
     override fun deleteCaption(id: Long) { log += "deletecaption $id" }
     override fun toggleAnimation(id: Long, key: String, at: Float) { log += "anim $key @$at" }
     override fun toggleKeyframe(id: Long, key: String, at: Float) { log += "kf $key @$at" }
@@ -218,9 +220,10 @@ class PropertiesUiTest {
         assertTrue(edited)
         assertEquals(listOf("title Anna Berg\nFiskare, Smögen @3.0 klipp:mall=namnskylt;in=studs", "captions"), fake.log)
         assertEquals(0.5f, st.playhead, 0.001f)
-        // the line opens for editing
+        // the line opens for editing – the same editor as over the timeline: it saves by itself when the row closes
         rule.onNodeWithTag("caption:1").performTextReplacement("Ny text")
-        rule.onNodeWithText("Spara").performScrollTo().performClick()
+        rule.onNodeWithTag("caption:done").performScrollTo().performClick()
+        rule.mainClock.advanceTimeBy(1000)
         rule.waitForIdle()
         assertEquals("captiontext 1 Ny text", fake.log.last())
         assertNotNull(st)

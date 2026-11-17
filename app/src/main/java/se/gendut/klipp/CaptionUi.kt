@@ -110,28 +110,43 @@ fun CaptionInspector(state: EditorState) {
     }
 }
 
-/** The text is saved once typing pauses for a moment, and when the panel closes. */
+/**
+ * A caption's text – the one editor for it (the caption editor over the timeline and the captions list both use it).
+ * Saved by itself once typing pauses for a moment and when the editor closes; the whole editing session is one undo
+ * step. An empty text is not saved (a caption is deleted with Delete): it stays in the field with a word why.
+ */
 @Composable
-private fun CaptionTextField(c: UiCaption, backend: PropsBackend) {
+internal fun CaptionTextField(c: UiCaption, backend: PropsBackend, modifier: Modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), tag: String = "captionText") {
     var text by remember(c.id) { mutableStateOf(c.text) }
     val pending = remember(c.id) { mutableStateOf<String?>(null) }
+    // one editing session: the saves it makes become one undo step (see PropsBackend.setCaptionText)
+    val session = remember(c.id) { Any() }
     LaunchedEffect(c.id, c.text) { if (pending.value == null && text != c.text) text = c.text }
     LaunchedEffect(pending.value) {
         val t = pending.value ?: return@LaunchedEffect
         kotlinx.coroutines.delay(700)
-        backend.setCaptionText(c.id, t)
+        backend.setCaptionText(c.id, t, session)
         pending.value = null
     }
     DisposableEffect(c.id) {
         val id = c.id
-        onDispose { pending.value?.let { backend.setCaptionText(id, it) } }
+        onDispose { pending.value?.let { backend.setCaptionText(id, it, session) } }
     }
-    BasicTextField(
-        value = text, onValueChange = { text = it; pending.value = if (it == c.text) null else it },
-        textStyle = TextStyle(color = K.OnSurface, fontSize = 16.sp), cursorBrush = SolidColor(K.Primary),
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .background(K.SurfaceHigh).padding(14.dp).testTag("captionText"),
-    )
+    val blank = text.isBlank()
+    Column(modifier.fillMaxWidth()) {
+        BasicTextField(
+            value = text,
+            // what is saved: a text with something in it, different from what the caption has
+            onValueChange = { text = it; pending.value = if (it == c.text || it.isBlank()) null else it },
+            textStyle = TextStyle(color = K.OnSurface, fontSize = 16.sp), cursorBrush = SolidColor(K.Primary),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                .background(K.SurfaceHigh).padding(14.dp).testTag(tag),
+        )
+        if (blank) Text(
+            stringResource(R.string.captionui_blank_not_saved), color = K.OnSurfaceVar, fontSize = 12.sp,
+            modifier = Modifier.padding(top = 4.dp, start = 4.dp).testTag("captionBlank"),
+        )
+    }
 }
 
 private val CAPTION_COLORS = listOf(0xFFFFFFFF, 0xFFFFE07A, 0xFFFFB77C, 0xFF9FE7D2, 0xFFFFD7F0, 0xFF111318)

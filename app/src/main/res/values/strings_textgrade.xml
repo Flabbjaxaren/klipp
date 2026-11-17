@@ -45,7 +45,6 @@
     <string name="titleui_captions_hint">Captions appear in the picture and are burned in on export.</string>
     <string name="titleui_add_at">Add at %1$s</string>
     <string name="titleui_size">Size</string>
-    <string name="titleui_save">Save</string>
     <string name="titleui_delete">Delete</string>
     <string name="titleui_auto_captions_title">Auto-generate captions</string>
     <string name="titleui_auto_captions_info">Speech becomes text right on your phone – no audio is sent anywhere. Whisper (OpenAI) in about 100 languages; Swedish uses KB-Whisper from the National Library of Sweden. Choose the spoken language – it is more reliable than detecting it.</string>
@@ -83,6 +82,7 @@
     <string name="captionui_new">New</string>
     <string name="captionui_delete">Delete</string>
     <string name="captionui_playhead_inside">Place the playhead inside the caption</string>
+    <string name="captionui_blank_not_saved">An empty caption isn\'t saved – remove it with Delete.</string>
     <string name="captionui_caption">Caption</string>
     <string name="captionui_select_caption">Select a caption in the timeline</string>
     <string name="captionui_time_hint">%1$s – %2$s  ·  drag the block in the timeline to move it, the edges to change its length</string>
