@@ -496,8 +496,9 @@ object McpBridge {
             }
         },
         Tool("film_test", "Test build only (TEST_HOOKS): op=unscaled with on=true plays the film unscaled (as before N1: reference 0) " +
-            "and rebuilds the player; on=false back to normal. op=preview with short sets the preview size for this session only (0 = full).",
-            JSONObject().put("op", prop("string", "unscaled | preview")).put("on", prop("boolean", "")).put("short", prop("number", "")).put("clip", prop("number", "op=late"))
+            "and rebuilds the player; on=false back to normal. op=preview with short sets the preview size for this session only (0 = full). " +
+            "op=proxies with on turns proxies on/off for this session only. op=late with clip and delay_ms forgets the clip's source size and gives it back after the delay.",
+            JSONObject().put("op", prop("string", "unscaled | preview | proxies | late")).put("on", prop("boolean", "")).put("short", prop("number", "")).put("clip", prop("number", "op=late"))
                 .put("delay_ms", prop("number", "op=late")), listOf("op")) { a ->
             when (a.getString("op")) {
                 "unscaled" -> {
