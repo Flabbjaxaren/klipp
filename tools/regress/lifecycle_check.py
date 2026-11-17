@@ -77,7 +77,9 @@ def status(ph):
 
 
 def activity_alive(ph):
-    return f"{ph.pkg}/se.gendut.klipp.MainActivity" in ph.adb("shell", "dumpsys", "activity", "activities", check=False)
+    """The test app's task (and so its activity) is there. (Not a text search of dumpsys activities: some phones keep old
+    activity records in histories there, e.g. the vivo's rotation history.)"""
+    return re.search(r"taskId=\d+: " + re.escape(ph.pkg) + "/", ph.adb("shell", "am", "stack", "list", check=False)) is not None
 
 
 def pid(ph):
@@ -114,7 +116,12 @@ def check_file(ph, out, mid, name):
             "ok": abs(dur - SECONDS) < 0.2 and frames == FRAMES and not dec.stderr.strip()}
 
 
+NO_POWER_KEYS = False   # --no-power-keys: never a wake/sleep key (a phone that must not get them)
+
+
 def unlock(ph):
+    if NO_POWER_KEYS:
+        return
     ph.adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
     time.sleep(1)
     if "isKeyguardShowing=true" in ph.adb("shell", "dumpsys", "window", check=False):
@@ -175,7 +182,12 @@ def main():
     ap.add_argument("--project", default="Klipp endurance 156")
     ap.add_argument("--only", default="home,back,lock,swipe")
     ap.add_argument("--out", default="")
+    ap.add_argument("--no-power-keys", action="store_true", help="never send wake/sleep keys (the lock case is refused)")
     args = ap.parse_args()
+    global NO_POWER_KEYS
+    NO_POWER_KEYS = args.no_power_keys
+    if NO_POWER_KEYS and "lock" in args.only.split(","):
+        sys.exit("the lock case needs a sleep key – not with --no-power-keys")
     ph = r.Phone(args.serial, args.port, args.pkg)
     out = args.out or os.path.join(r.HERE, "out", time.strftime("%Y%m%d-%H%M%S") + "-lifecycle")
     os.makedirs(out, exist_ok=True)
