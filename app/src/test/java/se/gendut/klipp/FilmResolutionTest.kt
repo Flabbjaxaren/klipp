@@ -120,4 +120,48 @@ class FilmResolutionTest {
         }
         assertTrue("grain at half size vs the export brought down: RMS ratio $ratioAfter", ratioAfter in 0.95..1.05)
     }
+
+    /**
+     * The grain blur blurs the whole grainy density – the image too, not only the noise (spektrafilm). Averaged over
+     * seeds the noise goes and the image's edge stays. The variance-matched grain blur (N1) is chosen for the noise; on
+     * the image it blurs about half as much as the export brought down (grain's share of the edge −3.5/+7.1 against
+     * −7.5/+18.8 code values), but the whole edge is far closer than before N1 (1.6 against 7.4 code values off).
+     * Guards that: no worse than half of the unscaled film's error. (Found on the vivo 2026-11-17: the node cache vs
+     * live; see docs/n1-pixel-units.md.)
+     */
+    @Test fun theGrainBlursTheImageAsTheExportDoes() {
+        // (a size where the edge at 0.35 falls on a pixel boundary at both sizes, as on the 4K card: no mixed pixel)
+        val W = 800; val H = 448
+        val ex = 280  // the square's right edge: full pixels 0…279 bright, half 0…139
+        val full = FloatArray(W * H * 3) { i -> val p = i / 3; val x = p % W; val y = p / W
+            if (x in 80 until ex && y in (0.20 * H).toInt() until (0.60 * H).toInt()) 0.80f else 0.38f }
+        val halfIn = half(full, W, H); val hw = W / 2; val hh = H / 2
+        val f = Film(glare = false)
+        val seeds = 1L..12L
+        /** The edge profile (G, rows .25–.55 averaged, columns e−3 … e+4 of the bright square's right edge), averaged over seeds. */
+        fun edge(img: (Long) -> FloatArray, w: Int, h: Int): DoubleArray {
+            val e = ex * w / W; val out = DoubleArray(8)
+            for (sd in seeds) { val a = img(sd); for (y in (0.25 * h).toInt() until (0.55 * h).toInt()) for (k in 0..7) out[k] += a[(y * w + e - 3 + k) * 3 + 1] * 255.0 }
+            val n = seeds.count() * ((0.55 * h).toInt() - (0.25 * h).toInt()); for (k in 0..7) out[k] /= n
+            return out
+        }
+        val ref = edge({ sd -> half(render(f, full, W, H, 0, sd), W, H) }, hw, hh)
+        val noGrain = edge({ sd -> half(render(Film(glare = false, grain = false), full, W, H, 0, sd), W, H) }, hw, hh)
+        val got = edge({ sd -> render(f, halfIn, hw, hh, H, sd) }, hw, hh)
+        val gotNoGrain = edge({ sd -> render(Film(glare = false, grain = false), halfIn, hw, hh, H, sd) }, hw, hh)
+        val pre = edge({ sd -> render(f, halfIn, hw, hh, 0, sd) }, hw, hh)
+        val preNoGrain = edge({ sd -> render(Film(glare = false, grain = false), halfIn, hw, hh, 0, sd) }, hw, hh)
+        println("before N1 (half, unscaled): ${pre.joinToString(" ") { "%.2f".format(it) }}  | grain's share ${DoubleArray(8) { pre[it] - preNoGrain[it] }.joinToString(" ") { "%.2f".format(it) }}  | largest vs full↓ %.2f".format((0..7).maxOf { abs(pre[it] - ref[it]) }))
+        val su = FilmFx.setup(f)
+        println("grain blur σ: export ${"%.3f".format(su.forImage(W, H, 0).grainSigmaPx)}, half ${"%.3f".format(su.forImage(hw, hh, H).grainSigmaPx)} (in its pixels)")
+        println("edge e−3…e+4, code values: full↓ ${ref.joinToString(" ") { "%.2f".format(it) }}")
+        println("                           half  ${got.joinToString(" ") { "%.2f".format(it) }}")
+        val dRef = DoubleArray(8) { ref[it] - noGrain[it] }; val dGot = DoubleArray(8) { got[it] - gotNoGrain[it] }
+        println("grain's share of the edge:  full↓ ${dRef.joinToString(" ") { "%.2f".format(it) }}")
+        println("                            half  ${dGot.joinToString(" ") { "%.2f".format(it) }}")
+        val off = (0..7).maxOf { abs(got[it] - ref[it]) }
+        val offBefore = (0..7).maxOf { abs(pre[it] - ref[it]) }
+        println("largest edge difference half vs full↓: %.2f code values (before N1 %.2f)".format(off, offBefore))
+        assertTrue("with grain the half-size edge vs the export brought down: $off code values off, before N1 $offBefore", off <= offBefore / 2)
+    }
 }
