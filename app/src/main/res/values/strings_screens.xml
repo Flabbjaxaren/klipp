@@ -302,4 +302,6 @@
     </plurals>
     <string name="medialibrary_find_in_folder">Find in folder</string>
     <string name="medialibrary_missing_badge">Missing</string>
+    <string name="settings_render_auto">Render automatically (all projects)</string>
+    <string name="settings_delete_renders_all">Delete renders (all projects)</string>
 </resources>

@@ -146,4 +146,6 @@
     </plurals>
     <string name="masktrack_canceled">Spårningen avbröts</string>
     <string name="masktrack_failed">Spårningen misslyckades: %1$s</string>
+    <string name="panels_faders_scope">A1–A3: spårvolym (hela spåret). Mix: hela ljudet. Ett klipps egen volym ställs på klippet i Redigera.</string>
+    <string name="panels_auto_meaning">AUTO: spåret har volymautomation – reglaget ändrar nyckelrutan vid spelhuvudet, inte en nivå för hela spåret.</string>
 </resources>

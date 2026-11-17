@@ -1014,14 +1014,8 @@ fun KlippApp(
                         PresetRow(stringResource(R.string.app_render_timeline), stringResource(R.string.app_render_timeline_hint), false) {
                             showSettings = false; se.gendut.klipp.engine.RenderCache.halted = false; se.gendut.klipp.engine.RenderCache.renderAll = true
                         }
-                        PresetRow(stringResource(if (se.gendut.klipp.engine.RenderCache.auto) R.string.app_render_auto_on else R.string.app_render_auto_off),
-                            stringResource(R.string.app_render_auto_hint), se.gendut.klipp.engine.RenderCache.auto) {
-                            se.gendut.klipp.engine.RenderCache.setAuto(context, !se.gendut.klipp.engine.RenderCache.auto)
-                        }
-                        PresetRow(stringResource(R.string.app_delete_renders), stringResource(R.string.app_megabytes, se.gendut.klipp.engine.RenderCache.bytes() / 1e6), false) {
-                            showSettings = false; se.gendut.klipp.engine.RenderCache.clear(); toaster.show(Str.t(R.string.app_renders_deleted))
-                        }
-                        PresetRow(stringResource(R.string.app_app_settings), stringResource(R.string.app_app_settings_hint), false) { showSettings = false; showAppSettings = true }
+                        // (rendering automatically and deleting renders apply to every project: they are in the app's settings)
+                        PresetRow(stringResource(R.string.app_app_settings), stringResource(R.string.app_render_defaults_hint), false) { showSettings = false; showAppSettings = true }
                     },
                 ) { n, w, h, f, sr ->
                     showSettings = false

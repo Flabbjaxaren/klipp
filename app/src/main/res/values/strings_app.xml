@@ -75,14 +75,10 @@
     <string name="app_cancel">Cancel</string>
     <string name="app_render_timeline">Render timeline</string>
     <string name="app_render_timeline_hint">everything plays from finished files – smooth, no lag. If something changes, that part is re-rendered when you ask</string>
-    <string name="app_render_auto_on">Render automatically: on</string>
-    <string name="app_render_auto_off">Render automatically: off</string>
     <string name="app_render_auto_hint">heavy parts (layers, effects, transitions) render in the background when you\'re not playing or dragging – uses battery</string>
     <string name="app_delete_renders">Delete renders</string>
     <string name="app_megabytes">%1$.0f MB</string>
-    <string name="app_renders_deleted">Renders deleted</string>
     <string name="app_app_settings">App settings</string>
-    <string name="app_app_settings_hint">theme, timeline, proxy, export defaults …</string>
     <string name="app_projects">Projects</string>
     <string name="app_undo">Undo</string>
     <string name="app_redo">Redo</string>
@@ -174,4 +170,6 @@
     <!-- Str.kt -->
     <string name="app_no_internet">No internet connection</string>
     <string name="app_net_timeout">The connection timed out</string>
+    <string name="app_render_defaults_hint">Rendering automatically, deleting renders, proxies and caches apply to all projects</string>
+    <string name="app_clip_volume_keyframe">Clip volume · keyframe at the playhead</string>
 </resources>

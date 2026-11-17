@@ -734,8 +734,10 @@ private fun ClipDock(state: EditorState) {
             if (p != null) Box(Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(24.dp)).background(K.Surface).padding(top = 2.dp).testTag("dockVolume")) {
                 val scope = rememberCoroutineScope()
                 CompositionLocalProvider(LocalSliderInset provides 14.dp) {
+                    // (an animated level: the slider sets the keyframe at the playhead, not one level for the clip – said)
+                    val keyed = p.kf["level"].orEmpty().isNotEmpty()
                     PropSlider(
-                        stringResource(R.string.app_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "level",
+                        stringResource(if (keyed) R.string.app_clip_volume_keyframe else R.string.app_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "level",
                         onLive = { v -> state.setLive(p.copy(levelDb = v)) },
                     ) { state.props?.setProps(p.id, levelDb = it); scope.launch { state.endLive() } }
                 }

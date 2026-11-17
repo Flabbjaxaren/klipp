@@ -169,7 +169,7 @@
     <string name="colorpage_pick_hint_color">Tryck på färgen du vill välja ut</string>
     <string name="colorpage_history_follow">Följ</string>
     <string name="colorpage_history_pin">Hörnfästning</string>
-    <string name="colorpage_original">Original</string>
+    <string name="colorpage_original">Spela original, inte proxy (alla projekt)</string>
     <string name="colorpage_tab_timeline">Tidslinje</string>
     <string name="colorpage_no_clip">Lägg ett videoklipp på tidslinjen för att färga det.</string>
     <string name="colorpage_still_title">Stillbild · %1$s</string>

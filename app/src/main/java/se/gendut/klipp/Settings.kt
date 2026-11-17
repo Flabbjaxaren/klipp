@@ -248,13 +248,17 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                 }
                 FlatTextButton(onClick = { se.gendut.klipp.engine.NodeCache.clear(ctx); cacheSize = 0 }, modifier = Modifier.testTag("set:clearNodeCache")) { Text(stringResource(R.string.settings_clear)) }
             }
+            var renderAuto by remember { mutableStateOf(se.gendut.klipp.engine.RenderCache.auto) }
+            SwitchRow(stringResource(R.string.settings_render_auto), stringResource(R.string.app_render_auto_hint), renderAuto, "set:renderAuto") {
+                renderAuto = it; se.gendut.klipp.engine.RenderCache.setAuto(ctx, it)
+            }
             var renderSize by remember { mutableStateOf(0L) }
             androidx.compose.runtime.LaunchedEffect(se.gendut.klipp.engine.RenderCache.revision) {
                 renderSize = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.RenderCache.bytes() }
             }
             Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.app_delete_renders), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.settings_delete_renders_all), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Text(stringResource(R.string.app_megabytes, renderSize / 1e6), color = K.OnSurfaceVar, fontSize = 12.sp)
                 }
                 FlatTextButton(onClick = { se.gendut.klipp.engine.RenderCache.clear(); renderSize = 0 }, modifier = Modifier.testTag("set:clearRenders")) { Text(stringResource(R.string.settings_clear)) }

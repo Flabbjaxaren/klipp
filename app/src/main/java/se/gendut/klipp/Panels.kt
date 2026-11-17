@@ -434,6 +434,10 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
                         ChannelStrip(n, i, mix, scope, Modifier.weight(1f).fillMaxHeight(), auto = tracks.getOrNull(i)?.takeIf { i < 3 }?.volKf?.size ?: 0)
                     }
                 }
+                // what each fader is: the tracks' volume and the whole mix; the clip's own volume is on the clip
+                Text(stringResource(R.string.panels_faders_scope), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("mixer:scope"))
+                if (tracks.take(3).any { it.volKf.isNotEmpty() }) Text(stringResource(R.string.panels_auto_meaning), color = K.OnSurfaceVar, fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("mixer:auto"))
                 if (tools != null) PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.panels_volume_automation)) {
                     Text(stringResource(R.string.panels_automation_hint),
                         color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))

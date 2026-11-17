@@ -146,4 +146,6 @@
     </plurals>
     <string name="masktrack_canceled">Tracking canceled</string>
     <string name="masktrack_failed">Tracking failed: %1$s</string>
+    <string name="panels_faders_scope">A1–A3: track volume (the whole track). Mix: the whole sound. A clip\'s own volume is set on the clip in Edit.</string>
+    <string name="panels_auto_meaning">AUTO: the track has volume automation – moving its fader sets the keyframe at the playhead, not one level for the track.</string>
 </resources>

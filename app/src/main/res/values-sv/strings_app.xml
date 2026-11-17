@@ -75,14 +75,10 @@
     <string name="app_cancel">Avbryt</string>
     <string name="app_render_timeline">Rendera tidslinjen</string>
     <string name="app_render_timeline_hint">allt spelas ur färdiga filer – flyter utan lagg. Ändras något renderas den delen om när du ber om det</string>
-    <string name="app_render_auto_on">Rendera automatiskt: på</string>
-    <string name="app_render_auto_off">Rendera automatiskt: av</string>
     <string name="app_render_auto_hint">tunga delar (lager, effekter, övergångar) renderas i bakgrunden när du inte spelar eller drar – tar batteri</string>
     <string name="app_delete_renders">Ta bort renderingar</string>
     <string name="app_megabytes">%1$.0f MB</string>
-    <string name="app_renders_deleted">Renderingarna är borttagna</string>
     <string name="app_app_settings">Appinställningar</string>
-    <string name="app_app_settings_hint">tema, tidslinje, proxy, exportens standard …</string>
     <string name="app_projects">Projekt</string>
     <string name="app_undo">Ångra</string>
     <string name="app_redo">Gör om</string>
@@ -174,4 +170,6 @@
     <!-- Str.kt -->
     <string name="app_no_internet">Ingen internetanslutning</string>
     <string name="app_net_timeout">Anslutningen tog för lång tid</string>
+    <string name="app_render_defaults_hint">Rendera automatiskt, ta bort renderingar, proxy och cache gäller alla projekt</string>
+    <string name="app_clip_volume_keyframe">Klippvolym · nyckelruta vid spelhuvudet</string>
 </resources>

@@ -302,4 +302,6 @@
     </plurals>
     <string name="medialibrary_find_in_folder">Hitta i mapp</string>
     <string name="medialibrary_missing_badge">Saknas</string>
+    <string name="settings_render_auto">Rendera automatiskt (alla projekt)</string>
+    <string name="settings_delete_renders_all">Ta bort renderingar (alla projekt)</string>
 </resources>

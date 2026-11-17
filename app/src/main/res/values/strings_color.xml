@@ -169,7 +169,7 @@
     <string name="colorpage_pick_hint_color">Tap the color you want to select</string>
     <string name="colorpage_history_follow">Follow</string>
     <string name="colorpage_history_pin">Corner pin</string>
-    <string name="colorpage_original">Original</string>
+    <string name="colorpage_original">Play originals, not proxies (all projects)</string>
     <string name="colorpage_tab_timeline">Timeline</string>
     <string name="colorpage_no_clip">Add a video clip to the timeline to grade it.</string>
     <string name="colorpage_still_title">Still · %1$s</string>
