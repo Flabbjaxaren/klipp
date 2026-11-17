@@ -733,6 +733,8 @@ class ProjectController(
         } ?: clearSequenceState()
         revision++
         scheduleSave()
+        // the sources' sizes (the film's reference, see SourceSizes) – before the players are built from this snapshot
+        SourceSizes.remember(snap.media.mapNotNull { m -> uris[m.id]?.let { it to m } })
         // heavy files (4K, high frame rate, HDR) get proxy files in the background
         runCatching { Proxies.ensure(context, snap.media.mapNotNull { m -> uris[m.id]?.let { it to m } }) }
         scope.launch { runCatching { Perf.prefetchHdr(context, snap.media.filter { it.hasVideo }.mapNotNull { uris[it.id] }) } }

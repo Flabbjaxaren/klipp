@@ -645,9 +645,12 @@ private fun LayerVideo(
     // as in the main player: 4K material is brought down to the preview size before the grade and the film (same
     // picture as there; at the original's size the film took several times as long – the edit point layer fell
     // hundreds of milliseconds behind with diffusion and halation on originals)
+    // (the source sizes' revision: a size that comes late rebuilds the layer – see SourceSizes)
+    val sizesRev = se.gendut.klipp.engine.SourceSizes.revision
+    val filmRef = gc?.let { se.gendut.klipp.engine.CompositionBuilder.filmRefOf(controller.uriOf(it.item)) } ?: 0
     val scaleShort = segs.getOrNull(cue)?.let { sg -> controller.uriOf(sg.src.item) }?.let { u ->
         val short = if (se.gendut.klipp.engine.Proxies.videoUri(u) != u) se.gendut.klipp.engine.Proxies.proxyShort(u)
-            else se.gendut.klipp.engine.Perf.cachedCodec(u)?.let { k -> if (k.width > 0 && k.height > 0) min(k.width, k.height) else null }
+            else se.gendut.klipp.engine.SourceSizes.short(u)
         val pv = se.gendut.klipp.engine.VideoPipeline.previewShort
         if (pv <= 0) null else se.gendut.klipp.engine.CompositionBuilder.previewSize(plan.width, plan.height, pv)
             .let { (pw, ph) -> se.gendut.klipp.engine.CompositionBuilder.previewShortSide(short, pw, ph) }
@@ -671,7 +674,7 @@ private fun LayerVideo(
     val headroomRef = remember { java.util.concurrent.atomic.AtomicReference<Pair<List<Pair<Double, Boolean>>, Int>>(emptyList<Pair<Double, Boolean>>() to -1) }
     headroomRef.set(headroomSegs to active)
     val anyHeadroom = headroomSegs.any { it.second }
-    LaunchedEffect(gc?.id, structure, look, scaleShort, offGrid, anyHeadroom) {
+    LaunchedEffect(gc?.id, structure, look, scaleShort, offGrid, anyHeadroom, filmRef, sizesRev) {
         if (gc != null && grade != null) se.gendut.klipp.engine.LiveGrades.publish(mapOf(gc.id to grade))
         // tracked windows: the frame's source time (see LayerClock)
         // always (live): a window tracked afterwards follows along without the effects being rebuilt
@@ -686,7 +689,7 @@ private fun LayerVideo(
             val st = clock.seg?.startSec
             (if (st != null) list.minByOrNull { kotlin.math.abs(it.first - st) } else list.getOrNull(act))?.second ?: false
         }
-        val fx = listOfNotNull(headroomFx, keyFx) + gc?.let { grade?.effects(it.id, clock = src) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)
+        val fx = listOfNotNull(headroomFx, keyFx) + gc?.let { grade?.effects(it.id, clock = src, filmRef = filmRef) }.orEmpty() + se.gendut.klipp.engine.CompositionBuilder.videoEffects(look) + listOfNotNull(maskFx)
         // (no effects: none – the downscale alone would add a pass the plain picture doesn't need)
         val down = scaleShort?.takeIf { fx.isNotEmpty() }?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
         // on the timeline's frame grid, as the main player and the export (see LayerGridEffect): a slowed 120 fps clip gave

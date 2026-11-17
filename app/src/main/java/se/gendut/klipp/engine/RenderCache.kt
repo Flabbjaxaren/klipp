@@ -102,7 +102,7 @@ object RenderCache {
         val longer: List<Pair<String, Double>> = emptyList(),
     )
 
-    private const val VERSION = 18
+    private const val VERSION = 19
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
     /** The longest piece a stretch of the timeline is rendered in (s), see [chunks]. */
@@ -209,8 +209,8 @@ object RenderCache {
                 for (sg in segs) {
                     sb.append('[').append(r(sg.start)).append(',').append(r(sg.end)).append(',')
                     when (val s = sg.src) {
-                        is SegSrc.Media -> sb.append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item))).append(',').append(r(s.srcIn)).append(',').append(s.speed)
-                        is SegSrc.Still -> { sb.append("S").append(uriOf(s.item)).append(',').append(r(s.sec)); heavy = true }
+                        is SegSrc.Media -> sb.append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item))).append(refKey(uriOf(s.item))).append(',').append(r(s.srcIn)).append(',').append(s.speed)
+                        is SegSrc.Still -> { sb.append("S").append(uriOf(s.item)).append(refKey(uriOf(s.item))).append(',').append(r(s.sec)); heavy = true }
                     }
                     // ramps and transition windows only where they apply in the chunk (a transition further on does not change this one)
                     sg.ramp?.takeIf { it.t1 > a + 1e-6 && it.t0 < b - 1e-6 }?.let { sb.append(",R").append(it); heavy = true }
@@ -250,7 +250,7 @@ object RenderCache {
             val sb = StringBuilder()
             sb.append("v").append(VERSION).append(if (androidx.media3.effect.KlippPrecision.sdrYuv) "y" else "").append('|').append(plan.width).append('x').append(plan.height).append('@').append(fps).append('/').append(short)
                 .append('|').append(r(from)).append('-').append(r(to)).append("|L0[").append(r(c.start)).append(',').append(r(c.end)).append(',')
-                .append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item))).append(',').append(r(c.sourceIn)).append(',').append(s.speed).append(",C").append(videoKey(c))
+                .append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item))).append(refKey(uriOf(s.item))).append(',').append(r(c.sourceIn)).append(',').append(s.speed).append(",C").append(videoKey(c))
             gradeOf(c.id)?.let { g -> sb.append(gradeKey(g)) }
             sb.append(']')
             return sha1(sb.toString())
@@ -281,6 +281,9 @@ object RenderCache {
     ).joinToString(";")
 
     private fun r(v: Double) = Math.round(v * 1e5) / 1e5
+
+    /** The source's size (the film's reference, see SourceSizes): a piece rendered before it was known is made again. */
+    private fun refKey(u: Uri?): String = ",r" + (SourceSizes.short(u) ?: 0)
 
     private fun sha1(s: String) = MessageDigest.getInstance("SHA-1").digest(s.toByteArray()).joinToString("") { "%02x".format(it) }
 

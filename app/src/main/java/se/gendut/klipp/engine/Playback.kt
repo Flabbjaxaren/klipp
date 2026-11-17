@@ -195,6 +195,12 @@ object CompositionBuilder {
         return even(w * k) to even(h * k)
     }
 
+    /** The film's reference size for a clip of [uri]: the source file's short side (see SourceSizes); 0 = not known (scale 1). */
+    fun filmRefOf(uri: Uri?): Int = if (testUnscaledFilm) 0 else SourceSizes.short(uri) ?: 0
+
+    /** Test builds (measuring N1's cost): the film unscaled, as before N1 – same chain otherwise. */
+    @Volatile var testUnscaledFilm = false
+
     /**
      * Playback's downscale before the effects: the preview's short side, if the played image's short side [srcShort] is
      * clearly larger (otherwise null – no extra pass for material that is already small enough).
@@ -323,10 +329,14 @@ object CompositionBuilder {
             val slotClock: ((Long) -> Double?)? = if (clock == null || planner == null) null else c?.let { cl ->
                 { pts: Long -> time.seconds(pts)?.let { t -> Reversals.originalTime(cl.item, cl.sourceAt(t)) } }
             }
+            // the film's sizes in pixels follow the export's input – the original, unscaled (see FilmFx.Frame); at the
+            // export itself that is this image, so the scale is 1 there
+            // (a freeze frame: the image made from the original, which the export runs the film on – its own size)
+            val filmRef = if (still != null) FrameHolds.shortSide(still) ?: 0 else filmRefOf(originalUriOf(src.item))
             val grade = c?.let { cl ->
                 val g = grades[cl.id] ?: return@let null
-                if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades)
-                else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock)
+                if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades, filmRef = filmRef)
+                else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock, filmRef = filmRef)
             }.orEmpty()
             // playback: 4K material is downscaled to the preview size before the nodes and the film (same
             // image on screen, a fraction of the work). The size of the file being played: the original (the node cache
@@ -336,7 +346,7 @@ object CompositionBuilder {
                 val short = when {
                     holdVideo != null && still != null -> HoldVideos.shortFor(still)
                     still != null -> FrameHolds.shortSide(still)
-                    cachedPoint >= 0 || itemUri == orig -> orig?.let { Perf.cachedCodec(it) }?.let { k -> if (k.width > 0 && k.height > 0) minOf(k.width, k.height) else null }
+                    cachedPoint >= 0 || itemUri == orig -> SourceSizes.short(orig)
                     else -> orig?.let { Proxies.proxyShort(it) }
                 }
                 previewShortSide(short, fw, fh)?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
@@ -611,6 +621,8 @@ object CompositionBuilder {
             // (a live clip after a pre-rendered piece begins at a cut: not pinned, see Seg.cut)
             val cutStarts = plan.layers.lastOrNull()?.segs.orEmpty().filter { it.cut }.map { Math.round((it.start - plan.origin) * 1e6) }.toLongArray()
             if (output == null && s.fps > 0.0) fx += FrameRateEffect(s.fps, starts, nominals, itemEnds = true, originUs = Math.round(plan.origin * 1e6), pick = pick, cutsUs = cutStarts)
+            // test builds: the output frame readable before the screen's scaling (see FrameProbe)
+            if (output == null && se.gendut.klipp.BuildConfig.TEST_HOOKS) fx += FrameProbe.Effect()
             // the export's frame rate and size last (titles and captions are already drawn at the project size)
             if (output != null) {
                 // always: clips can have a different (or variable) frame rate than the project – the file gets a constant one
@@ -1030,7 +1042,9 @@ class ProgramPlayback(private val context: Context) {
         val playable = RenderCache.playable(chunks, windows)
         edges = CutSeek.edgesOf(s, chunks)
         cuts = runCatching { CompositionBuilder.playPlan(s, uriOf, chunks)?.let { CutSeek.cutsOf(it.layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
-        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision
+        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision +
+            // the film's reference and the preview's downscale follow the sources' sizes: a size that came late rebuilds
+            "#sizes" + SourceSizes.revision + (if (CompositionBuilder.testUnscaledFilm) "#unscaled" else "")
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
         LiveGrades.publish(grades)
         if (!force && key == lastKey && hasContent) {

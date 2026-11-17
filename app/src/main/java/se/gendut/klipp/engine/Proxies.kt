@@ -130,6 +130,9 @@ object Proxies {
         }
     }
 
+    /** Test builds: proxies on/off for this session only (not saved). */
+    fun switchForSession(on: Boolean) { enabled = on; revision++ }
+
     fun switch(on: Boolean) {
         enabled = on
         app?.let { prefs(it).edit().putBoolean("proxies", on).apply() }

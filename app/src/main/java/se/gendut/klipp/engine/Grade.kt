@@ -851,11 +851,13 @@ data class ClipGrade(
      * [LiveGrades] every frame (playback) – otherwise the values are fixed (export).
      */
     /** [main]: the main player's chain – its first effect counts the clip's frames (see [Occlusion.sawMain]). */
-    fun effects(clip: Long? = null, main: Boolean = false, clock: ((Long) -> Double?)? = null): List<androidx.media3.common.Effect> =
+    fun effects(clip: Long? = null, main: Boolean = false,
+                /** The short side of the clip's original (the film's sizes in pixels follow it, see [FilmFx.Frame]); 0 = unknown. */
+                filmRef: Int = 0, clock: ((Long) -> Double?)? = null): List<androidx.media3.common.Effect> =
         chain.filter { !it.isNeutral }.flatMapIndexed<GradeNode, androidx.media3.common.Effect> { i, n ->
             val p = n.params()
             val key = clip?.let { c -> c to n.id }
-            listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key, main) })
+            listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key, main, filmRef) })
         } +
             // stabilization last (the windows are in the source image's coordinates)
             listOfNotNull(stab?.takeIf { clock != null }?.let { StabMatrix(it, clock!!) }) +
@@ -865,8 +867,8 @@ data class ClipGrade(
     val cachePoint: Int get() = nodes.indexOfLast { it.cache && it.enabled }
 
     /** Playback effects when the image up to and including node [point] comes from the node cache: the remaining nodes and the stabilization. */
-    fun effectsAfter(point: Int, clip: Long?, clock: ((Long) -> Double?)?, main: Boolean = false): List<androidx.media3.common.Effect> =
-        copy(nodes = nodes.drop(point + 1).ifEmpty { listOf(GradeNode(Int.MIN_VALUE)) }).effects(clip, main, clock)
+    fun effectsAfter(point: Int, clip: Long?, clock: ((Long) -> Double?)?, main: Boolean = false, filmRef: Int = 0): List<androidx.media3.common.Effect> =
+        copy(nodes = nodes.drop(point + 1).ifEmpty { listOf(GradeNode(Int.MIN_VALUE)) }).effects(clip, main, filmRef, clock)
 
     companion object {
         /** Older projects may have "input" (removed log conversion) – it is ignored. */

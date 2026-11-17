@@ -58,5 +58,28 @@ class GlHarness(val w: Int, val h: Int, private val upright: Boolean = true) : A
         return res
     }
 
+    /**
+     * One frame through [p] at presentation time [timeUs] (the film's grain seed) into a float target (RGBA16F), read back
+     * as floats: the picture before any 8-bit rounding or video coding. Row 0 at the top.
+     */
+    fun drawFloat(p: BaseGlShaderProgram, input: Int, timeUs: Long = 0): FloatArray {
+        val out = GlUtil.createTexture(w, h, true)
+        val fbo = GlUtil.createFboForTexture(out)
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo)
+        GLES20.glViewport(0, 0, w, h)
+        p.drawFrame(input, timeUs)
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo)
+        val px = ByteBuffer.allocateDirect(w * h * 16).order(ByteOrder.nativeOrder())
+        GLES20.glReadPixels(0, 0, w, h, GLES20.GL_RGBA, GLES20.GL_FLOAT, px)
+        GlUtil.checkGlError()
+        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, 0)
+        GLES20.glDeleteFramebuffers(1, intArrayOf(fbo), 0)
+        GLES20.glDeleteTextures(1, intArrayOf(out), 0)
+        val f = px.asFloatBuffer()
+        val res = FloatArray(w * h * 3)
+        for (gy in 0 until h) for (x in 0 until w) for (c in 0..2) res[(row(gy) * w + x) * 3 + c] = f.get((gy * w + x) * 4 + c)
+        return res
+    }
+
     override fun close() = GlUtil.destroyEglContext(display, context)
 }

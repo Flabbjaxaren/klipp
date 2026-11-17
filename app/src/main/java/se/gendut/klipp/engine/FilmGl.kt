@@ -23,11 +23,13 @@ import java.nio.ShortBuffer
  * [live] = (clip, node): the settings are read from [LiveGrades] every frame (playback), otherwise fixed (export).
  */
 @UnstableApi
-class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Boolean = false) : GlEffect {
+class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Boolean = false,
+                 /** The short side of the clip's original (the film's input in the export), 0 = unknown: see [FilmFx.Frame]. */
+                 val refShort: Int = 0) : GlEffect {
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram {
         if (FilmGl.floatTargets()) {
             try {
-                return FilmGl.Program(film, live, useHdr, main)
+                return FilmGl.Program(film, live, useHdr, main, refShort)
             } catch (e: Exception) {
                 se.gendut.klipp.CrashReport.note("film: GPU path could not start (${e.message}) – color only")
             }
@@ -40,8 +42,8 @@ class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Bo
         return GradeNodeEffect(p).toGlShaderProgram(context, useHdr)
     }
 
-    override fun equals(other: Any?) = other is FilmEffect && other.film == film && other.live == live && other.main == main
-    override fun hashCode() = (film.hashCode() * 31 + (live?.hashCode() ?: 0)) * 31 + main.hashCode()
+    override fun equals(other: Any?) = other is FilmEffect && other.film == film && other.live == live && other.main == main && other.refShort == refShort
+    override fun hashCode() = ((film.hashCode() * 31 + (live?.hashCode() ?: 0)) * 31 + main.hashCode()) * 31 + refShort
 }
 
 @UnstableApi
@@ -180,10 +182,13 @@ uniform float uK[24];
 uniform int uUseAcc;
 uniform sampler2D uAcc;
 uniform vec3 uW;
+// 1: the detail (the source minus its blur) instead of the blur – small numbers, kept precisely in a half-float image
+uniform int uDetail;
 void main() {
   ivec2 p = ivec2(gl_FragCoord.xy);
   vec3 s = vec3(0.0);
   for (int t = 0; t <= 2 * uR; t++) s += uK[t] * texelFetch(uSrc, reflect2(p + uDir * (t - uR), uSrcSize), 0).rgb;
+  if (uDetail == 1) s = texelFetch(uSrc, p, 0).rgb - s;
   if (uUseAcc == 1) s = texelFetch(uAcc, p, 0).rgb + uW * s;
   outColor = vec4(s, 1.0);
 }
@@ -463,6 +468,8 @@ uniform ivec2 uSrcSize;
 uniform int uR;
 uniform float uK[24];
 uniform float uAmount;
+// 1: uH holds the horizontal pass as detail (l − blur): the vertical pass rebuilds the blur from l − detail in 32 bits
+uniform int uSharpDetail;
 uniform int uDisplay;
 // the image's own alpha (green screen before the grade) – the film steps only process color
 uniform sampler2D uA;
@@ -495,7 +502,10 @@ void main() {
   vec3 l = texelFetch(uL, p, 0).rgb;
   if (uSharp == 1) {
     vec3 b = vec3(0.0);
-    for (int t = 0; t <= 2 * uR; t++) b += uK[t] * texelFetch(uH, reflect2(p + ivec2(0, t - uR), uSrcSize), 0).rgb;
+    for (int t = 0; t <= 2 * uR; t++) {
+      ivec2 q = reflect2(p + ivec2(0, t - uR), uSrcSize);
+      b += uK[t] * (uSharpDetail == 1 ? texelFetch(uL, q, 0).rgb - texelFetch(uH, q, 0).rgb : texelFetch(uH, q, 0).rgb);
+    }
     l = l + uAmount * (l - b);
   }
   l = clamp(l, 0.0, 1.0);
@@ -633,7 +643,8 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
     // ------------------------------------------------------------------------------------------- the program
 
     /** [main]: in the main player's chain (see Occlusion.hideMain). */
-    class Program(private var film: Film, private val live: Pair<Long, Int>?, useHdr: Boolean, private val main: Boolean = false) : BaseGlShaderProgram(useHdr, 1) {
+    class Program(private var film: Film, private val live: Pair<Long, Int>?, useHdr: Boolean, private val main: Boolean = false,
+                  private val refShort: Int = 0) : BaseGlShaderProgram(useHdr, 1) {
         private val expose = Prog(EXPOSE)
         private val blur = Prog(BLUR)
         private val blurVHalf = Prog(BLUR_V_HALF)
@@ -692,7 +703,11 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
         }
 
         override fun configure(inputWidth: Int, inputHeight: Int): Size {
-            if (inputWidth != w || inputHeight != h) { w = inputWidth; h = inputHeight; frame = null; freeImages() }
+            if (inputWidth != w || inputHeight != h) {
+                w = inputWidth; h = inputHeight; frame = null; freeImages()
+                // test builds: the film's working size and reference (the trail, see FrameProbe)
+                if (se.gendut.klipp.BuildConfig.TEST_HOOKS) se.gendut.klipp.CrashReport.note("film program ${live?.first?.let { "clip $it " } ?: ""}${w}×$h ref $refShort${if (main) " main" else ""}")
+            }
             PassTimes.noteSize(inputWidth, inputHeight)
             return Size(inputWidth, inputHeight)
         }
@@ -710,8 +725,8 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
 
         private fun prepare() {
             if (frame != null) return
-            FilmFx.noteSize(w, h)
-            val fr = setup.forImage(w, h)
+            FilmFx.noteSize(w, h, refShort)
+            val fr = setup.forImage(w, h, refShort)
             frame = fr
             val shift = maxOf(FilmFx.Pyramid.padShift(fr.camera), fr.couplers?.let { FilmFx.Pyramid.padShift(it) } ?: 0, fr.enlarger?.let { FilmFx.Pyramid.padShift(it) } ?: 0)
             val step = 1 shl shift
@@ -744,12 +759,13 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
         }
 
         /** Separable blur [src] → [dst] (horizontal and vertical via [tmp]); with [acc]/[out] weight × result is added. */
-        private fun blurPass(src: Tex, dst: Tex, dir: Int, k: FloatArray, acc: Tex? = null, wt: FloatArray? = null) {
+        private fun blurPass(src: Tex, dst: Tex, dir: Int, k: FloatArray, acc: Tex? = null, wt: FloatArray? = null, detail: Boolean = false) {
             target(dst)
             blur.use()
             blur.tex("uSrc", GLES20.GL_TEXTURE_2D, src.id)
             blur.i2("uSrcSize", src.w, src.h)
             blur.i2("uDir", if (dir == 0) 1 else 0, if (dir == 0) 0 else 1)
+            blur.i1("uDetail", if (detail) 1 else 0)
             taps(blur, k)
             blur.i1("uUseAcc", if (acc != null) 1 else 0)
             blur.tex("uAcc", GLES20.GL_TEXTURE_2D, (acc ?: src).id)
@@ -1170,7 +1186,12 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 // 6. sharpening (horizontal here, vertical in the last step) and the display encoding
                 val us = fr.unsharp
                 var hb: Tex? = null
-                if (us != null) { hb = free.removeAt(0); blurPass(l, hb, 0, us); mark("sharpenH") }
+                // a frame smaller than the export (N1: σ shrinks, its taps' neighbour weights become tiny): the horizontal
+                // pass is kept as detail (l − blur), which a half-float image holds precisely – the blur itself rounded
+                // away the mask's faint high-pass on grain (the preview's grain came out up to 8 % too strong, and more so
+                // across than down). At the export's size the original order, unchanged.
+                val sharpDetail = us != null && fr.pxScale < 1.0
+                if (us != null) { hb = free.removeAt(0); blurPass(l, hb, 0, us, detail = sharpDetail); mark("sharpenH") }
                 // effects only: the film's colors alone and the inverse input curve – made before anything is bound
                 // (making a texture binds it to the active unit and would replace an input bound just before)
                 if (s.f.effectsOnly && tEncode == 0) tEncode = tex2(FloatArray(FilmFx.ENCODE_N * 3) { s.encode[it / 3] }, FilmFx.ENCODE_N, 1, 3)
@@ -1180,6 +1201,7 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 final.use()
                 final.tex("uL", GLES20.GL_TEXTURE_2D, l.id)
                 final.i1("uSharp", if (us != null) 1 else 0)
+                final.i1("uSharpDetail", if (sharpDetail) 1 else 0)
                 final.tex("uH", GLES20.GL_TEXTURE_2D, (hb ?: l).id)
                 final.i2("uSrcSize", l.w, l.h)
                 taps(final, us ?: floatArrayOf(1f))

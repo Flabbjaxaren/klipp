@@ -305,6 +305,7 @@ fun LivePreview(
             // with a slow chain (a heavy node chain at full size) and a finger that keeps moving, cancelling meant that
             // nothing was ever shown until the finger stopped
             val req by androidx.compose.runtime.rememberUpdatedState(GradeReq(tag, src, g, lk, keyNode, interacting, srcTime))
+            val filmRef = se.gendut.klipp.engine.CompositionBuilder.filmRefOf(controller.uriOf(c.item))
             LaunchedEffect(Unit) {
                 snapshotFlow { req }.distinctUntilChanged().conflate().collect { r ->
                     // the time limit counts from the previous frame: during a drag the latest position is graded every
@@ -314,7 +315,7 @@ fun LivePreview(
                     GradeWorker.lastRun = android.os.SystemClock.uptimeMillis()
                     val out = kotlinx.coroutines.withContext(GradeWorker.dispatcher) { GradeWorker.hinted {
                         val b = r.src.asAndroidBitmap()
-                        se.gendut.klipp.engine.GpuGrade.apply(b, r.g, r.look, r.keyNode, filmColorOnly = true)?.asImageBitmap() ?: run {
+                        se.gendut.klipp.engine.GpuGrade.apply(b, r.g, r.look, r.keyNode, filmColorOnly = true, filmRef = filmRef)?.asImageBitmap() ?: run {
                             var small = android.graphics.Bitmap.createScaledBitmap(b, 480, (480f * b.height / b.width).roundToInt().coerceAtLeast(1), true)
                             if (r.g != null) small = r.g.applyTo(small, r.keyNode)
                             r.look.applyTo(small).asImageBitmap()
