@@ -83,7 +83,7 @@ android {
         create("designTest") {
             initWith(getByName("release"))
             applicationIdSuffix = ".designtest"
-            versionNameSuffix = "-designtest.159"
+            versionNameSuffix = "-designtest.160"
             // the export's test points (the copy's latch, a refused foreground start, the time limit): this build only
             buildConfigField("boolean", "TEST_HOOKS", "true")
             manifestPlaceholders["appLabel"] = "Klipp test"
