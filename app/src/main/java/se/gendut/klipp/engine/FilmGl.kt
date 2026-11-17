@@ -706,7 +706,7 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
             if (inputWidth != w || inputHeight != h) {
                 w = inputWidth; h = inputHeight; frame = null; freeImages()
                 // test builds: the film's working size and reference (the trail, see FrameProbe)
-                if (se.gendut.klipp.BuildConfig.TEST_HOOKS) se.gendut.klipp.CrashReport.note("film program ${w}×$h ref $refShort")
+                if (se.gendut.klipp.BuildConfig.TEST_HOOKS) se.gendut.klipp.CrashReport.note("film program ${live?.first?.let { "clip $it " } ?: ""}${w}×$h ref $refShort${if (main) " main" else ""}")
             }
             PassTimes.noteSize(inputWidth, inputHeight)
             return Size(inputWidth, inputHeight)
