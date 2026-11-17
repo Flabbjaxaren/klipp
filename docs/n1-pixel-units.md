@@ -272,3 +272,36 @@ filmkedjan, ingen skillnad i verklig uppspelning), bildjämförelsen (live N1 �
 Kvar att väga in, utan rättning i detta pass: kornoskärpans rest vid kanter, något finare korn, fina texturer mörkare i
 förhandsvisning (före och efter N1), kodarens kornförlust i export och förrenderat (separat fråga), ej verifierade skalor
 (720/1440, porträtt, HDR, frysta bildrutor på telefon). Baslinjefel: `FilmFusedTest.effectsOnly`. Betan orörd.
+
+## Intern kandidat 0.19.3-beta.2 (versionCode 99) – 2026-11-17
+
+Del A och B godkända för en intern kandidat (inte den frysta betan 0.19.3-beta.1, som är orörd). N1-grenen sammanförd
+i `design-test` (merge 366b3dd); kandidaten är `design-test` med N1, versionen höjd (f5ac1b3). Ingen ytterligare
+kornmodell, kodekoptimering eller texturrättning.
+
+**N1-specifikt fel hittat vid kandidatgranskningen och rättat (a1801f4):** testverktygen `frame_probe` och `film_test`
+låg i bryggan även i release-bygget – i `listOfNotNull(...)` täckte villkoret `TEST_HOOKS` bara det första verktyget.
+Bryggan är avstängd tills användaren slår på den, men `film_test` kunde ändra spelarens läge för sessionen. Kontroll i
+det byggda paketet: release-dex saknar nu `frame_probe`, `film_test` och `export_latch`; testbygget har alla tre.
+
+Byggt i ett rent worktree på 413c8e2 med nybyggd brygga (cargo ndk som i CI, inga hemsökvägar i `.so`), signerat med
+release-nyckeln (cert SHA-256 58c86a6f…c182):
+
+| Paket | versionName | SHA-256 |
+|---|---|---|
+| se.gendut.klipp | 0.19.3-beta.2 | 5413b834adaba80e660f0d442fcb903b541f7c356c6c12d1c5be677bf9a0dabb |
+| se.gendut.klipp.designtest | 0.19.3-beta.2-designtest.171 | f4e8a14953b823f010b892b1ffd6710b53c76091a39f5ea4e06f056286e11fce |
+
+Prov på kandidatkoden:
+- Enhetstester (`testDebugUnitTest`, 413c8e2): 665 – 664 godkända, 0 misslyckade, 1 överhoppat (`FilmCpuRenderTest.renderCases`).
+  En första körning (366b3dd, medan bryggan och APK:erna byggdes parallellt) föll på `ProjectsTest.withoutAFolderTheMenuOffersToChooseOne`
+  (en Compose-nod hittades inte); klassen ensam 3/3 och hela sviten utan last godkänd två gånger – inte N1, troligen last.
+- OnePlus, testbygget 171 installerat som uppdatering: kallstart → projektet med 4K-kort ger `ref 2160` från första
+  programmet (ingen ref 0). Kort regression R1, R3, R4, R5: 33/33 (R4:s timing 0 saknade, 0 sena). Instrumenterade:
+  FilmGpuTest 4/4, FilmN1GpuTest 4/4, FilmDragStillTest 1/1, FilmFusedTest 2/3 (`effectsOnly`, baslinjefelet, samma siffror
+  12 708 mot 12 484).
+- Release-APK:n själv är inte installerad på någon telefon (den skulle uppdatera användarens riktiga app) – kontrollerad
+  statiskt: paket, version, signatur, inga testverktyg.
+- Vivo: väntar (bortkopplad) – återställs först, sedan samma rökprov.
+
+Inget pushat, ingen release.
