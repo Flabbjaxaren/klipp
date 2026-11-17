@@ -46,6 +46,10 @@ The code band: 16 blocks across the middle of the picture, white = 1, least sign
 + frame index. The rs clips (for stabilization) carry it between two white markers in the middle of the width on a
 texture that is never white, so the markers give the zoom.
 
+**Python environment.** Run the tools as `./<tool>.py`: the shebang runs them with uv in Python 3.13 and numpy 2.3.5.
+`regress.py` (imported by every tool) refuses to run on a numpy that overwrites a live array in `a - b` – Homebrew's
+Python 3.14.2 with numpy 2.2.6 does that for arrays from ~100k elements, which corrupts decoded pictures silently.
+
 Without a phone (and in CI, job `regress-selftest`): `python3 tools/regress/selftest.py` runs against `fixtures/` – the R1
 and R6 exports of build 155 on the OnePlus, scaled to 320×180 (the size the checks read at; times and codes checked
 identical to the originals) with their timelines. It also checks that a file that can't be decoded fails and that an

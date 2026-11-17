@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env -S uv run --no-project --python 3.13 --with numpy==2.3.5 python
 """
 Klipp regression run: picture identity and timing on a phone, through the app's MCP bridge.
 
@@ -21,6 +21,21 @@ Usage:  regress.py --serial <adb serial> [--port 8765] [--pkg se.gendut.klipp.de
 import argparse, datetime, json, math, os, re, subprocess, sys, time, urllib.request
 
 import numpy as np
+
+
+def numpy_sane() -> bool:
+    """Some numpy builds overwrite a live array in `a - b` (seen: Homebrew Python 3.14.2 with numpy 2.2.6 – the
+    temporary elision misreads 3.14's reference counts) – every check here would then read corrupted pictures."""
+    def probe():
+        a = np.arange(300000.0); b = np.ones(300000); a0 = a.copy()
+        _ = a - b
+        return bool(np.array_equal(a, a0))
+    return probe()
+
+
+if not numpy_sane():
+    sys.exit(f"numpy {np.__version__} on Python {sys.version.split()[0]} overwrites arrays (a - b changes a): the checks can't "
+             f"be trusted here. Run the tools as ./<tool>.py (uv: Python 3.13, numpy 2.3.5) or with a numpy that passes.")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")

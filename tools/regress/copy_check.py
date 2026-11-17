@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env -S uv run --no-project --python 3.13 --with numpy==2.3.5 python
 """
 The export stopped exactly in its copy into Movies (the test build's latch holds the copy halfway), on the phone, in the
 test package and the endurance test project (its sequence "X1 long export"):

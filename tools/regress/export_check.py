@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env -S uv run --no-project --python 3.13 --with numpy==2.3.5 python
 """
 The export's failure paths on the phone, in the test package and a test project (the endurance one, already built):
 

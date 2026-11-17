@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env -S uv run --no-project --python 3.13 --with numpy==2.3.5 python
 """
 The regression run's own checks against deliberately broken files: each must fail, the unbroken file must pass.
 

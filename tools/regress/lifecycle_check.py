@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env -S uv run --no-project --python 3.13 --with numpy==2.3.5 python
 """
 The export against the editor screen's life cycle, on the phone, in the test package and the endurance test project
 (its sequence "X2 lifecycle export": 36 clips of 7 s with film – 252 s, long enough that every action below lands in

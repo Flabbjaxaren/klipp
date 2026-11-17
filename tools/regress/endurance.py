@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env -S uv run --no-project --python 3.13 --with numpy==2.3.5 python
 """
 Endurance and resources: one test project played, sought, edited and exported over and over for --minutes, with the
 app's resources sampled every cycle – to see whether they settle or keep growing, and whether background work starts
