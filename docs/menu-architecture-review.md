@@ -700,7 +700,7 @@ Test-ID:n som ändrats (för MCP-skript):
 
 ## 4. Tester
 
-**Enhetssviten** (`testDebugUnitTest`): 711 tester, 710 godkända, 0 misslyckade, 1 överhoppat
+**Enhetssviten** (`testDebugUnitTest`, på `0dcdaf5`): 708 tester, 707 godkända, 0 misslyckade, 1 överhoppat
 (`FilmCpuRenderTest.renderCases`, sedan tidigare).
 
 Nya testklasser:
