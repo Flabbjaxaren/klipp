@@ -46,8 +46,31 @@ tagen (inget "spektrafilm:"-fel); exporterna tar 5,5–6,0 s mot 3,6 s i passet 
 | Codecs | 2 i vila, högst 4 |
 | Värme | status 0 hela tiden; skal högst 35,4 °C, CPU högst 49,4 °C |
 | Rutor | 74 uppspelningar, 13 684 rutplatser, 59 sena (0,72 per uppspelning uppvärmt; de första fem: 3, 5, 0, 7, 4), 0 tappade |
-| Fel | 0 krascher; 29 loggfel utöver plattformsbrus (MPEG4Writer stoppad efter export ×8, kodare frigjord av resurshanteraren ×2, gralloc ×2, övergiven buffertkö ×2, ColorOS-rader) |
+| Fel | 0 krascher; 29 loggfel utöver plattformsbrus – klassade nedan |
 | Efter export | bakgrundsarbetet släppt varje gång; alla 12 testexporter borttagna |
 
-Ingen läcka. De sena rutorna i början hör till uppvärmningen av film och nodcache i ett nyss graderat projekt.
+**Slutsats (snäv):** ingen observerad fortgående resursökning under 22 minuter på OnePlus i denna testsekvens. Det är
+inte ett generellt belägg för att läckor saknas (andra sekvenser, längre tid, vivon och andra telefoner är inte prövade).
+Att de sena rutorna i början sammanfaller med att film och nodcache värms upp är en rimlig förklaring, men **inte
+belagd** – passet sparade ingen trace; det kräver ett pass med cut trace eller Perfetto.
+
+**Loggfelen (29) per cykel:**
+
+| Rad | Cykel | Klass |
+|---|---|---|
+| BufferQueue "has been abandoned" ×2, MediaCodec `UNKNOWN_ERROR` i STARTED, "Invalid to call at Released state" | 1 (kall start, filmen nyss satt, spelaren byggs om) | **återhämtat fel**: cykelns uppspelning gick (169 rutplatser, 0 tappade); sannolikt avkodarens yta som avvecklades under ombyggnad – orsaken inte fastställd utan trace |
+| MPEG4Writer "Stop() called but track is not started" ×9 | 1, 3, 4, 6 | förväntad avveckling: förrenderings- och nodcachejobb som avbryts (följer inte exporterna) |
+| MediaCodec "Released by resource manager" ×2 | 12, 18 (exportcykler) | förväntat och återhämtat: exporten får kodaren, förhandsvisningen tar tillbaka sin |
+| C2AllocatorGralloc "handle is not compatible" ×2 | 6, 30 (exportcykler) | plattformens kodare; ingen följd observerad (exporterna sparade och giltiga) – kvarvarande låg risk |
+| perf_hint ×2 | 4, 36 | plattform: prestandaledtrådar för trådarna kunde inte sättas; ingen funktion beror på dem |
+| OplusViewMirrorManager | spridda | ColorOS-gränssnitt, ingen betydelse |
+
 Råmaterial: scratchpad `end/film161/` (samples.jsonl, events.log, errors.log, run.log).
+
+## 5. Separata uppgifter som hittades
+
+1. `FilmFusedTest.effectsOnly` faller på `design-test` utan N1 (12 708 mot 12 484 värden utanför CPU:ns marginal) –
+   ett befintligt, marginellt villkor; testet eller den sammanslagna vägen behöver ses över.
+2. Bryggans `screenshot` fångar inte videoytan på OnePlus (programvyn blir svart); `adb screencap` gör det.
+3. Projektbyte avbryter en pågående nodcacherendering, som börjar om när projektet öppnas igen – väntat, men kostsamt
+   för 4K (≈ 25 s per 4 s).

@@ -1,71 +1,86 @@
-# Förslag: kornets tidskontrakt
+# Kornets tidskontrakt (reviderat förslag)
 
-Status: **förslag, inte implementerat.** Kornets tidsbeteende ändras inte utan uttryckligt godkännande.
+Status: **förslag, inte implementerat, separat från N1.** Bygger på beslutet 2026-11-17: levande korn även när bilden
+står still; paus på samma projektruta ger alltid exakt samma korn igen.
 
 ## Problem (mätt)
 
-I dag: `FilmGl` seedar kornet med `presentationTimeUs / 1000` – presentationstiden i den komposition som råkar rendera.
-Den börjar om vid varje komposition: exporten (från 0), förrenderade bitar (intervall med förrullning), nodcachen
-(ett klippt källklipp). CPU-vägen (`FilmFx.Rng`, en splitmix-ström genom bilden) har en egen generator.
-
-Mätt på OnePlus, bygge 161, samma storlek (720p), samma tidslinjeruta (`tools/regress/grain_seed_check.py`, gren
-`exp/grain-seed-check`):
-
-| Par | Korrelation |
-|---|---|
-| Samma förrenderade bit två gånger | 1,000 |
-| Bitar som börjar vid 1,0 s respektive 2,0 s | −0,004 |
-| Exporter från 1,0 s respektive 2,0 s | +0,003 |
-| Förrenderad bit mot export | −0,001 / +0,004 |
-
-Statistiken är densamma, men mönstret följer renderingen och inte rutan.
+`FilmGl` seedar kornet med `presentationTimeUs / 1000` – tiden i den komposition som råkar rendera. Mätt på OnePlus,
+bygge 161, samma storlek, samma tidslinjeruta (`grain_seed_check.py`, gren `exp/grain-seed-check`): samma rendering två
+gånger 1,000; förrenderade bitar från 1,0 s mot 2,0 s −0,004; exporter från 1,0 s mot 2,0 s +0,003; bit mot export
+−0,001/+0,004. CPU-vägen (`FilmFx.Rng`, en ström genom bilden) har en egen generator.
 
 ## Kontrakt
 
-**K1. Kornet är en ren funktion av bildens ursprung.** För en filmnod på ett klipp bestäms kornet i en bildpunkt av:
+**K1. Nyckeln.** Kornet i en bildpunkt är en ren funktion av:
 
-1. **källans identitet:** mediaobjektets id (stabilt när klipp delas, flyttas eller trimmas);
-2. **källrutan:** källtiden avrundad till källans egen ruta (Klipps `FrameSnap`-tider), som heltal;
-3. **noden:** filmnodens id i klippets kedja (två filmnoder får olika korn);
-4. **bildpunkten** i filmens indata vid den aktuella renderstorleken, samt lager och kanal.
+1. **kornidentiteten** `gid` – ett stabilt 64-bitarsvärde för filmbehandlingen (filmnoden i klippet), se K3;
+2. **den absoluta projektrutan** – tidslinjetiden avrundad till sekvensens rutnät, som heltal (`round(t · fps)`);
+3. **bildpunkt och ström** – pixelns läge i filmens indata vid aktuell renderstorlek, lager och kanal (och ett eget
+   salt för glaren).
 
-Kornet beror **inte** på renderväg (uppspelning, paus, sökning, förrenderad bit, nodcache, export), kompositionens
-start, presentationstider, tidslinjeposition, klippets id eller hastighet.
+**K2. Inte en del av nyckeln:** renderintervallets start, lokal presentationstid, renderväg (uppspelning, paus,
+sökning, förrenderad bit, nodcache, export), källans tid, klippets id.
 
-**K2. Samma storlek, samma korn.** Två renderingar av samma källruta i samma storlek ger samma korn bit för bit
-(CPU och GPU använder samma hash: PCG-kedjan i `FilmGl` porteras till `FilmFx`). I olika storlekar är mönstret
-olika men styrkan densamma (N1).
+**K3. Kornidentiteten bevaras** när synligt innehåll inte ändras:
 
-**K3. Nästa ruta har nytt korn.** Rutor med olika källruta är oberoende (korrelation ≈ 0).
+| Åtgärd | `gid` |
+|---|---|
+| Trimma början eller slutet | behålls (kvarvarande rutor ligger på samma projektrutor → samma korn) |
+| Dela ett klipp | båda delarna behåller originalets `gid` |
+| Flytta ett klipp i tiden | behålls – men projektrutorna ändras, så kornet ändras (accepterat, dokumenterat) |
+| Ändra filmens inställningar | behålls (kornets mönster följer inte reglagen) |
+| Kopiera/klistra in, duplicera | ny `gid` (två kopior på samma tid ska inte ha identiskt korn) |
+| Ny filmnod | ny `gid` |
+| Projekt utan `gid` (äldre) | härleds en gång deterministiskt ur (klippets id, nodens id) och sparas |
 
-**K4. Glaren** följer samma regel (eget frö-salt).
+`gid` sparas i filmnodens JSON (som `v` i dag).
 
-## Följder att ta ställning till
+**K4. Samma ruta, samma storlek, samma korn – bit för bit.** CPU och GPU använder samma hash (PCG-kedjan porteras
+till `FilmFx`). I olika storlekar är mönstret olika men styrkan densamma (N1).
 
-- **Frysta rutor och upprepade rutor** (frysning, slowmotion med upprepade rutor, baklänges): samma källruta → samma
-  korn, alltså fryst korn – som en kopierad frysbild på film. Alternativet (nytt korn per tidslinjeruta) bryter K1.
-- **Samma källa två gånger på tidslinjen vid samma källtid** får samma korn. Ovanligt; ett salt per klippinstans skulle
-  ändra kornet när klipp delas.
-- **Stillbilder** har bara en källruta. **Beslut behövs:** stillastående korn (fysiskt riktigt för ett foto) eller
-  levande korn med klippets egen rutnumrering (ändras om klippets början trimmas).
-- **Befintliga projekt:** kornets mönster ändras en gång (statistiken inte). Ingen profilversion behövs;
-  `RenderCache`- och `NodeCache`-versionerna höjs.
+**K5. Nästa projektruta har nytt korn** – även när bilden står still (frysning, upprepade källrutor i slowmotion,
+stillbilder): korrelation ≈ 0 mellan grannrutor.
 
-## Implementation (skiss)
+## Renderingsvägarna
 
-- Filmeffekten får källtiden via den `clock` (pts → källtid) som redan finns för spårade fönster; nodcachens
-  `clock` ger redan källtid (`r.start + pts`). Exporten skapar i dag bara `clock` när graderingen behöver den – för
-  film behövs den alltid.
-- Frö = `pcg(mediaId) ^ pcg(sourceFrame) ^ pcg(nodeId)`, och per pixel som i dag.
-- `FilmFx` (CPU) använder samma hash per pixel i stället för en ström genom bilden.
+| Väg | Projektruta i dag | Ändring |
+|---|---|---|
+| Export | tidslinjen från 0 → `pts` = projekttid | ingen (pts → ruta) |
+| Uppspelning och paus | kompositionen från `plan.origin` | förskjutningen in i filmeffekten |
+| Förrenderad bit | intervall från `a − förrullning` | intervallets start in i filmeffekten |
+| Nodcache | källklipp, tid från källans början | se nedan |
+| Färgsidans stillbild, CPU-stillbilder | fast frö (0) | projektrutan in |
+
+## Nodcachen – utredning
+
+I dag bakar nodcachen in **hela filmen, kornet inräknat**, i en fil per **källintervall** (nyckel: original,
+källintervall + 2 s marginal, nodernas värden – inte placeringen på tidslinjen). Samma fil används oavsett var och hur
+många gånger källan används. Med K1 går det inte ihop: kornet beror på projektrutan, och en frysning eller slowmotion
+behöver nytt korn per projektruta medan cachen bara har en bild per källruta. Att behålla filen som den är vore att
+tvinga fram fryst korn – uteslutet.
+
+Alternativ:
+
+| | Hur | För | Mot |
+|---|---|---|---|
+| **A. Cachen på projektrutorna** (rekommenderas) | cachen renderas över klippets projektrutor (som en förrenderad bit, en bild per ruta); nyckeln får placering (start, hastighet, källstart) och `gid` | exakt K1–K5; samma kod som förrenderingen | flytt/omtidning renderar om klippets cache (4 s 4K ≈ 25 s på OnePlus); en källa använd två gånger får två filer |
+| B. Cachen före kornet | cachepunkten flyttas till före filmnoden; filmen alltid live | cachen oberoende av tid | filmen är den tunga noden – cachens nytta försvinner för film |
+| C. Korn utanför cachen | cachen utan korn, korn ovanpå live | billigt | kornet sitter mitt i kedjan (i densitet, före kopieringen) – att lägga det på utdata ändrar utseendet; bryter pariteten med spektrafilm |
+| D. Ingen nodcache för film med korn | korn → alltid live | enkelt | tunga filmprojekt spelar sämre; kräver mätning |
+
+Innan implementation:
+1. Mät hur ofta och hur länge nodcachen används med film (uthållighetspasset: 2 av 5 klipp i E1).
+2. Mät A:s omrenderingskostnad vid flytt och D:s uppspelning (sena rutor) på båda telefonerna.
+3. Välj A eller D utifrån det; C uteslutet (utseende), B bara om A och D båda är sämre.
 
 ## Acceptanskriterier
 
-1. `grain_seed_check.py` utökad med pausad bild och nodcache: alla par för samma källruta i samma storlek ≥ 0,95;
-   nästa ruta ≈ 0.
-2. Nytt JVM-test: `FilmFx` och GPU-hashen ger samma heltal per pixel; ett instrumentellt eller bryggbaserat prov
-   visar CPU-korn = GPU-korn bit för bit (före kodning).
-3. Befintliga statistiska korntester oförändrat gröna (`grainMatchesSpektrafilmStatistically`,
-   `grainVariantsMatchSpektrafilmStatistically`).
-4. Frysning, slowmotion och baklänges: dokumenterat beteende enligt K1, med test.
-5. Cacheversionerna höjda; inget i betan utan godkännande.
+1. `grain_seed_check.py` utökad med pausad bild (paus på samma ruta två gånger, efter sökning bort och tillbaka),
+   förrenderade bitar med olika start, export och nodcache: alla par för samma projektruta i samma storlek ≥ 0,95;
+   grannrutor ≈ 0, även på en frysning och en stillbild.
+2. JVM-test: `FilmFx` och GPU-hashen ger samma heltal per pixel; instrumenterat test: CPU-korn = GPU-korn bit för bit
+   före kodning.
+3. Trimning och delning: samma korn på kvarvarande rutor (test); flytt: nytt korn (test, dokumenterat).
+4. Statistiska korntester oförändrat gröna; cacheversioner höjda där innehållet ändras.
+5. Inget i betan utan godkännande.
