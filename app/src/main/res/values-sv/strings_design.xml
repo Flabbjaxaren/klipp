@@ -6,10 +6,10 @@
     <string name="design_motion_blur">Oskärpa</string>
     <string name="design_position">Position</string>
     <string name="design_add_media">Media</string>
-    <string name="design_add_sound">Ljudbibliotek</string>
+    <string name="design_add_sound">Ljud\u00ADbibliotek</string>
     <string name="design_add_title">Titel</string>
-    <string name="design_add_captions">Undertexter</string>
-    <string name="design_add_voice">Berättarröst</string>
+    <string name="design_add_captions">Under\u00ADtexter</string>
+    <string name="design_add_voice">Spela in</string>
     <string name="design_timeline_modes">Tidslinjens lägen</string>
     <string name="design_tool">Verktyg</string>
     <string name="design_sound_fx">Ljudeffekter</string>

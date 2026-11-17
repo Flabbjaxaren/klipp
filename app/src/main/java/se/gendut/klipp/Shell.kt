@@ -85,6 +85,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import se.gendut.klipp.engine.SpeedRamp
@@ -540,7 +541,7 @@ internal fun DockAction(item: DockItem, modifier: Modifier = Modifier) {
     val bg by animateColorAsState(if (item.primary) K.PrimaryContainer else K.PrimaryContainer.copy(alpha = 0f), label = "db")
     val fg = item.tint ?: if (item.primary) K.PrimarySoft else K.OnSurface
     Column(
-        modifier.height(56.dp).pressPop(src, 0.88f)
+        modifier.height(64.dp).pressPop(src, 0.88f)
             .then(if (item.tag != null) Modifier.testTag(item.tag) else Modifier)
             .semantics { selected = item.primary; item.desc?.let { contentDescription = it } }
             .clickable(interactionSource = src, indication = null) { if (item.strong) haptics.heavy() else haptics.press(); item.onClick() },
@@ -558,10 +559,14 @@ internal fun DockAction(item: DockItem, modifier: Modifier = Modifier) {
             }
         }
         Spacer(Modifier.height(3.dp))
-        // a long name shrinks to its place on a narrow phone instead of running into the next one
+        // a long name shrinks to its place on a narrow phone instead of running into the next one; with large text a
+        // long compound word may break onto a second line where its name has a soft hyphen (Ljud-/bibliotek)
         BasicText(
-            item.label, color = { item.tint ?: K.OnSurface }, maxLines = 1,
-            style = IconLabel.merge(TextStyle(fontSize = 11.sp, fontWeight = if (item.primary) FontWeight.Bold else FontWeight.SemiBold, textAlign = TextAlign.Center)),
+            item.label, color = { item.tint ?: K.OnSurface }, maxLines = 2,
+            style = IconLabel.merge(TextStyle(
+                fontSize = 11.sp, fontWeight = if (item.primary) FontWeight.Bold else FontWeight.SemiBold, textAlign = TextAlign.Center,
+                hyphens = androidx.compose.ui.text.style.Hyphens.Auto, lineHeight = 1.05.em,
+            )),
             autoSize = TextAutoSize.StepBased(minFontSize = 7.sp, maxFontSize = 11.sp, stepSize = 0.5.sp),
             modifier = Modifier.padding(horizontal = 1.dp),
         )
@@ -677,7 +682,8 @@ private fun AddDock(state: EditorState) {
             DockItem(Ic.Audio, stringResource(R.string.design_add_sound), "add:sound") { add(AddAction.SOUND) },
             DockItem(Ic.Text, stringResource(R.string.design_add_title), "add:title") { add(AddAction.TITLE) },
             DockItem(Ic.Subs, stringResource(R.string.design_add_captions), "add:captions") { add(AddAction.CAPTIONS) },
-            DockItem(Ic.Mic, stringResource(R.string.design_add_voice), "add:voice") { add(AddAction.VOICE) },
+            // (the action on the button, what it makes read out: a voice-over)
+            DockItem(Ic.Mic, stringResource(R.string.design_add_voice), "add:voice", desc = stringResource(R.string.panels_voice_over)) { add(AddAction.VOICE) },
         ),
         Modifier.testTag("addBar"),
     )

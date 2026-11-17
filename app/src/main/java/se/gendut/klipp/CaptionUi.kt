@@ -94,7 +94,8 @@ fun CaptionInspector(state: EditorState) {
     val trackName = c?.let { cc -> backend.captionTracks.firstOrNull { it.id == cc.track }?.name } ?: stringResource(R.string.captionui_track_unnamed)
     Column(Modifier.fillMaxSize().background(K.Bg).testTag("captionInspector")) {
         // the header (with Done) stays in place; what is under it scrolls
-        SheetHeader(if (c != null) stringResource(R.string.captionui_caption_on_track, trackName) else stringResource(R.string.captionui_caption)) { haptics.tick(); state.editingCaption = false }
+        // (the track in the header only when there are several – which one the caption is on matters then)
+        SheetHeader(if (c != null && backend.captionTracks.size > 1) stringResource(R.string.captionui_caption_on_track, trackName) else stringResource(R.string.captionui_caption)) { haptics.tick(); state.editingCaption = false }
         if (c == null) {
             Text(stringResource(R.string.captionui_select_caption), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
             return@Column
