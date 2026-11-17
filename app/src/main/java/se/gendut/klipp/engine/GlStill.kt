@@ -112,7 +112,8 @@ object GlStill {
         val keys: List<Any> = nodeFx.map { e ->
             when (e) {
                 is GradeNodeEffect -> "node" to e.live
-                is FilmEffect -> "film" to e.live
+                // (with the clip's original size: another clip's still must not keep this one's scale – N1)
+                is FilmEffect -> Triple("film", e.live, e.refShort)
                 else -> e
             }
         } + lookFx.indices.map { i -> Triple("look", i, look) }
