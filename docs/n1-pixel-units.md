@@ -1,6 +1,6 @@
 # N1: filmens pixelstorlekar följer exporten
 
-Gren `n1/pixel-units`. Inte i betan, inte pushat. Testbygge `0.19.3-beta.1-designtest.163-n1` (OnePlus och vivo).
+Gren `n1/pixel-units`. Inte i betan, inte pushat. Testbygge `0.19.3-beta.1-designtest.163-n1` (OnePlus och vivo); 164-n1 = 163-n1 + läskroken (bara testbyggen).
 
 | Commit | Innehåll |
 |---|---|
@@ -81,10 +81,41 @@ bära över själva uppdateringen i provet: nodcachen **raderar filerna för kli
 (`NodeCache.sync`, "clips that no longer cache") – byte till användarens projekt raderade den. Befintligt beteende,
 separat fråga.
 
-**Oförklarat:** live på vivons skärm (pausad, `adb screencap`) 2,66 mot cachens 3,09 – före N1 3,27. På OnePlus 3,37
-mot 3,30. Upprepat exakt. Pixelmätningen i samma storlek (bit mot export↓) säger att N1 är närmare exporten även på
-vivon; skärmvärdet går genom skärmens skalning (1260 px brett mot OnePlus 1080) och en annan väg för cachad bild – inte
-utrett.
+**Live mot nodcache på vivons skärm – lokaliserat (2026-11-17).** Testbygge 164-n1 har en läskrok (`frame_probe`, bara
+TEST_HOOKS) sist i spelarens kedja: bildrutan i flyttal före skärmens skalning. Samma kort, ruta, utsnitt och vy.
+
+| Steg | Mått | Cache | Live |
+|---|---|---|---|
+| Storlekar | källa 3840×2160 (original, ingen proxy); filmens arbetsbild live 1920×1080 ref 2160; cachen 3840×2160 ref 0; utgående 1920×1080 (float); vy SurfaceView 1208×680, buffert 1208×680 | | |
+| Utan film (kontroll) | visningsvägen: skärm = rutan box-skalad | – | 0,0 / 0,0 |
+| Film utan korn och glare (masken) | rutor, medelskillnad 0,24 kodvärden (p99 0,81); mörk kant ruta / skärm | 4,03 / 3,0 | 3,85 / 3,0 |
+| + glare (korn av) | medelskillnad 0,36; skärm | 3,0 | 3,0 |
+| + korn (glare av), ruta 1,6 s | skärm | 3,27 | 2,63 |
+| + allt (som tidigare), ruta 1,6 s | skärm | 3,09 | 2,66 |
+| Korn, 8 rutor (1,20–1,48 s) | skärm, enkel min | 3,32 ± 0,20 | 3,23 ± 0,31 |
+| Korn, 8 rutor | robust (bakgrundsband − mörkaste kolumn) | 3,78 ± 0,15 | 3,56 ± 0,21 |
+| Korn, 8 rutor | kolumnerna vid kanten (e−1 / e) | 198,04 / 127,32 | 199,67 / 125,48 |
+
+Plana fält (bakgrund, kvadrat, stapel, grått) lika inom 0,1–0,5 kodvärden mellan vägarna – ingen range- eller
+överföringsskillnad. Box- och bilinjär skalning av rutorna till vyns storlek ger skärmens värden.
+
+**Var skillnaden uppstår:** i filmeffektens utdata, och bara med korn. Visningsvägen bidrar inte. Det stora skärmvärdet
+(2,66 mot 3,09) var kornbrus i ett mått som tar en enda bakgrundskolumn och den mörkaste av ~100 brusiga kolumner;
+kornet är deterministiskt per ruta, därför upprepades det exakt. Över åtta rutor: 3,32 mot 3,23, inom spridningen.
+
+**Det som är systematiskt:** kornoskärpan verkar på hela den korniga densiteten (även bilden). N1:s variansmatchade σ
+(0,434 i halv storlek, exportens 0,65) är vald för bruset; på bilden mjukar den kanten ungefär hälften så mycket som
+exporten nedskalad (CPU, 12 frön: kornets andel av kanten −3,5/+7,1 mot −7,5/+18,8; vivo: −3,5/+4,7 mot −6,7/+9,8).
+Hela kanten med korn ligger ändå närmare exporten än före N1: 1,60 mot 7,44 kodvärden (CPU). N1 inför alltså inte felet –
+det är en rest av approximationen, ~1,7 kodvärden i kantkolumnerna. Ingen parameter ändrad. Nytt test:
+`FilmResolutionTest.theGrainBlursTheImageAsTheExportDoes` (vaktar att resten inte blir större än halva felet före N1).
+
+Sidofynd: filmprogrammet byggdes en gång med ref 0 (oskalat) direkt efter appstart och 0,27 s senare med ref 2160 –
+`filmRefOf` beror på `Perf.cachedCodec`, som kan saknas vid första bygget. Övergående här; inte utrett om det alltid
+byggs om.
+
+Mätskript (scratchpad `n1gpu/`): `probe.py` (fallen, storlekar, profiler, kontrollerad skalning), `multi.py` (8 rutor),
+`profcmp.py` (kantprofiler, kornets andel).
 
 ## Nodcachen
 
@@ -121,7 +152,7 @@ skala (medel 0,0013, p99 0,0021) och skiljer sig från den oskalade (0,0028).
 
 ## Inte klart
 
-1. Vivons skärmvärde live (2,66 mot 3,09) – utreda vägen till skärmen.
+1. Kornoskärpans verkan på bilden i halv storlek (rest ~1,7 kodvärden vid kanter) – godtas eller delas oskärpan för bild och brus.
 2. Kornets struktur (autokorrelation 0,11 mot 0,14) – godtas eller kräver en modell som matchar spektrum, inte bara
    varians.
 3. Beslut om N1 tas in i en ny kandidat, helt eller bara del A.
