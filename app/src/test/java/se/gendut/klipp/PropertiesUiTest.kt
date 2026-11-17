@@ -133,6 +133,29 @@ class PropertiesUiTest {
         assertEquals(100f, fake.p.scale, 0.001f)
     }
 
+    /** A sound clip and a video clip's Picture sheet have the fades too – a button way beside the corner handle. */
+    @Test
+    fun soundAndPictureHaveTheFades() {
+        val fake = FakeProps().apply { p = p.copy(isAudio = true) }
+        val st = state(fake)
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { PropertiesPanel(st) { } } } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("propTab:fade").performClick(); rule.waitForIdle()
+        rule.onNodeWithTag("fadeIn1.0").performClick(); rule.waitForIdle()
+        assertEquals("fade in 1.0", fake.log.last())
+    }
+
+    @Test
+    fun thePictureSheetHasTheFades() {
+        val fake = FakeProps()
+        val st = state(fake).apply { inspectGroup = GROUP_PICTURE }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { PropertiesPanel(st) { } } } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("propTab:fade").performScrollTo().performClick(); rule.waitForIdle()
+        rule.onNodeWithTag("fadeUt1.0").performClick(); rule.waitForIdle()
+        assertEquals("fade ut 1.0", fake.log.last())
+    }
+
     @Test
     fun fadeChipsSetAndRemoveTransitions() {
         val fake = FakeProps()

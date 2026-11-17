@@ -284,9 +284,11 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
         val motionTab = ToolTab(stringResource(R.string.properties_motion), Ic.Center, "propTab:motion", moved)
         val fadeTab = ToolTab(stringResource(R.string.properties_fade), Ic.Fade, "propTab:fade", fades)
         val tabs = when {
+            // (the fades: a button way beside the corner handle in the timeline)
             p.isAudio -> listOf(
                 ToolTab(stringResource(R.string.properties_volume), Ic.Speaker, "propTab:volume", p.levelDb != 0f),
                 ToolTab(stringResource(R.string.audioui_effects), Ic.Audio, "propTab:afx", p.afx.isNotEmpty()),
+                fadeTab,
             )
             // a title: what it says, how it looks, where it is, how it comes and goes
             p.isTitle -> listOf(
@@ -308,10 +310,10 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
                     // movement (stabilized or smeared)
                     GROUP_PICTURE -> listOf(
                         ToolTab(stringResource(R.string.design_position), Ic.Center, "propTab:motion", moved), crop, blend, key, mask,
-                    ) + if (!camera) emptyList() else listOf(
+                    ) + (if (!camera) emptyList() else listOf(
                         ToolTab(stringResource(R.string.design_stabilize), Ic.Target, "propTab:stab", g?.stab != null),
                         ToolTab(stringResource(R.string.design_motion_blur), Ic.Film, "propTab:mblur", g?.mblur != null),
-                    )
+                    )) + fadeTab
                     else -> listOf(motionTab, crop, blend, key, mask, fadeTab)
                 }
             }
@@ -348,10 +350,14 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
         ToolRail(tabs, current, { tab = it })
         Column(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
         when {
-            p.isAudio -> if (current == 0) PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_volume)) {
-                PropSlider(stringResource(R.string.properties_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "volume", anim = anim("level"),
-                    onLive = { v -> live { it.copy(levelDb = v) } }) { backend.setProps(p.id, levelDb = it); done() }
-            } else PanelCard(Modifier.padding(top = 10.dp)) { AudioFxSection(state, p, backend) }
+            p.isAudio -> when (current) {
+                0 -> PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_volume)) {
+                    PropSlider(stringResource(R.string.properties_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "volume", anim = anim("level"),
+                        onLive = { v -> live { it.copy(levelDb = v) } }) { backend.setProps(p.id, levelDb = it); done() }
+                }
+                1 -> PanelCard(Modifier.padding(top = 10.dp)) { AudioFxSection(state, p, backend) }
+                else -> fade()
+            }
             p.isTitle -> {
                 // placement: the motion, then following an object or a surface; animation: the entrance, then the fades
                 if (current == 2) motion()
