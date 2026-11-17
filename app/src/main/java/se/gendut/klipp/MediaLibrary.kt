@@ -104,7 +104,10 @@ fun MediaSheet(visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen
     if (folder != null && lib.bins.none { it.id == folder }) folder = null
     val selecting = picked.isNotEmpty() || pickedBins.isNotEmpty()
     fun clearPick() { picked = emptySet(); pickedBins = emptySet() }
-    LaunchedEffect(visible) { if (!visible) clearPick() }
+    // closing the sheet closes what was open in it – the name card too (it lies outside the sheet's animation)
+    LaunchedEffect(visible) { if (!visible) { clearPick(); ask = null; confirmDelete = false; moveMenu = false } }
+    // back: the name card, then the selection, before the sheet itself (the app's handler, see Back.kt)
+    androidx.activity.compose.BackHandler(enabled = visible && (ask != null || selecting)) { if (ask != null) ask = null else clearPick() }
 
     AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut()) {
         Box(
