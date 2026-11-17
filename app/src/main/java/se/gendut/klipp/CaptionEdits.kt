@@ -66,3 +66,30 @@ fun captionStyleTrack(tracks: List<CaptionTrackUi>, chosen: Long?): Long? = when
     chosen != null && tracks.any { it.id == chosen } -> chosen
     else -> null
 }
+
+/** Where a written line goes, or why it can't go in at the playhead. */
+data class CaptionSlot(val start: Float, val length: Float, val problem: CaptionSlotProblem?) {
+    val ok get() = problem == null
+    val end get() = start + length
+}
+
+enum class CaptionSlotProblem {
+    /** The playhead stands in a caption on that track. */
+    INSIDE_CAPTION,
+    /** The next caption on that track starts right away: no room for a line. */
+    NO_ROOM,
+}
+
+/**
+ * A new line at [at] on [track]: [length] long, shortened so it ends where the next caption on the track starts (the
+ * engine won't let captions on a track overlap); at least [minLen] of room, else not – and why. [track] null = the
+ * track the engine picks (the first visible).
+ */
+fun captionWriteSlot(captions: List<UiCaption>, track: Long?, at: Float, length: Float, minLen: Float): CaptionSlot {
+    val same = captions.filter { !it.hidden && (track == null || it.track == track) }
+    if (same.any { at >= it.start - 1e-4f && at < it.end - 1e-4f }) return CaptionSlot(at, 0f, CaptionSlotProblem.INSIDE_CAPTION)
+    val next = same.filter { it.start >= at - 1e-4f }.minOfOrNull { it.start } ?: Float.MAX_VALUE
+    val room = next - at
+    if (room < minLen - 1e-4f) return CaptionSlot(at, 0f, CaptionSlotProblem.NO_ROOM)
+    return CaptionSlot(at, minOf(length, room), null)
+}

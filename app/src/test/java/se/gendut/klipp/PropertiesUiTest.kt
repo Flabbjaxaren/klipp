@@ -61,7 +61,9 @@ class FakeProps : PropsBackend {
     override fun deleteCaption(id: Long) { log += "deletecaption $id" }
     /** The id the next added caption gets (a test puts a caption with it in the state, as the engine's refresh would). */
     var nextCaption = 99L
-    override fun addCaption(at: Float, text: String?, track: Long?, onAdded: (Long) -> Unit) { log += "addcaption @$at ${text ?: "-"} ${track ?: "-"}"; onAdded(nextCaption) }
+    /** What the engine's refresh does before the added caption's callback (a test puts the caption in the state). */
+    var beforeAdded: (() -> Unit)? = null
+    override fun addCaption(at: Float, text: String?, track: Long?, seconds: Float?, onAdded: (Long) -> Unit) { log += "addcaption @$at ${text ?: "-"} ${track ?: "-"}" + (seconds?.let { " %.2fs".format(java.util.Locale.ROOT, it) } ?: ""); beforeAdded?.invoke(); onAdded(nextCaption) }
     override fun toggleAnimation(id: Long, key: String, at: Float) { log += "anim $key @$at" }
     override fun toggleKeyframe(id: Long, key: String, at: Float) { log += "kf $key @$at" }
     override fun moveKeyframe(id: Long, key: String, mt: Long, to: Float) { log += "move $key $mt -> $to" }

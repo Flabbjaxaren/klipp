@@ -226,4 +226,7 @@
     <string name="titleui_caps_import_hint">An SRT or VTT file becomes a caption track of its own.</string>
     <string name="titleui_caps_none">No captions yet. Make them from the speech, or write them yourself.</string>
     <string name="titleui_caps_list">Captions</string>
+    <string name="titleui_caps_write_slot">Goes in %1$s – %2$s</string>
+    <string name="titleui_caps_write_inside">The playhead is in a caption on this track – move it to an empty spot.</string>
+    <string name="titleui_caps_write_no_room">No room before the next caption on this track – move the playhead.</string>
 </resources>

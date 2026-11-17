@@ -17,6 +17,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -84,6 +85,26 @@ class AddSheetsFlowTest {
         rule.onRoot().captureRoboImage("build/shots/95_undertexter_fran_tal.png")
     }
 
+    /** A written line fits the room before the next caption on its track, or the button says why it can't go in. */
+    @Test fun aWrittenLineFitsTheRoomOrSaysWhy() {
+        val fake = FakeProps()
+        val st = EditorState().apply { props = fake; playhead = 1.5f; captions = listOf(UiCaption(1, 0f, 1f, "a"), UiCaption(2, 2f, 3f, "b")) }
+        rule.setContent { KlippTheme { Column(Modifier.fillMaxSize().background(K.Bg).verticalScroll(rememberScrollState())) { CaptionsTab(st, fake) {} } } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("capsPart:write").performClick()
+        rule.onNodeWithTag("captionWriteText").performTextInput("Mitt emellan")
+        rule.waitForIdle()
+        // 1.5 s up to the next caption at 2 s: half a second long
+        rule.onNodeWithTag("captionWriteAdd").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertTrue(fake.log.last(), fake.log.last().endsWith(" 0.50s"))
+        // in a caption: not offered, and said why
+        rule.runOnUiThread { st.playhead = 2.5f; st.captionDraft = "Till" }
+        rule.waitForIdle()
+        rule.onNodeWithTag("captionWriteAdd").assertIsNotEnabled()
+        rule.onNodeWithText("Spelhuvudet står i en undertext på spåret – flytta det till en tom plats.").assertExists()
+    }
+
     @Test fun captionsOpenOnWhatThereIs() {
         val fake = FakeProps()
         val none = EditorState().apply { props = fake }
@@ -104,10 +125,10 @@ class AddSheetsFlowTest {
         rule.onRoot().captureRoboImage("build/shots/93_undertexter_skriv.png")
         rule.onNodeWithTag("captionWriteText").performTextInput("Välkommen hit")
         // (the engine's refresh: the new caption, 3–5 s)
-        rule.runOnUiThread { st.captions = listOf(UiCaption(99, 3f, 5f, "Välkommen hit")) }
+        fake.beforeAdded = { st.captions = listOf(UiCaption(99, 3f, 5f, "Välkommen hit")) }
         rule.onNodeWithTag("captionWriteAdd").performScrollTo().performClick()
         rule.waitForIdle()
-        assertEquals("addcaption @3.0 Välkommen hit 0", fake.log.last())
+        assertTrue(fake.log.last(), fake.log.last().startsWith("addcaption @3.0 Välkommen hit 0 "))
         // the playhead at its end, the field empty for the next line
         assertEquals(5f, st.playhead, 0.001f)
         assertEquals("", st.captionDraft)

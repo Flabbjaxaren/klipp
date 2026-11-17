@@ -436,13 +436,24 @@ internal fun CaptionsWrite(state: EditorState, backend: PropsBackend) {
 @Composable
 internal fun CaptionWriteButton(state: EditorState, backend: PropsBackend) {
     val haptics = rememberHaptics()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val tracks = backend.captionTracks
     val target = captionStyleTrack(tracks, state.captionTrack) ?: tracks.firstOrNull { it.enabled }?.id
-    Row(Modifier.fillMaxWidth().background(K.Surface).padding(horizontal = 16.dp, vertical = 8.dp)) {
-        AddAtPlayhead(state, Modifier.fillMaxWidth().testTag("captionWriteAdd"), enabled = state.captionDraft.isNotBlank()) {
+    // where the line goes: at the playhead, as long as set, shortened to end where the next caption on the track starts
+    val slot = captionWriteSlot(state.captions, target, state.playhead, AppPrefs.captionSeconds(ctx).toFloat(), 0.3f)
+    Column(Modifier.fillMaxWidth().background(K.Surface).padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Text(
+            when (slot.problem) {
+                null -> stringResource(R.string.titleui_caps_write_slot, formatTc(slot.start), formatTc(slot.end))
+                CaptionSlotProblem.INSIDE_CAPTION -> stringResource(R.string.titleui_caps_write_inside)
+                CaptionSlotProblem.NO_ROOM -> stringResource(R.string.titleui_caps_write_no_room)
+            },
+            color = if (slot.ok) K.OnSurfaceVar else K.Error, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp).testTag("captionWriteSlot"),
+        )
+        AddAtPlayhead(state, Modifier.fillMaxWidth().testTag("captionWriteAdd"), enabled = state.captionDraft.isNotBlank() && slot.ok) {
             haptics.confirm()
             val text = state.captionDraft.trim()
-            backend.addCaption(state.playhead, text, target) { id ->
+            backend.addCaption(slot.start, text, target, slot.length) { id ->
                 // the next line follows on: the playhead to this one's end, the field empty again
                 state.captions.firstOrNull { it.id == id }?.let { state.playhead = it.end }
                 state.captionDraft = ""

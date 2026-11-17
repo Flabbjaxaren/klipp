@@ -226,4 +226,7 @@
     <string name="titleui_caps_import_hint">En SRT- eller VTT-fil blir ett eget undertextspår.</string>
     <string name="titleui_caps_none">Inga undertexter än. Skapa dem från talet, eller skriv dem själv.</string>
     <string name="titleui_caps_list">Undertexter</string>
+    <string name="titleui_caps_write_slot">Läggs in %1$s – %2$s</string>
+    <string name="titleui_caps_write_inside">Spelhuvudet står i en undertext på spåret – flytta det till en tom plats.</string>
+    <string name="titleui_caps_write_no_room">Ingen plats före nästa undertext på spåret – flytta spelhuvudet.</string>
 </resources>

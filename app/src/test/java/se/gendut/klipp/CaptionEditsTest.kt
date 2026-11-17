@@ -48,4 +48,15 @@ class CaptionEditsTest {
         assertNull(captionStyleTrack(listOf(t1, t2), 99))
         assertNull(captionStyleTrack(emptyList(), null))
     }
+
+    @Test fun aWrittenLineGoesInTheRoomThereIs() {
+        // a: 1–2, b: 3–4 on track 7; another track's caption doesn't count
+        assertEquals(CaptionSlot(2f, 1f, null), captionWriteSlot(all, 7, 2f, 2f, 0.3f))
+        assertEquals(CaptionSlot(0f, 1f, null), captionWriteSlot(all, 7, 0f, 2f, 0.3f))
+        assertEquals(CaptionSlot(4.5f, 2f, null), captionWriteSlot(all, 7, 4.5f, 2f, 0.3f))
+        assertEquals(CaptionSlotProblem.INSIDE_CAPTION, captionWriteSlot(all, 7, 1.5f, 2f, 0.3f).problem)
+        assertEquals(CaptionSlotProblem.INSIDE_CAPTION, captionWriteSlot(all, 7, 3f, 2f, 0.3f).problem)
+        assertEquals(CaptionSlotProblem.NO_ROOM, captionWriteSlot(all, 7, 2.8f, 2f, 0.3f).problem)
+        assertEquals(null, captionWriteSlot(all, 7, 2.5f, 2f, 0.3f).problem)
+    }
 }

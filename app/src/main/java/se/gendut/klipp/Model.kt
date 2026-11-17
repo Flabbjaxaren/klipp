@@ -351,7 +351,7 @@ interface PropsBackend {
     fun trimCaption(id: Long, inEdge: Boolean, dt: Float) {}
     /** New caption at [at]; [onAdded] receives its id. */
     /** A caption at [at]: with [text] (else the default words) on [track] (else the first visible caption track). */
-    fun addCaption(at: Float, text: String? = null, track: Long? = null, onAdded: (Long) -> Unit = {}) {}
+    fun addCaption(at: Float, text: String? = null, track: Long? = null, seconds: Float? = null, onAdded: (Long) -> Unit = {}) {}
     fun splitCaption(id: Long, at: Float) {}
     /** The track's style (applies to all lines on the track), e.g. "font" to "Serif", "size" to 60. */
     fun setCaptionStyle(track: Long, values: Map<String, Any>) {}
