@@ -53,6 +53,8 @@ class MainActivity : ComponentActivity() {
         se.gendut.klipp.engine.FrameHook.install()
         BuildConfigShim.version = runCatching { packageManager.getPackageInfo(packageName, 0).versionName }.getOrNull().orEmpty()
         CrashReport.install(applicationContext)
+        // the test build's export latch (tests stop an export in its copy into Movies); never in Klipp itself
+        se.gendut.klipp.engine.ExportLatch.enabled = packageName.endsWith(".designtest")
         // the first start in this process: an export marked as running was cut off with the old process (checked once
         // per process – the activity can come back with saved state after the process was killed)
         se.gendut.klipp.engine.ExportGuard.checkOnce(applicationContext)

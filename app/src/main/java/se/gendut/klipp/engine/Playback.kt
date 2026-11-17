@@ -1566,7 +1566,7 @@ object Exporter {
         val resolver = context.contentResolver
         val uri = resolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values) ?: error(Str.t(R.string.playback_create_file_failed))
         try {
-            (resolver.openOutputStream(uri) ?: error(Str.t(R.string.playback_write_file_failed))).use { o -> file.inputStream().use { it.copyTo(o) } }
+            (resolver.openOutputStream(uri) ?: error(Str.t(R.string.playback_write_file_failed))).use { o -> file.inputStream().use { copyFile(it, o, file.length()) } }
             if (Build.VERSION.SDK_INT >= 29) {
                 values.clear(); values.put(MediaStore.Video.Media.IS_PENDING, 0)
                 resolver.update(uri, values, null, null)
@@ -1579,6 +1579,20 @@ object Exporter {
             file.delete()
         }
         return uri
+    }
+
+    /** [i] → [o]; halfway (the bytes so far in the file) the test build's [ExportLatch] may hold it. */
+    internal fun copyFile(i: java.io.InputStream, o: java.io.OutputStream, size: Long) {
+        val buf = ByteArray(1 shl 16)
+        var n = 0L
+        var half = false
+        while (true) {
+            val r = i.read(buf)
+            if (r < 0) break
+            o.write(buf, 0, r)
+            n += r
+            if (!half && n >= size / 2) { half = true; o.flush(); ExportLatch.atCopy(n) }
+        }
     }
 }
 

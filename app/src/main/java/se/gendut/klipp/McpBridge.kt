@@ -425,7 +425,19 @@ object McpBridge {
             if (a.optBoolean("read")) texts(se.gendut.klipp.engine.CutTrace.drain())
             else texts("trace=${se.gendut.klipp.engine.CutTrace.on} mode=${se.gendut.klipp.engine.CutTrace.mode} stab=${se.gendut.klipp.engine.CutTrace.stabHandoff}")
         },
-    ) }
+    ) + listOfNotNull(if (!se.gendut.klipp.engine.ExportLatch.enabled) null else
+        Tool("export_latch", "Test build only: op=arm holds the next export's copy into Movies halfway (until op=release or seconds, default 60); " +
+            "op=status: idle, armed, held <bytes>, released or timed out.",
+            JSONObject().put("op", prop("string", "arm | release | status")).put("seconds", prop("number", "how long arm holds at most")), listOf("op")) { a ->
+            val l = se.gendut.klipp.engine.ExportLatch
+            when (a.getString("op")) {
+                "arm" -> l.arm(a.optLong("seconds", 60))
+                "release" -> l.release()
+                "status" -> Unit
+                else -> error("op is arm, release or status")
+            }
+            texts(l.state)
+        }) }
 
     // ------------------------------------------------------------------ screen
 
