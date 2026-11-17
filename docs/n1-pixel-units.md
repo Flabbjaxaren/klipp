@@ -1,6 +1,6 @@
 # N1: filmens pixelstorlekar följer exporten
 
-Gren `n1/pixel-units`. Inte i betan, inte pushat. Testbygge `0.19.3-beta.1-designtest.163-n1` (OnePlus).
+Gren `n1/pixel-units`. Inte i betan, inte pushat. Testbygge `0.19.3-beta.1-designtest.163-n1` (OnePlus och vivo).
 
 | Commit | Innehåll |
 |---|---|
@@ -55,7 +55,36 @@ halvflyttal, förlorade maskens svaga högpass. Efter rättningen: 1,021/1,003, 
 - Genom H.264 (förrenderad bit 1080 mot 4K-export↓): kornkvot 1,065 (före N1 0,897). Kodningen höjer kvoten även före
   N1 (0,73 före kodning → 0,897 genom H.264), troligen för att 4K-exporten får färre bitar per pixel – en tolkning,
   inte bevisad.
-- Vivo: **inte provad** (inte ansluten under passet).
+
+## Vivo (V2562, Android 17, Adreno) – 2026-11-17
+
+**Före kodning (gpuTest-paketet):** FilmGpuTest 4/4, FilmN1GpuTest 4/4, FilmDragStillTest 1/1, FilmFusedTest 2/3 – samma
+befintliga `effectsOnly`-fel med exakt samma siffror som på OnePlus. Kornet, halv mot full↓, efter: 0,997 / 1,007 /
+1,021 / 1,016 / 1,020 (toner 0,15–0,75), band 0,95–1,07, autokorrelation 0,10–0,12 mot 0,14 – samma som OnePlus.
+(Vivons egen frysfunktion stoppar testprocessen efter 1–3 min – den saknar fönster; den hålls vaken med ett anrop var
+5 s. Ett tidigare försök i 320 px gav 1,053 vid 0,60 – brus i en 160×96-bild, inte upprepat i 640 px.)
+
+**Genom H.264 (förrenderad bit 1080 mot 4K-export↓):**
+
+| Bygge | Mörk kant bit / export↓ | Kornkvot |
+|---|---|---|
+| 161 | 4,82 / 3,27 | 0,733 |
+| 163-n1 | 3,83 / 3,27 | 0,817 |
+
+Exporterna 161 och 163-n1: avkodade rutor identiska (framemd5). Kodningen drar kornkvoten åt olika håll på telefonerna
+(OnePlus 1,065, vivo 0,817, båda ≈ 1,00 före kodning) – kodaren, inte N1, styr den skillnaden.
+
+**Nodcache:** cache gjord av 161 3,0887; ny cache gjord av 163-n1 3,0887; befintlig cache som överlevt en
+appuppdatering (ingen ny rendering i loggen, status "cached" direkt) 3,0887 – samma bild. Nyckeln och filmens JSON är
+oförändrade sedan 161 (`NodeCache.kt` utan ändringar), så en 161-fil hittas efter uppdatering. En 161-fil kunde inte
+bära över själva uppdateringen i provet: nodcachen **raderar filerna för klipp som inte finns i det öppna projektet**
+(`NodeCache.sync`, "clips that no longer cache") – byte till användarens projekt raderade den. Befintligt beteende,
+separat fråga.
+
+**Oförklarat:** live på vivons skärm (pausad, `adb screencap`) 2,66 mot cachens 3,09 – före N1 3,27. På OnePlus 3,37
+mot 3,30. Upprepat exakt. Pixelmätningen i samma storlek (bit mot export↓) säger att N1 är närmare exporten även på
+vivon; skärmvärdet går genom skärmens skalning (1260 px brett mot OnePlus 1080) och en annan väg för cachad bild – inte
+utrett.
 
 ## Nodcachen
 
@@ -74,8 +103,7 @@ Prov (OnePlus, eget projekt "Klipp N1 nodecache", 4K-kort med film och nodcache,
 | Cache renderad av 163-n1 | 3,3046 (identisk) |
 | Live, 163-n1 | 3,3678 |
 
-Inte provat: en cache renderad av ett bygge före N1 (161) – OnePlus kan inte nedgraderas utan avinstallation; vivon har
-161 och provet görs där. (Ett andra klipp med cache återanvände samma cachefil – nyckeln täcker hela den 4 s långa
+Cache gjord av 161: se vivo ovan. (Ett andra klipp med cache återanvände samma cachefil – nyckeln täcker hela den 4 s långa
 filen – och räknas inte.)
 
 ## Dragförhandsvisningen (färgsidans stillbild)
@@ -93,7 +121,7 @@ skala (medel 0,0013, p99 0,0021) och skiljer sig från den oskalade (0,0028).
 
 ## Inte klart
 
-1. Vivo: GPU-testerna, N1 före/efter och nodcache från bygge 161.
+1. Vivons skärmvärde live (2,66 mot 3,09) – utreda vägen till skärmen.
 2. Kornets struktur (autokorrelation 0,11 mot 0,14) – godtas eller kräver en modell som matchar spektrum, inte bara
    varians.
 3. Beslut om N1 tas in i en ny kandidat, helt eller bara del A.
