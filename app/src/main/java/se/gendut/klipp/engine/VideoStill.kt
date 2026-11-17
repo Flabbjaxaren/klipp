@@ -183,7 +183,12 @@ object VideoStill {
         }
     }
 
-    /** The two byte planes (GL's rows bottom up) as an RGBA_F16 bitmap in extended sRGB, top row first. */
+    /**
+     * The two byte planes (GL's rows bottom up) as an RGBA_F16 bitmap in extended sRGB, top row first.
+     * (HalfFloat: the halves are written as their raw 16 bits with putShort on purpose – that is the bitmap's layout;
+     * lint reads it as a half widened to another type.)
+     */
+    @android.annotation.SuppressLint("HalfFloat")
     internal fun toBitmap(hi: ByteBuffer, lo: ByteBuffer, w: Int, h: Int): Bitmap {
         val px = ByteBuffer.allocateDirect(w * h * 8).order(ByteOrder.nativeOrder())
         val one = android.util.Half.toHalf(1f)
