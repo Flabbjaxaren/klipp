@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -63,8 +65,9 @@ fun TranscriptView(controller: ProjectController, state: EditorState, modifier: 
             Text(ac.phase, color = K.OnSurface, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             androidx.compose.material3.LinearProgressIndicator(progress = { busy }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), color = K.Primary)
             PillButton(stringResource(R.string.titleui_cancel), { ac.cancel() }, Modifier.padding(horizontal = 14.dp, vertical = 6.dp), icon = Ic.Close, filled = false)
-        } else if (t == null || t.words.isEmpty() || redo) {
+        } else if (t == null || t.words.isEmpty() || redo) Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
             // no transcript yet (or listen again, e.g. in another language): pick a language and quality and listen
+            // (scrolls, and ends clear of the dock that lies over the page's bottom)
             val pick = rememberSpeechPick()
             Text(stringResource(if (redo) R.string.transcript_redo_hint else R.string.transcript_empty), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
             SpeechPicker(pick, "tx")
@@ -75,6 +78,7 @@ fun TranscriptView(controller: ProjectController, state: EditorState, modifier: 
             else PillButton(stringResource(R.string.transcript_transcribe), { haptics.confirm(); redo = false; ac.transcript(ctx, controller, model, pick.language) },
                 Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("tx:start"), icon = Ic.Transcript)
             if (redo) ToggleChip(stringResource(R.string.titleui_cancel), false, { redo = false }, Modifier.padding(horizontal = 14.dp))
+            Spacer(Modifier.height(LocalBarSpace.current + 24.dp))
         } else {
             if (sel != null) {
                 // what the delete does, before it is done
