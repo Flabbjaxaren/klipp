@@ -365,6 +365,8 @@ interface PropsBackend {
     fun setCaptionsVisible(visible: Boolean)
     val captionsVisible: Boolean
     val hasCaptionTrack: Boolean
+    /** The caption tracks (a style applies to one track: the overview and the editor name it). */
+    val captionTracks: List<CaptionTrackUi> get() = emptyList()
 }
 
 /**
@@ -461,6 +463,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
     /** Selected caption in the timeline, and whether its editor is open. */
     var selectedCaption by mutableStateOf<Long?>(null)
     var editingCaption by mutableStateOf(false)
+    /** The caption track the overview's style applies to, when there are several (see captionStyleTrack). */
+    var captionTrack by mutableStateOf<Long?>(null)
     /** A row of steps that replaced the dock's actions (back closes it first, see Back.kt). */
     var dockRow by mutableStateOf(DockRow.NONE)
     var playhead by mutableFloatStateOf(14f)

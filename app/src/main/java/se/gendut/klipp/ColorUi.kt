@@ -258,16 +258,16 @@ fun ToggleChip(label: String, on: Boolean, onClick: () -> Unit, modifier: Modifi
  * quieter. [on] = the action is a mode that is active right now (the dropper while it waits for a tap).
  */
 @Composable
-fun PillButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, filled: Boolean = true, on: Boolean = false) {
+fun PillButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: ImageVector? = null, filled: Boolean = true, on: Boolean = false, enabled: Boolean = true) {
     val haptics = rememberHaptics()
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val r by animateDpAsState(if (pressed) 10.dp else 22.dp, cornerSpring(), label = "pb")
     val bg by animateColorAsState(if (on) K.PrimaryContainer else if (filled) K.SurfaceHighest else K.SurfaceHigh, label = "pbb")
-    val fg by animateColorAsState(if (on) K.PrimarySoft else K.OnSurface, label = "pbf")
+    val fg by animateColorAsState(if (!enabled) K.OnSurfaceVar.copy(alpha = 0.5f) else if (on) K.PrimarySoft else K.OnSurface, label = "pbf")
     Row(
         modifier.height(44.dp).clip(RoundedCornerShape(r)).background(bg)
-            .clickable(interactionSource = src, indication = null, role = Role.Button) { haptics.tick(); onClick() }
+            .clickable(enabled = enabled, interactionSource = src, indication = null, role = Role.Button) { haptics.tick(); onClick() }
             .padding(horizontal = if (icon != null) 16.dp else 20.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
     ) {

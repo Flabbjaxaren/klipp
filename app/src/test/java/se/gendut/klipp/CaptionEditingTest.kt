@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import org.junit.Assert.assertEquals
@@ -93,24 +94,57 @@ class CaptionEditingTest {
         assertTrue(saves(fake).isEmpty())
     }
 
-    @Test fun theListUsesTheSameEditor() {
+    @Test fun aListRowOpensTheCaptionEditor() {
         val fake = FakeProps()
-        var open by mutableStateOf(true)
-        val st = EditorState().apply { props = fake; captions = listOf(UiCaption(1, 0.5f, 2f, "Första raden")) }
-        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { if (open) CaptionsTab(st, fake) {} } } }
+        var edited = 0
+        val st = EditorState().apply { props = fake; selected = 4L; captions = listOf(UiCaption(1, 0.5f, 2f, "Första raden"), UiCaption(2, 3f, 4f, "Andra")) }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { CaptionsTab(st, fake) { edited++ } } } }
         rule.waitForIdle()
-        rule.onNodeWithTag("caption:row:1").performClick()
+        rule.onNodeWithTag("caption:row:2").performClick()
         rule.waitForIdle()
-        rule.onNodeWithTag("caption:1").performTextReplacement("Rättad")
-        // it saves by itself after a pause (no Save button)
-        rule.mainClock.advanceTimeBy(1000)
+        // the same editor as tapping the caption in the timeline: selected, editor open, the sheet closes (onEdit)
+        assertEquals(2L, st.selectedCaption)
+        assertTrue(st.editingCaption)
+        assertEquals(null, st.selected)
+        assertEquals(3f, st.playhead, 0.001f)
+        assertEquals(1, edited)
+    }
+
+    /** The caption editor shows the times and sets either edge at the playhead – within the drag's limits. */
+    @Test fun theEdgeButtonsFollowThePlayheadAndTheLimits() {
+        val fake = FakeProps()
+        val st = inspector(fake)
+        rule.onNodeWithTag("captionTimes").assertExists()
+        // the playhead inside the caption (0.5–2.0): both can be set
+        rule.runOnUiThread { st.playhead = 1.0f }
         rule.waitForIdle()
-        assertEquals(listOf("captiontext 1 Rättad"), saves(fake))
-        // typing more and the sheet closing: saved, same session
-        rule.onNodeWithTag("caption:1").performTextReplacement("Rättad igen")
-        rule.runOnUiThread { open = false }
+        rule.onNodeWithTag("captionSetStart").performClick()
         rule.waitForIdle()
-        assertEquals(listOf("captiontext 1 Rättad", "captiontext 1 Rättad igen"), saves(fake))
-        assertSame(fake.textSessions[0], fake.textSessions[1])
+        rule.onNodeWithTag("captionSetEnd").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("trimcaption 1 in 0.50", "trimcaption 1 out -1.00"), fake.log.filter { it.startsWith("trimcaption") })
+        // after the next caption's start (2.5): the end would go into it – not offered, and said why
+        rule.runOnUiThread { st.playhead = 3.0f }
+        rule.waitForIdle()
+        rule.onNodeWithTag("captionSetEnd").performClick()
+        rule.onNodeWithTag("captionSetStart").performClick()
+        rule.waitForIdle()
+        assertEquals(2, fake.log.count { it.startsWith("trimcaption") })
+        assertTrue(rule.onAllNodesWithTag("captionEdgeWhy").fetchSemanticsNodes().size == 2)
+    }
+
+    /** With several caption tracks the style asks which one; the button names the track it changes. */
+    @Test fun theStyleNamesItsTrack() {
+        val fake = FakeProps().apply { tracks = listOf(se.gendut.klipp.CaptionTrackUi(10, "Intervju.srt", 12, true), se.gendut.klipp.CaptionTrackUi(11, "Automatiska undertexter", 30, true)) }
+        val st = EditorState().apply { props = fake; captions = listOf(UiCaption(1, 0.5f, 2f, "Rad", track = 10)) }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { androidx.compose.foundation.layout.Column { CaptionsTab(st, fake) {} } } } }
+        rule.waitForIdle()
+        // nothing chosen: no style yet, a word to choose
+        assertEquals(0, rule.onAllNodesWithTag("capStyle").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("capTrackChoose").assertExists()
+        rule.onNodeWithTag("capTrack:11").performClick()
+        rule.waitForIdle()
+        assertEquals(11L, st.captionTrack)
+        rule.onNodeWithText("Stil – alla undertexter i ”Automatiska undertexter”").assertExists()
     }
 }

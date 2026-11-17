@@ -2217,6 +2217,9 @@ class ProjectController(
 
     override val captionsVisible: Boolean get() = snapshot.sequence?.captionTracks?.any { it.enabled } == true
     override val hasCaptionTrack: Boolean get() = snapshot.sequence?.captionTracks?.isNotEmpty() == true
+    override val captionTracks: List<se.gendut.klipp.CaptionTrackUi> get() = snapshot.sequence?.captionTracks.orEmpty().map {
+        se.gendut.klipp.CaptionTrackUi(it.id, it.name.substringBefore(CaptionStyle.WORD_TAG).ifBlank { Str.t(R.string.captionui_track_unnamed) }, it.count, it.enabled)
+    }
 
     override fun setCaptionsVisible(visible: Boolean) {
         scope.launch { editLock.withLock {

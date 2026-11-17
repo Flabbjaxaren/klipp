@@ -36,12 +36,8 @@
     <string name="titleui_content">Innehåll</string>
     <string name="titleui_titles_on_timeline">Titlar på tidslinjen</string>
     <string name="titleui_captions">Undertexter</string>
-    <string name="titleui_captions_shown">Visas</string>
-    <string name="titleui_captions_hidden">Dolda</string>
     <string name="titleui_new_caption">Ny undertext</string>
     <string name="titleui_import_captions">Importera SRT / VTT</string>
-    <string name="titleui_hide_style">Dölj stil</string>
-    <string name="titleui_font_and_style">Typsnitt &amp; stil</string>
     <string name="titleui_captions_hint">Undertexterna visas i bilden och bränns in vid export.</string>
     <string name="titleui_add_at">Lägg till vid %1$s</string>
     <string name="titleui_size">Storlek</string>
@@ -85,7 +81,7 @@
     <string name="captionui_blank_not_saved">En tom undertext sparas inte – ta bort den med Ta bort.</string>
     <string name="captionui_caption">Undertext</string>
     <string name="captionui_select_caption">Markera en undertext i tidslinjen</string>
-    <string name="captionui_time_hint">%1$s – %2$s  ·  dra blocket i tidslinjen för att flytta, kanterna för att ändra längden</string>
+    <string name="captionui_drag_hint">Eller dra blocket i tidslinjen: hela för att flytta, en kant för att ändra längden.</string>
     <string name="captionui_font_error">Kunde inte läsa typsnittet: %1$s</string>
     <string name="captionui_font">Typsnitt</string>
     <string name="captionui_fonts_all">Alla %1$d</string>
@@ -196,4 +192,24 @@
     <string name="transcribe_tier_balanced">Balanserad</string>
     <string name="transcribe_tier_best">Bäst</string>
     <string name="transcribe_best_hint">Bäst är långsam: det kan ta lika lång tid som ljudet, eller längre.</string>
+    <string name="captionui_track_unnamed">Undertexter</string>
+    <string name="captionui_caption_on_track">Undertext · %1$s</string>
+    <string name="captionui_time">Start %1$s · Slut %2$s</string>
+    <string name="captionui_set_start">Sätt start vid spelhuvudet</string>
+    <string name="captionui_set_end">Sätt slut vid spelhuvudet</string>
+    <string name="captionui_edge_already">Spelhuvudet står redan där.</string>
+    <string name="captionui_edge_after_end">Spelhuvudet ligger efter undertextens slut – flytta det in i undertexten för att sätta starten.</string>
+    <string name="captionui_edge_before_start">Spelhuvudet ligger före undertextens start – flytta det in i eller efter undertexten för att sätta slutet.</string>
+    <string name="captionui_edge_too_short">Undertexten skulle bli kortare än en ruta.</string>
+    <string name="captionui_edge_into_previous">Starten skulle hamna i undertexten före.</string>
+    <string name="captionui_edge_into_next">Slutet skulle hamna i nästa undertext.</string>
+    <string name="captionui_style_scope">Stil – alla undertexter i ”%1$s”</string>
+    <string name="titleui_caption_tracks">Undertextspår</string>
+    <string name="titleui_caption_track_choose">Välj vilket spår stilen gäller.</string>
+    <string name="titleui_caption_track_count">%1$s · %2$d</string>
+    <string name="titleui_captions_shown_all">Visas (alla spår)</string>
+    <string name="titleui_captions_hidden_all">Dolda (alla spår)</string>
+    <string name="titleui_replace_auto_title">Ersätta de automatiska undertexterna?</string>
+    <string name="titleui_replace_auto_body">De %1$d undertexterna i ”%2$s” ersätts, även ändringar du har gjort i dem. Ångra tar tillbaka dem.</string>
+    <string name="titleui_replace">Ersätt</string>
 </resources>

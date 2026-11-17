@@ -79,6 +79,10 @@ class FakeProps : PropsBackend {
     }
     override val captionsVisible = true
     override val hasCaptionTrack = true
+    /** The caption tracks the overview and the editor name (one by default). */
+    var tracks = listOf(se.gendut.klipp.CaptionTrackUi(0, "Undertexter", 1, true))
+    override val captionTracks get() = tracks
+    override fun trimCaption(id: Long, inEdge: Boolean, dt: Float) { log += "trimcaption $id ${if (inEdge) "in" else "out"} ${"%.2f".format(java.util.Locale.ROOT, dt)}" }
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -220,12 +224,9 @@ class PropertiesUiTest {
         assertTrue(edited)
         assertEquals(listOf("title Anna Berg\nFiskare, Smögen @3.0 klipp:mall=namnskylt;in=studs", "captions"), fake.log)
         assertEquals(0.5f, st.playhead, 0.001f)
-        // the line opens for editing – the same editor as over the timeline: it saves by itself when the row closes
-        rule.onNodeWithTag("caption:1").performTextReplacement("Ny text")
-        rule.onNodeWithTag("caption:done").performScrollTo().performClick()
-        rule.mainClock.advanceTimeBy(1000)
-        rule.waitForIdle()
-        assertEquals("captiontext 1 Ny text", fake.log.last())
+        // the line opens the caption editor (the same one as tapping the caption in the timeline)
+        assertEquals(1L, st.selectedCaption)
+        assertTrue(st.editingCaption)
         assertNotNull(st)
     }
 

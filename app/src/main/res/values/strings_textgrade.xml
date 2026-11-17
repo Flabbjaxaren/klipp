@@ -36,12 +36,8 @@
     <string name="titleui_content">Content</string>
     <string name="titleui_titles_on_timeline">Titles on the timeline</string>
     <string name="titleui_captions">Captions</string>
-    <string name="titleui_captions_shown">Shown</string>
-    <string name="titleui_captions_hidden">Hidden</string>
     <string name="titleui_new_caption">New caption</string>
     <string name="titleui_import_captions">Import SRT / VTT</string>
-    <string name="titleui_hide_style">Hide style</string>
-    <string name="titleui_font_and_style">Font &amp; style</string>
     <string name="titleui_captions_hint">Captions appear in the picture and are burned in on export.</string>
     <string name="titleui_add_at">Add at %1$s</string>
     <string name="titleui_size">Size</string>
@@ -85,7 +81,7 @@
     <string name="captionui_blank_not_saved">An empty caption isn\'t saved – remove it with Delete.</string>
     <string name="captionui_caption">Caption</string>
     <string name="captionui_select_caption">Select a caption in the timeline</string>
-    <string name="captionui_time_hint">%1$s – %2$s  ·  drag the block in the timeline to move it, the edges to change its length</string>
+    <string name="captionui_drag_hint">Or drag the block in the timeline: the whole to move it, an edge to change its length.</string>
     <string name="captionui_font_error">Couldn\'t read the font: %1$s</string>
     <string name="captionui_font">Font</string>
     <string name="captionui_fonts_all">All %1$d</string>
@@ -196,4 +192,24 @@
     <string name="transcribe_tier_balanced">Balanced</string>
     <string name="transcribe_tier_best">Best</string>
     <string name="transcribe_best_hint">Best is slow: it can take as long as the audio itself, or longer.</string>
+    <string name="captionui_track_unnamed">Captions</string>
+    <string name="captionui_caption_on_track">Caption · %1$s</string>
+    <string name="captionui_time">Start %1$s · End %2$s</string>
+    <string name="captionui_set_start">Set start at the playhead</string>
+    <string name="captionui_set_end">Set end at the playhead</string>
+    <string name="captionui_edge_already">The playhead is already there.</string>
+    <string name="captionui_edge_after_end">The playhead is after the caption\'s end – move it inside the caption to set the start.</string>
+    <string name="captionui_edge_before_start">The playhead is before the caption\'s start – move it inside or after the caption to set the end.</string>
+    <string name="captionui_edge_too_short">The caption would be shorter than a frame.</string>
+    <string name="captionui_edge_into_previous">The start would go into the caption before it.</string>
+    <string name="captionui_edge_into_next">The end would go into the next caption.</string>
+    <string name="captionui_style_scope">Style – all captions in “%1$s”</string>
+    <string name="titleui_caption_tracks">Caption tracks</string>
+    <string name="titleui_caption_track_choose">Choose the track the style applies to.</string>
+    <string name="titleui_caption_track_count">%1$s · %2$d</string>
+    <string name="titleui_captions_shown_all">Shown (all tracks)</string>
+    <string name="titleui_captions_hidden_all">Hidden (all tracks)</string>
+    <string name="titleui_replace_auto_title">Replace the automatic captions?</string>
+    <string name="titleui_replace_auto_body">The %1$d captions in “%2$s” are replaced, changes you made to them too. Undo brings them back.</string>
+    <string name="titleui_replace">Replace</string>
 </resources>

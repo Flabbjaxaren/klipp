@@ -344,24 +344,37 @@ internal fun CaptionsTab(state: EditorState, backend: PropsBackend, onEdit: () -
         )
         return
     }
-    // shown / hidden and the style, then the captions themselves
+    // the tracks: a style is the track's – with several, the one it applies to is chosen (never silently the first)
+    val tracks = backend.captionTracks
+    val target = captionStyleTrack(tracks, state.captionTrack)
+    if (tracks.size > 1) {
+        SectionLabel(stringResource(R.string.titleui_caption_tracks))
+        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            for (t in tracks) SpringChip(stringResource(R.string.titleui_caption_track_count, t.name, t.count), target == t.id,
+                { haptics.tick(); state.captionTrack = t.id }, Modifier.testTag("capTrack:${t.id}"))
+        }
+        if (target == null) Text(stringResource(R.string.titleui_caption_track_choose), color = K.OnSurfaceVar, fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("capTrackChoose"))
+    }
+    // shown / hidden (all tracks) and the style (the chosen track's, said on the button)
     var styleOpen by remember { mutableStateOf(false) }
-    Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (backend.hasCaptionTrack) {
             val vis = backend.captionsVisible
-            SpringChip(stringResource(if (vis) R.string.titleui_captions_shown else R.string.titleui_captions_hidden), vis, { backend.setCaptionsVisible(!vis) })
+            SpringChip(stringResource(if (vis) R.string.titleui_captions_shown_all else R.string.titleui_captions_hidden_all), vis, { backend.setCaptionsVisible(!vis) })
         }
-        SpringChip(stringResource(if (styleOpen) R.string.titleui_hide_style else R.string.titleui_font_and_style), styleOpen, { haptics.tick(); styleOpen = !styleOpen })
+        val name = tracks.firstOrNull { it.id == target }?.name
+        if (name != null) SpringChip(stringResource(R.string.captionui_style_scope, name), styleOpen, { haptics.tick(); styleOpen = !styleOpen }, Modifier.testTag("capStyle"))
     }
-    androidx.compose.animation.AnimatedVisibility(styleOpen) { Column { CaptionStyleEditor(backend, state.captions.first().track) } }
-    var editing by remember { mutableStateOf<Long?>(null) }
+    if (target != null) androidx.compose.animation.AnimatedVisibility(styleOpen) { Column { CaptionStyleEditor(backend, target) } }
+    // the captions: a row opens the caption editor (text, times, style) – the same one as tapping it in the timeline
     for (c in state.captions.take(300)) key(c.id) {
         ListRow(formatTc(c.start), c.text.replace('\n', ' '), "caption:row:${c.id}") {
             haptics.tick(); state.playing = false; state.playhead = c.start
-            editing = if (editing == c.id) null else c.id
-        }
-        androidx.compose.animation.AnimatedVisibility(editing == c.id) {
-            CaptionEditor(c, backend) { editing = null }
+            state.clearSelection(); state.selectedCaption = c.id; state.editingCaption = true
+            onEdit()
         }
     }
 }
@@ -545,23 +558,6 @@ fun ListRow(time: String, text: String, tag: String? = null, onClick: () -> Unit
 }
 
 /**
- * Edit a caption from the list: the same text editor as the caption editor over the timeline (it saves by itself, also
- * when the row closes), delete, and done. Tap the row again to close.
- */
-@Composable
-private fun CaptionEditor(c: UiCaption, backend: PropsBackend, onDone: () -> Unit) {
-    val haptics = rememberHaptics()
-    Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(K.Surface).padding(10.dp)) {
-        CaptionTextField(c, backend, Modifier, tag = "caption:${c.id}")
-        Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SpringChip(stringResource(R.string.properties_done), false, { haptics.confirm(); onDone() }, Modifier.testTag("caption:done"))
-            SpringChip(stringResource(R.string.titleui_delete), false, { haptics.heavy(); backend.deleteCaption(c.id); onDone() })
-            Text("${formatTc(c.start)} – ${formatTc(c.end)}", color = K.OnSurfaceVar, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.CenterVertically))
-        }
-    }
-}
-
-/**
  * Auto captions: speech recognition on the phone (whisper.cpp, KB-Whisper for Swedish). Pick a language and an
  * audio track; the model is downloaded the first time. The result is a regular caption track that can be corrected.
  */
@@ -602,8 +598,20 @@ private fun AutoCaptionsCard(controller: se.gendut.klipp.engine.ProjectControlle
             PillButton(stringResource(R.string.titleui_download_model, model.bytes / 1_000_000), { haptics.confirm(); ac.download(ctx, model) },
                 Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("asr:download"), icon = Ic.Download, filled = false)
         } else {
-            PillButton(stringResource(R.string.titleui_generate_captions), { haptics.confirm(); ac.start(ctx, controller, model, pick.language, track) },
+            // a run replaces the previous automatic captions (their lines, edits included): said before, not after
+            val autoName = stringResource(R.string.transcribe_track_name)
+            val old = controller.captionTracks.filter { it.name == autoName }.sumOf { it.count }
+            var confirm by remember { mutableStateOf(false) }
+            PillButton(stringResource(R.string.titleui_generate_captions), { haptics.confirm(); if (old > 0) confirm = true else ac.start(ctx, controller, model, pick.language, track) },
                 Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("asr:start"), icon = Ic.Subs)
+            if (confirm) androidx.compose.material3.AlertDialog(
+                onDismissRequest = { confirm = false },
+                title = { Text(stringResource(R.string.titleui_replace_auto_title)) },
+                text = { Text(stringResource(R.string.titleui_replace_auto_body, old, autoName)) },
+                confirmButton = { FlatTextButton({ confirm = false; ac.start(ctx, controller, model, pick.language, track) }, Modifier.testTag("asr:replace")) { Text(stringResource(R.string.titleui_replace)) } },
+                dismissButton = { FlatTextButton({ confirm = false }) { Text(stringResource(R.string.titleui_cancel)) } },
+                containerColor = K.SurfaceHigh,
+            )
         }
         ac.message?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp).testTag("asr:msg")) }
     }

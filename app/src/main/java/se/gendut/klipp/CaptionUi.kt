@@ -90,24 +90,63 @@ fun CaptionInspector(state: EditorState) {
     val backend = state.props ?: return
     val haptics = rememberHaptics()
     val c = state.selectedCaption?.let { id -> state.captions.firstOrNull { it.id == id } }
+    // the caption's track: named in the header and in the style's scope (the style is the track's)
+    val trackName = c?.let { cc -> backend.captionTracks.firstOrNull { it.id == cc.track }?.name } ?: stringResource(R.string.captionui_track_unnamed)
     Column(Modifier.fillMaxSize().background(K.Bg).testTag("captionInspector")) {
         // the header (with Done) stays in place; what is under it scrolls
-        SheetHeader(stringResource(R.string.captionui_caption)) { haptics.tick(); state.editingCaption = false }
+        SheetHeader(if (c != null) stringResource(R.string.captionui_caption_on_track, trackName) else stringResource(R.string.captionui_caption)) { haptics.tick(); state.editingCaption = false }
         if (c == null) {
             Text(stringResource(R.string.captionui_select_caption), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
             return@Column
         }
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
             CaptionTextField(c, backend)
-            Text(
-                stringResource(R.string.captionui_time_hint, formatTc(c.start), formatTc(c.end)),
-                color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp),
-            )
+            CaptionTimes(state, c, backend)
+            SectionLabel(stringResource(R.string.captionui_style_scope, trackName))
             CaptionStyleEditor(backend, c.track)
             // (the page ends clear of undo and redo, which lie over its corner)
             Spacer(Modifier.height(LocalBarSpace.current + 36.dp))
         }
     }
+}
+
+/**
+ * The caption's start and end, and buttons that set either at the playhead – the timeline's drag without the precision
+ * (same engine command, one undo step each; the same limits: at least a frame, never into a neighbor). In a scope of its
+ * own: it follows the playhead without recomposing the editor.
+ */
+@Composable
+private fun CaptionTimes(state: EditorState, c: UiCaption, backend: PropsBackend) {
+    val haptics = rememberHaptics()
+    Text(
+        stringResource(R.string.captionui_time, formatTc(c.start), formatTc(c.end)),
+        color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("captionTimes"),
+    )
+    val start = captionEdgeTo(c, state.captions, state.playhead, inEdge = true, minLen = FRAME)
+    val end = captionEdgeTo(c, state.captions, state.playhead, inEdge = false, minLen = FRAME)
+    androidx.compose.foundation.layout.FlowRow(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        PillButton(stringResource(R.string.captionui_set_start), { haptics.confirm(); backend.trimCaption(c.id, true, start.dt) },
+            Modifier.testTag("captionSetStart"), filled = false, enabled = start.ok)
+        PillButton(stringResource(R.string.captionui_set_end), { haptics.confirm(); backend.trimCaption(c.id, false, end.dt) },
+            Modifier.testTag("captionSetEnd"), filled = false, enabled = end.ok)
+    }
+    // why a button can't be used (not when the playhead is simply where the edge is)
+    val why = listOfNotNull(start.problem, end.problem).filter { it != CaptionEdgeProblem.ALREADY_THERE }.distinct().map { p ->
+        stringResource(when (p) {
+            CaptionEdgeProblem.AFTER_END -> R.string.captionui_edge_after_end
+            CaptionEdgeProblem.BEFORE_START -> R.string.captionui_edge_before_start
+            CaptionEdgeProblem.TOO_SHORT -> R.string.captionui_edge_too_short
+            CaptionEdgeProblem.INTO_PREVIOUS -> R.string.captionui_edge_into_previous
+            CaptionEdgeProblem.INTO_NEXT -> R.string.captionui_edge_into_next
+            CaptionEdgeProblem.ALREADY_THERE -> R.string.captionui_edge_already
+        })
+    }
+    for (w in why) Text(w, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 1.dp).testTag("captionEdgeWhy"))
+    Text(stringResource(R.string.captionui_drag_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
 }
 
 /**
