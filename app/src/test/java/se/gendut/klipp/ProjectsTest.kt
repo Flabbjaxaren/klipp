@@ -43,6 +43,8 @@ class FakeProjects : ProjectsBackend {
     override fun rename(id: String, name: String) { log += "rename $id $name" }
     override fun duplicate(id: String) { log += "dup $id" }
     override fun delete(id: String) { log += "delete $id" }
+    override fun versions(id: String): List<Pair<Long, Int>> = if (id == "p1") listOf(1_700_000_000_000L to 41) else emptyList()
+    override fun restoreVersion(id: String, stamp: Long) { log += "restoreVersion $id $stamp" }
     var folder: String? = null
     var info = BackupInfo(null, false, true)
     override fun backupFolder() = folder
@@ -129,6 +131,18 @@ class ProjectsTest {
         rule.onNodeWithText("Tidigare versioner…").performScrollTo().performClick()
         rule.waitForIdle()
         rule.onNodeWithTag("versionsNotBackup").assertExists()
+        // what picking one does is said plainly: restored as a new project, this one stays (F5)
+        rule.onNodeWithText("återställs som ett nytt projekt", substring = true).assertExists()
+        rule.onNodeWithText("Återställ som nytt projekt", substring = true).assertExists()
+        rule.onNodeWithTag("version:1700000000000").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("restoreVersion p1 1700000000000"), fake.log)
+        assertEquals(0, closed)
+        fake.log.clear()
+        rule.onNodeWithTag("projectMenu:p1").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Tidigare versioner…").performScrollTo().performClick()
+        rule.waitForIdle()
         rule.onNodeWithText("Stäng").performClick()
         // the long press still opens the same menu
         rule.onNodeWithTag("project:p1").performTouchInput { longClick() }

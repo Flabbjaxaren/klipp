@@ -1154,6 +1154,7 @@ class ProjectController(
     /** Earlier version [stamp] of project [id] as a new project beside it (the project itself is left as it is). */
     fun restoreVersion(id: String, stamp: Long) = scope.launch {
         val nid = "p" + System.currentTimeMillis()
+        var restoredName = ""
         try {
             withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val dir = versionDir(id)
@@ -1161,12 +1162,12 @@ class ProjectController(
                 val o = readSide(File(dir, "$stamp.media.json")).first
                 val meta = o.optJSONObject("meta") ?: JSONObject()
                 val time = java.text.SimpleDateFormat("d MMM HH:mm", java.util.Locale.getDefault()).format(java.util.Date(stamp))
-                o.put("meta", meta.put("name", Str.t(R.string.projectcontroller_version_name, meta.optString("name", Str.t(R.string.projectcontroller_project_fallback_name)), time))
-                    .put("modified", System.currentTimeMillis()))
+                restoredName = Str.t(R.string.projectcontroller_version_name, meta.optString("name", Str.t(R.string.projectcontroller_project_fallback_name)), time)
+                o.put("meta", meta.put("name", restoredName).put("modified", System.currentTimeMillis()))
                 writeAtomic(File(projectDir, "$nid.media.json"), o.toString())
                 thumbFile(id).takeIf { it.exists() }?.let { runCatching { it.copyTo(thumbFile(nid)) } }
             }
-            onMessage(Str.t(R.string.projectcontroller_version_restored))
+            onMessage(Str.t(R.string.projectcontroller_version_restored, restoredName))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

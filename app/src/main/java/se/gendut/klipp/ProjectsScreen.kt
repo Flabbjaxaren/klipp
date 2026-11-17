@@ -357,7 +357,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                         else -> {
                             Text(stringResource(R.string.projectsscreen_versions_hint), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(bottom = 6.dp))
                             for ((stamp, clips) in l) {
-                                ExportChoice(dateLabel(stamp, withTime = true), pluralStringResource(R.plurals.app_n_clips, clips, clips), "version:$stamp") {
+                                ExportChoice(dateLabel(stamp, withTime = true), stringResource(R.string.projectsscreen_version_restore_as_new, pluralStringResource(R.plurals.app_n_clips, clips, clips)), "version:$stamp") {
                                     versionsOf = null; haptics.confirm(); backend.restoreVersion(p.id, stamp)
                                 }
                             }

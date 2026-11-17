@@ -70,7 +70,7 @@
     <string name="projectcontroller_imported_incomplete">”%1$s” importerat – %2$d mediefiler saknades när paketet gjordes och är offline</string>
     <string name="projectcontroller_imported_name">%1$s (importerad)</string>
     <string name="projectcontroller_version_name">%1$s (%2$s)</string>
-    <string name="projectcontroller_version_restored">Den tidigare versionen ligger som ett nytt projekt i listan</string>
+    <string name="projectcontroller_version_restored">Återställd som nytt projekt: ”%1$s” – projektet självt är oförändrat</string>
     <string name="projectcontroller_version_failed">Kunde inte återställa versionen: %1$s</string>
     <plurals name="projectcontroller_synced">
         <item quantity="one">Synkat på ljudet: %1$d klipp flyttat</item>

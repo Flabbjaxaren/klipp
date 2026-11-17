@@ -155,7 +155,8 @@
     <string name="projectsscreen_copying">Kopierar… %1$d %%</string>
     <string name="projectsscreen_versions">Tidigare versioner…</string>
     <string name="projectsscreen_versions_title">Tidigare versioner av ”%1$s”</string>
-    <string name="projectsscreen_versions_hint">Sparas var tionde minut medan du redigerar. Den du väljer öppnas som ett nytt projekt; det här ligger kvar som det är.</string>
+    <string name="projectsscreen_versions_hint">Sparas var tionde minut medan du redigerar. Den du väljer återställs som ett nytt projekt bredvid det här; det här ligger kvar som det är.</string>
+    <string name="projectsscreen_version_restore_as_new">%1$s · Återställ som nytt projekt</string>
     <string name="projectsscreen_versions_none">Inga tidigare versioner än. De sparas var tionde minut medan du redigerar.</string>
     <string name="projectsscreen_name">Namn</string>
     <string name="projectsscreen_save">Spara</string>
