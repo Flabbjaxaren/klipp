@@ -1,5 +1,13 @@
 # Klipp bundled fonts – licensing audit
 
+> **Decision, 2026-11-18:** the eight families with a Reserved Font Name (Abril Fatface, Dancing Script, Libre
+> Baskerville, Lora, Merriweather, Playfair Display, Raleway, Righteous) now ship as the publishers' **original files,
+> unmodified** (google/fonts e7db6ca, SHA-256 checked by `BundledFontsLicenseTest`). Merriweather is drawn with
+> `'opsz' 72, 'wdth' 100` (fonts.json `axes`), the look of the earlier file. Rendering the earlier and the new files
+> (Latin text, weights 400/700, regular/italic) gives identical pixels for the seven others; Merriweather differs by
+> rounding only – a few glyph advances by 1 px at 72 px in bold (a 1 536 px line 1 px shorter). The other 25 families
+> stay Latin subsets (no RFN, allowed). The audit below describes the state before the decision.
+
 Date: 2026-11-18. Scope: the 33 families / 55 font files in `app/src/main/assets/fonts/` (added in commit 3e07736, 0.18.31, unchanged since).
 Per family: `LICENSES/inventory.json` (ids `font:<folder>`).
 

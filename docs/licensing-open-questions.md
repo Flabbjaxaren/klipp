@@ -6,23 +6,9 @@ are not legal clearance – items marked **legal** need a lawyer's view before a
 
 ## A. Needs the copyright holder's permission or a decision
 
-### A1. Title fonts with a Reserved Font Name, shipped modified (8 families, 13 files)
+### A1. Title fonts with a Reserved Font Name – resolved 2026-11-18
 
-- Files: `app/src/main/assets/fonts/{AbrilFatface,DancingScript,LibreBaskerville,Lora,Merriweather,PlayfairDisplay,Raleway,Righteous}/`.
-- Use: title and caption fonts; the family name is the picker label and the font id saved in projects.
-- Problem: every bundled font is a Latin subset of the google/fonts file (Merriweather also pinned to one optical
-  size and width). OFL-1.1 condition 3: a Modified Version may not use a Reserved Font Name without written permission.
-  These eight declare RFNs and still carry them (internal names, picker, projects).
-- Options per family (details, sizes and the look of existing projects: `docs/licensing-fonts.md`): ship the
-  unmodified upstream file (about +0.6 MiB for seven of them; Merriweather +7 MiB and needs `opsz 72, wdth 100` set in
-  code to look the same), rename the subset and map old saved names, or ask for permission.
-- Holders: TypeTogether (Abril Fatface); Impallari Type (Dancing Script, Libre Baskerville, Raleway); Cyreal (Lora);
-  Sorkin Type (Merriweather); Claus Eggers Sørensen (Playfair Display); Astigmatic (Righteous).
-- Draft request (not sent):
-  > Klipp is a GPL-3.0 video editor for Android (github.com/Flabbjaxaren/klipp) that may be sold on Google Play. It
-  > bundles <family> under the OFL as a title font, subset to Latin characters with fontTools (no outline or metric
-  > changes) to keep the app small. Would you grant written permission for this subset to keep the Reserved Font
-  > Name "<RFN>"? The OFL text and your copyright notice ship with it unchanged.
+The eight families now ship as the unmodified original files (see `docs/licensing-fonts.md`, decision at the top).
 
 ### A2. spektrafilm – data beside the profiles, and the license version
 
@@ -46,46 +32,39 @@ are not legal clearance – items marked **legal** need a lawyer's view before a
   > ships these tables, credited and under CC BY-SA, within what you intend?
 - And to hanatos (vkdt), if Andrea doesn't know: the license of the upsampling coefficient data.
 
-### A3. Freesound API in a paid app
+### A3. Freesound API in a paid app – resolved 2026-11-18
 
-- Code: `engine/SoundFx.kt` `search`/`fetch` – text search filtered to CC0, HQ MP3 previews, each user's own API key.
-- The sounds are CC0, but the API has its own terms: "Terms for commercial use of the API will be negotiated on a case
-  by case basis with UPF" (freesound.org/help/tos_api §3, read 2026-11-18); "Freesound API usage is free for
-  non-commercial use, but it can also be licensed for being used in commercial applications" (help/developers).
-  Nothing says a user's own key makes a paid app's use non-commercial.
-- Options: ask Freesound (draft below), or leave the Freesound search out of the Play build until they answer. Not
-  changed: the feature works as before; THIRD_PARTY.md no longer says it is cleared.
-- Draft (not sent):
-  > Klipp is an open-source (GPL-3.0) Android video editor that may be sold on Google Play. Its optional sound search
-  > uses your API with each user's own key (Klipp ships none): it searches CC0 sounds only and downloads the HQ preview
-  > of a sound the user picks, for their own video. 1) Is that allowed if the app is sold, or is it commercial use that
-  > needs an agreement with UPF? 2) Is one key per user fine, or would you prefer one Klipp credential or OAuth2?
-  > 3) How would you like Freesound and the authors credited in the app?
+The Freesound search was removed from Klipp. Sounds a user downloaded from Freesound before stay listed and usable
+(CC0, with their author and license kept beside them). No question to Freesound is needed now.
 
-### A4. Kenney and BigSoundBank downloads
+### A4. Kenney and BigSoundBank downloads – prepared, needs the originals and a release
 
-- Kenney (`SoundFx.kt`, 7 zip URLs): CC0 (License.txt in each zip), but the hard-coded URLs stopped working in
-  2026-11 (kenney.nl redirects them to the asset pages; the app saves the HTML and reports "no sounds in the pack").
-  **This is a broken feature**, not a license problem. Option: host the CC0 zips on Klipp's GitHub release with fixed
-  SHA-256 (CC0 allows it) – a decision, not done.
-- BigSoundBank (75 fixed sounds): every sound page says CC0. The app fetches `bigsoundbank.com/UPLOAD/<id>.ogg`, which
-  the site's robots.txt and ai.txt exclude for automated access. Options: self-host the clips (CC0) with hashes, or ask.
-  Sound 0448 is a recording of an iPhone camera shutter (small trademark/sound-mark risk); sound 2479 (applause after a
-  band): check by ear that Klipp's cut has no music.
+- Kenney (CC0, License.txt in each zip): the old zip URLs stopped working in 2026-11. BigSoundBank (CC0 on every sound
+  page): the app fetches `/UPLOAD/`, which the site excludes for automated access.
+- Prepared: versioned packs on Klipp's own GitHub release `sounds-1`, each pinned by size and SHA-256 in the app
+  (`SoundFx.HOSTED`, `tools/sounds/`). A pack switches to its hosted file only when it has a pin; until then it uses
+  its old source, and packs already on phones are kept.
+- Left: the originals have to be downloaded **by hand** (kenney.nl's robots.txt disallows AI agents, BigSoundBank's
+  disallows `/UPLOAD/` for all robots), then `tools/sounds/build_sound_assets.py`, the pins, and publishing the release –
+  all need the owner's approval. Sound 0448 records an iPhone camera shutter (small risk); 2479: check by ear that
+  Klipp's cut has no music.
 
-### A5. Klipp's own license wording
+### A5. Klipp's own license wording (checked again 2026-11-18)
 
-- `README.md` / `THIRD_PARTY.md`: "GPL v3.0"; `rust/Cargo.toml`: `GPL-3.0-or-later`. The OpenDRT port grants version 3
-  only, so the app as a whole is GPL-3.0 (docs/licensing.md). Decide: make Cargo.toml `GPL-3.0-only`, or state that
+- What the notices say: OpenDRT.dctl "License: GPLv3" (no other version statement in its repository); spektrafilm:
+  LICENSE (GPL v3 text), pyproject.toml "GPLv3", README "GPLv3 licensed", only CITATION.cff "GPL-3.0-or-later", no file
+  headers; Klipp: README/THIRD_PARTY "GPL v3.0", `rust/Cargo.toml` `GPL-3.0-or-later`, no file headers. Everything else
+  is permissive. So the app as a whole can only be offered under GPL-3.0; no third-party license was changed. Decide: make Cargo.toml `GPL-3.0-only`, or state that
   Klipp's own code is "or later" while the whole is v3.
 - Copyright line: the app and docs say "© the Klipp contributors". If a named holder is wanted, decide the name.
 
-### A6. Files Klipp added inside the Media3 modules
+### A6. Files Klipp added inside the Media3 modules – resolved 2026-11-18
 
-- `third_party/media3-effect/…/Klipp{FrameFill,Precision,Priority,Yuv}.java`,
-  `third_party/media3-transformer/…/Klipp{Audio,Preroll,SilenceMediaSource}.java` state no license;
-  `KlippBlend.java` and `fragment_shader_klipp_sdr_external_yuv_es3.glsl` say Apache-2.0 "like the rest of the module".
-  Decide the license of the others (Apache-2.0 for consistency, or GPL-3.0 like Klipp) and add a header.
+Compared line by line with Media3 1.11.1: KlippBlend, KlippFrameFill, KlippPrecision, KlippPriority, KlippYuv,
+KlippAudio and KlippPreroll share no code with Media3 (KlippFrameFill only the interface's method signatures and the
+exceptions they declare) – they carry "Copyright 2026 The Klipp contributors", Apache-2.0. KlippSilenceMediaSource
+(46 lines from SilenceMediaSource and others) and the YUV shader (29 of 41 lines from Media3's shaders) are derived: they
+keep the Android Open Source Project's copyright, with a "Modified for Klipp" notice.
 
 ### A7. Line icons
 
@@ -113,3 +92,8 @@ are not legal clearance – items marked **legal** need a lawyer's view before a
 - Downloaded speech models: now pinned to a Hugging Face revision and checked by SHA-256 after download. Models already
   on a phone are kept as they are (they were checked by size when downloaded); nothing is deleted.
 - Silero VAD and the FilmCraft engine's seven fonts were bundled without their notices before 2026-11-18; both now ship.
+- Maven artifacts on the release classpath without a published source jar (4): `androidx.compose:compose-bom`,
+  `kotlinx-coroutines-bom`, `kotlinx-serialization-bom` are bills of materials (POM only, no jar: version numbers, no
+  code); `com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava` is a jar with only META-INF (no
+  classes). Nothing of them is in the APK, so there is no source to provide; the source package's MISSING.txt says so.
+
