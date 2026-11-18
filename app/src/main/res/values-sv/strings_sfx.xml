@@ -13,15 +13,6 @@
     <string name="sfx_download">Hämta</string>
     <string name="sfx_download_failed">Det gick inte att hämta: %1$s</string>
     <string name="sfx_remove_pack">Ta bort paketet</string>
-    <string name="sfx_freesound_key_intro">Sök efter fria ljud (CC0) på Freesound. Freesound kräver en gratis API-nyckel: skapa ett konto och hämta en nyckel på</string>
-    <string name="sfx_freesound_key_hint">Klistra in din API-nyckel</string>
-    <string name="sfx_save">Spara</string>
-    <string name="sfx_no_results">Inga CC0-ljud hittades</string>
-    <string name="sfx_search_failed">Sökningen misslyckades: %1$s</string>
-    <string name="sfx_search_hint">Sök, t.ex. whoosh, dörr, regn</string>
-    <string name="sfx_search">Sök</string>
-    <string name="sfx_downloaded">Hämtade</string>
-    <string name="sfx_forget_key">Glöm API-nyckeln</string>
     <string name="sfx_seconds">%1$.1f s</string>
     <string name="sfx_add">Lägg till</string>
     <string name="sfx_pack_impact">steg, slag, dunsar, glas, metall</string>
@@ -38,4 +29,5 @@
     <string name="sfx_pack_social">notiser, pop, kameraslutare, klick, pling</string>
     <string name="sfx_pack_comedy">boing, rimshots, skivscratch, trumvirvlar, applåder, skratt</string>
     <string name="sfx_pack_accent">hjärtslag, magiska klockspel, slag, smällar, cymbaler</string>
+    <string name="sfx_freesound_earlier">%1$d ljud hämtade tidigare · CC0 · sökningen finns inte längre i Klipp</string>
 </resources>

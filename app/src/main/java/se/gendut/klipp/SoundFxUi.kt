@@ -52,8 +52,9 @@ import se.gendut.klipp.engine.SoundFx
 import java.io.File
 
 /**
- * Sound effects (CC0): Kenney's packs to download, and a search on Freesound with the user's own API key. A tap on ▶
- * plays a sound; "Add" places it at the playhead on the first free audio track ([onAdd]).
+ * Sound effects (CC0): packs to download (BigSoundBank, Kenney), and the sounds found on Freesound before its search was
+ * removed (2026-11, its API terms don't cover a paid app) – those stay usable. A tap on ▶ plays a sound; "Add" places it
+ * at the playhead on the first free audio track ([onAdd]).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -71,14 +72,13 @@ fun SoundFxSheet(
         Box(Modifier.fillMaxWidth().fillMaxHeight(0.9f).upwardStaysInside().testTag("sfxSheet")) {
         Column(Modifier.fillMaxSize()) {
             Text(stringResource(R.string.sfx_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
-            if (tab < 2) Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
-            val tabs = listOf(stringResource(R.string.sfx_tab_packs), "Freesound") +
+            if (tab < 1) Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+            val tabs = listOf(stringResource(R.string.sfx_tab_packs)) +
                 (if (speech) listOf(stringResource(R.string.sfx_tab_speech)) else emptyList()) + stringResource(R.string.sfx_tab_files)
             ConnectedToggleGroup(tabs, tab, { tab = it; preview.stop() },
                 Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), tag = { "sfxTab:$it" })
             when (tab) {
                 0 -> PacksTab(preview, onAdd)
-                1 -> FreesoundTab(preview, onAdd)
                 tabs.lastIndex -> FilesTab(onAdd)
                 else -> TextToSpeechCard(onAdd)
             }
@@ -177,74 +177,24 @@ private fun PacksTab(preview: Preview, onAdd: (File, String, Double) -> Unit) {
                 }
             }
         }
-        item { Spacer(Modifier.height(40.dp)) }
-    }
-}
-
-@Composable
-private fun FreesoundTab(preview: Preview, onAdd: (File, String, Double) -> Unit) {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val prefs = remember { ctx.getSharedPreferences("klipp", Context.MODE_PRIVATE) }
-    var key by remember { mutableStateOf(prefs.getString("freesoundKey", "").orEmpty()) }
-    var query by remember { mutableStateOf("") }
-    var hits by remember { mutableStateOf<List<SoundFx.Hit>>(emptyList()) }
-    var busy by remember { mutableStateOf<Long?>(null) }
-    var searching by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf<String?>(null) }
-    if (key.isBlank()) {
-        var input by remember { mutableStateOf("") }
-        Column(Modifier.padding(horizontal = 16.dp)) {
-            Text(stringResource(R.string.sfx_freesound_key_intro), color = K.OnSurfaceVar, fontSize = 13.sp)
-            val links = androidx.compose.ui.platform.LocalUriHandler.current
-            Text("freesound.org/apiv2/apply", color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
-                modifier = Modifier.padding(vertical = 6.dp).clickable { runCatching { links.openUri("https://freesound.org/apiv2/apply") } })
-            Field(input, { input = it }, stringResource(R.string.sfx_freesound_key_hint), "sfxKey")
-            PillButton(stringResource(R.string.sfx_save), {
-                prefs.edit().putString("freesoundKey", input.trim()).apply(); key = input.trim()
-            }, Modifier.padding(vertical = 8.dp).testTag("sfxKeySave"))
-        }
-        return
-    }
-    fun search() {
-        if (query.isBlank()) return
-        searching = true; message = null
-        scope.launch {
-            SoundFx.search(key, query).onSuccess { hits = it; if (it.isEmpty()) message = Str.t(R.string.sfx_no_results) }
-                .onFailure { message = Str.t(R.string.sfx_search_failed, Str.netError(it)) }
-            searching = false
-        }
-    }
-    Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f)) { Field(query, { query = it }, stringResource(R.string.sfx_search_hint), "sfxQuery", onDone = ::search) }
-        Spacer(Modifier.width(8.dp))
-        PillButton(stringResource(R.string.sfx_search), ::search, Modifier.testTag("sfxSearch"))
-    }
-    if (searching) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), color = K.Primary)
-    message?.let { Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
-    val rev = SoundFx.revision
-    val mine = remember(rev) { SoundFx.sounds(ctx, SoundFx.FREESOUND) }
-    LazyColumn(Modifier.fillMaxWidth()) {
-        items(hits, key = { it.id }) { h ->
-            SoundRow(h.name, h.seconds, preview.playing == "fs${h.id}", { preview.toggle("fs${h.id}", h.preview) }, {
-                if (busy != null) return@SoundRow
-                busy = h.id
-                scope.launch {
-                    SoundFx.fetch(ctx, h).onSuccess { onAdd(it, h.name, SoundFx.wavSeconds(it)) }
-                        .onFailure { message = Str.t(R.string.sfx_download_failed, Str.netError(it)) }
-                    busy = null
+        // sounds downloaded from Freesound before its search was removed: still listed, still usable
+        val earlier = SoundFx.sounds(ctx, SoundFx.FREESOUND)
+        if (earlier.isNotEmpty()) {
+            item(key = "freesound") {
+                Row(Modifier.fillMaxWidth().clickable { haptics.tick(); open = if (open == SoundFx.FREESOUND) null else SoundFx.FREESOUND }
+                    .padding(horizontal = 16.dp, vertical = 8.dp).testTag("sfxPack:freesound"), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Freesound", color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.sfx_freesound_earlier, earlier.size), color = K.OnSurfaceVar, fontSize = 12.sp)
+                    }
+                    Text(if (open == SoundFx.FREESOUND) "▲" else "▼", color = K.OnSurfaceVar, fontSize = 14.sp)
                 }
-            }, subtitle = h.user, busy = busy == h.id)
+            }
+            if (open == SoundFx.FREESOUND) items(earlier, key = { it.file.path }) { s ->
+                SoundRow(s.name, s.seconds, preview.playing == s.file.path, { preview.toggle(s.file.path, s.file.toURI().toString()) }, { onAdd(s.file, s.name, s.seconds) }, subtitle = s.author)
+            }
         }
-        if (mine.isNotEmpty()) {
-            item { Text(stringResource(R.string.sfx_downloaded), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp)) }
-            items(mine, key = { it.file.path }) { s -> SoundRow(s.name, s.seconds, preview.playing == s.file.path, { preview.toggle(s.file.path, s.file.toURI().toString()) }, { onAdd(s.file, s.name, s.seconds) }) }
-        }
-        item {
-            Text(stringResource(R.string.sfx_forget_key), color = K.OnSurfaceVar, fontSize = 12.sp,
-                modifier = Modifier.padding(16.dp).clickable { prefs.edit().remove("freesoundKey").apply(); key = "" })
-        }
+        item { Spacer(Modifier.height(40.dp)) }
     }
 }
 

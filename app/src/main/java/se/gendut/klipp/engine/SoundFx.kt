@@ -19,7 +19,6 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.ZipInputStream
@@ -29,8 +28,8 @@ import java.util.zip.ZipInputStream
  * free to redistribute):
  *  - packs from Kenney (kenney.nl), downloaded as a whole;
  *  - clips cut from single sounds of BigSoundBank (bigsoundbank.com, CC0);
- *  - single sounds found on Freesound (freesound.org, CC0 only), with the user's own free API key – each hit's license
- *    is read from Freesound and checked, and kept beside the sound with its author and page (licensing: THIRD_PARTY.md).
+ *  - (earlier) single CC0 sounds found on Freesound: the search was removed in 2026-11 (Freesound's API terms don't
+ *    cover a paid app); sounds downloaded before stay in their folder and usable.
  * Every sound is converted to 16-bit WAV on download (the engine's waveform, loudness and ducking read WAV everywhere)
  * and kept in filesDir/sfx, shared by all projects.
  */
@@ -43,6 +42,7 @@ object SoundFx {
         val id: String, val name: String, @StringRes val descRes: Int, val url: String?, val mb: Float,
         val source: String = KENNEY, val clips: List<Clip> = emptyList(),
     )
+
 
     /**
      * One sound cut from a BigSoundBank file (its id): [t0]–[t1] s, raised [gainDb] (to a peak of about −1 dBFS),
@@ -156,17 +156,11 @@ object SoundFx {
         Pack("kenney-jingles", "Music Jingles", R.string.sfx_pack_jingles, "https://kenney.nl/media/pages/assets/music-jingles/f37e530b9e-1677590399/kenney_music-jingles.zip", 1.2f),
     )
 
-    /** Folder for the sounds found on Freesound. */
+    /** Folder of the sounds downloaded from Freesound before its search was removed (kept, still listed). */
     const val FREESOUND = "freesound"
 
     /** A sound on the phone. */
-    data class Sound(val file: File, val name: String, val seconds: Double)
-
-    /** A Freesound search hit. */
-    data class Hit(val id: Long, val name: String, val seconds: Double, val preview: String, val user: String, val license: String = "", val page: String = "")
-
-    /** Freesound's CC0 license (as its API names it: the deed's URL, or the filter's name). */
-    fun isCc0(license: String) = license.contains("publicdomain/zero/1.0") || license.equals("Creative Commons 0", ignoreCase = true)
+    data class Sound(val file: File, val name: String, val seconds: Double, val author: String? = null)
 
     /** Rises when a pack or sound has been added or removed (the lists read the folders again). */
     var revision by mutableIntStateOf(0)
@@ -184,7 +178,11 @@ object SoundFx {
     /** The sounds of a pack (or [FREESOUND]), by name. */
     fun sounds(context: Context, id: String): List<Sound> =
         packDir(context, id).listFiles { f -> f.name.endsWith(".wav") }.orEmpty()
-            .map { f -> Sound(f, label(f), wavSeconds(f)) }.sortedBy { it.name.lowercase() }
+            .map { f -> Sound(f, label(f), wavSeconds(f), sidecar(f)?.optString("user")?.takeIf { it.isNotBlank() }) }.sortedBy { it.name.lowercase() }
+
+    /** The sound's sidecar (name, source, author, license), if it has one. */
+    private fun sidecar(f: File): JSONObject? =
+        File(f.path.removeSuffix(".wav") + ".json").takeIf { it.exists() }?.let { runCatching { JSONObject(it.readText()) }.getOrNull() }
 
     /** The shown name: the sidecar's (Freesound) or the file name made readable. */
     private fun label(f: File): String =
@@ -282,53 +280,6 @@ object SoundFx {
     private fun isSound(name: String) = !name.endsWith("/") && name.substringAfterLast('/') != "Preview.ogg" &&
         name.substringAfterLast('.').lowercase() in setOf("ogg", "wav", "mp3")
 
-    /** Searches Freesound for CC0 sounds (the user's API key). */
-    suspend fun search(key: String, query: String): Result<List<Hit>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val q = URLEncoder.encode(query, "UTF-8")
-            val filter = URLEncoder.encode("license:\"Creative Commons 0\"", "UTF-8")
-            val url = "https://freesound.org/apiv2/search/text/?query=$q&filter=$filter&page_size=30" +
-                "&fields=id,name,duration,previews,username,license,url&token=" + URLEncoder.encode(key.trim(), "UTF-8")
-            parseSearch(get(url))
-        }
-    }
-
-    /** Freesound's answer → hits (with a high-quality preview to download). */
-    fun parseSearch(json: String): List<Hit> {
-        val o = JSONObject(json)
-        o.optString("detail").takeIf { it.isNotBlank() }?.let { error(it) }
-        val a = o.optJSONArray("results") ?: return emptyList()
-        return (0 until a.length()).mapNotNull { i ->
-            val r = a.optJSONObject(i) ?: return@mapNotNull null
-            val p = r.optJSONObject("previews") ?: return@mapNotNull null
-            val url = p.optString("preview-hq-mp3").ifBlank { p.optString("preview-lq-mp3") }.ifBlank { return@mapNotNull null }
-            // only what Freesound itself says is CC0 (the search's filter asks for that; a hit without it is left out)
-            val license = r.optString("license")
-            if (!isCc0(license)) return@mapNotNull null
-            val id = r.optLong("id")
-            Hit(id, r.optString("name").removeSuffix(".wav").removeSuffix(".mp3"), r.optDouble("duration", 0.0), url, r.optString("username"),
-                license, r.optString("url").ifBlank { "https://freesound.org/s/$id/" })
-        }
-    }
-
-    /** Downloads a Freesound hit (its preview) as WAV into the Freesound folder; already there = that file. */
-    suspend fun fetch(context: Context, hit: Hit): Result<File> = withContext(Dispatchers.IO) {
-        runCatching {
-            val d = packDir(context, FREESOUND).apply { mkdirs() }
-            val out = File(d, "${hit.id}.wav")
-            if (!out.exists()) {
-                val tmp = File(context.cacheDir, "fs_${hit.id}.mp3")
-                try {
-                    fetch(hit.preview, tmp) {}
-                    decodeToWav(tmp.path, out)
-                } finally { tmp.delete() }
-                File(d, "${hit.id}.json").writeText(JSONObject().put("name", hit.name).put("user", hit.user).put("id", hit.id).put("license", hit.license).put("page", hit.page).put("source", "Freesound").toString())
-                revision++
-            }
-            out
-        }
-    }
-
     /**
      * The phone's own audio file [uri] copied into the app (files/audio): the file, its name without extension, its
      * length in seconds. Throws if it has no audio.
@@ -393,20 +344,6 @@ object SoundFx {
                     }
                 }
             }
-        } finally { c.disconnect() }
-    }
-
-    private fun get(url: String): String {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 15_000; c.readTimeout = 30_000
-        try {
-            val ok = c.responseCode in 200..299
-            val body = (if (ok) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (!ok) {
-                val detail = runCatching { JSONObject(body).optString("detail") }.getOrNull()
-                error(detail?.takeIf { it.isNotBlank() } ?: "HTTP ${c.responseCode}")
-            }
-            return body
         } finally { c.disconnect() }
     }
 
