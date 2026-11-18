@@ -30,4 +30,6 @@
     <string name="sfx_pack_comedy">boings, rimshots, record scratches, drum rolls, applause, laughter</string>
     <string name="sfx_pack_accent">heartbeats, magic chimes, punches, booms, cymbals</string>
     <string name="sfx_freesound_earlier">%1$d sounds downloaded earlier · CC0 · its search is no longer in Klipp</string>
+    <string name="sfx_pack_unavailable">Not available yet</string>
+    <string name="sfx_packs_moving">Some packs can\'t be downloaded right now – Klipp is moving them to a download of its own. Sounds you have already downloaded stay, and your projects keep using them.</string>
 </resources>

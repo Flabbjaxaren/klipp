@@ -47,8 +47,8 @@ class SoundFxTest {
     @Test fun catalogIsSane() {
         assertEquals(SoundFx.PACKS.size, SoundFx.PACKS.map { it.id }.toSet().size)
         for (p in SoundFx.PACKS) {
-            // a zip (Kenney) or cut clips (BigSoundBank), never both or neither
-            assertTrue(p.id, (p.url != null) xor p.clips.isNotEmpty())
+            // a zip (Kenney, no clips) or cut clips (BigSoundBank); every pack names where its publisher offers it
+            assertTrue(p.id, p.page != null && (p.source == SoundFx.KENNEY) == p.clips.isEmpty())
             assertEquals(p.id, p.clips.size, p.clips.map { it.name }.toSet().size)
             for (c in p.clips) {
                 assertTrue("${p.id} ${c.name}", c.t1 > c.t0 && c.t1 - c.t0 in 0.05..10.0)

@@ -140,6 +140,10 @@ private fun PacksTab(preview: Preview, onAdd: (File, String, Double) -> Unit) {
     val installedPacks = remember(rev) { SoundFx.PACKS.filter { SoundFx.installed(ctx, it) }.map { it.id }.toSet() }
     // (above the list, not in it: as the list's first row it appeared scrolled out of view)
     error?.let { e -> Text(e, color = K.Error, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("sfx:error")) }
+    // packs that can't be downloaded now (no file on Klipp's own release yet): say why, once, above the list
+    if (SoundFx.PACKS.any { it.hosted == null && it.id !in installedPacks })
+        Text(stringResource(R.string.sfx_packs_moving), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("sfx:moving"))
     LazyColumn(Modifier.fillMaxWidth()) {
         for (pack in SoundFx.PACKS) {
             val installed = pack.id in installedPacks
@@ -157,6 +161,8 @@ private fun PacksTab(preview: Preview, onAdd: (File, String, Double) -> Unit) {
                     when {
                         progress != null -> Text("${(progress * 100).toInt()} %", color = K.Primary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         installed -> Text(if (open == pack.id) "▲" else "▼", color = K.OnSurfaceVar, fontSize = 14.sp)
+                        pack.hosted == null -> Text(stringResource(R.string.sfx_pack_unavailable), color = K.OnSurfaceVar, fontSize = 12.sp,
+                            modifier = Modifier.testTag("sfxUnavailable:${pack.id}"))
                         else -> PillButton(stringResource(R.string.sfx_download), {
                             error = null
                             scope.launch {

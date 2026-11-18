@@ -35,11 +35,14 @@ import java.util.zip.ZipInputStream
  */
 object SoundFx {
     /**
-     * A downloadable pack. [name] is the publisher's (proper) name; [descRes] says what is in it. Either a zip of
-     * sound files ([url], Kenney) or a list of [clips] cut from single files (BigSoundBank).
+     * A downloadable pack. [name] is the publisher's (proper) name; [descRes] says what is in it; [page] is where the
+     * publisher offers it. Either a zip of sound files (no [clips], Kenney) or [clips] cut from single files
+     * (BigSoundBank). New downloads come only from Klipp's own release ([hosted]); a pack without one can't be
+     * downloaded now (the publishers' old download links stopped working or exclude automated access) – packs already
+     * on the phone stay.
      */
     data class Pack(
-        val id: String, val name: String, @StringRes val descRes: Int, val url: String?, val mb: Float,
+        val id: String, val name: String, @StringRes val descRes: Int, val page: String?, val mb: Float,
         val source: String = KENNEY, val clips: List<Clip> = emptyList(), val hosted: Hosted? = HOSTED[id],
     )
 
@@ -72,7 +75,7 @@ object SoundFx {
     const val BIGSOUNDBANK = "BigSoundBank"
 
     val PACKS = listOf(
-        Pack("bsb-whoosh", "Whooshes & Transitions", R.string.sfx_pack_whoosh, null, 0.6f, BIGSOUNDBANK, listOf(
+        Pack("bsb-whoosh", "Whooshes & Transitions", R.string.sfx_pack_whoosh, "https://bigsoundbank.com", 0.6f, BIGSOUNDBANK, listOf(
             Clip("1795", 0.249, 0.619, "Whoosh 3", 0.8f, 0.03),
             Clip("1796", 0.19, 0.668, "Whoosh 4", 1.3f, 0.03),
             Clip("1797", 0.18, 0.439, "Whoosh 5", 4.6f, 0.03),
@@ -94,7 +97,7 @@ object SoundFx {
             Clip("0128", 0.02, 0.469, "Swish", 1.0f, 0.03),
             Clip("0127", 0.06, 0.619, "Blade swish", -0.5f, 0.03),
         )),
-        Pack("bsb-social", "Social & UI", R.string.sfx_pack_social, null, 0.7f, BIGSOUNDBANK, listOf(
+        Pack("bsb-social", "Social & UI", R.string.sfx_pack_social, "https://bigsoundbank.com", 0.7f, BIGSOUNDBANK, listOf(
             Clip("2063", 0.0, 0.389, "Notification 1", -0.4f, 0.03),
             Clip("2064", 0.0, 0.389, "Notification 2", -0.4f, 0.03),
             Clip("2065", 0.0, 0.389, "Notification 3", -0.5f, 0.03),
@@ -119,7 +122,7 @@ object SoundFx {
             Clip("1742", 0.07, 0.379, "Mouse click", 0.6f, 0.03),
             Clip("1740", 0.06, 0.349, "Trackpad click", 1.6f, 0.03),
         )),
-        Pack("bsb-comedy", "Comedy & Reactions", R.string.sfx_pack_comedy, null, 2.6f, BIGSOUNDBANK, listOf(
+        Pack("bsb-comedy", "Comedy & Reactions", R.string.sfx_pack_comedy, "https://bigsoundbank.com", 2.6f, BIGSOUNDBANK, listOf(
             Clip("2277", 0.08, 0.988, "Boing 1", -1.1f, 0.03),
             Clip("2279", 0.13, 1.157, "Boing 3", -1.1f, 0.03),
             Clip("2281", 0.11, 1.267, "Boing 5", -1.1f, 0.03),
@@ -144,7 +147,7 @@ object SoundFx {
             Clip("2270", 0.0, 0.160, "Cartoon knock", -0.9f, 0.03),
             Clip("2261", 0.0, 0.329, "Cartoon bonk", -1.0f, 0.03),
         )),
-        Pack("bsb-accent", "Accents & Hits", R.string.sfx_pack_accent, null, 1.9f, BIGSOUNDBANK, listOf(
+        Pack("bsb-accent", "Accents & Hits", R.string.sfx_pack_accent, "https://bigsoundbank.com", 1.9f, BIGSOUNDBANK, listOf(
             Clip("0243", 0.03, 0.619, "Heartbeat", 0.1f, 0.03),
             Clip("0244", 0.01, 0.619, "Heartbeat 2", 3.1f, 0.03),
             Clip("2079", 0.07, 2.245, "Magic chimes", -0.8f, 0.03),
@@ -164,13 +167,13 @@ object SoundFx {
             Clip("2274", 0.02, 1.317, "Finger cymbals", -0.7f, 0.03),
             Clip("0095", 5.178, 5.408, "Door knock", 1.1f, 0.03),
         )),
-        Pack("kenney-impact", "Impact Sounds", R.string.sfx_pack_impact, "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip", 0.8f),
-        Pack("kenney-interface", "Interface Sounds", R.string.sfx_pack_interface, "https://kenney.nl/media/pages/assets/interface-sounds/fa43c1dd4d-1677589452/kenney_interface-sounds.zip", 0.8f),
-        Pack("kenney-ui", "UI Audio", R.string.sfx_pack_ui, "https://kenney.nl/media/pages/assets/ui-audio/490d233f68-1677590494/kenney_ui-audio.zip", 0.4f),
-        Pack("kenney-rpg", "RPG Audio", R.string.sfx_pack_rpg, "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip", 1.0f),
-        Pack("kenney-scifi", "Sci-Fi Sounds", R.string.sfx_pack_scifi, "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip", 5.9f),
-        Pack("kenney-digital", "Digital Audio", R.string.sfx_pack_digital, "https://kenney.nl/media/pages/assets/digital-audio/216eac4753-1677590265/kenney_digital-audio.zip", 1.0f),
-        Pack("kenney-jingles", "Music Jingles", R.string.sfx_pack_jingles, "https://kenney.nl/media/pages/assets/music-jingles/f37e530b9e-1677590399/kenney_music-jingles.zip", 1.2f),
+        Pack("kenney-impact", "Impact Sounds", R.string.sfx_pack_impact, "https://kenney.nl/assets/impact-sounds", 0.8f),
+        Pack("kenney-interface", "Interface Sounds", R.string.sfx_pack_interface, "https://kenney.nl/assets/interface-sounds", 0.8f),
+        Pack("kenney-ui", "UI Audio", R.string.sfx_pack_ui, "https://kenney.nl/assets/ui-audio", 0.4f),
+        Pack("kenney-rpg", "RPG Audio", R.string.sfx_pack_rpg, "https://kenney.nl/assets/rpg-audio", 1.0f),
+        Pack("kenney-scifi", "Sci-Fi Sounds", R.string.sfx_pack_scifi, "https://kenney.nl/assets/sci-fi-sounds", 5.9f),
+        Pack("kenney-digital", "Digital Audio", R.string.sfx_pack_digital, "https://kenney.nl/assets/digital-audio", 1.0f),
+        Pack("kenney-jingles", "Music Jingles", R.string.sfx_pack_jingles, "https://kenney.nl/assets/music-jingles", 1.2f),
     )
 
     /** Folder of the sounds downloaded from Freesound before its search was removed (kept, still listed). */
@@ -217,15 +220,14 @@ object SoundFx {
      * Returns the number of sounds.
      */
     suspend fun download(context: Context, pack: Pack): Result<Int> = withContext(Dispatchers.IO) {
-        if (pack.hosted != null && pack.clips.isNotEmpty()) return@withContext downloadHostedClips(context, pack, pack.hosted)
-        if (pack.url == null) return@withContext downloadClips(context, pack) { id, dst -> fetch("https://bigsoundbank.com/UPLOAD/ogg/$id.ogg", dst) {} }
+        // only Klipp's own pinned files: nothing is fetched from the publishers' old links
+        val hosted = pack.hosted ?: return@withContext Result.failure(PackUnavailable(pack.id))
+        if (pack.clips.isNotEmpty()) return@withContext downloadHostedClips(context, pack, hosted)
         val out = packDir(context, pack.id)
         val zip = File(context.cacheDir, "sfx_${pack.id}.zip")
         progress[pack.id] = 0f
         try {
-            val hosted = pack.hosted
-            if (hosted != null) fetchVerified(hosted, zip) { p -> progress[pack.id] = p * 0.5f }
-            else fetch(pack.url, zip) { p -> progress[pack.id] = p * 0.5f }
+            fetchVerified(hosted, zip) { p -> progress[pack.id] = p * 0.5f }
             out.deleteRecursively(); out.mkdirs()
             val entries = ZipInputStream(zip.inputStream().buffered()).use { z ->
                 generateSequence { z.nextEntry }.count { isSound(it.name) }
@@ -248,7 +250,7 @@ object SoundFx {
                 }
             }
             if (n == 0) error("no sounds in the pack")
-            File(out, DONE).writeText(pack.hosted?.let { "$SOUNDS_RELEASE/${it.file} ${it.sha256}" } ?: pack.url)
+            File(out, DONE).writeText("$SOUNDS_RELEASE/${hosted.file} ${hosted.sha256}")
             Result.success(n)
         } catch (e: Throwable) {
             out.deleteRecursively()
@@ -287,6 +289,9 @@ object SoundFx {
         }
     }
 
+    /** A pack with no file on Klipp's release yet: new downloads are off (see [Pack]). */
+    class PackUnavailable(id: String) : Exception("$id is not available for download")
+
     /** Downloads [h] to [out] and keeps it only if it is the pinned file (size and SHA-256); otherwise throws. */
     private fun fetchVerified(h: Hosted, out: File, onProgress: (Float) -> Unit) {
         fetch(h.url, out, onProgress)
@@ -301,7 +306,7 @@ object SoundFx {
      * A pack of [Pack.clips]: each source file once (several sounds can come from the same file), cut and leveled.
      * [source] puts a source file (its BigSoundBank id) into the given file.
      */
-    private suspend fun downloadClips(context: Context, pack: Pack, marker: String = pack.id, source: (String, File) -> Unit): Result<Int> {
+    private suspend fun downloadClips(context: Context, pack: Pack, marker: String, source: (String, File) -> Unit): Result<Int> {
         val out = packDir(context, pack.id)
         progress[pack.id] = 0f
         val files = HashMap<String, File>()
