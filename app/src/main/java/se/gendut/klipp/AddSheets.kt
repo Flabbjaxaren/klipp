@@ -4,6 +4,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -43,6 +45,9 @@ internal fun Modifier.upwardStaysInside(): Modifier = nestedScroll(object : andr
  * What the edit page's dock adds, each in a sheet of its own over the edit page: the page stays where it is, and what
  * is made lands on the timeline at the playhead. (Sound is the sound effect sheet with speech as a third tab.)
  */
+/** Below this screen height (dp) a tall sheet scrolls as one, its tabs and main button included (landscape). */
+const val COMPACT_SHEET_HEIGHT = 480
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddSheet(
@@ -62,8 +67,17 @@ private fun AddSheet(
         onDismissRequest = { if (canClose()) onDismiss() }, sheetState = sheet, containerColor = K.Surface,
         scrimColor = if (tall) K.Bg.copy(alpha = 0.5f) else Color.Transparent,
     ) {
+        // a low screen (landscape): everything scrolls as one – the tabs and the button kept in view would leave the
+        // content a sliver, and with the keyboard up the field being typed in no room at all
+        val compact = tall && LocalConfiguration.current.screenHeightDp < COMPACT_SHEET_HEIGHT
         Box((if (tall) Modifier.fillMaxHeight(0.9f) else Modifier).fillMaxWidth().upwardStaysInside().testTag(tag)) {
-            Column((if (tall) Modifier.fillMaxHeight() else Modifier).fillMaxWidth()) {
+            if (compact) Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                SheetHeader(title) { if (canClose()) onDismiss() }
+                top?.invoke(this)
+                content()
+                bottom?.invoke(this)
+                Spacer(Modifier.height(16.dp))
+            } else Column((if (tall) Modifier.fillMaxHeight() else Modifier).fillMaxWidth()) {
                 SheetHeader(title) { if (canClose()) onDismiss() }
                 top?.invoke(this)
                 Column(if (tall) Modifier.weight(1f).verticalScroll(rememberScrollState()) else Modifier) {
