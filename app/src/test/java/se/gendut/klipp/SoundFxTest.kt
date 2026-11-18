@@ -36,11 +36,15 @@ class SoundFxTest {
 
     @Test fun freesoundAnswerBecomesHits() {
         val json = """{"count":2,"results":[
-            {"id":123,"name":"whoosh fast.wav","duration":1.25,"username":"anna","previews":{"preview-hq-mp3":"https://cdn.freesound.org/previews/0/123-hq.mp3","preview-lq-mp3":"x"}},
-            {"id":124,"name":"no preview","duration":2.0,"username":"bo"}]}"""
+            {"id":123,"name":"whoosh fast.wav","duration":1.25,"username":"anna","license":"http://creativecommons.org/publicdomain/zero/1.0/","url":"https://freesound.org/people/anna/sounds/123/","previews":{"preview-hq-mp3":"https://cdn.freesound.org/previews/0/123-hq.mp3","preview-lq-mp3":"x"}},
+            {"id":124,"name":"no preview","duration":2.0,"username":"bo","license":"http://creativecommons.org/publicdomain/zero/1.0/"},
+            {"id":125,"name":"not CC0","duration":2.0,"username":"cy","license":"http://creativecommons.org/licenses/by/4.0/","previews":{"preview-hq-mp3":"https://cdn.freesound.org/previews/0/125-hq.mp3"}},
+            {"id":126,"name":"no license said","duration":2.0,"username":"di","previews":{"preview-hq-mp3":"https://cdn.freesound.org/previews/0/126-hq.mp3"}}]}"""
         val hits = SoundFx.parseSearch(json)
+        // only CC0 hits with a preview: the license is checked, not assumed from the search's filter
         assertEquals(1, hits.size)
-        assertEquals(SoundFx.Hit(123, "whoosh fast", 1.25, "https://cdn.freesound.org/previews/0/123-hq.mp3", "anna"), hits[0])
+        assertEquals(SoundFx.Hit(123, "whoosh fast", 1.25, "https://cdn.freesound.org/previews/0/123-hq.mp3", "anna",
+            "http://creativecommons.org/publicdomain/zero/1.0/", "https://freesound.org/people/anna/sounds/123/"), hits[0])
         // an error from Freesound (wrong key) is reported, not shown as "no results"
         val err = runCatching { SoundFx.parseSearch("""{"detail":"Invalid token."}""") }
         assertTrue(err.isFailure); assertEquals("Invalid token.", err.exceptionOrNull()?.message)

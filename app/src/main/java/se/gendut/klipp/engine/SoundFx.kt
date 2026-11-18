@@ -28,7 +28,9 @@ import java.util.zip.ZipInputStream
  * Sound effects that can be downloaded in the app – only CC0 material (free to use in any film, no credit required, and
  * free to redistribute):
  *  - packs from Kenney (kenney.nl), downloaded as a whole;
- *  - single sounds found on Freesound (freesound.org, CC0 only), with the user's own free API key.
+ *  - clips cut from single sounds of BigSoundBank (bigsoundbank.com, CC0);
+ *  - single sounds found on Freesound (freesound.org, CC0 only), with the user's own free API key – each hit's license
+ *    is read from Freesound and checked, and kept beside the sound with its author and page (licensing: THIRD_PARTY.md).
  * Every sound is converted to 16-bit WAV on download (the engine's waveform, loudness and ducking read WAV everywhere)
  * and kept in filesDir/sfx, shared by all projects.
  */
@@ -161,7 +163,10 @@ object SoundFx {
     data class Sound(val file: File, val name: String, val seconds: Double)
 
     /** A Freesound search hit. */
-    data class Hit(val id: Long, val name: String, val seconds: Double, val preview: String, val user: String)
+    data class Hit(val id: Long, val name: String, val seconds: Double, val preview: String, val user: String, val license: String = "", val page: String = "")
+
+    /** Freesound's CC0 license (as its API names it: the deed's URL, or the filter's name). */
+    fun isCc0(license: String) = license.contains("publicdomain/zero/1.0") || license.equals("Creative Commons 0", ignoreCase = true)
 
     /** Rises when a pack or sound has been added or removed (the lists read the folders again). */
     var revision by mutableIntStateOf(0)
@@ -283,7 +288,7 @@ object SoundFx {
             val q = URLEncoder.encode(query, "UTF-8")
             val filter = URLEncoder.encode("license:\"Creative Commons 0\"", "UTF-8")
             val url = "https://freesound.org/apiv2/search/text/?query=$q&filter=$filter&page_size=30" +
-                "&fields=id,name,duration,previews,username&token=" + URLEncoder.encode(key.trim(), "UTF-8")
+                "&fields=id,name,duration,previews,username,license,url&token=" + URLEncoder.encode(key.trim(), "UTF-8")
             parseSearch(get(url))
         }
     }
@@ -297,7 +302,12 @@ object SoundFx {
             val r = a.optJSONObject(i) ?: return@mapNotNull null
             val p = r.optJSONObject("previews") ?: return@mapNotNull null
             val url = p.optString("preview-hq-mp3").ifBlank { p.optString("preview-lq-mp3") }.ifBlank { return@mapNotNull null }
-            Hit(r.optLong("id"), r.optString("name").removeSuffix(".wav").removeSuffix(".mp3"), r.optDouble("duration", 0.0), url, r.optString("username"))
+            // only what Freesound itself says is CC0 (the search's filter asks for that; a hit without it is left out)
+            val license = r.optString("license")
+            if (!isCc0(license)) return@mapNotNull null
+            val id = r.optLong("id")
+            Hit(id, r.optString("name").removeSuffix(".wav").removeSuffix(".mp3"), r.optDouble("duration", 0.0), url, r.optString("username"),
+                license, r.optString("url").ifBlank { "https://freesound.org/s/$id/" })
         }
     }
 
@@ -312,7 +322,7 @@ object SoundFx {
                     fetch(hit.preview, tmp) {}
                     decodeToWav(tmp.path, out)
                 } finally { tmp.delete() }
-                File(d, "${hit.id}.json").writeText(JSONObject().put("name", hit.name).put("user", hit.user).put("id", hit.id).put("license", "CC0").toString())
+                File(d, "${hit.id}.json").writeText(JSONObject().put("name", hit.name).put("user", hit.user).put("id", hit.id).put("license", hit.license).put("page", hit.page).put("source", "Freesound").toString())
                 revision++
             }
             out
