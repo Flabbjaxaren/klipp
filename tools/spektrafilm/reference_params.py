@@ -3,15 +3,20 @@ Reference images for Klipp's controls that correspond to spektrafilm's (app/src/
 each case is spektrafilm run with one or more controls changed, on a small test image without randomness (grain and glare
 off), plus the grain's and the glare's statistics on flat areas. FilmFxParamsTest compares Klipp against them.
 
-Run:  python reference_params.py <spektrafilm/src> <out.json.gz>
+Run:  python reference_params.py <spektrafilm/src> <out.json.gz> [--spectra <dir>]   (see export_tables.py)
 
 spektrafilm: (c) Andrea Volpato et al., GPL-3.0; the profiles CC BY-SA 4.0.
 """
-import dataclasses, gzip, json, sys
+import dataclasses, gzip, json, os, sys
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import klipp_spectra_patch
+SPECTRA = klipp_spectra_patch.take_spectra_arg(sys.argv)
 SRC, OUT = sys.argv[1], sys.argv[2]
 sys.path.insert(0, SRC)
+if SPECTRA:
+    klipp_spectra_patch.install(SPECTRA)
 
 from spektrafilm.profiles.io import load_profile
 from spektrafilm.runtime.params_builder import init_params, digest_params

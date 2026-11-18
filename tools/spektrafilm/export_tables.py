@@ -4,18 +4,30 @@ Exports spektrafilm's tables to Klipp (app/src/main/assets/spektrafilm).
 Klipp runs spektrafilm's color pipeline (exposure → development → printing → scanning) per pixel on the phone
 and bakes it into a 3D LUT. Whatever depends only on the film or the paper is computed here, with spektrafilm's own code:
 
-  * the film's tc-LUT (hanatos2025 spectra × the film's sensitivity, with window fitting and gamut compression)
+  * the film's tc-LUT (the spectral upsampling table × the film's sensitivity, with window fitting and gamut compression;
+    Klipp's shipped tables use Klipp's own spectra: --spectra, see tools/spectra/README.md)
   * the BT.709/sRGB → XYZ matrix adapted (CAT16) to the film's reference illuminant
   * curves, channel densities, base density, sensitivity (paper), the DIR couplers' values (after digest_params)
   * the scan (density → sRGB-encoded image, with the output's gamut compression) as a 3D LUT per paper and slide film
   * the enlarger's light (TH-KG3), the dichroic filters and the database of neutral filters
 
-Run:  python export_tables.py <spektrafilm/src> <out_dir> [<reference.json>]
+Run:  python export_tables.py <spektrafilm/src> <out_dir> [<reference.json>] [--spectra <dir>]
+
+  --spectra <dir>   use Klipp's own spectral upsampling tables (tools/spectra/build.py: klipp_spectra_<illuminant>.npy)
+                    instead of spektrafilm's bundled hanatos2025 table, each film with the table for its reference
+                    illuminant. The film's sensitivities are rebalanced per channel so that mid grey gives exactly the
+                    same film exposure as with the bundled table (the profiles are balanced against that table), so
+                    neutrals and exposure stay unchanged and only colours move. Everything that depends on the table -
+                    the film tables and the reference values for Klipp's tests - is made with it.
 
 spektrafilm: (c) Andrea Volpato et al., GPL-3.0; the profiles CC BY-SA 4.0 – see assets/spektrafilm/LICENSE*.
 """
 import json, os, sys
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import klipp_spectra_patch
+SPECTRA = klipp_spectra_patch.take_spectra_arg(sys.argv)
 
 SRC, OUT = sys.argv[1], sys.argv[2]
 REF = sys.argv[3] if len(sys.argv) > 3 else None
@@ -33,6 +45,9 @@ from spektrafilm.utils.io import read_neutral_print_filters
 from spektrafilm.utils.morph_curves import apply_print_curves_morph
 
 SCAN_N = int(os.environ.get("SCAN_N", "33"))
+
+if SPECTRA:
+    klipp_spectra_patch.install(SPECTRA)
 
 def arr(a):
     a = np.asarray(a, dtype=float)
