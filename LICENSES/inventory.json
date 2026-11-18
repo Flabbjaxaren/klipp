@@ -45,7 +45,7 @@
    "changes": "18 upstream files modified (each marked 'Modified for Klipp' under its license header, changes marked 'Klipp'); 8 files added (Klipp*.java, fragment_shader_klipp_sdr_external_yuv_es3.glsl) – see the modules' KLIPP.md. Media3 has no NOTICE file.",
    "included_in": "classes*.dex, resources",
    "status": "verified",
-   "notes": "Verified against the 1.11.1 source jars and AAR: the other files are identical. Some added Klipp files state no license (open question)."
+   "notes": "Verified against the 1.11.1 source jars and AAR: the other files are identical. Klipp's own added files (KlippBlend, KlippFrameFill, KlippPrecision, KlippPriority, KlippYuv, KlippAudio, KlippPreroll – no code copied from Media3; KlippFrameFill shares only the interface's method signatures) carry 'Copyright 2026 The Klipp contributors', Apache-2.0. KlippSilenceMediaSource and the YUV shader are derived from Media3 files and keep the Android Open Source Project's copyright with a 'Modified for Klipp' notice."
   },
   {
    "id": "whisper.cpp",
@@ -370,7 +370,7 @@
    "notices": [],
    "included_in": "downloaded on request (not in the APK)",
    "status": "incomplete",
-   "notes": "Each zip's License.txt says CC0 (6 of 7 read from archived copies; Sci-Fi Sounds only from its page). The hard-coded zip URLs stopped working in 2026-11: kenney.nl now redirects them to the asset pages (the download fails)."
+   "notes": "Each zip's License.txt says CC0. kenney.nl's old zip links stopped working in 2026-11 (redirect to the asset pages). Prepared: the packs as versioned, SHA-256-pinned files on Klipp's release sounds-1 (tools/sounds); they need the originals downloaded by hand (kenney.nl disallows automated access) and the release published."
   },
   {
    "id": "download:bigsoundbank",
@@ -384,21 +384,21 @@
    "notices": [],
    "included_in": "downloaded on request (not in the APK)",
    "status": "incomplete",
-   "notes": "All 75 sound pages say CC0. The app fetches /UPLOAD/<id>.ogg, which the site's robots.txt and ai.txt disallow for automated access; no hashes. 0448 is a recording of an iPhone camera sound."
+   "notes": "All 75 sound pages say CC0. The app still fetches bigsoundbank.com/UPLOAD/<id>.ogg, which robots.txt/ai.txt exclude for automated access. Prepared: one versioned, SHA-256-pinned zip per pack on Klipp's release sounds-1 (tools/sounds), from originals downloaded by hand. 0448 is a recording of an iPhone camera sound."
   },
   {
    "id": "download:freesound",
-   "component": "Freesound search (CC0 sounds, HQ previews)",
+   "component": "Freesound sounds downloaded earlier",
    "version": "API v2",
    "kind": "download-api",
    "category": "downloads",
    "origin": "https://freesound.org/apiv2/",
-   "license": "Sounds: CC0-1.0 (filter license:\"Creative Commons 0\"); API: Freesound API terms of use",
+   "license": "CC0-1.0 (each sound's license as Freesound gave it, kept beside the sound)",
    "copyright": "each sound's author (CC0)",
    "notices": [],
-   "included_in": "on request, with the user's own API key (not in the APK)",
-   "status": "unclear",
-   "notes": "CC0 covers the sounds, not the API: Freesound's API terms say commercial use is negotiated case by case with UPF. Not cleared for a paid app – see docs/licensing-open-questions.md. Klipp reads each hit's license from Freesound, keeps only CC0, and stores the license, author and sound page beside the downloaded sound."
+   "included_in": "only sounds a user downloaded before 2026-11-18, on their phone (not in the APK)",
+   "status": "verified",
+   "notes": "The Freesound search was removed from Klipp on 2026-11-18 (Freesound's API terms don't cover a paid app). Sounds downloaded before stay listed and usable."
   },
   {
    "id": "font:Inter",
@@ -478,13 +478,13 @@
    "notices": [
     "app/src/main/assets/fonts/Raleway/OFL.txt"
    ],
-   "changes": "subset; tables dropped: DSIG",
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
    "files": [
     "assets/fonts/Raleway/*"
    ],
    "included_in": "assets/fonts/Raleway",
-   "status": "unclear",
-   "notes": "Reserved Font Name \"Raleway\" (OFL.txt) is still used by a modified version (subset) – OFL condition 3 needs the copyright holder's written permission, the unmodified file or a rename. Not resolved: see docs/licensing-fonts.md."
+   "status": "verified",
+   "notes": "Reserved Font Name \"Raleway\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
   },
   {
    "id": "font:WorkSans",
@@ -754,13 +754,13 @@
    "notices": [
     "app/src/main/assets/fonts/AbrilFatface/OFL.txt"
    ],
-   "changes": "subset; tables dropped: DSIG, FFTM",
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
    "files": [
     "assets/fonts/AbrilFatface/*"
    ],
    "included_in": "assets/fonts/AbrilFatface",
-   "status": "unclear",
-   "notes": "Reserved Font Name \"Abril\", \"Abril Fatface\" (OFL.txt) is still used by a modified version (subset) – OFL condition 3 needs the copyright holder's written permission, the unmodified file or a rename. Not resolved: see docs/licensing-fonts.md."
+   "status": "verified",
+   "notes": "Reserved Font Name \"Abril\", \"Abril Fatface\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
   },
   {
    "id": "font:Righteous",
@@ -777,13 +777,13 @@
    "notices": [
     "app/src/main/assets/fonts/Righteous/OFL.txt"
    ],
-   "changes": "subset",
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
    "files": [
     "assets/fonts/Righteous/*"
    ],
    "included_in": "assets/fonts/Righteous",
-   "status": "unclear",
-   "notes": "Reserved Font Name \"Righteous\" (OFL.txt) is still used by a modified version (subset) – OFL condition 3 needs the copyright holder's written permission, the unmodified file or a rename. Not resolved: see docs/licensing-fonts.md."
+   "status": "verified",
+   "notes": "Reserved Font Name \"Righteous\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
   },
   {
    "id": "font:Bungee",
@@ -821,13 +821,13 @@
    "notices": [
     "app/src/main/assets/fonts/PlayfairDisplay/OFL.txt"
    ],
-   "changes": "subset; tables dropped: DSIG",
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
    "files": [
     "assets/fonts/PlayfairDisplay/*"
    ],
    "included_in": "assets/fonts/PlayfairDisplay",
-   "status": "unclear",
-   "notes": "Reserved Font Name \"Playfair Display\" (OFL.txt) is still used by a modified version (subset) – OFL condition 3 needs the copyright holder's written permission, the unmodified file or a rename. Not resolved: see docs/licensing-fonts.md."
+   "status": "verified",
+   "notes": "Reserved Font Name \"Playfair Display\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
   },
   {
    "id": "font:Lora",
@@ -844,13 +844,13 @@
    "notices": [
     "app/src/main/assets/fonts/Lora/OFL.txt"
    ],
-   "changes": "subset",
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
    "files": [
     "assets/fonts/Lora/*"
    ],
    "included_in": "assets/fonts/Lora",
-   "status": "unclear",
-   "notes": "Reserved Font Name \"Lora\" (OFL.txt) is still used by a modified version (subset) – OFL condition 3 needs the copyright holder's written permission, the unmodified file or a rename. Not resolved: see docs/licensing-fonts.md."
+   "status": "verified",
+   "notes": "Reserved Font Name \"Lora\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
   },
   {
    "id": "font:Merriweather",
@@ -867,13 +867,13 @@
    "notices": [
     "app/src/main/assets/fonts/Merriweather/OFL.txt"
    ],
-   "changes": "fvar named instances dropped (7 upstream -> 0); instanced: fvar axes wght,wdth,opsz -> wght; opsz pinned to ~72 and wdth to 100 (upstream opsz 18-144 default 18, wdth 87-112 default 100) - advances match opsz=72, outlines within 1 unit (rounding); subset; tables dropped: MVAR, meta; tables dropped: meta",
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
    "files": [
     "assets/fonts/Merriweather/*"
    ],
    "included_in": "assets/fonts/Merriweather",
-   "status": "unclear",
-   "notes": "Reserved Font Name \"Merriweather\" (OFL.txt) is still used by a modified version (subset/instanced) – OFL condition 3 needs the copyright holder's written permission, the unmodified file or a rename. Not resolved: see docs/licensing-fonts.md."
+   "status": "verified",
+   "notes": "Reserved Font Name \"Merriweather\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name). Klipp sets 'opsz' 72 and 'wdth' 100 when drawing it (fonts.json axes), the look of the earlier file."
   },
   {
    "id": "font:CormorantGaramond",
@@ -911,13 +911,13 @@
    "notices": [
     "app/src/main/assets/fonts/LibreBaskerville/OFL.txt"
    ],
-   "changes": "subset",
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
    "files": [
     "assets/fonts/LibreBaskerville/*"
    ],
    "included_in": "assets/fonts/LibreBaskerville",
-   "status": "unclear",
-   "notes": "Reserved Font Name \"Libre Baskerville\" (OFL.txt) is still used by a modified version (subset) – OFL condition 3 needs the copyright holder's written permission, the unmodified file or a rename. Not resolved: see docs/licensing-fonts.md."
+   "status": "verified",
+   "notes": "Reserved Font Name \"Libre Baskerville\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
   },
   {
    "id": "font:DMSerifDisplay",
@@ -1042,13 +1042,13 @@
    "notices": [
     "app/src/main/assets/fonts/DancingScript/OFL.txt"
    ],
-   "changes": "subset; tables dropped: DSIG",
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
    "files": [
     "assets/fonts/DancingScript/*"
    ],
    "included_in": "assets/fonts/DancingScript",
-   "status": "unclear",
-   "notes": "Reserved Font Name \"Dancing Script\" (OFL.txt) is still used by a modified version (subset) – OFL condition 3 needs the copyright holder's written permission, the unmodified file or a rename. Not resolved: see docs/licensing-fonts.md."
+   "status": "verified",
+   "notes": "Reserved Font Name \"Dancing Script\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
   },
   {
    "id": "font:PermanentMarker",
@@ -1857,11 +1857,13 @@
    "kind": "maven",
    "origin": "Google Maven",
    "homepage": null,
-   "license": "NONE",
-   "evidence": "POM <licenses>",
-   "included_in": "not distributed (version alignment)",
+   "license": "Apache-2.0",
+   "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK, so there is no source to publish.",
+   "included_in": "not distributed – Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK, so there is no source to publish.",
    "distributed": false,
-   "notices": [],
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
    "status": "verified"
   },
   {
@@ -2752,9 +2754,9 @@
    "origin": "Maven Central",
    "homepage": null,
    "license": "Apache-2.0",
-   "evidence": "POM <licenses> (parent POM)",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
+   "evidence": "The 'empty to avoid conflict with Guava' artifact: its jar holds only META-INF (manifest and POM), no classes – nothing of it is in the APK (ListenableFuture comes from guava itself).",
+   "included_in": "not distributed – The 'empty to avoid conflict with Guava' artifact: its jar holds only META-INF (manifest and POM), no classes – nothing of it is in the APK (ListenableFuture comes from guava itself).",
+   "distributed": false,
    "notices": [
     "LICENSES/texts/Apache-2.0.txt"
    ],
@@ -2832,9 +2834,9 @@
    "origin": "Maven Central",
    "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
    "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
+   "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+   "included_in": "not distributed – Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+   "distributed": false,
    "notices": [
     "LICENSES/texts/Apache-2.0.txt"
    ],
@@ -2896,9 +2898,9 @@
    "origin": "Maven Central",
    "homepage": "https://github.com/Kotlin/kotlinx.serialization",
    "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
+   "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+   "included_in": "not distributed – Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+   "distributed": false,
    "notices": [
     "LICENSES/texts/Apache-2.0.txt"
    ],

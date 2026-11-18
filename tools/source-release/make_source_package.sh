@@ -96,8 +96,26 @@ for g, a, v in sorted(coords):
             os.remove(dst)
     else:
         missing.append(f"{g}:{a}:{v}")
+def why(coord):
+    # what an artifact without a source jar is: a BOM (a POM of versions, no jar) or a jar without classes
+    g, a, v = coord.split(":")
+    base = None
+    for b in ("https://dl.google.com/dl/android/maven2", "https://repo1.maven.org/maven2"):
+        p = subprocess.run(["curl", "-sfL", "-m", "60", f"{b}/{g.replace('.', '/')}/{a}/{v}/{a}-{v}.pom"], capture_output=True, text=True)
+        if p.returncode == 0:
+            base, pom = b, p.stdout; break
+    if base is None:
+        return "NOT EXPLAINED: no POM found – check by hand"
+    if "<packaging>pom</packaging>" in pom:
+        return "bill of materials (packaging pom): version numbers only, no code – nothing of it is in the APK"
+    jar = os.path.join(out, ".probe.jar")
+    subprocess.run(["curl", "-sfL", "-m", "120", "-o", jar, f"{base}/{g.replace('.', '/')}/{a}/{v}/{a}-{v}.jar"])
+    classes = subprocess.run(["unzip", "-l", jar], capture_output=True, text=True).stdout.count(".class")
+    os.remove(jar) if os.path.exists(jar) else None
+    return "jar without classes (only META-INF) – nothing of it is in the APK" if classes == 0 else f"NOT EXPLAINED: {classes} classes but no source jar"
 with open(os.path.join(out, "MISSING.txt"), "w") as f:
-    f.write("Artifacts without a published source jar (BOMs and empty artifacts have none):\n" + "\n".join(missing) + "\n")
+    f.write("Maven artifacts on the release runtime classpath without a published source jar, and why none is needed:\n\n")
+    f.write("".join(f"{m}: {why(m)}\n" for m in missing))
 print(f"{len(coords) - len(missing)} source jars, {len(missing)} without (see MISSING.txt)")
 EOF
 

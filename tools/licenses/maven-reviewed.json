@@ -277,9 +277,10 @@
  },
  "androidx.compose:compose-bom": {
   "version": "2026.09.00",
-  "license": "NONE",
-  "evidence": "POM <licenses>",
-  "homepage": null
+  "license": "Apache-2.0",
+  "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK, so there is no source to publish.",
+  "homepage": null,
+  "distributed": false
  },
  "androidx.concurrent:concurrent-futures": {
   "version": "1.2.0",
@@ -614,8 +615,9 @@
  "com.google.guava:listenablefuture": {
   "version": "9999.0-empty-to-avoid-conflict-with-guava",
   "license": "Apache-2.0",
-  "evidence": "POM <licenses> (parent POM)",
-  "homepage": null
+  "evidence": "The 'empty to avoid conflict with Guava' artifact: its jar holds only META-INF (manifest and POM), no classes – nothing of it is in the APK (ListenableFuture comes from guava itself).",
+  "homepage": null,
+  "distributed": false
  },
  "com.google.j2objc:j2objc-annotations": {
   "version": "3.0.0",
@@ -647,8 +649,9 @@
  "org.jetbrains.kotlinx:kotlinx-coroutines-bom": {
   "version": "1.10.2",
   "license": "Apache-2.0",
-  "evidence": "POM <licenses>",
-  "homepage": "https://github.com/Kotlin/kotlinx.coroutines"
+  "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+  "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
+  "distributed": false
  },
  "org.jetbrains.kotlinx:kotlinx-coroutines-core": {
   "version": "1.10.2",
@@ -671,8 +674,9 @@
  "org.jetbrains.kotlinx:kotlinx-serialization-bom": {
   "version": "1.7.3",
   "license": "Apache-2.0",
-  "evidence": "POM <licenses>",
-  "homepage": "https://github.com/Kotlin/kotlinx.serialization"
+  "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+  "homepage": "https://github.com/Kotlin/kotlinx.serialization",
+  "distributed": false
  },
  "org.jetbrains.kotlinx:kotlinx-serialization-core": {
   "version": "1.7.3",

@@ -108,8 +108,8 @@ def maven(deps_file):
             "homepage": r.get("homepage"),
             "license": r["license"],
             "evidence": r["evidence"],
-            "included_in": "classes*.dex / resources" if r["license"] != "NONE" else "not distributed (version alignment)",
-            "distributed": r["license"] != "NONE",
+            "included_in": "classes*.dex / resources" if r.get("distributed", True) else "not distributed – " + r["evidence"],
+            "distributed": r.get("distributed", True),
             "notices": r.get("notices") or (["LICENSES/texts/Apache-2.0.txt"] if r["license"] == "Apache-2.0" else []),
             "status": "verified",
         })
