@@ -1,6 +1,6 @@
 # Licensarbetet – slutrapport för granskning
 
-Gren `licensing` (lokal, inte pushad), utgår från `c993d4d` (= `main` på GitHub). Ingen APK-release, tagg eller extern
+Gren `licensing` (lokal, inte pushad), utgår från `c993d4d` (= `main` på GitHub). Senaste commit: se `git log`. Ingen APK-release, tagg eller extern
 kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 
 ## 1. Vad som har gjorts
@@ -22,7 +22,17 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 
 ## 2. Kontroller och resultat
 
-RESULTS_PLACEHOLDER
+| Kontroll | Resultat |
+|---|---|
+| Enhetstester | 738 tester, 0 fel, 1 överhoppat (`FilmCpuRenderTest.renderCases`, som tidigare); lint (release) godkänt |
+| `inventory.py check` | godkänd; provad negativt: en ny ogranskad tillgång och en ny biblioteksversion stoppas |
+| Release-APK:ns innehåll | 373 licensfiler i `assets/licenses/`; alla 522 notiser som inventariet nämner finns i APK:n; originaltypsnitten och Merriweathers axlar med; inga Freesound-adresser eller -nycklar i koden; `BuildConfig.GIT_COMMIT` = byggets commit (med `-dirty` när arbetskopian har ändringar) |
+| Källkodslänkar | `…/tree/<commit>` ger 200 för en pushad commit och 404 för en opushad – taggen måste pushas före bygget (står i processen); `…/releases` och `…/releases/tag/v0.20.0-beta.1` ger 200 |
+| Typsnitt, dator | gamla och nya filer renderade (latin, vikt 400/700, regular/italic): sju familjer pixelidentiska, Merriweather avrundningsskillnader (1 px på 72 px i fet) |
+| Typsnitt, telefon (vivo) | samma projekt med titel (fet) och undertext (normal) i alla åtta typsnitt, före (181) och efter (182): 0 pixlar som skiljer sig märkbart i programmonitorn för alla åtta (Merriweather högst 9/255 i kantutjämning) |
+| Licensvyn, telefon (vivo) | Om → Licenser och källkod: version, bygge, commit, GPL-notis, källkodslänk, hela GPL-texten (scrollad till slutet), en Rust-komponent och dess licens, spektrafilm-avsnittet och CHANGELOG.txt – i normal och 1,3× text. Hittade och rättade: undersidor öppnades nedscrollade, lång rubrik på två rader, notiser med hård radbrytning (nu omflödade, bara blanksteg), "–" som version, crates länkade till registrets index. Kontrollerat igen med 183. Engelska på telefonen; svenska och 1,3× även i Robolectric |
+| Källpaket v0.20.0-beta.1 | byggt ur paketet i tom mapp (Rust offline med tom Cargo-cache) → 0.20.0-beta.1, versionskod 100; libc++ och androidx-biblioteket identiska med releasen, bryggan skiljer sig i inbäddade källsökvägar, whisper i inbäddad commit-sträng. `MISSING.txt` förklarar de fyra Maven-artefakterna utan källkod (tre BOM, en tom jar) |
+| Telefonens utgångsläge | vivon återställd: textstorlek 1,0, "håll vaken" 15, bryggan av, testappens tidigare projekt öppet (oförändrat: klipp och 27 undertexter), hemskärmen; testpaketet är nu 183 (var 181); den installerade Klipp 0.19.3-beta.2 orörd |
 
 ## 3. Kräver ditt beslut
 
