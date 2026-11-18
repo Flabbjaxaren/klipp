@@ -52,7 +52,15 @@ class FakeProps : PropsBackend {
     override fun resizeTransition(transition: Long, seconds: Float) { log += "resize $transition $seconds" }
     override fun removeTransition(transition: Long) { log += "remove $transition" }
     override fun addCutTransition(right: Long, effect: String, seconds: Float, onAdded: (Long) -> Unit) { log += "addcut $right $effect $seconds"; onAdded(42L) }
-    override fun addTitle(text: String, at: Float, look: String) { log += "title $text @$at $look".trimEnd() }
+    /** null: the title is added (onAdded with this id); a text: it can't be placed – that message, nothing added. */
+    var titleRefusal: String? = null
+    var onTitleMessage: ((String) -> Unit)? = null
+    override fun addTitle(text: String, at: Float, look: String, onAdded: (Long) -> Unit) {
+        log += "title $text @$at $look".trimEnd()
+        titleRefusal?.let { onTitleMessage?.invoke(it); return }
+        onAdded(nextTitle)
+    }
+    var nextTitle = 500L
     override fun setTitle(id: Long, text: String?, size: Float?, color: Int?, look: String?) { log += "settitle $text $size $color $look" }
     override fun importCaptions() { log += "captions" }
     /** The editing session of each caption text save (see PropsBackend.setCaptionText). */

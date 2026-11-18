@@ -101,6 +101,9 @@
     <string name="projectcontroller_transition_failed">Övergången gick inte: %1$s</string>
     <string name="projectcontroller_add_clip_first">Lägg in ett klipp först</string>
     <string name="projectcontroller_default_title">Titel</string>
+    <string name="projectcontroller_title_no_track_covered">Ingen plats för en titel vid spelhuvudet: det översta videospåret (V3) används här. Flytta spelhuvudet, eller flytta eller korta klippet på V3.</string>
+    <string name="projectcontroller_title_no_track_room">Inget ledigt videospår ovanför bilden under titelns %1$s s. Flytta spelhuvudet eller gör plats på ett spår ovanför bilden.</string>
+    <string name="projectcontroller_title_no_track_locked">Det lediga videospåret ovanför bilden är låst. Lås upp det eller flytta spelhuvudet.</string>
     <string name="projectcontroller_title_failed">Kunde inte skapa titeln: %1$s</string>
     <string name="projectcontroller_new_caption">Ny undertext</string>
     <string name="projectcontroller_caption_exists">Det finns redan en undertext vid spelhuvudet</string>

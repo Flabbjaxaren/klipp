@@ -296,9 +296,12 @@ internal fun TitleAddButton(state: EditorState, backend: PropsBackend, onEdit: (
         AddAtPlayhead(state, Modifier.fillMaxWidth().testTag("title:add")) {
             haptics.confirm()
             val d = state.titleDraft
-            backend.addTitle(d.shownText(), state.playhead, TitleLook(d.template, d.anim).encode())
-            d.lines = emptyList()
-            onEdit()
+            // the draft and the sheet stay until the title is on the timeline: without a place for it, the reason shows
+            // in the sheet and nothing typed is lost
+            backend.addTitle(d.shownText(), state.playhead, TitleLook(d.template, d.anim).encode()) {
+                d.lines = emptyList()
+                onEdit()
+            }
         }
     }
 }

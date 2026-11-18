@@ -311,7 +311,8 @@ interface PropsBackend {
     fun addCutTransition(right: Long, effect: String, seconds: Float, onAdded: (Long) -> Unit = {}) {}
     /** Save the project soon (something saved with it changed outside the engine, e.g. what gets pre-rendered). */
     fun requestSave() {}
-    fun addTitle(text: String, at: Float, look: String = "")
+    /** A title at [at]; [onAdded] with its clip once it is on the timeline (not called when it can't be placed – the reason is shown). */
+    fun addTitle(text: String, at: Float, look: String = "", onAdded: (Long) -> Unit = {})
     fun setTitle(id: Long, text: String? = null, size: Float? = null, color: Int? = null, look: String? = null)
     fun importCaptions()
     /**

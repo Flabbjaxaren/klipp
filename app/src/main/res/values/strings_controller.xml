@@ -101,6 +101,9 @@
     <string name="projectcontroller_transition_failed">Transition failed: %1$s</string>
     <string name="projectcontroller_add_clip_first">Add a clip first</string>
     <string name="projectcontroller_default_title">Title</string>
+    <string name="projectcontroller_title_no_track_covered">No room for a title at the playhead: the top video track (V3) is in use here. Move the playhead, or move or shorten the clip on V3.</string>
+    <string name="projectcontroller_title_no_track_room">No free video track above the picture for the title\'s %1$s s. Move the playhead, or make room on a track above the picture.</string>
+    <string name="projectcontroller_title_no_track_locked">The free video track above the picture is locked. Unlock it or move the playhead.</string>
     <string name="projectcontroller_title_failed">Couldn\'t create the title: %1$s</string>
     <string name="projectcontroller_new_caption">New caption</string>
     <string name="projectcontroller_caption_exists">There\'s already a caption at the playhead</string>

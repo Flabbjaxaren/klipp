@@ -1962,26 +1962,43 @@ class ProjectController(
         } }
     }
 
-    override fun addTitle(text: String, at: Float, look: String) {
+    override fun addTitle(text: String, at: Float, look: String, onAdded: (Long) -> Unit) {
         scope.launch { editLock.withLock {
             val q = snapshot.sequence ?: run { onMessage(Str.t(R.string.projectcontroller_add_clip_first)); return@launch }
             val l = TitleLook.parse(look)
             val size = q.height * when (l.template) {
                 TitleTemplate.LOWER_THIRD -> 0.062; TitleTemplate.CHAPTER -> 0.085; TitleTemplate.ROLL -> 0.05; TitleTemplate.FREE -> 0.09
             }
-            val r = engine.tryExec(
-                "graphics.newText",
-                JSONObject().put("text", text.ifBlank { Str.t(R.string.projectcontroller_default_title) }).put("time", frameTicks(at.toDouble()))
-                    // the default length from settings (credits rolls twice as long)
-                    .put("seconds", se.gendut.klipp.AppPrefs.titleSeconds(context).toDouble() * if (l.template == TitleTemplate.ROLL) 2 else 1)
-                    .put("size", size.coerceAtLeast(12.0))
-                    .put("position", JSONArray().put(q.width / 2.0).put(q.height * 0.82)),
+            // the default length from settings (credits rolls twice as long)
+            val seconds = se.gendut.klipp.AppPrefs.titleSeconds(context).toDouble() * if (l.template == TitleTemplate.ROLL) 2 else 1
+            // a place the timeline shows (V1–V3), free for the whole title – else say why and make nothing
+            val fps = snapshot.fps.coerceAtLeast(1.0)
+            fun f(sec: Double) = Math.round(sec * fps)
+            val place = titlePlace(
+                q.video.map { t -> t.clips.map { FrameSpan(f(it.start), f(it.start + it.duration)) } },
+                q.video.mapIndexed { i, t -> t.locked || (i < SHOWN_VIDEO_TRACKS && state.locked(SHOWN_VIDEO_TRACKS - 1 - i)) },
+                f(at.toDouble()), f(seconds),
             )
+            if (!place.ok) {
+                onMessage(when (place.problem) {
+                    TitlePlaceProblem.COVERED -> Str.t(R.string.projectcontroller_title_no_track_covered)
+                    TitlePlaceProblem.LOCKED -> Str.t(R.string.projectcontroller_title_no_track_locked)
+                    else -> Str.t(R.string.projectcontroller_title_no_track_room, (if (seconds % 1.0 == 0.0) "%.0f" else "%.1f").format(seconds))
+                })
+                return@launch
+            }
+            val p = JSONObject().put("text", text.ifBlank { Str.t(R.string.projectcontroller_default_title) }).put("time", frameTicks(at.toDouble()))
+                .put("seconds", seconds)
+                .put("size", size.coerceAtLeast(12.0))
+                .put("position", JSONArray().put(q.width / 2.0).put(q.height * 0.82))
+            // the track named (the engine refuses it if it isn't free); a new one is made by the engine, the next one up
+            if (!place.create) place.track?.let { p.put("track", it) }
+            val r = engine.tryExec("graphics.newText", p)
             r.onFailure { onMessage(Str.t(R.string.projectcontroller_title_failed, friendly(it.message))) }
             val clip = r.getOrNull()?.optLong("clip")?.takeIf { it > 0 }
             if (clip != null && look.isNotEmpty()) setParam(clip, "graphic_text", "name", look)
             refresh()
-            clip?.let { state.selected = it; state.inspecting = true }
+            clip?.let { state.selected = it; state.inspecting = true; onAdded(it) }
         } }
     }
 
