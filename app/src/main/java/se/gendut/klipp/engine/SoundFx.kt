@@ -40,9 +40,26 @@ object SoundFx {
      */
     data class Pack(
         val id: String, val name: String, @StringRes val descRes: Int, val url: String?, val mb: Float,
-        val source: String = KENNEY, val clips: List<Clip> = emptyList(),
+        val source: String = KENNEY, val clips: List<Clip> = emptyList(), val hosted: Hosted? = HOSTED[id],
     )
 
+    /**
+     * A pack as a versioned file on Klipp's own GitHub release [SOUNDS_RELEASE] (tools/sounds: the publishers' original
+     * files, CC0, checked and packed with their license and credits). Downloaded only if its [sha256] and [bytes] match.
+     * A pack without one is fetched from its publisher as before.
+     */
+    data class Hosted(val file: String, val sha256: String, val bytes: Long) {
+        val url get() = "https://github.com/Flabbjaxaren/klipp/releases/download/$SOUNDS_RELEASE/$file"
+    }
+
+    /** The release with the sound packs; a new set of files is a new release (sounds-2 …), never a changed one. */
+    const val SOUNDS_RELEASE = "sounds-1"
+
+    /**
+     * The packs prepared for [SOUNDS_RELEASE] (tools/sounds/sounds-1.json, made by tools/sounds/build_sound_assets.py).
+     * Empty until the files are built from the publishers' originals and the release is published.
+     */
+    val HOSTED: Map<String, Hosted> = mapOf()
 
     /**
      * One sound cut from a BigSoundBank file (its id): [t0]–[t1] s, raised [gainDb] (to a peak of about −1 dBFS),
@@ -200,12 +217,15 @@ object SoundFx {
      * Returns the number of sounds.
      */
     suspend fun download(context: Context, pack: Pack): Result<Int> = withContext(Dispatchers.IO) {
-        if (pack.url == null) return@withContext downloadClips(context, pack)
+        if (pack.hosted != null && pack.clips.isNotEmpty()) return@withContext downloadHostedClips(context, pack, pack.hosted)
+        if (pack.url == null) return@withContext downloadClips(context, pack) { id, dst -> fetch("https://bigsoundbank.com/UPLOAD/ogg/$id.ogg", dst) {} }
         val out = packDir(context, pack.id)
         val zip = File(context.cacheDir, "sfx_${pack.id}.zip")
         progress[pack.id] = 0f
         try {
-            fetch(pack.url, zip) { p -> progress[pack.id] = p * 0.5f }
+            val hosted = pack.hosted
+            if (hosted != null) fetchVerified(hosted, zip) { p -> progress[pack.id] = p * 0.5f }
+            else fetch(pack.url, zip) { p -> progress[pack.id] = p * 0.5f }
             out.deleteRecursively(); out.mkdirs()
             val entries = ZipInputStream(zip.inputStream().buffered()).use { z ->
                 generateSequence { z.nextEntry }.count { isSound(it.name) }
@@ -228,7 +248,7 @@ object SoundFx {
                 }
             }
             if (n == 0) error("no sounds in the pack")
-            File(out, DONE).writeText(pack.url)
+            File(out, DONE).writeText(pack.hosted?.let { "$SOUNDS_RELEASE/${it.file} ${it.sha256}" } ?: pack.url)
             Result.success(n)
         } catch (e: Throwable) {
             out.deleteRecursively()
@@ -241,8 +261,47 @@ object SoundFx {
         }
     }
 
-    /** A pack of [Pack.clips]: each source file once (several sounds can come from the same file), cut and leveled. */
-    private suspend fun downloadClips(context: Context, pack: Pack): Result<Int> {
+    /** A hosted pack of [Pack.clips]: one verified zip with the source files, cut as [downloadClips] does. */
+    private suspend fun downloadHostedClips(context: Context, pack: Pack, hosted: Hosted): Result<Int> {
+        val zip = File(context.cacheDir, "sfx_${pack.id}.zip")
+        val dir = File(context.cacheDir, "sfx_${pack.id}_src").apply { deleteRecursively(); mkdirs() }
+        return try {
+            progress[pack.id] = 0f
+            fetchVerified(hosted, zip) { p -> progress[pack.id] = p * 0.3f }
+            ZipInputStream(zip.inputStream().buffered()).use { z ->
+                while (true) {
+                    val e = z.nextEntry ?: break
+                    val name = e.name.substringAfterLast('/')
+                    if (e.isDirectory || !name.endsWith(".ogg")) continue
+                    File(dir, name).outputStream().use { z.copyTo(it) }
+                }
+            }
+            downloadClips(context, pack, marker = "$SOUNDS_RELEASE/${hosted.file} ${hosted.sha256}") { id, dst ->
+                File(dir, "$id.ogg").takeIf { it.isFile }?.copyTo(dst, overwrite = true) ?: error("$id.ogg is not in ${hosted.file}")
+            }
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        } finally {
+            zip.delete(); dir.deleteRecursively()
+        }
+    }
+
+    /** Downloads [h] to [out] and keeps it only if it is the pinned file (size and SHA-256); otherwise throws. */
+    private fun fetchVerified(h: Hosted, out: File, onProgress: (Float) -> Unit) {
+        fetch(h.url, out, onProgress)
+        if (!verified(out, h)) { out.delete(); error("${h.file} is not the expected file") }
+    }
+
+    /** Is [f] the pinned file [h]? */
+    fun verified(f: File, h: Hosted): Boolean =
+        f.length() == h.bytes && se.gendut.klipp.engine.SpeechModels.sha256(f).equals(h.sha256, ignoreCase = true)
+
+    /**
+     * A pack of [Pack.clips]: each source file once (several sounds can come from the same file), cut and leveled.
+     * [source] puts a source file (its BigSoundBank id) into the given file.
+     */
+    private suspend fun downloadClips(context: Context, pack: Pack, marker: String = pack.id, source: (String, File) -> Unit): Result<Int> {
         val out = packDir(context, pack.id)
         progress[pack.id] = 0f
         val files = HashMap<String, File>()
@@ -251,9 +310,7 @@ object SoundFx {
             var n = 0
             for ((i, c) in pack.clips.withIndex()) {
                 currentCoroutineContext().ensureActive()
-                val src = files.getOrPut(c.file) {
-                    File(context.cacheDir, "bsb_${c.file}.ogg").also { fetch("https://bigsoundbank.com/UPLOAD/ogg/${c.file}.ogg", it) {} }
-                }
+                val src = files.getOrPut(c.file) { File(context.cacheDir, "bsb_${c.file}.ogg").also { source(c.file, it) } }
                 runCatching {
                     decodeToWav(src.path, File(out, safe(c.name) + ".wav"), c.t0, c.t1, c.gainDb, c.fade)
                     // the shown name (the file name can't hold all characters)
@@ -264,7 +321,7 @@ object SoundFx {
                 progress[pack.id] = (i + 1f) / pack.clips.size
             }
             if (n == 0) error("no sounds in the pack")
-            File(out, DONE).writeText(pack.id)
+            File(out, DONE).writeText(marker)
             return Result.success(n)
         } catch (e: Throwable) {
             out.deleteRecursively()
