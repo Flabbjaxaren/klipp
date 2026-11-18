@@ -1,0 +1,1530 @@
+{
+ "klipp": {
+  "name": "Klipp",
+  "license": "GPL-3.0",
+  "copyright": "© the Klipp contributors",
+  "source": "https://github.com/Flabbjaxaren/klipp"
+ },
+ "entries": [
+  {
+   "id": "klipp",
+   "component": "Klipp",
+   "version": "see app",
+   "kind": "own",
+   "category": "klipp",
+   "origin": "https://github.com/Flabbjaxaren/klipp",
+   "license": "GPL-3.0-only",
+   "copyright": "© the Klipp contributors",
+   "notices": [
+    "LICENSES/texts/GPL-3.0.txt"
+   ],
+   "included_in": "the whole app (classes*.dex, resources, lib/arm64-v8a/libklipp_bridge.so's JNI bridge, libklipp_whisper.so's JNI glue)",
+   "files": [
+    "assets/gap/*",
+    "assets/yuvcheck/*"
+   ],
+   "status": "verified",
+   "notes": "Klipp's own code and resources, and two small clips Klipp generated (assets/gap: black video for empty stretches; assets/yuvcheck: decoder test clips). The distribution as a whole is offered under GPL-3.0-only; the JNI bridge's own code (rust/) is GPL-3.0-or-later as rust/Cargo.toml says (docs/licensing.md)."
+  },
+  {
+   "id": "media3-vendored",
+   "component": "Media3 effect, transformer, ExoPlayer (modified)",
+   "version": "1.11.1",
+   "kind": "vendored-source",
+   "category": "code",
+   "origin": "https://github.com/androidx/media (release 1.11.1)",
+   "license": "Apache-2.0",
+   "copyright": "© The Android Open Source Project",
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "third_party/media3-effect/KLIPP.md",
+    "third_party/media3-transformer/KLIPP.md",
+    "third_party/media3-exoplayer/KLIPP.md"
+   ],
+   "changes": "18 upstream files modified (each marked 'Modified for Klipp' under its license header, changes marked 'Klipp'); 8 files added (Klipp*.java, fragment_shader_klipp_sdr_external_yuv_es3.glsl) – see the modules' KLIPP.md. Media3 has no NOTICE file.",
+   "included_in": "classes*.dex, resources",
+   "status": "verified",
+   "notes": "Verified against the 1.11.1 source jars and AAR: the other files are identical. Klipp's own added files (KlippBlend, KlippFrameFill, KlippPrecision, KlippPriority, KlippYuv, KlippAudio, KlippPreroll – no code copied from Media3; KlippFrameFill shares only the interface's method signatures) carry 'Copyright 2026 The Klipp contributors', Apache-2.0. KlippSilenceMediaSource and the YUV shader are derived from Media3 files and keep the Android Open Source Project's copyright with a 'Modified for Klipp' notice."
+  },
+  {
+   "id": "whisper.cpp",
+   "component": "whisper.cpp and ggml",
+   "version": "1.9.4 (commit 927cfce)",
+   "kind": "vendored-source",
+   "category": "code",
+   "origin": "https://github.com/ggml-org/whisper.cpp",
+   "license": "MIT",
+   "copyright": "© 2023-2026 The ggml authors; YaRN code © 2023 Jeffrey Quesnelle and Bowen Peng",
+   "notices": [
+    "LICENSES/third-party/whisper.cpp/LICENSE",
+    "LICENSES/third-party/whisper.cpp/AUTHORS",
+    "LICENSES/third-party/whisper.cpp/NOTICE-embedded.txt",
+    "third_party/whisper.cpp/KLIPP.md"
+   ],
+   "changes": "Trimmed to the CPU backend; one function added (whisper_full_get_token_t_dtw), marked [Klipp].",
+   "included_in": "lib/arm64-v8a/libklipp_whisper.so",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "libc++",
+   "component": "libc++ (LLVM C++ standard library)",
+   "version": "Android NDK 29.0.14206865 (build id ba615e4f…)",
+   "kind": "native-runtime",
+   "category": "code",
+   "origin": "Android NDK (LLVM)",
+   "license": "Apache-2.0 WITH LLVM-exception (and the legacy University of Illinois/NCSA license for older code)",
+   "copyright": "© the LLVM Project contributors; © 2003-2019 University of Illinois at Urbana-Champaign",
+   "notices": [
+    "LICENSES/third-party/libc++/NOTICE.txt",
+    "LICENSES/third-party/libc++/SOURCE.txt"
+   ],
+   "included_in": "lib/arm64-v8a/libc++_shared.so",
+   "status": "verified",
+   "notes": "Same build id as the NDK's sysroot copy (the APK's copy is stripped by the build). Shipped as its own shared library, so the LLVM exception for code embedded in object files does not apply: the notice ships."
+  },
+  {
+   "id": "spektrafilm-code",
+   "component": "spektrafilm (ported code)",
+   "version": "commit 3bb2c2d (2026-06-07)",
+   "kind": "port",
+   "category": "code",
+   "origin": "https://github.com/andreavolpato/spektrafilm",
+   "license": "GPL-3.0",
+   "copyright": "© Andrea Volpato et al.",
+   "notices": [
+    "app/src/main/assets/spektrafilm/LICENSE-GPL-3.0.txt"
+   ],
+   "changes": "Ported to Kotlin and GLSL: engine/Spektra.kt, engine/FilmFx.kt, engine/FilmGl.kt.",
+   "included_in": "classes*.dex",
+   "status": "verified",
+   "notes": "LICENSE (GPL v3 text), pyproject.toml 'GPLv3', README 'GPLv3 licensed', CITATION.cff 'GPL-3.0-or-later'. Whether upstream means only or or-later is for its author to say; Klipp uses it under version 3, which it permits either way."
+  },
+  {
+   "id": "spektrafilm-tables",
+   "component": "spektrafilm profiles → film tables",
+   "version": "commit 3bb2c2d (2026-06-07)",
+   "kind": "data",
+   "category": "assets",
+   "origin": "https://github.com/andreavolpato/spektrafilm (src/spektrafilm/data/profiles)",
+   "license": "CC-BY-SA-4.0",
+   "copyright": "spektrafilm by Andrea Volpato",
+   "notices": [
+    "app/src/main/assets/spektrafilm/SPEKTRAFILM_LICENSE.txt",
+    "app/src/main/assets/spektrafilm/CHANGELOG.txt",
+    "app/src/main/assets/spektrafilm/SOURCE.txt"
+   ],
+   "changes": "Converted by tools/spektrafilm/export_tables.py and add_curve_models.py (see CHANGELOG.txt). Modified by the Klipp contributors.",
+   "files": [
+    "assets/spektrafilm/*",
+    "assets/spektrafilm/film/*",
+    "assets/spektrafilm/print/*"
+   ],
+   "included_in": "assets/spektrafilm",
+   "status": "unclear",
+   "notes": "The profile-derived values are CC BY-SA 4.0 (license file unchanged, identical to upstream). The tables also encode the hanatos2025 spectral-upsampling data and the Schott KG3 spectrum, whose license is not stated – see docs/licensing-open-questions.md. Film and paper names are third-party trademarks."
+  },
+  {
+   "id": "opendrt",
+   "component": "OpenDRT (ported)",
+   "version": "v1.1.0 (upstream af68332)",
+   "kind": "port",
+   "category": "code",
+   "origin": "https://github.com/jedypod/open-display-transform",
+   "license": "GPL-3.0",
+   "copyright": "Jed Smith",
+   "notices": [
+    "LICENSES/texts/GPL-3.0.txt"
+   ],
+   "changes": "Ported to Kotlin (engine/OpenDrt.kt), SDR only; inputs Rec.709 video and Apple Log added.",
+   "included_in": "classes*.dex",
+   "status": "verified",
+   "notes": "OpenDRT.dctl says 'License: GPLv3' (the repository's LICENSE is the GPL v3 text). That wording alone doesn't settle version 3 only vs 'or later'; Klipp uses it under version 3, which it permits either way."
+  },
+  {
+   "id": "filmcraft-fonts",
+   "component": "FilmCraft engine fonts: Inter (Regular, Medium, SemiBold, Bold, Italic), JetBrains Mono Regular, Noto Serif Regular",
+   "version": "FilmCraft 72831a4 (Inter 4.1)",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/rsms/inter · https://github.com/JetBrains/JetBrainsMono · https://github.com/notofonts/latin-greek-cyrillic",
+   "license": "OFL-1.1",
+   "copyright": "© The Inter Project Authors; © The JetBrains Mono Project Authors; © The Noto Project Authors",
+   "notices": [
+    "LICENSES/third-party/filmcraft/OFL-Inter.txt",
+    "LICENSES/third-party/filmcraft/OFL-JetBrainsMono.txt",
+    "LICENSES/third-party/filmcraft/OFL-NotoSerif.txt"
+   ],
+   "changes": "None: byte-identical to FilmCraft's assets/fonts (checked against the released APK).",
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so (include_bytes! in filmcraft-text)",
+   "status": "verified",
+   "notes": "Not listed by Klipp before 2026-11-18."
+  },
+  {
+   "id": "silero-vad",
+   "component": "Silero VAD (ggml conversion)",
+   "version": "v6.2 (ggml-org/whisper-vad 9ffd54a)",
+   "kind": "model",
+   "category": "assets",
+   "origin": "https://github.com/snakers4/silero-vad · https://huggingface.co/ggml-org/whisper-vad",
+   "license": "MIT",
+   "copyright": "© 2020-present Silero Team",
+   "notices": [
+    "LICENSES/third-party/silero-vad/LICENSE",
+    "LICENSES/third-party/silero-vad/SOURCE.txt"
+   ],
+   "files": [
+    "assets/silero-vad-v6.2.0.bin"
+   ],
+   "included_in": "assets/silero-vad-v6.2.0.bin",
+   "status": "verified",
+   "notes": "Byte-identical to ggml-silero-v6.2.0.bin (sha256 2aa269b7…6987). Its MIT notice was not shipped before 2026-11-18."
+  },
+  {
+   "id": "ui-icons",
+   "component": "Klipp's line icons",
+   "version": "-",
+   "kind": "own",
+   "category": "klipp",
+   "origin": "app/src/main/java/se/gendut/klipp/Icons.kt",
+   "license": "GPL-3.0",
+   "copyright": "© the Klipp contributors",
+   "notices": [],
+   "included_in": "classes*.dex",
+   "status": "incomplete",
+   "notes": "Simple 24×24 line shapes written as path data 'the same shapes as in the design mockup'; no match with an icon library was found, but the mockup's own source is not recorded."
+  },
+  {
+   "id": "fonts-json",
+   "component": "Font list",
+   "version": "-",
+   "kind": "own",
+   "category": "klipp",
+   "origin": "app/src/main/assets/fonts/fonts.json",
+   "license": "GPL-3.0",
+   "copyright": "© the Klipp contributors",
+   "notices": [],
+   "files": [
+    "assets/fonts/fonts.json"
+   ],
+   "included_in": "assets/fonts/fonts.json",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "download:SV_FAST",
+   "component": "KB-Whisper base (speech model, ggml)",
+   "version": "1499d2d2f0c7ed545bd6f2eec85287cf8d8c8b38",
+   "kind": "download-model",
+   "category": "downloads",
+   "origin": "https://huggingface.co/KBLab/kb-whisper-base/resolve/1499d2d2f0c7ed545bd6f2eec85287cf8d8c8b38/ggml-model-q5_0.bin",
+   "license": "Apache-2.0",
+   "copyright": "KBLab, National Library of Sweden (fine-tuned from OpenAI Whisper, MIT © 2022 OpenAI)",
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "LICENSES/third-party/whisper-models/OpenAI-Whisper-LICENSE"
+   ],
+   "sha256": "aead29b356bca8840e72a8dc2286e2d69e6702639751a1e60cb3c8eacefec546",
+   "size": 55295450,
+   "included_in": "downloaded on request into the app's files (not in the APK)",
+   "status": "verified",
+   "notes": "Model card: license apache-2.0; cite Vesterbacka et al., Interspeech 2025 (optional). Klipp downloads this exact revision and keeps the file only if its SHA-256 matches (since 2026-11-18; the same file main pointed to then)."
+  },
+  {
+   "id": "download:SV_BEST",
+   "component": "KB-Whisper small (speech model, ggml)",
+   "version": "3564d61a42fc210ceaa55a22a96dd64478959c78",
+   "kind": "download-model",
+   "category": "downloads",
+   "origin": "https://huggingface.co/KBLab/kb-whisper-small/resolve/3564d61a42fc210ceaa55a22a96dd64478959c78/ggml-model-q5_0.bin",
+   "license": "Apache-2.0",
+   "copyright": "KBLab, National Library of Sweden (fine-tuned from OpenAI Whisper, MIT © 2022 OpenAI)",
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "LICENSES/third-party/whisper-models/OpenAI-Whisper-LICENSE"
+   ],
+   "sha256": "6768836a51abc902e420c613153e6d418c90ea2774e913274d02ab23170225b7",
+   "size": 175209680,
+   "included_in": "downloaded on request into the app's files (not in the APK)",
+   "status": "verified",
+   "notes": "Model card: license apache-2.0; cite Vesterbacka et al., Interspeech 2025 (optional). Klipp downloads this exact revision and keeps the file only if its SHA-256 matches (since 2026-11-18; the same file main pointed to then)."
+  },
+  {
+   "id": "download:SV_LARGE",
+   "component": "KB-Whisper medium (speech model, ggml)",
+   "version": "0abe10b9d7f75d0902656e5c06c5c4d549604dc5",
+   "kind": "download-model",
+   "category": "downloads",
+   "origin": "https://huggingface.co/KBLab/kb-whisper-medium/resolve/0abe10b9d7f75d0902656e5c06c5c4d549604dc5/ggml-model-q5_0.bin",
+   "license": "Apache-2.0",
+   "copyright": "KBLab, National Library of Sweden (fine-tuned from OpenAI Whisper, MIT © 2022 OpenAI)",
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "LICENSES/third-party/whisper-models/OpenAI-Whisper-LICENSE"
+   ],
+   "sha256": "7f8762e0ade9e0073674c0d5acae942a0b1ea98add9baa008ee89c94eaba43d0",
+   "size": 539212484,
+   "included_in": "downloaded on request into the app's files (not in the APK)",
+   "status": "verified",
+   "notes": "Model card: license apache-2.0; cite Vesterbacka et al., Interspeech 2025 (optional). Klipp downloads this exact revision and keeps the file only if its SHA-256 matches (since 2026-11-18; the same file main pointed to then)."
+  },
+  {
+   "id": "download:MULTI_BASE",
+   "component": "Whisper base (speech model, ggml)",
+   "version": "5359861c739e955e79d9a303bcbc70fb988958b1",
+   "kind": "download-model",
+   "category": "downloads",
+   "origin": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base-q5_1.bin",
+   "license": "MIT",
+   "copyright": "© 2022 OpenAI (weights); ggml conversion by the ggml authors",
+   "notices": [
+    "LICENSES/third-party/whisper-models/OpenAI-Whisper-LICENSE"
+   ],
+   "sha256": "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898",
+   "size": 59707625,
+   "included_in": "downloaded on request into the app's files (not in the APK)",
+   "status": "verified",
+   "notes": "Model card: license mit. Klipp downloads this exact revision and keeps the file only if its SHA-256 matches (since 2026-11-18; the same file main pointed to then)."
+  },
+  {
+   "id": "download:MULTI",
+   "component": "Whisper small (speech model, ggml)",
+   "version": "5359861c739e955e79d9a303bcbc70fb988958b1",
+   "kind": "download-model",
+   "category": "downloads",
+   "origin": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q5_1.bin",
+   "license": "MIT",
+   "copyright": "© 2022 OpenAI (weights); ggml conversion by the ggml authors",
+   "notices": [
+    "LICENSES/third-party/whisper-models/OpenAI-Whisper-LICENSE"
+   ],
+   "sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
+   "size": 190085487,
+   "included_in": "downloaded on request into the app's files (not in the APK)",
+   "status": "verified",
+   "notes": "Model card: license mit. Klipp downloads this exact revision and keeps the file only if its SHA-256 matches (since 2026-11-18; the same file main pointed to then)."
+  },
+  {
+   "id": "download:MULTI_TURBO",
+   "component": "Whisper large-v3-turbo (speech model, ggml)",
+   "version": "5359861c739e955e79d9a303bcbc70fb988958b1",
+   "kind": "download-model",
+   "category": "downloads",
+   "origin": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin",
+   "license": "MIT",
+   "copyright": "© 2022 OpenAI (weights); ggml conversion by the ggml authors",
+   "notices": [
+    "LICENSES/third-party/whisper-models/OpenAI-Whisper-LICENSE"
+   ],
+   "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+   "size": 574041195,
+   "included_in": "downloaded on request into the app's files (not in the APK)",
+   "status": "verified",
+   "notes": "Model card: license mit. Klipp downloads this exact revision and keeps the file only if its SHA-256 matches (since 2026-11-18; the same file main pointed to then)."
+  },
+  {
+   "id": "download:EN_BASE",
+   "component": "Whisper base.en (speech model, ggml)",
+   "version": "5359861c739e955e79d9a303bcbc70fb988958b1",
+   "kind": "download-model",
+   "category": "downloads",
+   "origin": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin",
+   "license": "MIT",
+   "copyright": "© 2022 OpenAI (weights); ggml conversion by the ggml authors",
+   "notices": [
+    "LICENSES/third-party/whisper-models/OpenAI-Whisper-LICENSE"
+   ],
+   "sha256": "4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f",
+   "size": 59721011,
+   "included_in": "downloaded on request into the app's files (not in the APK)",
+   "status": "verified",
+   "notes": "Model card: license mit. Klipp downloads this exact revision and keeps the file only if its SHA-256 matches (since 2026-11-18; the same file main pointed to then)."
+  },
+  {
+   "id": "download:EN_SMALL",
+   "component": "Whisper small.en (speech model, ggml)",
+   "version": "5359861c739e955e79d9a303bcbc70fb988958b1",
+   "kind": "download-model",
+   "category": "downloads",
+   "origin": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.en-q5_1.bin",
+   "license": "MIT",
+   "copyright": "© 2022 OpenAI (weights); ggml conversion by the ggml authors",
+   "notices": [
+    "LICENSES/third-party/whisper-models/OpenAI-Whisper-LICENSE"
+   ],
+   "sha256": "bfdff4894dcb76bbf647d56263ea2a96645423f1669176f4844a1bf8e478ad30",
+   "size": 190098681,
+   "included_in": "downloaded on request into the app's files (not in the APK)",
+   "status": "verified",
+   "notes": "Model card: license mit. Klipp downloads this exact revision and keeps the file only if its SHA-256 matches (since 2026-11-18; the same file main pointed to then)."
+  },
+  {
+   "id": "download:kenney",
+   "component": "Kenney sound packs (Impact, Interface, UI Audio, RPG Audio, Sci-Fi, Digital Audio, Music Jingles)",
+   "version": "zip URLs with content hashes (2023)",
+   "kind": "download-sounds",
+   "category": "downloads",
+   "origin": "https://kenney.nl/assets (7 packs)",
+   "license": "CC0-1.0",
+   "copyright": "Kenney (kenney.nl) – credit appreciated, not required",
+   "notices": [],
+   "included_in": "downloaded on request (not in the APK)",
+   "status": "incomplete",
+   "notes": "Each zip's License.txt says CC0. kenney.nl's old zip links stopped working in 2026-11 (redirect to the asset pages). Prepared: the packs as versioned, SHA-256-pinned files on Klipp's release sounds-1 (tools/sounds); they need the originals downloaded by hand (kenney.nl disallows automated access) and the release published."
+  },
+  {
+   "id": "download:bigsoundbank",
+   "component": "BigSoundBank sounds (75 fixed sounds)",
+   "version": "-",
+   "kind": "download-sounds",
+   "category": "downloads",
+   "origin": "https://bigsoundbank.com",
+   "license": "CC0-1.0",
+   "copyright": "Joseph Sardin – BigSoundBank.com (credit optional); four sounds recorded by others, also CC0",
+   "notices": [],
+   "included_in": "downloaded on request (not in the APK)",
+   "status": "incomplete",
+   "notes": "All 75 sound pages say CC0. The app still fetches bigsoundbank.com/UPLOAD/<id>.ogg, which robots.txt/ai.txt exclude for automated access. Prepared: one versioned, SHA-256-pinned zip per pack on Klipp's release sounds-1 (tools/sounds), from originals downloaded by hand. 0448 is a recording of an iPhone camera sound."
+  },
+  {
+   "id": "download:freesound",
+   "component": "Freesound sounds downloaded earlier",
+   "version": "API v2",
+   "kind": "download-api",
+   "category": "downloads",
+   "origin": "https://freesound.org/apiv2/",
+   "license": "CC0-1.0 (each sound's license as Freesound gave it, kept beside the sound)",
+   "copyright": "each sound's author (CC0)",
+   "notices": [],
+   "included_in": "only sounds a user downloaded before 2026-11-18, on their phone (not in the APK)",
+   "status": "verified",
+   "notes": "The Freesound search was removed from Klipp on 2026-11-18 (Freesound's API terms don't cover a paid app). Sounds downloaded before stay listed and usable."
+  },
+  {
+   "id": "font:Inter",
+   "component": "Inter (title font)",
+   "version": "Version 4.001;git-66647c0bb",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/inter",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Inter/OFL.txt"
+   ],
+   "changes": "fvar named instances dropped (9 upstream -> 0); instanced: fvar axes opsz,wght -> wght; opsz pinned to 32 (upstream range 14-32, default 14) - outlines identical to upstream instanced at opsz=32; subset",
+   "files": [
+    "assets/fonts/Inter/*"
+   ],
+   "included_in": "assets/fonts/Inter",
+   "status": "verified",
+   "notes": "Shown and saved in projects as \"Inter Display\"."
+  },
+  {
+   "id": "font:Montserrat",
+   "component": "Montserrat (title font)",
+   "version": "Version 9.000",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/montserrat",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2024 The Montserrat.Git Project Authors (https://github.com/JulietaUla/Montserrat.git)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Montserrat/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/Montserrat/*"
+   ],
+   "included_in": "assets/fonts/Montserrat",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Poppins",
+   "component": "Poppins (title font)",
+   "version": "4.004",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/poppins",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2020 The Poppins Project Authors (https://github.com/itfoundry/Poppins)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Poppins/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG, GDEF",
+   "files": [
+    "assets/fonts/Poppins/*"
+   ],
+   "included_in": "assets/fonts/Poppins",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Raleway",
+   "component": "Raleway (title font)",
+   "version": "Version 4.026",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/raleway",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2010 The Raleway Project Authors (impallari@gmail.com), with Reserved Font Name \"Raleway\".",
+   "reserved_font_names": [
+    "Raleway"
+   ],
+   "notices": [
+    "app/src/main/assets/fonts/Raleway/OFL.txt"
+   ],
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
+   "files": [
+    "assets/fonts/Raleway/*"
+   ],
+   "included_in": "assets/fonts/Raleway",
+   "status": "verified",
+   "notes": "Reserved Font Name \"Raleway\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
+  },
+  {
+   "id": "font:WorkSans",
+   "component": "Work Sans (title font)",
+   "version": "Version 2.012",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/worksans",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2019 The Work Sans Project Authors (https://github.com/weiweihuanghuang/Work-Sans)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/WorkSans/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/WorkSans/*"
+   ],
+   "included_in": "assets/fonts/WorkSans",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:DMSans",
+   "component": "DM Sans (title font)",
+   "version": "Version 4.004;gftools[0.9.30]",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/dmsans",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2014 The DM Sans Project Authors (https://github.com/googlefonts/dm-fonts)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/DMSans/OFL.txt"
+   ],
+   "changes": "fvar named instances dropped (9 upstream -> 0); instanced: fvar axes opsz,wght -> wght; opsz pinned to ~32 (upstream range 9-40, default 9) - advances match opsz=32, outlines within 1 unit (rounding); subset; tables dropped: MVAR",
+   "files": [
+    "assets/fonts/DMSans/*"
+   ],
+   "included_in": "assets/fonts/DMSans",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Nunito",
+   "component": "Nunito (title font)",
+   "version": "Version 3.602",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/nunito",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2014 The Nunito Project Authors (https://github.com/googlefonts/nunito)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Nunito/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/Nunito/*"
+   ],
+   "included_in": "assets/fonts/Nunito",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Outfit",
+   "component": "Outfit (title font)",
+   "version": "Version 1.100;gftools[0.9.27]",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/outfit",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2021 The Outfit Project Authors (https://github.com/Outfitio/Outfit-Fonts)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Outfit/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/Outfit/*"
+   ],
+   "included_in": "assets/fonts/Outfit",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:SpaceGrotesk",
+   "component": "Space Grotesk (title font)",
+   "version": "Version 2.000",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/spacegrotesk",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2020 The Space Grotesk Project Authors (https://github.com/floriankarsten/space-grotesk)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/SpaceGrotesk/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/SpaceGrotesk/*"
+   ],
+   "included_in": "assets/fonts/SpaceGrotesk",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Manrope",
+   "component": "Manrope (title font)",
+   "version": "Version 4.505",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/manrope",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2018 The Manrope Project Authors (https://github.com/googlefonts/manrope)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Manrope/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/Manrope/*"
+   ],
+   "included_in": "assets/fonts/Manrope",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Figtree",
+   "component": "Figtree (title font)",
+   "version": "Version 2.002",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/figtree",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2022 The Figtree Project Authors (https://github.com/erikdkennedy/figtree)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Figtree/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/Figtree/*"
+   ],
+   "included_in": "assets/fonts/Figtree",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Archivo",
+   "component": "Archivo (title font)",
+   "version": "Version 2.001",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/archivo",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2020 The Archivo Project Authors (https://github.com/Omnibus-Type/Archivo)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Archivo/OFL.txt"
+   ],
+   "changes": "instanced: fvar axes wght,wdth -> wght; wdth pinned to 100 (upstream range 62-125, default 100) - outlines identical to upstream default; subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/Archivo/*"
+   ],
+   "included_in": "assets/fonts/Archivo",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:BebasNeue",
+   "component": "Bebas Neue (title font)",
+   "version": "Version 2.000",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/bebasneue",
+   "license": "OFL-1.1",
+   "copyright": "Copyright © 2010 by Dharma Type.",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/BebasNeue/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/BebasNeue/*"
+   ],
+   "included_in": "assets/fonts/BebasNeue",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Oswald",
+   "component": "Oswald (title font)",
+   "version": "Version 4.103;gftools[0.9.33.dev8+g029e19f]",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/oswald",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2016 The Oswald Project Authors (https://github.com/googlefonts/OswaldFont)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Oswald/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/Oswald/*"
+   ],
+   "included_in": "assets/fonts/Oswald",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Anton",
+   "component": "Anton (title font)",
+   "version": "Version 2.116; ttfautohint (v1.8.3)",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/anton",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2020 The Anton Project Authors (https://github.com/googlefonts/AntonFont.git)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Anton/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/Anton/*"
+   ],
+   "included_in": "assets/fonts/Anton",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:ArchivoBlack",
+   "component": "Archivo Black (title font)",
+   "version": "Version 1.006",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/archivoblack",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2017 The Archivo Black Project Authors (https://github.com/Omnibus-Type/ArchivoBlack)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/ArchivoBlack/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/ArchivoBlack/*"
+   ],
+   "included_in": "assets/fonts/ArchivoBlack",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:AbrilFatface",
+   "component": "Abril Fatface (title font)",
+   "version": "Version 1.001",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/abrilfatface",
+   "license": "OFL-1.1",
+   "copyright": "Copyright (c) 2011, TypeTogether (www.type-together.com), with Reserved Font Names \"Abril\" and \"Abril Fatface\"",
+   "reserved_font_names": [
+    "Abril",
+    "Abril Fatface"
+   ],
+   "notices": [
+    "app/src/main/assets/fonts/AbrilFatface/OFL.txt"
+   ],
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
+   "files": [
+    "assets/fonts/AbrilFatface/*"
+   ],
+   "included_in": "assets/fonts/AbrilFatface",
+   "status": "verified",
+   "notes": "Reserved Font Name \"Abril\", \"Abril Fatface\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
+  },
+  {
+   "id": "font:Righteous",
+   "component": "Righteous (title font)",
+   "version": "Version 1.000",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/righteous",
+   "license": "OFL-1.1",
+   "copyright": "Copyright (c) 2011 by Brian J. Bonislawsky DBA Astigmatic (AOETI) (astigma@astigmatic.com), with Reserved Font Names \"Righteous\"",
+   "reserved_font_names": [
+    "Righteous"
+   ],
+   "notices": [
+    "app/src/main/assets/fonts/Righteous/OFL.txt"
+   ],
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
+   "files": [
+    "assets/fonts/Righteous/*"
+   ],
+   "included_in": "assets/fonts/Righteous",
+   "status": "verified",
+   "notes": "Reserved Font Name \"Righteous\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
+  },
+  {
+   "id": "font:Bungee",
+   "component": "Bungee (title font)",
+   "version": "Version 2.000",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/bungee",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2023 The Bungee Project Authors (https://github.com/djrrb/Bungee)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Bungee/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/Bungee/*"
+   ],
+   "included_in": "assets/fonts/Bungee",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:PlayfairDisplay",
+   "component": "Playfair Display (title font)",
+   "version": "Version 1.203",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/playfairdisplay",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2017 The Playfair Display Project Authors (https://github.com/clauseggers/Playfair-Display), with Reserved Font Name \"Playfair Display\"",
+   "reserved_font_names": [
+    "Playfair Display"
+   ],
+   "notices": [
+    "app/src/main/assets/fonts/PlayfairDisplay/OFL.txt"
+   ],
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
+   "files": [
+    "assets/fonts/PlayfairDisplay/*"
+   ],
+   "included_in": "assets/fonts/PlayfairDisplay",
+   "status": "verified",
+   "notes": "Reserved Font Name \"Playfair Display\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
+  },
+  {
+   "id": "font:Lora",
+   "component": "Lora (title font)",
+   "version": "Version 3.008",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/lora",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2011 The Lora Project Authors (https://github.com/cyrealtype/Lora-Cyrillic), with Reserved Font Name \"Lora\".",
+   "reserved_font_names": [
+    "Lora"
+   ],
+   "notices": [
+    "app/src/main/assets/fonts/Lora/OFL.txt"
+   ],
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
+   "files": [
+    "assets/fonts/Lora/*"
+   ],
+   "included_in": "assets/fonts/Lora",
+   "status": "verified",
+   "notes": "Reserved Font Name \"Lora\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
+  },
+  {
+   "id": "font:Merriweather",
+   "component": "Merriweather (title font)",
+   "version": "Version 2.101",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/merriweather",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2020 The Merriweather Project Authors (https://github.com/EbenSorkin/Merriweather4) with Reserved Font Name \"Merriweather\".",
+   "reserved_font_names": [
+    "Merriweather"
+   ],
+   "notices": [
+    "app/src/main/assets/fonts/Merriweather/OFL.txt"
+   ],
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
+   "files": [
+    "assets/fonts/Merriweather/*"
+   ],
+   "included_in": "assets/fonts/Merriweather",
+   "status": "verified",
+   "notes": "Reserved Font Name \"Merriweather\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name). Klipp sets 'opsz' 72 and 'wdth' 100 when drawing it (fonts.json axes), the look of the earlier file."
+  },
+  {
+   "id": "font:CormorantGaramond",
+   "component": "Cormorant Garamond (title font)",
+   "version": "Version 4.001",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/cormorantgaramond",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2015 the Cormorant Project Authors (github.com/CatharsisFonts/Cormorant)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/CormorantGaramond/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/CormorantGaramond/*"
+   ],
+   "included_in": "assets/fonts/CormorantGaramond",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:LibreBaskerville",
+   "component": "Libre Baskerville (title font)",
+   "version": "Version 2.005",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/librebaskerville",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2012 The Libre Baskerville Project Authors (https://github.com/impallari/Libre-Baskerville) with Reserved Font Name Libre Baskerville.",
+   "reserved_font_names": [
+    "Libre Baskerville"
+   ],
+   "notices": [
+    "app/src/main/assets/fonts/LibreBaskerville/OFL.txt"
+   ],
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
+   "files": [
+    "assets/fonts/LibreBaskerville/*"
+   ],
+   "included_in": "assets/fonts/LibreBaskerville",
+   "status": "verified",
+   "notes": "Reserved Font Name \"Libre Baskerville\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
+  },
+  {
+   "id": "font:DMSerifDisplay",
+   "component": "DM Serif Display (title font)",
+   "version": "Version 5.200; ttfautohint (v1.8.3)",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/dmserifdisplay",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2014-2018 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'. All Rights Reserved. Source is a trademark of Adobe in the United States and/or other countries. Copyright 2019 Google LLC.",
+   "reserved_font_names": [
+    "Source"
+   ],
+   "notices": [
+    "app/src/main/assets/fonts/DMSerifDisplay/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/DMSerifDisplay/*"
+   ],
+   "included_in": "assets/fonts/DMSerifDisplay",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:EBGaramond",
+   "component": "EB Garamond (title font)",
+   "version": "Version 1.003",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/ebgaramond",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2017 The EB Garamond Project Authors (https://github.com/octaviopardo/EBGaramond12)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/EBGaramond/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/EBGaramond/*"
+   ],
+   "included_in": "assets/fonts/EBGaramond",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:RobotoSlab",
+   "component": "Roboto Slab (title font)",
+   "version": "Version 2.002",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/apache/robotoslab",
+   "license": "Apache-2.0",
+   "copyright": "Copyright 2018 The Roboto Slab Project Authors (https://github.com/googlefonts/robotoslab)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/RobotoSlab/LICENSE.txt",
+    "app/src/main/assets/fonts/RobotoSlab/CHANGES.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/RobotoSlab/*"
+   ],
+   "included_in": "assets/fonts/RobotoSlab",
+   "status": "verified",
+   "notes": "Modified (subset): CHANGES.txt in the folder states the change (Apache-2.0 §4(b))."
+  },
+  {
+   "id": "font:Pacifico",
+   "component": "Pacifico (title font)",
+   "version": "Version 3.001",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/pacifico",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2018 The Pacifico Project Authors (https://github.com/googlefonts/Pacifico)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Pacifico/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/Pacifico/*"
+   ],
+   "included_in": "assets/fonts/Pacifico",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:Caveat",
+   "component": "Caveat (title font)",
+   "version": "Version 2.000",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/caveat",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2014 The Caveat Project Authors (https://github.com/googlefonts/caveat)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/Caveat/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/Caveat/*"
+   ],
+   "included_in": "assets/fonts/Caveat",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:DancingScript",
+   "component": "Dancing Script (title font)",
+   "version": "Version 2.001",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/dancingscript",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2016 The Dancing Script Project Authors (https://github.com/googlefonts/DancingScript), with Reserved Font Name 'Dancing Script'.",
+   "reserved_font_names": [
+    "Dancing Script"
+   ],
+   "notices": [
+    "app/src/main/assets/fonts/DancingScript/OFL.txt"
+   ],
+   "changes": "None: the publisher's original file(s), byte for byte (google/fonts e7db6ca, checked by SHA-256 in BundledFontsLicenseTest).",
+   "files": [
+    "assets/fonts/DancingScript/*"
+   ],
+   "included_in": "assets/fonts/DancingScript",
+   "status": "verified",
+   "notes": "Reserved Font Name \"Dancing Script\": allowed, the file is unmodified (until 2026-11-18 Klipp shipped a Latin subset, which the OFL does not allow under that name)."
+  },
+  {
+   "id": "font:PermanentMarker",
+   "component": "Permanent Marker (title font)",
+   "version": "Version 1.001",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/apache/permanentmarker",
+   "license": "Apache-2.0",
+   "copyright": "Copyright (c) 2010 by Font Diner, Inc. All rights reserved.",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/PermanentMarker/LICENSE.txt",
+    "app/src/main/assets/fonts/PermanentMarker/CHANGES.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/PermanentMarker/*"
+   ],
+   "included_in": "assets/fonts/PermanentMarker",
+   "status": "verified",
+   "notes": "Modified (subset): CHANGES.txt in the folder states the change (Apache-2.0 §4(b))."
+  },
+  {
+   "id": "font:JetBrainsMono",
+   "component": "JetBrains Mono (title font)",
+   "version": "Version 2.211",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/jetbrainsmono",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/JetBrainsMono/OFL.txt"
+   ],
+   "changes": "subset; tables dropped: DSIG",
+   "files": [
+    "assets/fonts/JetBrainsMono/*"
+   ],
+   "included_in": "assets/fonts/JetBrainsMono",
+   "status": "verified",
+   "notes": ""
+  },
+  {
+   "id": "font:SpaceMono",
+   "component": "Space Mono (title font)",
+   "version": "Version 1.003; ttfautohint (v1.8.4.7-5d5b)",
+   "kind": "font",
+   "category": "fonts",
+   "origin": "https://github.com/google/fonts/tree/e7db6ca603fd4862010383ff17ffd6cc4ffac1c0/ofl/spacemono",
+   "license": "OFL-1.1",
+   "copyright": "Copyright 2016 The Space Mono Project Authors (https://github.com/googlefonts/spacemono)",
+   "reserved_font_names": [],
+   "notices": [
+    "app/src/main/assets/fonts/SpaceMono/OFL.txt"
+   ],
+   "changes": "subset",
+   "files": [
+    "assets/fonts/SpaceMono/*"
+   ],
+   "included_in": "assets/fonts/SpaceMono",
+   "status": "verified",
+   "notes": ""
+  }
+ ],
+ "rust_reviewed": {
+  "adler2@2.0.1": "0BSD OR MIT OR Apache-2.0",
+  "arrayvec@0.7.8": "MIT OR Apache-2.0",
+  "bitflags@1.3.2": "MIT/Apache-2.0",
+  "bitflags@2.13.2": "MIT OR Apache-2.0",
+  "block-buffer@0.10.4": "MIT OR Apache-2.0",
+  "bytemuck@1.25.2": "Zlib OR Apache-2.0 OR MIT",
+  "byteorder-lite@0.1.0": "Unlicense OR MIT",
+  "bytes@1.12.1": "MIT",
+  "cesu8@1.1.0": "Apache-2.0/MIT",
+  "cfg-if@1.0.5": "MIT OR Apache-2.0",
+  "chrono@0.4.45": "MIT OR Apache-2.0",
+  "color_quant@1.1.0": "MIT",
+  "combine@4.6.9": "MIT",
+  "cpufeatures@0.2.17": "MIT OR Apache-2.0",
+  "craft-docpath@0.1.0": "MIT OR Apache-2.0",
+  "craft-media@0.1.0": "MIT OR Apache-2.0",
+  "crc32fast@1.5.2": "MIT OR Apache-2.0",
+  "crossbeam-deque@0.8.8": "MIT OR Apache-2.0",
+  "crossbeam-epoch@0.9.21": "MIT OR Apache-2.0",
+  "crossbeam-utils@0.8.23": "MIT OR Apache-2.0",
+  "crypto-common@0.1.7": "MIT OR Apache-2.0",
+  "digest@0.10.7": "MIT OR Apache-2.0",
+  "either@1.19.0": "MIT OR Apache-2.0",
+  "encoding_rs@0.8.42": "(Apache-2.0 OR MIT) AND BSD-3-Clause",
+  "errno@0.3.14": "MIT OR Apache-2.0",
+  "extended@0.1.0": "MIT",
+  "fastrand@2.5.0": "Apache-2.0 OR MIT",
+  "fax@0.2.7": "MIT",
+  "fdeflate@0.3.7": "MIT OR Apache-2.0",
+  "filmcraft-aac@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-ac3@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-apv@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-audio-dsp@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-av1@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-avi@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-bitstream@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-captions@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-cfb@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-codecs@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-color@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-dng@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-dnx@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-edit@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-engine@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-export@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-flac@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-format@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-frame@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-geom@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-h264@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-h264enc@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-hevc@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-interchange@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-isobmff@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-matroska@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-media@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-mp3enc@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-mpa@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-mpeg2v@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-mpegts@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-mxf@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-ogg@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-opus@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-project@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-prores@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-render@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-scopes@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-speech@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-text@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-time@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-tts@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-vp8@0.17.0": "MIT OR Apache-2.0",
+  "filmcraft-vp9@0.17.0": "MIT OR Apache-2.0",
+  "flate2@1.1.10": "MIT OR Apache-2.0",
+  "font-types@0.12.7": "MIT OR Apache-2.0",
+  "form_urlencoded@1.2.2": "MIT OR Apache-2.0",
+  "generic-array@0.14.7": "MIT",
+  "getrandom@0.4.3": "MIT OR Apache-2.0",
+  "gif@0.14.2": "MIT OR Apache-2.0",
+  "half@2.7.1": "MIT OR Apache-2.0",
+  "harfrust@0.12.0": "MIT",
+  "icu_collections@2.4.0": "Unicode-3.0",
+  "icu_locale_core@2.4.0": "Unicode-3.0",
+  "icu_normalizer@2.4.0": "Unicode-3.0",
+  "icu_normalizer_data@2.4.0": "Unicode-3.0",
+  "icu_properties@2.4.0": "Unicode-3.0",
+  "icu_properties_data@2.4.0": "Unicode-3.0",
+  "icu_provider@2.4.0": "Unicode-3.0",
+  "idna@1.1.0": "MIT OR Apache-2.0",
+  "idna_adapter@1.2.2": "Apache-2.0 OR MIT",
+  "image@0.25.10": "MIT OR Apache-2.0",
+  "image-webp@0.2.4": "MIT OR Apache-2.0",
+  "itoa@1.0.18": "MIT OR Apache-2.0",
+  "jni@0.21.1": "MIT/Apache-2.0",
+  "jni-sys@0.3.1": "MIT OR Apache-2.0",
+  "jni-sys@0.4.1": "MIT OR Apache-2.0",
+  "lazy_static@1.5.1": "MIT OR Apache-2.0",
+  "libc@0.2.191": "MIT OR Apache-2.0",
+  "linux-raw-sys@0.12.1": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+  "litemap@0.8.3": "Unicode-3.0",
+  "log@0.4.34": "MIT OR Apache-2.0",
+  "memchr@2.8.3": "Unlicense OR MIT",
+  "miniz_oxide@0.8.9": "MIT OR Zlib OR Apache-2.0",
+  "miniz_oxide@0.9.1": "MIT OR Zlib OR Apache-2.0",
+  "moxcms@0.8.1": "BSD-3-Clause OR Apache-2.0",
+  "num-traits@0.2.19": "MIT OR Apache-2.0",
+  "once_cell@1.21.4": "MIT OR Apache-2.0",
+  "percent-encoding@2.3.2": "MIT OR Apache-2.0",
+  "png@0.18.1": "MIT OR Apache-2.0",
+  "potential_utf@0.1.6": "Unicode-3.0",
+  "pxfm@0.1.30": "BSD-3-Clause OR Apache-2.0",
+  "quick-error@2.0.1": "MIT/Apache-2.0",
+  "rayon@1.12.0": "MIT OR Apache-2.0",
+  "rayon-core@1.13.0": "MIT OR Apache-2.0",
+  "read-fonts@0.41.0": "MIT OR Apache-2.0",
+  "roxmltree@0.21.1": "MIT OR Apache-2.0",
+  "rustix@1.1.5": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+  "scopeguard@1.2.0": "MIT OR Apache-2.0",
+  "serde@1.0.229": "MIT OR Apache-2.0",
+  "serde_core@1.0.229": "MIT OR Apache-2.0",
+  "serde_json@1.0.154": "MIT OR Apache-2.0",
+  "sha2@0.10.9": "MIT OR Apache-2.0",
+  "simd-adler32@0.3.10": "MIT",
+  "simdutf8@0.1.5": "MIT OR Apache-2.0",
+  "skrifa@0.44.0": "MIT OR Apache-2.0",
+  "smallvec@1.16.3": "MIT OR Apache-2.0",
+  "stable_deref_trait@1.2.1": "MIT OR Apache-2.0",
+  "symphonia@0.5.5": "MPL-2.0",
+  "symphonia-bundle-flac@0.5.5": "MPL-2.0",
+  "symphonia-bundle-mp3@0.5.5": "MPL-2.0",
+  "symphonia-codec-aac@0.5.5": "MPL-2.0",
+  "symphonia-codec-alac@0.5.5": "MPL-2.0",
+  "symphonia-codec-pcm@0.5.5": "MPL-2.0",
+  "symphonia-codec-vorbis@0.5.5": "MPL-2.0",
+  "symphonia-core@0.5.5": "MPL-2.0",
+  "symphonia-format-isomp4@0.5.5": "MPL-2.0",
+  "symphonia-format-ogg@0.5.5": "MPL-2.0",
+  "symphonia-format-riff@0.5.5": "MPL-2.0",
+  "symphonia-metadata@0.5.5": "MPL-2.0",
+  "symphonia-utils-xiph@0.5.5": "MPL-2.0",
+  "tempfile@3.27.0": "MIT OR Apache-2.0",
+  "thiserror@1.0.69": "MIT OR Apache-2.0",
+  "thiserror@2.0.21": "MIT OR Apache-2.0",
+  "tiff@0.11.3": "MIT",
+  "tinystr@0.8.5": "Unicode-3.0",
+  "typenum@1.20.1": "MIT OR Apache-2.0",
+  "unicode-bidi@0.3.18": "MIT OR Apache-2.0",
+  "unicode-linebreak@0.1.5": "Apache-2.0",
+  "unicode-segmentation@1.13.3": "MIT OR Apache-2.0",
+  "url@2.5.8": "MIT OR Apache-2.0",
+  "utf8_iter@1.1.0": "Apache-2.0 OR MIT",
+  "utf_types@1.0.0": "Apache-2.0 OR MIT",
+  "web-time@1.1.0": "MIT OR Apache-2.0",
+  "weezl@0.1.12": "MIT OR Apache-2.0",
+  "writeable@0.6.4": "Unicode-3.0",
+  "yoke@0.8.4": "Unicode-3.0",
+  "zerocopy@0.8.63": "BSD-2-Clause OR Apache-2.0 OR MIT",
+  "zerofrom@0.1.8": "Unicode-3.0",
+  "zerotrie@0.2.5": "Unicode-3.0",
+  "zerovec@0.11.9": "Unicode-3.0",
+  "zlib-rs@0.6.8": "Zlib",
+  "zmij@1.0.23": "MIT",
+  "zune-core@0.5.3": "MIT OR Apache-2.0 OR Zlib",
+  "zune-jpeg@0.5.15": "MIT OR Apache-2.0 OR Zlib"
+ },
+ "rust_notes": {
+  "craft-docpath": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/craft-libs/). Unmodified, pinned commit."
+  },
+  "craft-media": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/craft-libs/). Unmodified, pinned commit."
+  },
+  "encoding_rs": {
+   "status": "verified",
+   "notes": "(Apache-2.0 OR MIT) AND BSD-3-Clause: the BSD-3-Clause part covers the WHATWG index data (LICENSE-WHATWG); COPYRIGHT explains the combination. All four files are shipped."
+  },
+  "filmcraft-aac": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-ac3": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-apv": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-audio-dsp": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-av1": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-avi": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-bitstream": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-captions": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-cfb": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-codecs": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-color": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-dng": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-dnx": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-edit": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-engine": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-export": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-flac": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-format": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-frame": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-geom": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-h264": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-h264enc": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-hevc": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-interchange": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-isobmff": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-matroska": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-media": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-mp3enc": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-mpa": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-mpeg2v": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-mpegts": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-mxf": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-ogg": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-opus": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-project": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-prores": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-render": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-scopes": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-speech": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-text": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit. Embeds seven unmodified OFL-1.1 fonts (see the component 'FilmCraft engine fonts')."
+  },
+  "filmcraft-time": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-tts": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-vp8": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "filmcraft-vp9": {
+   "status": "verified",
+   "notes": "MIT OR Apache-2.0 – the license files and NOTICE are at the repository root (copied to LICENSES/third-party/filmcraft/). Unmodified, pinned commit."
+  },
+  "symphonia": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-bundle-flac": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-bundle-mp3": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-codec-aac": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-codec-alac": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-codec-pcm": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-codec-vorbis": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-core": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-format-isomp4": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-format-ogg": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-format-riff": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-metadata": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "symphonia-utils-xiph": {
+   "status": "verified",
+   "notes": "MPL-2.0. The published crate has no license file; each source file carries the MPL-2.0 notice (Copyright (c) The Project Symphonia Developers). The MPL-2.0 text is LICENSES/texts/MPL-2.0.txt. Its source: crates.io (symphonia 0.5.5) and Klipp's source package (rust/vendor) – MPL-2.0 §3.2(a). Unmodified."
+  },
+  "unicode-linebreak": {
+   "status": "verified",
+   "notes": "Apache-2.0. Its tables are generated from the Unicode Character Database (UAX #14); the Unicode license (Unicode-3.0) is included with the ICU crates."
+  }
+ }
+}

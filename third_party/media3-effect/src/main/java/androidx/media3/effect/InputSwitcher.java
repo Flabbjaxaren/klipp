@@ -15,6 +15,11 @@
  *
  */
 
+/*
+ * Modified for Klipp (2026) – this file differs from Media3 1.11.1; the changes are marked "Klipp" and
+ * listed in third_party/media3-effect/KLIPP.md.
+ */
+
 package androidx.media3.effect;
 
 import static androidx.media3.common.VideoFrameProcessor.INPUT_TYPE_BITMAP;

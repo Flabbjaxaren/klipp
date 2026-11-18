@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_group_about">About</string>
+    <string name="settings_cat_about">Version, licenses and source code</string>
+    <string name="about_build">Build %1$d · commit %2$s</string>
+    <string name="about_copyright">© the Klipp contributors.\n\nKlipp is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License, version 3, as published by the Free Software Foundation. It is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the license for details.\n\nWhether you paid for Klipp or not, these rights are yours: you may copy, change and share it under the GPL, and get its source code.</string>
+    <string name="about_licenses">Licenses and source code</string>
+    <string name="about_licenses_hint">The GPL, this version\'s source code, software and data from others</string>
+    <string name="about_source">Source code</string>
+    <string name="about_source_hint">Klipp\'s complete source code for exactly this version, and every release with its source package.</string>
+    <string name="about_source_hint_local">This build was made from a working copy with changes that are in no published commit – the link shows the commit it started from.</string>
+    <string name="about_source_commit">Source code of this version</string>
+    <string name="about_source_releases">Releases and source packages</string>
+    <string name="about_gpl_text">GNU General Public License – full text</string>
+    <string name="about_group_klipp">Klipp</string>
+    <string name="about_group_code">Code from other projects</string>
+    <string name="about_group_assets">Film tables and models</string>
+    <string name="about_group_fonts">Fonts</string>
+    <string name="about_group_downloads">Downloaded when you ask</string>
+    <string name="about_group_maven">Android libraries</string>
+    <string name="about_group_rust">Engine libraries (Rust)</string>
+    <string name="about_spektrafilm">The film simulation\'s tables are derived from spektrafilm by Andrea Volpato (github.com/andreavolpato/spektrafilm), licensed CC BY-SA 4.0, and converted for Klipp by the Klipp contributors (CHANGELOG.txt says how). They are not covered by Klipp\'s GPL.</string>
+    <string name="about_downloads_hint">Not part of the app: speech models and sounds are downloaded only when you ask for them, under their own licenses.</string>
+    <string name="about_field_version">Version</string>
+    <string name="about_field_license">License</string>
+    <string name="about_field_copyright">Copyright</string>
+    <string name="about_field_changes">Changes</string>
+    <string name="about_field_included">Where in Klipp</string>
+    <string name="about_field_notes">Notes</string>
+    <string name="about_field_origin">Source</string>
+    <string name="about_open_origin">Open the source\'s page</string>
+    <string name="about_missing">This text is missing from the app: %1$s</string>
+</resources>

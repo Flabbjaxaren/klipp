@@ -1,0 +1,14 @@
+Notices inside the whisper.cpp / ggml sources compiled into lib/arm64-v8a/libklipp_whisper.so
+(third_party/whisper.cpp, whisper.cpp 1.9.4, commit 927cfce; built by app/src/main/cpp/CMakeLists.txt).
+Besides the ggml authors' MIT license (LICENSE, AUTHORS), one compiled file carries a notice of its own:
+
+ggml/src/ggml-cpu/ops.cpp, rope_yarn():
+
+YaRN algorithm based on LlamaYaRNScaledRotaryEmbedding.py from https://github.com/jquesnelle/yarn
+MIT licensed. Copyright (c) 2023 Jeffrey Quesnelle and Bowen Peng.
+(The MIT terms are those of LICENSE in this folder, with this copyright line.)
+
+The Arm KleidiAI files in ggml/src/ggml-cpu/kleidiai (MIT, Arm Limited) are not compiled (GGML_CPU_KLEIDIAI is off).
+The llamafile sgemm code (ggml/src/ggml-cpu/llamafile/sgemm.cpp, MIT, Copyright 2024 Mozilla Foundation) is in the source
+tree but not compiled: GGML_LLAMAFILE defaults to off when ggml is built as a subdirectory, and the library has no
+llamafile_sgemm symbol.

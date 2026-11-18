@@ -1,0 +1,674 @@
+{
+ "release": "sounds-1",
+ "url": "https://github.com/Flabbjaxaren/klipp/releases/tag/sounds-1",
+ "assets": [
+  {
+   "pack": "kenney-impact",
+   "file": "kenney-impact-sounds-1.zip",
+   "sha256": "029d734af1582474edf3a694d1b0cebc97c1c152f2f39fa34d4c2bafc5de77f8",
+   "bytes": 800850,
+   "license": "CC0-1.0",
+   "source": "https://kenney.nl/assets/impact-sounds",
+   "original": "kenney_impact-sounds.zip",
+   "original_sha256": "029d734af1582474edf3a694d1b0cebc97c1c152f2f39fa34d4c2bafc5de77f8",
+   "license_text": "Impact Sounds (1.0)\r\n\r\n\tCreated/distributed by Kenney (www.kenney.nl)\r\n\tCreation date: 19-12-2019\r\n\r\n\t\t\t------------------------------\r\n\r\n\tLicense: (Creative Commons Zero, CC0)\r\n\thttp://creativecommons.org/publicdomain/zero/1.0/\r\n\r\n\tThis content is free to use in personal, educational and commercial",
+   "sounds": 130
+  },
+  {
+   "pack": "kenney-interface",
+   "file": "kenney-interface-sounds-1.zip",
+   "sha256": "f2193d072726d6758a5f7871b2dcc54dcce0d5c35c6f0a62f92549b327c81232",
+   "bytes": 834536,
+   "license": "CC0-1.0",
+   "source": "https://kenney.nl/assets/interface-sounds",
+   "original": "kenney_interface-sounds.zip",
+   "original_sha256": "f2193d072726d6758a5f7871b2dcc54dcce0d5c35c6f0a62f92549b327c81232",
+   "license_text": "Interface Sounds (1.0)\r\n\r\n\tCreated/distributed by Kenney (www.kenney.nl)\r\n\tCreation date: 11-02-2020\r\n\r\n\t\t\t------------------------------\r\n\r\n\tLicense: (Creative Commons Zero, CC0)\r\n\thttp://creativecommons.org/publicdomain/zero/1.0/\r\n\r\n\tThis content is free to use in personal, educational and commerc",
+   "sounds": 100
+  },
+  {
+   "pack": "kenney-ui",
+   "file": "kenney-ui-sounds-1.zip",
+   "sha256": "946fc23a63d535d693eb31b2eabb80c8c28d6351e2186b344ceb71b2cb1d5eb6",
+   "bytes": 411949,
+   "license": "CC0-1.0",
+   "source": "https://kenney.nl/assets/ui-audio",
+   "original": "kenney_ui-audio.zip",
+   "original_sha256": "946fc23a63d535d693eb31b2eabb80c8c28d6351e2186b344ceb71b2cb1d5eb6",
+   "license_text": "UI SFX Set\r\n\r\n\tby  Kenney Vleugels (Kenney.nl)\r\n\r\n\t\t\t------------------------------\r\n\r\n\tLicense (Creative Commons Zero, CC0)\r\n\thttp://creativecommons.org/publicdomain/zero/1.0/\r\n\r\n\tYou may use these assets in personal and commercial projects.\r\n\tCredit (Kenney or www.kenney.nl) would be nice but is n",
+   "sounds": 51
+  },
+  {
+   "pack": "kenney-rpg",
+   "file": "kenney-rpg-sounds-1.zip",
+   "sha256": "6dbeaf8544da958d8f2adcb4a4a4b76c1ade34a05f8ab9edccd327da7375f38b",
+   "bytes": 964837,
+   "license": "CC0-1.0",
+   "source": "https://kenney.nl/assets/rpg-audio",
+   "original": "kenney_rpg-audio.zip",
+   "original_sha256": "6dbeaf8544da958d8f2adcb4a4a4b76c1ade34a05f8ab9edccd327da7375f38b",
+   "license_text": "RPG Audio\r\n\r\n\tby  Kenney Vleugels (Kenney.nl)\r\n\r\n\t\t\t------------------------------\r\n\r\n\tLicense (Creative Commons Zero, CC0)\r\n\thttp://creativecommons.org/publicdomain/zero/1.0/\r\n\r\n\tYou may use these assets in personal and commercial projects.\r\n\tCredit (Kenney or www.kenney.nl) would be nice but is no",
+   "sounds": 51
+  },
+  {
+   "pack": "kenney-scifi",
+   "file": "kenney-scifi-sounds-1.zip",
+   "sha256": "119340f351a5098ad814f78719438c0da355a9ce8a4c8a3af6a8d48aa3d49e04",
+   "bytes": 5875104,
+   "license": "CC0-1.0",
+   "source": "https://kenney.nl/assets/sci-fi-sounds",
+   "original": "kenney_sci-fi-sounds.zip",
+   "original_sha256": "119340f351a5098ad814f78719438c0da355a9ce8a4c8a3af6a8d48aa3d49e04",
+   "license_text": "Sci-Fi Sounds (1.0)\r\n\r\n\tCreated/distributed by Kenney (www.kenney.nl)\r\n\tCreation date: 11-10-2020\r\n\r\n\t\t\t------------------------------\r\n\r\n\tLicense: (Creative Commons Zero, CC0)\r\n\thttp://creativecommons.org/publicdomain/zero/1.0/\r\n\r\n\tThis content is free to use in personal, educational and commercial",
+   "sounds": 73
+  },
+  {
+   "pack": "kenney-digital",
+   "file": "kenney-digital-sounds-1.zip",
+   "sha256": "24e6ce28b76a6d8c89cff4d331e0965ff5c3de8a73c612028e9d363cc64e4f06",
+   "bytes": 990367,
+   "license": "CC0-1.0",
+   "source": "https://kenney.nl/assets/digital-audio",
+   "original": "kenney_digital-audio.zip",
+   "original_sha256": "24e6ce28b76a6d8c89cff4d331e0965ff5c3de8a73c612028e9d363cc64e4f06",
+   "license_text": "Digital Audio\r\n\r\n\tby  Kenney Vleugels (Kenney.nl)\r\n\r\n\t\t\t------------------------------\r\n\r\n\tLicense (Creative Commons Zero, CC0)\r\n\thttp://creativecommons.org/publicdomain/zero/1.0/\r\n\r\n\tYou may use these assets in personal and commercial projects.\r\n\tCredit (Kenney or www.kenney.nl) would be nice but i",
+   "sounds": 62
+  },
+  {
+   "pack": "kenney-jingles",
+   "file": "kenney-jingles-sounds-1.zip",
+   "sha256": "b729ba57959bd58793d2c5cafa348aaf2655d354f3da35ec4729e03ec77197b8",
+   "bytes": 1239525,
+   "license": "CC0-1.0",
+   "source": "https://kenney.nl/assets/music-jingles",
+   "original": "kenney_music-jingles.zip",
+   "original_sha256": "b729ba57959bd58793d2c5cafa348aaf2655d354f3da35ec4729e03ec77197b8",
+   "license_text": "Music Jingles\r\n\r\n\tby  Kenney Vleugels (Kenney.nl)\r\n\r\n\t\t\t------------------------------\r\n\r\n\tLicense (Creative Commons Zero, CC0)\r\n\thttp://creativecommons.org/publicdomain/zero/1.0/\r\n\r\n\tYou may use these assets in personal and commercial projects.\r\n\tCredit (Kenney or www.kenney.nl) would be nice but i",
+   "sounds": 85
+  },
+  {
+   "pack": "bsb-whoosh",
+   "file": "bsb-whoosh-sounds-1.zip",
+   "sha256": "4a6da52949c6210df740288fe46850218e46ef906718703d1b000e492b6c1baa",
+   "bytes": 573838,
+   "license": "CC0-1.0",
+   "source": "https://bigsoundbank.com",
+   "license_evidence": "tools/sounds/evidence/bigsoundbank-licenses-2026-11-18.md",
+   "sounds": [
+    {
+     "file": "0127.ogg",
+     "page": "https://bigsoundbank.com/sword-that-cuts-s0127.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "b1b6fa224224a5343ed0a726a59f01454d2febd3bcc40f022186986351a13b97",
+     "converted": {
+      "from": "0127.wav",
+      "from_sha256": "998a6d64148ef61314f190cfc2314dbab61edcafa15214b50abaf7528402a3f1",
+      "to": "0127.ogg",
+      "to_sha256": "b1b6fa224224a5343ed0a726a59f01454d2febd3bcc40f022186986351a13b97",
+      "how": "oggenc (vorbis-tools 1.4.3) -q 10, same sample rate and channels – BigSoundBank's page offered this sound as WAV here; their own OGG files are Vorbis at about 500 kbit/s"
+     }
+    },
+    {
+     "file": "0128.ogg",
+     "page": "https://bigsoundbank.com/sword-through-the-air-s0128.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "2c02de65de9a93f005a846d63e8468c2e9c3d7bbf65f3fd32dbb612b261cf557"
+    },
+    {
+     "file": "0572.ogg",
+     "page": "https://bigsoundbank.com/whoosh-1-s0572.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "5226d901186e3847980d0bac583b5db249fdf84370fd0daa17122de989d6ef98"
+    },
+    {
+     "file": "0573.ogg",
+     "page": "https://bigsoundbank.com/whoosh-2-s0573.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "c4b32c88bc166ab0a2dfe0fa49e5572cd0c360033bf5375c996ccb1260d76ba6"
+    },
+    {
+     "file": "1795.ogg",
+     "page": "https://bigsoundbank.com/whoosh-3-s1795.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "6fc429821305979a5683ea8d3f9c946254dc4e7ea166ddae6f68458744a0fe1c"
+    },
+    {
+     "file": "1796.ogg",
+     "page": "https://bigsoundbank.com/whoosh-4-s1796.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "811c91485534a837553d7c7a0e56dee59995e3a37c00f1e8fdf881eb99ef2a23",
+     "converted": {
+      "from": "1796.wav",
+      "from_sha256": "e0f841b5f734daccbab4def7103872399c9ab59e21efda705e5465047229e6b5",
+      "to": "1796.ogg",
+      "to_sha256": "811c91485534a837553d7c7a0e56dee59995e3a37c00f1e8fdf881eb99ef2a23",
+      "how": "oggenc (vorbis-tools 1.4.3) -q 10, same sample rate and channels – BigSoundBank's page offered this sound as WAV here; their own OGG files are Vorbis at about 500 kbit/s"
+     }
+    },
+    {
+     "file": "1797.ogg",
+     "page": "https://bigsoundbank.com/whoosh-5-s1797.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "3899184c1f677f24d67f07b358938c49ae83e524eb370461d5ef5629eed2268d"
+    },
+    {
+     "file": "1798.ogg",
+     "page": "https://bigsoundbank.com/whoosh-10-s1798.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "7491cf8c95f3e6dd7959d9b69d37b640de4db99de73f4ce52ff56db5ec7d923d"
+    },
+    {
+     "file": "1799.ogg",
+     "page": "https://bigsoundbank.com/whoosh-6-s1799.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "93e9bdab0cac3cf3e260b7caec5d8faa7b78eea62737d12d9ab35067415c2f6b"
+    },
+    {
+     "file": "1800.ogg",
+     "page": "https://bigsoundbank.com/whoosh-7-s1800.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "a54f9e0380b9d3b922c5a5178bdbc8744388f04816cb864360bb132ac58cb181"
+    },
+    {
+     "file": "1801.ogg",
+     "page": "https://bigsoundbank.com/whoosh-8-s1801.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "0dfd342ade9c67f7cd631dc5db1a4ced55002d78f6b73be733e3d6c923620346"
+    },
+    {
+     "file": "1802.ogg",
+     "page": "https://bigsoundbank.com/whoosh-9-s1802.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "4fa35e63c87c25883d7fd2a183c77a0e30a00dd40817b7c98093a00eaa0028cf"
+    }
+   ]
+  },
+  {
+   "pack": "bsb-social",
+   "file": "bsb-social-sounds-1.zip",
+   "sha256": "a765221a7ec780aeb7bbcb07e080c9381bfce54d09a647f9887a5706dce43d85",
+   "bytes": 734789,
+   "license": "CC0-1.0",
+   "source": "https://bigsoundbank.com",
+   "license_evidence": "tools/sounds/evidence/bigsoundbank-licenses-2026-11-18.md",
+   "sounds": [
+    {
+     "file": "0448.ogg",
+     "page": "https://bigsoundbank.com/iphone-camera-s0448.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "ed0c1acf1d4e41d87dd8905460236ed0dbbfaf48dceb8cfe767c434e259169ab"
+    },
+    {
+     "file": "0462.ogg",
+     "page": "https://bigsoundbank.com/bubble-wrap-breakouts-s0462.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "d93ea47b22c927b489b78f0abd4a9dd0fdf4f0b7f2978201d8835b7edf0353e7"
+    },
+    {
+     "file": "0479.ogg",
+     "page": "https://bigsoundbank.com/counter-bell-s0479.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "f255a49792b7e2d359ced034e7dff5134221eb300a8ad84d832289ea3a737fc9"
+    },
+    {
+     "file": "0551.ogg",
+     "page": "https://bigsoundbank.com/balloon-burst-s0551.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "2ad7e806fb919794573e2e997fc36025da8f83514fd7af090b9fa11e147bdd16"
+    },
+    {
+     "file": "1111.ogg",
+     "page": "https://bigsoundbank.com/message-1-s1111.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "87ab5b8ce2fec8eb9fa9426ffebbdccb576824d9885a2d0ce1a90ae41e52b3cd"
+    },
+    {
+     "file": "1313.ogg",
+     "page": "https://bigsoundbank.com/message-sent-s1313.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "a4c24eefcdaac169a3b3a73690648af92c084573111009086fe8b86010990ea4"
+    },
+    {
+     "file": "1398.ogg",
+     "page": "https://bigsoundbank.com/idea-1-s1398.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "d3915699a1171831e5c3e3ee3df97159b4cd032ee838a2bcac756613d7778225"
+    },
+    {
+     "file": "1399.ogg",
+     "page": "https://bigsoundbank.com/idea-2-s1399.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "3fff136216ca77da2e47fe20ca0dba82ba3bac674259295a4e33a8586803c2f5"
+    },
+    {
+     "file": "1417.ogg",
+     "page": "https://bigsoundbank.com/beep-of-a-cash-register-s1417.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "2c0a86cf6f843b91d49028883072eeaa37e49f3c8a801606b984221e39d7347f"
+    },
+    {
+     "file": "1740.ogg",
+     "page": "https://bigsoundbank.com/macbook-trackpad-simple-click-s1740.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "476a9eca6ea1fb762e92ff52b0ca2b7e4582a3385986a9f8194e8d5da8c077e0"
+    },
+    {
+     "file": "1742.ogg",
+     "page": "https://bigsoundbank.com/apple-magic-mouse-single-click-s1742.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "91f6b93a0f832c65664f749b45bafa76a8c03bb7324916c051b27ef7b57a2df6"
+    },
+    {
+     "file": "2059.ogg",
+     "page": "https://bigsoundbank.com/notification-lasomarie-1-s2059.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "3fddbb823c23fdbb2e201f03c500d93055ec34e71228e001c4d141a01dbe2af0"
+    },
+    {
+     "file": "2060.ogg",
+     "page": "https://bigsoundbank.com/notification-lasomarie-2-s2060.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "5a73db88ca05aca76f02b2fd33ec256be47b0d98d1e8f0514e47ed94858afc21"
+    },
+    {
+     "file": "2061.ogg",
+     "page": "https://bigsoundbank.com/notification-lasomarie-3-s2061.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "081ecbecaf5788909d75b0b36aaed6a445aea985848e53927d40036008b0219e"
+    },
+    {
+     "file": "2063.ogg",
+     "page": "https://bigsoundbank.com/notification-lasolisa-1-s2063.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "4941a4efee52ce74aa76c420ae0d8fb01f2338ef85f292c31879d9c413011df6"
+    },
+    {
+     "file": "2064.ogg",
+     "page": "https://bigsoundbank.com/notification-lasolisa-2-s2064.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "397897956817ed1333ea5171fcf2fefb088fcc5598803813ed4fd59d9a7cb0e0"
+    },
+    {
+     "file": "2065.ogg",
+     "page": "https://bigsoundbank.com/notification-lasolisa-3-s2065.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "f886654f4ded03803f07adb7176ab901c60854bff4249963d67ceedf7caca258"
+    },
+    {
+     "file": "2066.ogg",
+     "page": "https://bigsoundbank.com/notification-lasolisa-4-s2066.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "3b46d6944ef1d66019eff67bdfc8f6db76065009aa8517c682bf807c1e846b96"
+    },
+    {
+     "file": "2067.ogg",
+     "page": "https://bigsoundbank.com/notification-lasolisa-5-s2067.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "9bfec225dcbfd53b5a2acbb7535b4503c7a967a637d42e98ed7d6480972abff8"
+    },
+    {
+     "file": "2394.ogg",
+     "page": "https://bigsoundbank.com/trigger-of-camera-1-s2394.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "cbc2a0a9fe6dcf713474a201e1ebec59bdc39156ff9f345a1e8be6aef33f72cb"
+    },
+    {
+     "file": "2395.ogg",
+     "page": "https://bigsoundbank.com/trigger-of-camera-2-s2395.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "b38014030cf58a6592fcfe713c4e6998ee3a0f17af9d4f2d5da8052f50696500"
+    },
+    {
+     "file": "2845.ogg",
+     "page": "https://bigsoundbank.com/typewriter-bell-s2845.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "c8aa745a2c169c6051e75ba24f2317eaaffefba76c49bc6acb8e18b596b7eb5e"
+    }
+   ]
+  },
+  {
+   "pack": "bsb-comedy",
+   "file": "bsb-comedy-sounds-1.zip",
+   "sha256": "ab5d259ac63b794f32803a03c9d53087494ad64d11603a8e14b25c4432efd8ac",
+   "bytes": 2584433,
+   "license": "CC0-1.0",
+   "source": "https://bigsoundbank.com",
+   "license_evidence": "tools/sounds/evidence/bigsoundbank-licenses-2026-11-18.md",
+   "sounds": [
+    {
+     "file": "0020.ogg",
+     "page": "https://bigsoundbank.com/applause-300-people-s0020.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "43d65a5a373c32a8d02725c1a779c214be19eb989ef8993b46bcc4bb7303a03a"
+    },
+    {
+     "file": "0433.ogg",
+     "page": "https://bigsoundbank.com/battery-joke-s0433.html",
+     "author": "SimonLacelle",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "56259ce874d75a000847c938013bdff5b764d3a78ab607cbf2cc5d972feb0c07"
+    },
+    {
+     "file": "0475.ogg",
+     "page": "https://bigsoundbank.com/laugh-s0475.html",
+     "author": "anonyme",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "e6ba7ed74c929f7139aeff2675f5189a7fdeed0e1039b3c9c65ab5cbdf617ca1"
+    },
+    {
+     "file": "1483.ogg",
+     "page": "https://bigsoundbank.com/gong-strong-1-s1483.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "0b16440f85a0106c74823ced38f004ed0eba2e1efa8e5f3119f1fd85d8bbc09b"
+    },
+    {
+     "file": "2054.ogg",
+     "page": "https://bigsoundbank.com/ghost-on-the-flute-1-s2054.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "da82b91c9b3c1241bc6ebb5c4125492b0a488de61d61179eacee2536569946fd"
+    },
+    {
+     "file": "2056.ogg",
+     "page": "https://bigsoundbank.com/ghost-on-the-flute-3-s2056.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "54d5eed59a30ef0538cca80feb28be8420ede0195b3b23372dc85c0a3421eea7"
+    },
+    {
+     "file": "2093.ogg",
+     "page": "https://bigsoundbank.com/delirious-laughter-3-s2093.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "95a2e789bf9d237f65373a29fedf0c44a7304aa56ceec5b15529784ae11a6347"
+    },
+    {
+     "file": "2097.ogg",
+     "page": "https://bigsoundbank.com/delirious-laughter-7-s2097.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "c80e4f8bb1078696ffa544c197d16f22a70f623dd7b83dc651c9efc765e72fd5"
+    },
+    {
+     "file": "2261.ogg",
+     "page": "https://bigsoundbank.com/cartoon-agogo-1-s2261.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "b82492beb6d69024f73857ff480826ace3ef7b4a6862966ad8889d6df7505792"
+    },
+    {
+     "file": "2270.ogg",
+     "page": "https://bigsoundbank.com/cartoon-block-1-s2270.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "a1e8376b906f5abac8769bf90f7104c7d9175d5f4f1b65c49cc786c1a9d71d40"
+    },
+    {
+     "file": "2277.ogg",
+     "page": "https://bigsoundbank.com/boing-cartoon-1-s2277.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "9aaa3b65bb33fac9501fac8df531315195fd09329bb774aff09e623e9b433c01"
+    },
+    {
+     "file": "2279.ogg",
+     "page": "https://bigsoundbank.com/boing-cartoon-3-s2279.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "c14e2dc07954d436140f4c4d0b017e02d3cbaf2140f0dda4824e2180b209202e"
+    },
+    {
+     "file": "2281.ogg",
+     "page": "https://bigsoundbank.com/boing-cartoon-5-s2281.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "298a3d4f2b184c8bfa0da2b59c612bca9ab71388185149d23f65a69f32d6d5b7"
+    },
+    {
+     "file": "2283.ogg",
+     "page": "https://bigsoundbank.com/boing-cartoon-7-s2283.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "31e231b71f51b0ffbb8d852b0f8a9ad870e3abe7a74714e3fbe0e790c5d5ac41"
+    },
+    {
+     "file": "2401.ogg",
+     "page": "https://bigsoundbank.com/drum-roll-1-m-s2401.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "f2e5ec5d3ad8c5dd19573ccf677996646e5f099cf40579fc4739ff2db622d20a"
+    },
+    {
+     "file": "2405.ogg",
+     "page": "https://bigsoundbank.com/drum-roll-2-l-s2405.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "6897871da5aaae071c24f8ca06e4a94e7ce60c0ff3b100914cac7392fb5461a2"
+    },
+    {
+     "file": "2410.ogg",
+     "page": "https://bigsoundbank.com/battery-joke-3-s2410.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "1fe7100475ad98b0ce820b65bcd4924ae1430844bc3bf5bfc8695b9c9a4078d9"
+    },
+    {
+     "file": "2412.ogg",
+     "page": "https://bigsoundbank.com/battery-joke-5-s2412.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "469d3b2a5fb0bc7d61c11ae2d9aad55a54d93102f3051a03fc948f56ebd307b7"
+    },
+    {
+     "file": "2479.ogg",
+     "page": "https://bigsoundbank.com/applause-concert-bar-1-s2479.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "88e0baf60427cd40b635be2cb0482344447996a506dce86cb4c24fd703101782"
+    },
+    {
+     "file": "2858.ogg",
+     "page": "https://bigsoundbank.com/vinyl-scratch-1-s2858.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "8732c8a4afb13c397f0b621c96ec54a7910609553975e76262324d90215ca617"
+    },
+    {
+     "file": "2861.ogg",
+     "page": "https://bigsoundbank.com/vinyl-scratch-4-s2861.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "e106c3ec4bac999c181f132782ad6edec7126ecd895c22ae1fb025b878ab37b9"
+    },
+    {
+     "file": "2865.ogg",
+     "page": "https://bigsoundbank.com/vinyl-scratch-8-s2865.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "defc0ae64417d8d1d6818dd170cf4ed33d5e0f79164b09c6f41e814665444977"
+    },
+    {
+     "file": "2869.ogg",
+     "page": "https://bigsoundbank.com/vinyl-scratch-12-s2869.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "e1f49fda838ed77aad89483ed1a8e3d0f65dac6b84c23b8e5ba7e1cf6f63746e"
+    }
+   ]
+  },
+  {
+   "pack": "bsb-accent",
+   "file": "bsb-accent-sounds-1.zip",
+   "sha256": "72c6fc7ec6d151aecfa35973c86f368887e90f9a05595c49a143a0943d9fd8c2",
+   "bytes": 1898601,
+   "license": "CC0-1.0",
+   "source": "https://bigsoundbank.com",
+   "license_evidence": "tools/sounds/evidence/bigsoundbank-licenses-2026-11-18.md",
+   "sounds": [
+    {
+     "file": "0095.ogg",
+     "page": "https://bigsoundbank.com/door-knock-s0095.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "d378d7c8dd9e3c632bd53272ae7c0e25d4d5cdb289780da89bd55658a0f37ac8"
+    },
+    {
+     "file": "0243.ogg",
+     "page": "https://bigsoundbank.com/heartbeat-1-s0243.html",
+     "author": "DenisChardonnet",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "def95367baf5dc2867cd87f1d80dba7b9208a4302de0f9c4d99dd10e096d7332"
+    },
+    {
+     "file": "0244.ogg",
+     "page": "https://bigsoundbank.com/heartbeat-2-s0244.html",
+     "author": "DenisChardonnet",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "7b94f1dbb32611f2d9b330873b79c4e73fd311c1ee4b160e753baee24a7f5578"
+    },
+    {
+     "file": "0597.ogg",
+     "page": "https://bigsoundbank.com/slaps-s0597.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "b2e48234a5d2bb4ff2354b4685d63eb4d6da7a9266e89c6a278404df484bbfda"
+    },
+    {
+     "file": "0771.ogg",
+     "page": "https://bigsoundbank.com/broken-glass-s0771.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "1425159b6b607565eb9d09105d45a4651b37ecc597a98014026468d0423e9fa9"
+    },
+    {
+     "file": "0920.ogg",
+     "page": "https://bigsoundbank.com/glockenspiel-s0920.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "78abb61701623b11acf898142be649758e2a340d7e29c2dff791b154d46a90c2"
+    },
+    {
+     "file": "1023.ogg",
+     "page": "https://bigsoundbank.com/explosion-far-away-s1023.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "5d09a29c99341b501723971a40ea4e94e8d70290704e22e2e8e93a67d4885eaf"
+    },
+    {
+     "file": "1808.ogg",
+     "page": "https://bigsoundbank.com/explosion-2-s1808.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "391364c45297eabf75e25932435f48c4635e19c22668fc4fbd2823d6d864b55c"
+    },
+    {
+     "file": "1926.ogg",
+     "page": "https://bigsoundbank.com/boxing-bell-1-s1926.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "e47d96045fd9a7147b0cd81e6a230154fa54fdeb217c523b7e12d161b344835b"
+    },
+    {
+     "file": "2079.ogg",
+     "page": "https://bigsoundbank.com/chimes-dream-1-s2079.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "df397a819f03f1b48e504f10a9df10ebff5f572042f837fd702d1462a56bde30"
+    },
+    {
+     "file": "2081.ogg",
+     "page": "https://bigsoundbank.com/chimes-dream-3-s2081.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "e36a6898c6058ea6f5846be8e7f1441a8562be700220a131a49d69c405f89d57"
+    },
+    {
+     "file": "2086.ogg",
+     "page": "https://bigsoundbank.com/chimes-dream-8-s2086.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "4122328ea92de0e3968dcc2e2f2a4e1861d5c078b4a7171112ce92fd9194a2ff"
+    },
+    {
+     "file": "2088.ogg",
+     "page": "https://bigsoundbank.com/chimes-butterfly-2-s2088.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "c0ba3426082fbf74d4b80cbcfa89e796d3aeb67fa5a28f77cf71b5b488859297"
+    },
+    {
+     "file": "2274.ogg",
+     "page": "https://bigsoundbank.com/finger-cymbals-1-s2274.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "fe2d482649e8542c9824ec3cd4a3368ce6a0a11eb0d2dabc45fcbdda8935676a"
+    },
+    {
+     "file": "2311.ogg",
+     "page": "https://bigsoundbank.com/cymbale-16-1-s2311.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "962c27f1b121908384cb67fe5792c7f5c98ff2f67c2007113037177ce239ef7d"
+    },
+    {
+     "file": "2459.ogg",
+     "page": "https://bigsoundbank.com/punch-4-s2459.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "19a0ff82a7d63bc9a9367f08db526e5c231f6ff611a3ced9ae0882d96e8fe90f"
+    },
+    {
+     "file": "2461.ogg",
+     "page": "https://bigsoundbank.com/punch-6-s2461.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "0b1eb06d14557c68f4ff577e972cb60fd58a17ef8d7bae33aab098af731a22aa"
+    },
+    {
+     "file": "2463.ogg",
+     "page": "https://bigsoundbank.com/punch-8-s2463.html",
+     "author": "Joseph SARDIN",
+     "marking": "CC0 (public domain): Free and royalty-free",
+     "sha256": "85c044ec921928198bb8d5739a44dd915784163328d891980b444d676591ac28"
+    }
+   ]
+  }
+ ],
+ "problems": []
+}

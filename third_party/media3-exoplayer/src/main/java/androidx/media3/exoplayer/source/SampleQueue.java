@@ -13,6 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/*
+ * Modified for Klipp (2026) – this file differs from Media3 1.11.1; the changes are marked "Klipp" and
+ * listed in third_party/media3-exoplayer/KLIPP.md.
+ */
 package androidx.media3.exoplayer.source;
 
 import static androidx.media3.common.Format.NO_VALUE;

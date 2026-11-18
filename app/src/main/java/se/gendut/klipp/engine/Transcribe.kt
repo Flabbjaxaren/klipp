@@ -57,19 +57,22 @@ data class SpeechDtw(val heads: String, val startMs: Int, val endMs: Int)
  * The speech models: KBLab's KB-Whisper (National Library of Sweden, trained on Swedish – clearly best for Swedish) and
  * OpenAI's Whisper (multilingual, and English-only variants). [language] = the model's fixed language, "" = any.
  * [tier]: 0 fast, 1 balanced, 2 best. The file name is the enum name (downloaded models keep their names).
+ * [url] is pinned to a repository revision (Hugging Face /resolve/<commit>/), [sha256] is the file's hash there: a
+ * download is kept only if it matches (models already on a phone are kept as they are – they were checked by size).
+ * Licenses: KB-Whisper Apache-2.0, Whisper (OpenAI, ggml conversion) MIT – THIRD_PARTY.md.
  * [dtw]: word times for transcripts by DTW. Measured for KB-Whisper on Swedish speech with known word edges (word
  * edges a median ~40 ms off instead of ~180 ms; checked on a second, separate recording); the other models keep
  * whisper's own times until measured.
  */
-enum class SpeechModel(val title: String, val url: String, val bytes: Long, val language: String, val tier: Int, val dtw: SpeechDtw? = null) {
-    SV_FAST("KB-Whisper base", "https://huggingface.co/KBLab/kb-whisper-base/resolve/main/ggml-model-q5_0.bin", 55_295_450, "sv", 0, SpeechDtw("base", 250, 115)),
-    SV_BEST("KB-Whisper small", "https://huggingface.co/KBLab/kb-whisper-small/resolve/main/ggml-model-q5_0.bin", 175_209_680, "sv", 1, SpeechDtw("small", 255, 105)),
-    SV_LARGE("KB-Whisper medium", "https://huggingface.co/KBLab/kb-whisper-medium/resolve/main/ggml-model-q5_0.bin", 539_212_484, "sv", 2, SpeechDtw("medium", 355, -55)),
-    MULTI_BASE("Whisper base", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base-q5_1.bin", 59_707_625, "", 0),
-    MULTI("Whisper small", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin", 190_085_487, "", 1),
-    MULTI_TURBO("Whisper large-v3-turbo", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin", 574_041_195, "", 2),
-    EN_BASE("Whisper base.en", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en-q5_1.bin", 59_721_011, "en", 0),
-    EN_SMALL("Whisper small.en", "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small.en-q5_1.bin", 190_098_681, "en", 1);
+enum class SpeechModel(val title: String, val url: String, val sha256: String, val bytes: Long, val language: String, val tier: Int, val dtw: SpeechDtw? = null) {
+    SV_FAST("KB-Whisper base", "https://huggingface.co/KBLab/kb-whisper-base/resolve/1499d2d2f0c7ed545bd6f2eec85287cf8d8c8b38/ggml-model-q5_0.bin", "aead29b356bca8840e72a8dc2286e2d69e6702639751a1e60cb3c8eacefec546", 55_295_450, "sv", 0, SpeechDtw("base", 250, 115)),
+    SV_BEST("KB-Whisper small", "https://huggingface.co/KBLab/kb-whisper-small/resolve/3564d61a42fc210ceaa55a22a96dd64478959c78/ggml-model-q5_0.bin", "6768836a51abc902e420c613153e6d418c90ea2774e913274d02ab23170225b7", 175_209_680, "sv", 1, SpeechDtw("small", 255, 105)),
+    SV_LARGE("KB-Whisper medium", "https://huggingface.co/KBLab/kb-whisper-medium/resolve/0abe10b9d7f75d0902656e5c06c5c4d549604dc5/ggml-model-q5_0.bin", "7f8762e0ade9e0073674c0d5acae942a0b1ea98add9baa008ee89c94eaba43d0", 539_212_484, "sv", 2, SpeechDtw("medium", 355, -55)),
+    MULTI_BASE("Whisper base", "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base-q5_1.bin", "422f1ae452ade6f30a004d7e5c6a43195e4433bc370bf23fac9cc591f01a8898", 59_707_625, "", 0),
+    MULTI("Whisper small", "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small-q5_1.bin", "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb", 190_085_487, "", 1),
+    MULTI_TURBO("Whisper large-v3-turbo", "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin", "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2", 574_041_195, "", 2),
+    EN_BASE("Whisper base.en", "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-base.en-q5_1.bin", "4baf70dd0d7c4247ba2b81fafd9c01005ac77c2f9ef064e00dcf195d0e2fdd2f", 59_721_011, "en", 0),
+    EN_SMALL("Whisper small.en", "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.en-q5_1.bin", "bfdff4894dcb76bbf647d56263ea2a96645423f1669176f4844a1bf8e478ad30", 190_098_681, "en", 1);
 
     /** "KB-Whisper small · 175 MB". */
     val detail: String get() = "$title · ${bytes / 1_000_000} MB"
@@ -174,8 +177,21 @@ object SpeechModels {
             conn.disconnect()
         }
         if (part.length() != m.bytes) error("model download incomplete (${part.length()} of ${m.bytes} bytes)")
+        // the pinned file, nothing else: a different file (a changed or tampered download) is deleted, not used
+        if (!sha256(part).equals(m.sha256, ignoreCase = true)) { part.delete(); error("the downloaded model is not the expected file – try again") }
         if (!part.renameTo(out)) error("could not save the model")
         onProgress(1f)
+    }
+
+    /** The file's SHA-256 as lowercase hex. */
+    fun sha256(f: File): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        f.inputStream().use { i ->
+            val buf = ByteArray(1 shl 16)
+            var n: Int
+            while (i.read(buf).also { n = it } >= 0) md.update(buf, 0, n)
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 
     fun delete(c: Context, m: SpeechModel) { file(c, m).delete(); File(file(c, m).path + ".part").delete() }

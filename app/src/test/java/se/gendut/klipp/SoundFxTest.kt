@@ -10,7 +10,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import se.gendut.klipp.engine.SoundFx
 
-/** Sound effects: readable names, which track a sound goes on, Freesound's answer and the WAV header. */
+/** Sound effects: readable names, which track a sound goes on and the WAV header. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class SoundFxTest {
@@ -34,18 +34,6 @@ class SoundFxTest {
         assertEquals(2, SoundFx.freeTrack(all, 2.0, 1.0)) // all busy: A3
     }
 
-    @Test fun freesoundAnswerBecomesHits() {
-        val json = """{"count":2,"results":[
-            {"id":123,"name":"whoosh fast.wav","duration":1.25,"username":"anna","previews":{"preview-hq-mp3":"https://cdn.freesound.org/previews/0/123-hq.mp3","preview-lq-mp3":"x"}},
-            {"id":124,"name":"no preview","duration":2.0,"username":"bo"}]}"""
-        val hits = SoundFx.parseSearch(json)
-        assertEquals(1, hits.size)
-        assertEquals(SoundFx.Hit(123, "whoosh fast", 1.25, "https://cdn.freesound.org/previews/0/123-hq.mp3", "anna"), hits[0])
-        // an error from Freesound (wrong key) is reported, not shown as "no results"
-        val err = runCatching { SoundFx.parseSearch("""{"detail":"Invalid token."}""") }
-        assertTrue(err.isFailure); assertEquals("Invalid token.", err.exceptionOrNull()?.message)
-    }
-
     @Test fun wavHeaderGivesTheLength() {
         val f = tmp.newFile("x.wav")
         // 0.5 s of 48 kHz stereo 16-bit
@@ -59,8 +47,8 @@ class SoundFxTest {
     @Test fun catalogIsSane() {
         assertEquals(SoundFx.PACKS.size, SoundFx.PACKS.map { it.id }.toSet().size)
         for (p in SoundFx.PACKS) {
-            // a zip (Kenney) or cut clips (BigSoundBank), never both or neither
-            assertTrue(p.id, (p.url != null) xor p.clips.isNotEmpty())
+            // a zip (Kenney, no clips) or cut clips (BigSoundBank); every pack names where its publisher offers it
+            assertTrue(p.id, p.page != null && (p.source == SoundFx.KENNEY) == p.clips.isEmpty())
             assertEquals(p.id, p.clips.size, p.clips.map { it.name }.toSet().size)
             for (c in p.clips) {
                 assertTrue("${p.id} ${c.name}", c.t1 > c.t0 && c.t1 - c.t0 in 0.05..10.0)

@@ -1,0 +1,49 @@
+CHANGELOG – the spektrafilm material in Klipp (this folder)
+
+Derived from spektrafilm by Andrea Volpato
+https://github.com/andreavolpato/spektrafilm
+Licensed CC BY-SA 4.0 (the profiles and everything that encodes them – see SPEKTRAFILM_LICENSE.txt in this folder,
+unchanged, and https://creativecommons.org/licenses/by-sa/4.0/)
+Modified by the Klipp contributors (https://github.com/Flabbjaxaren/klipp): converted to the tables described below.
+
+Upstream revision
+  andreavolpato/spektrafilm, commit 3bb2c2d2801ff68b92019cf1dbcbb133d60832bc (2026-06-07) – see SOURCE.txt.
+
+What is here and how it was made
+  The tables were computed with spektrafilm's own code by Klipp's tools/spektrafilm/export_tables.py (the papers'
+  "curveModel" field added afterwards by tools/spektrafilm/add_curve_models.py, from the same revision):
+
+  film/<stock>.json      a film's characteristic curves, channel densities, base density, DIR couplers' values and
+                         settings, sampled from its spektrafilm profile (after spektrafilm's digest_params)
+  film/<stock>.tc.bin    the film's spectral-upsampling table: spektrafilm's hanatos2025 spectra × the film's
+                         sensitivity, with window fitting and gamut compression, as 32-bit floats
+  film/<stock>.scan.bin  (slide films) the scan of the film's densities to an sRGB-encoded image as a 3D table
+  print/<paper>.json     a paper's curves, channel densities, base density and sensitivity, plus its curve model
+  print/<paper>.scan.bin the scan of the paper's densities to an sRGB-encoded image as a 3D table
+  index.json             the list of stocks and papers; the enlarger's light (spektrafilm's "TH-KG3": a 3400 K black
+                         body through a Schott KG3 heat-absorbing glass), spektrafilm's computed dichroic filters
+                         (its "custom" filters – analytic curves, not measured spectra) and its neutral print filter
+                         database (data/filters/neutral_print_filters.json)
+
+  Films (20): fujifilm_c200, fujifilm_pro_400h, fujifilm_provia_100f, fujifilm_velvia_100, fujifilm_xtra_400,
+  kodak_ektachrome_100, kodak_ektar_100, kodak_gold_200, kodak_kodachrome_64, kodak_portra_160, kodak_portra_400,
+  kodak_portra_800, kodak_portra_800_push1, kodak_portra_800_push2, kodak_ultramax_400, kodak_verita_200d,
+  kodak_vision3_200t, kodak_vision3_250d, kodak_vision3_500t, kodak_vision3_50d.
+  Papers (8): fujifilm_crystal_archive_typeii, kodak_2383, kodak_2393, kodak_ektacolor_edge, kodak_endura_premier,
+  kodak_portra_endura, kodak_supra_endura, kodak_ultra_endura.
+
+  The profiles' values are resampled and re-encoded, not edited by hand. Klipp's app code (engine/Spektra.kt, a port
+  of spektrafilm's GPL code) evaluates the rest of the pipeline on the phone.
+
+Material in these tables that is not from the spektrafilm profiles
+  Some values come from data that spektrafilm ships beside its profiles, whose own license is not stated there:
+  the hanatos2025 spectral-upsampling data (in film/*.tc.bin; spektrafilm's
+  data/luts/spectral_upsampling/irradiance_xy_tc.npy, credited to hanatos) and the Schott KG3 heat-absorbing glass
+  spectrum behind "TH-KG3" in index.json (spektrafilm's data/filters/heat_absorbing/schott, which names Newport's
+  web page as its source). The neutral print filter database was computed by spektrafilm. This changelog does not
+  claim a license for that material – it is listed as an open question in the Klipp repository
+  (docs/licensing-open-questions.md).
+
+Names
+  Film and paper names (Kodak, Fujifilm, Portra, Velvia …) identify the stocks the profiles describe. They are
+  trademarks of their owners; neither spektrafilm nor Klipp is affiliated with or endorsed by them.

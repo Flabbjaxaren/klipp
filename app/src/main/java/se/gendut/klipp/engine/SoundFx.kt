@@ -19,7 +19,6 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
-import java.net.URLEncoder
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.ZipInputStream
@@ -28,19 +27,42 @@ import java.util.zip.ZipInputStream
  * Sound effects that can be downloaded in the app – only CC0 material (free to use in any film, no credit required, and
  * free to redistribute):
  *  - packs from Kenney (kenney.nl), downloaded as a whole;
- *  - single sounds found on Freesound (freesound.org, CC0 only), with the user's own free API key.
+ *  - clips cut from single sounds of BigSoundBank (bigsoundbank.com, CC0);
+ *  - (earlier) single CC0 sounds found on Freesound: the search was removed in 2026-11 (Freesound's API terms don't
+ *    cover a paid app); sounds downloaded before stay in their folder and usable.
  * Every sound is converted to 16-bit WAV on download (the engine's waveform, loudness and ducking read WAV everywhere)
  * and kept in filesDir/sfx, shared by all projects.
  */
 object SoundFx {
     /**
-     * A downloadable pack. [name] is the publisher's (proper) name; [descRes] says what is in it. Either a zip of
-     * sound files ([url], Kenney) or a list of [clips] cut from single files (BigSoundBank).
+     * A downloadable pack. [name] is the publisher's (proper) name; [descRes] says what is in it; [page] is where the
+     * publisher offers it. Either a zip of sound files (no [clips], Kenney) or [clips] cut from single files
+     * (BigSoundBank). New downloads come only from Klipp's own release ([hosted]); a pack without one can't be
+     * downloaded now (the publishers' old download links stopped working or exclude automated access) – packs already
+     * on the phone stay.
      */
     data class Pack(
-        val id: String, val name: String, @StringRes val descRes: Int, val url: String?, val mb: Float,
-        val source: String = KENNEY, val clips: List<Clip> = emptyList(),
+        val id: String, val name: String, @StringRes val descRes: Int, val page: String?, val mb: Float,
+        val source: String = KENNEY, val clips: List<Clip> = emptyList(), val hosted: Hosted? = HOSTED[id],
     )
+
+    /**
+     * A pack as a versioned file on Klipp's own GitHub release [SOUNDS_RELEASE] (tools/sounds: the publishers' original
+     * files, CC0, checked and packed with their license and credits). Downloaded only if its [sha256] and [bytes] match.
+     * A pack without one is fetched from its publisher as before.
+     */
+    data class Hosted(val file: String, val sha256: String, val bytes: Long) {
+        val url get() = "https://github.com/Flabbjaxaren/klipp/releases/download/$SOUNDS_RELEASE/$file"
+    }
+
+    /** The release with the sound packs; a new set of files is a new release (sounds-2 …), never a changed one. */
+    const val SOUNDS_RELEASE = "sounds-1"
+
+    /**
+     * The packs prepared for [SOUNDS_RELEASE] (tools/sounds/sounds-1.json, made by tools/sounds/build_sound_assets.py).
+     * Empty until the files are built from the publishers' originals and the release is published.
+     */
+    val HOSTED: Map<String, Hosted> = mapOf()
 
     /**
      * One sound cut from a BigSoundBank file (its id): [t0]–[t1] s, raised [gainDb] (to a peak of about −1 dBFS),
@@ -53,7 +75,7 @@ object SoundFx {
     const val BIGSOUNDBANK = "BigSoundBank"
 
     val PACKS = listOf(
-        Pack("bsb-whoosh", "Whooshes & Transitions", R.string.sfx_pack_whoosh, null, 0.6f, BIGSOUNDBANK, listOf(
+        Pack("bsb-whoosh", "Whooshes & Transitions", R.string.sfx_pack_whoosh, "https://bigsoundbank.com", 0.6f, BIGSOUNDBANK, listOf(
             Clip("1795", 0.249, 0.619, "Whoosh 3", 0.8f, 0.03),
             Clip("1796", 0.19, 0.668, "Whoosh 4", 1.3f, 0.03),
             Clip("1797", 0.18, 0.439, "Whoosh 5", 4.6f, 0.03),
@@ -75,7 +97,7 @@ object SoundFx {
             Clip("0128", 0.02, 0.469, "Swish", 1.0f, 0.03),
             Clip("0127", 0.06, 0.619, "Blade swish", -0.5f, 0.03),
         )),
-        Pack("bsb-social", "Social & UI", R.string.sfx_pack_social, null, 0.7f, BIGSOUNDBANK, listOf(
+        Pack("bsb-social", "Social & UI", R.string.sfx_pack_social, "https://bigsoundbank.com", 0.7f, BIGSOUNDBANK, listOf(
             Clip("2063", 0.0, 0.389, "Notification 1", -0.4f, 0.03),
             Clip("2064", 0.0, 0.389, "Notification 2", -0.4f, 0.03),
             Clip("2065", 0.0, 0.389, "Notification 3", -0.5f, 0.03),
@@ -100,7 +122,7 @@ object SoundFx {
             Clip("1742", 0.07, 0.379, "Mouse click", 0.6f, 0.03),
             Clip("1740", 0.06, 0.349, "Trackpad click", 1.6f, 0.03),
         )),
-        Pack("bsb-comedy", "Comedy & Reactions", R.string.sfx_pack_comedy, null, 2.6f, BIGSOUNDBANK, listOf(
+        Pack("bsb-comedy", "Comedy & Reactions", R.string.sfx_pack_comedy, "https://bigsoundbank.com", 2.6f, BIGSOUNDBANK, listOf(
             Clip("2277", 0.08, 0.988, "Boing 1", -1.1f, 0.03),
             Clip("2279", 0.13, 1.157, "Boing 3", -1.1f, 0.03),
             Clip("2281", 0.11, 1.267, "Boing 5", -1.1f, 0.03),
@@ -125,7 +147,7 @@ object SoundFx {
             Clip("2270", 0.0, 0.160, "Cartoon knock", -0.9f, 0.03),
             Clip("2261", 0.0, 0.329, "Cartoon bonk", -1.0f, 0.03),
         )),
-        Pack("bsb-accent", "Accents & Hits", R.string.sfx_pack_accent, null, 1.9f, BIGSOUNDBANK, listOf(
+        Pack("bsb-accent", "Accents & Hits", R.string.sfx_pack_accent, "https://bigsoundbank.com", 1.9f, BIGSOUNDBANK, listOf(
             Clip("0243", 0.03, 0.619, "Heartbeat", 0.1f, 0.03),
             Clip("0244", 0.01, 0.619, "Heartbeat 2", 3.1f, 0.03),
             Clip("2079", 0.07, 2.245, "Magic chimes", -0.8f, 0.03),
@@ -145,23 +167,20 @@ object SoundFx {
             Clip("2274", 0.02, 1.317, "Finger cymbals", -0.7f, 0.03),
             Clip("0095", 5.178, 5.408, "Door knock", 1.1f, 0.03),
         )),
-        Pack("kenney-impact", "Impact Sounds", R.string.sfx_pack_impact, "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip", 0.8f),
-        Pack("kenney-interface", "Interface Sounds", R.string.sfx_pack_interface, "https://kenney.nl/media/pages/assets/interface-sounds/fa43c1dd4d-1677589452/kenney_interface-sounds.zip", 0.8f),
-        Pack("kenney-ui", "UI Audio", R.string.sfx_pack_ui, "https://kenney.nl/media/pages/assets/ui-audio/490d233f68-1677590494/kenney_ui-audio.zip", 0.4f),
-        Pack("kenney-rpg", "RPG Audio", R.string.sfx_pack_rpg, "https://kenney.nl/media/pages/assets/rpg-audio/8e99002d76-1677590336/kenney_rpg-audio.zip", 1.0f),
-        Pack("kenney-scifi", "Sci-Fi Sounds", R.string.sfx_pack_scifi, "https://kenney.nl/media/pages/assets/sci-fi-sounds/6b296f9ecf-1677589334/kenney_sci-fi-sounds.zip", 5.9f),
-        Pack("kenney-digital", "Digital Audio", R.string.sfx_pack_digital, "https://kenney.nl/media/pages/assets/digital-audio/216eac4753-1677590265/kenney_digital-audio.zip", 1.0f),
-        Pack("kenney-jingles", "Music Jingles", R.string.sfx_pack_jingles, "https://kenney.nl/media/pages/assets/music-jingles/f37e530b9e-1677590399/kenney_music-jingles.zip", 1.2f),
+        Pack("kenney-impact", "Impact Sounds", R.string.sfx_pack_impact, "https://kenney.nl/assets/impact-sounds", 0.8f),
+        Pack("kenney-interface", "Interface Sounds", R.string.sfx_pack_interface, "https://kenney.nl/assets/interface-sounds", 0.8f),
+        Pack("kenney-ui", "UI Audio", R.string.sfx_pack_ui, "https://kenney.nl/assets/ui-audio", 0.4f),
+        Pack("kenney-rpg", "RPG Audio", R.string.sfx_pack_rpg, "https://kenney.nl/assets/rpg-audio", 1.0f),
+        Pack("kenney-scifi", "Sci-Fi Sounds", R.string.sfx_pack_scifi, "https://kenney.nl/assets/sci-fi-sounds", 5.9f),
+        Pack("kenney-digital", "Digital Audio", R.string.sfx_pack_digital, "https://kenney.nl/assets/digital-audio", 1.0f),
+        Pack("kenney-jingles", "Music Jingles", R.string.sfx_pack_jingles, "https://kenney.nl/assets/music-jingles", 1.2f),
     )
 
-    /** Folder for the sounds found on Freesound. */
+    /** Folder of the sounds downloaded from Freesound before its search was removed (kept, still listed). */
     const val FREESOUND = "freesound"
 
     /** A sound on the phone. */
-    data class Sound(val file: File, val name: String, val seconds: Double)
-
-    /** A Freesound search hit. */
-    data class Hit(val id: Long, val name: String, val seconds: Double, val preview: String, val user: String)
+    data class Sound(val file: File, val name: String, val seconds: Double, val author: String? = null)
 
     /** Rises when a pack or sound has been added or removed (the lists read the folders again). */
     var revision by mutableIntStateOf(0)
@@ -179,7 +198,11 @@ object SoundFx {
     /** The sounds of a pack (or [FREESOUND]), by name. */
     fun sounds(context: Context, id: String): List<Sound> =
         packDir(context, id).listFiles { f -> f.name.endsWith(".wav") }.orEmpty()
-            .map { f -> Sound(f, label(f), wavSeconds(f)) }.sortedBy { it.name.lowercase() }
+            .map { f -> Sound(f, label(f), wavSeconds(f), sidecar(f)?.optString("user")?.takeIf { it.isNotBlank() }) }.sortedBy { it.name.lowercase() }
+
+    /** The sound's sidecar (name, source, author, license), if it has one. */
+    private fun sidecar(f: File): JSONObject? =
+        File(f.path.removeSuffix(".wav") + ".json").takeIf { it.exists() }?.let { runCatching { JSONObject(it.readText()) }.getOrNull() }
 
     /** The shown name: the sidecar's (Freesound) or the file name made readable. */
     private fun label(f: File): String =
@@ -197,12 +220,14 @@ object SoundFx {
      * Returns the number of sounds.
      */
     suspend fun download(context: Context, pack: Pack): Result<Int> = withContext(Dispatchers.IO) {
-        if (pack.url == null) return@withContext downloadClips(context, pack)
+        // only Klipp's own pinned files: nothing is fetched from the publishers' old links
+        val hosted = pack.hosted ?: return@withContext Result.failure(PackUnavailable(pack.id))
+        if (pack.clips.isNotEmpty()) return@withContext downloadHostedClips(context, pack, hosted)
         val out = packDir(context, pack.id)
         val zip = File(context.cacheDir, "sfx_${pack.id}.zip")
         progress[pack.id] = 0f
         try {
-            fetch(pack.url, zip) { p -> progress[pack.id] = p * 0.5f }
+            fetchVerified(hosted, zip) { p -> progress[pack.id] = p * 0.5f }
             out.deleteRecursively(); out.mkdirs()
             val entries = ZipInputStream(zip.inputStream().buffered()).use { z ->
                 generateSequence { z.nextEntry }.count { isSound(it.name) }
@@ -225,7 +250,7 @@ object SoundFx {
                 }
             }
             if (n == 0) error("no sounds in the pack")
-            File(out, DONE).writeText(pack.url)
+            File(out, DONE).writeText("$SOUNDS_RELEASE/${hosted.file} ${hosted.sha256}")
             Result.success(n)
         } catch (e: Throwable) {
             out.deleteRecursively()
@@ -238,8 +263,50 @@ object SoundFx {
         }
     }
 
-    /** A pack of [Pack.clips]: each source file once (several sounds can come from the same file), cut and leveled. */
-    private suspend fun downloadClips(context: Context, pack: Pack): Result<Int> {
+    /** A hosted pack of [Pack.clips]: one verified zip with the source files, cut as [downloadClips] does. */
+    private suspend fun downloadHostedClips(context: Context, pack: Pack, hosted: Hosted): Result<Int> {
+        val zip = File(context.cacheDir, "sfx_${pack.id}.zip")
+        val dir = File(context.cacheDir, "sfx_${pack.id}_src").apply { deleteRecursively(); mkdirs() }
+        return try {
+            progress[pack.id] = 0f
+            fetchVerified(hosted, zip) { p -> progress[pack.id] = p * 0.3f }
+            ZipInputStream(zip.inputStream().buffered()).use { z ->
+                while (true) {
+                    val e = z.nextEntry ?: break
+                    val name = e.name.substringAfterLast('/')
+                    if (e.isDirectory || !name.endsWith(".ogg")) continue
+                    File(dir, name).outputStream().use { z.copyTo(it) }
+                }
+            }
+            downloadClips(context, pack, marker = "$SOUNDS_RELEASE/${hosted.file} ${hosted.sha256}") { id, dst ->
+                File(dir, "$id.ogg").takeIf { it.isFile }?.copyTo(dst, overwrite = true) ?: error("$id.ogg is not in ${hosted.file}")
+            }
+        } catch (e: Throwable) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            Result.failure(e)
+        } finally {
+            zip.delete(); dir.deleteRecursively()
+        }
+    }
+
+    /** A pack with no file on Klipp's release yet: new downloads are off (see [Pack]). */
+    class PackUnavailable(id: String) : Exception("$id is not available for download")
+
+    /** Downloads [h] to [out] and keeps it only if it is the pinned file (size and SHA-256); otherwise throws. */
+    private fun fetchVerified(h: Hosted, out: File, onProgress: (Float) -> Unit) {
+        fetch(h.url, out, onProgress)
+        if (!verified(out, h)) { out.delete(); error("${h.file} is not the expected file") }
+    }
+
+    /** Is [f] the pinned file [h]? */
+    fun verified(f: File, h: Hosted): Boolean =
+        f.length() == h.bytes && se.gendut.klipp.engine.SpeechModels.sha256(f).equals(h.sha256, ignoreCase = true)
+
+    /**
+     * A pack of [Pack.clips]: each source file once (several sounds can come from the same file), cut and leveled.
+     * [source] puts a source file (its BigSoundBank id) into the given file.
+     */
+    private suspend fun downloadClips(context: Context, pack: Pack, marker: String, source: (String, File) -> Unit): Result<Int> {
         val out = packDir(context, pack.id)
         progress[pack.id] = 0f
         val files = HashMap<String, File>()
@@ -248,9 +315,7 @@ object SoundFx {
             var n = 0
             for ((i, c) in pack.clips.withIndex()) {
                 currentCoroutineContext().ensureActive()
-                val src = files.getOrPut(c.file) {
-                    File(context.cacheDir, "bsb_${c.file}.ogg").also { fetch("https://bigsoundbank.com/UPLOAD/ogg/${c.file}.ogg", it) {} }
-                }
+                val src = files.getOrPut(c.file) { File(context.cacheDir, "bsb_${c.file}.ogg").also { source(c.file, it) } }
                 runCatching {
                     decodeToWav(src.path, File(out, safe(c.name) + ".wav"), c.t0, c.t1, c.gainDb, c.fade)
                     // the shown name (the file name can't hold all characters)
@@ -261,7 +326,7 @@ object SoundFx {
                 progress[pack.id] = (i + 1f) / pack.clips.size
             }
             if (n == 0) error("no sounds in the pack")
-            File(out, DONE).writeText(pack.id)
+            File(out, DONE).writeText(marker)
             return Result.success(n)
         } catch (e: Throwable) {
             out.deleteRecursively()
@@ -276,48 +341,6 @@ object SoundFx {
 
     private fun isSound(name: String) = !name.endsWith("/") && name.substringAfterLast('/') != "Preview.ogg" &&
         name.substringAfterLast('.').lowercase() in setOf("ogg", "wav", "mp3")
-
-    /** Searches Freesound for CC0 sounds (the user's API key). */
-    suspend fun search(key: String, query: String): Result<List<Hit>> = withContext(Dispatchers.IO) {
-        runCatching {
-            val q = URLEncoder.encode(query, "UTF-8")
-            val filter = URLEncoder.encode("license:\"Creative Commons 0\"", "UTF-8")
-            val url = "https://freesound.org/apiv2/search/text/?query=$q&filter=$filter&page_size=30" +
-                "&fields=id,name,duration,previews,username&token=" + URLEncoder.encode(key.trim(), "UTF-8")
-            parseSearch(get(url))
-        }
-    }
-
-    /** Freesound's answer → hits (with a high-quality preview to download). */
-    fun parseSearch(json: String): List<Hit> {
-        val o = JSONObject(json)
-        o.optString("detail").takeIf { it.isNotBlank() }?.let { error(it) }
-        val a = o.optJSONArray("results") ?: return emptyList()
-        return (0 until a.length()).mapNotNull { i ->
-            val r = a.optJSONObject(i) ?: return@mapNotNull null
-            val p = r.optJSONObject("previews") ?: return@mapNotNull null
-            val url = p.optString("preview-hq-mp3").ifBlank { p.optString("preview-lq-mp3") }.ifBlank { return@mapNotNull null }
-            Hit(r.optLong("id"), r.optString("name").removeSuffix(".wav").removeSuffix(".mp3"), r.optDouble("duration", 0.0), url, r.optString("username"))
-        }
-    }
-
-    /** Downloads a Freesound hit (its preview) as WAV into the Freesound folder; already there = that file. */
-    suspend fun fetch(context: Context, hit: Hit): Result<File> = withContext(Dispatchers.IO) {
-        runCatching {
-            val d = packDir(context, FREESOUND).apply { mkdirs() }
-            val out = File(d, "${hit.id}.wav")
-            if (!out.exists()) {
-                val tmp = File(context.cacheDir, "fs_${hit.id}.mp3")
-                try {
-                    fetch(hit.preview, tmp) {}
-                    decodeToWav(tmp.path, out)
-                } finally { tmp.delete() }
-                File(d, "${hit.id}.json").writeText(JSONObject().put("name", hit.name).put("user", hit.user).put("id", hit.id).put("license", "CC0").toString())
-                revision++
-            }
-            out
-        }
-    }
 
     /**
      * The phone's own audio file [uri] copied into the app (files/audio): the file, its name without extension, its
@@ -383,20 +406,6 @@ object SoundFx {
                     }
                 }
             }
-        } finally { c.disconnect() }
-    }
-
-    private fun get(url: String): String {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 15_000; c.readTimeout = 30_000
-        try {
-            val ok = c.responseCode in 200..299
-            val body = (if (ok) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (!ok) {
-                val detail = runCatching { JSONObject(body).optString("detail") }.getOrNull()
-                error(detail?.takeIf { it.isNotBlank() } ?: "HTTP ${c.responseCode}")
-            }
-            return body
         } finally { c.disconnect() }
     }
 

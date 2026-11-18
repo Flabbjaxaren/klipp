@@ -13,6 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+/*
+ * Modified for Klipp (2026) – derived from Media3's SilenceMediaSource (1.11.1); see third_party/media3-transformer/KLIPP.md.
+ */
 package androidx.media3.transformer;
 
 import static androidx.media3.common.util.Util.durationUsToSampleCount;

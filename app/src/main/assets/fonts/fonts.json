@@ -187,7 +187,8 @@
   "styles": [
    "italic",
    "regular"
-  ]
+  ],
+  "axes": "'opsz' 72, 'wdth' 100"
  },
  {
   "name": "Cormorant Garamond",

@@ -1,0 +1,5 @@
+This font file was changed by the Klipp contributors (Apache License 2.0, §4(b)): it is a subset of the original
+(google/fonts commit e7db6ca603fd4862010383ff17ffd6cc4ffac1c0, apache/permanentmarker) made with fontTools
+pyftsubset – Latin characters only (U+0000-024F and the punctuation, symbol and combining ranges listed in the Klipp
+repository's docs/licensing-fonts.md); the glyphs it keeps and their layout features are unchanged. LICENSE.txt in
+this folder is the original license, unchanged.

@@ -1,4 +1,20 @@
 /*
+ * Copyright 2026 The Klipp contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/*
  * Klipp: SDR video sampled as YUV with the file's own matrix, unclamped.
  *
  * Media3 samples SDR video through samplerExternalOES: the driver converts YUV to RGB with a matrix of its choice and
@@ -7,7 +23,6 @@
  * GlObjectsProvider that implements [Choice]), SDR is sampled through EXT_YUV_target like HDR, converted here with the
  * file's matrix and range (BT.601/709/2020, limited/full, 8 or 10 bits) and not clamped.
  *
- * License: like the rest of the module, Apache 2.0 (the change) – used in Klipp (GPL-3.0).
  */
 package androidx.media3.effect;
 

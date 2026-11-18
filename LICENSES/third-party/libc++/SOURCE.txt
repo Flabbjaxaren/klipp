@@ -1,0 +1,4 @@
+libc++ (lib/arm64-v8a/libc++_shared.so) comes from the Android NDK 29.0.14206865 (LLVM's C++ standard library).
+NOTICE.txt in this folder is the first section of the NDK's toolchains/llvm/prebuilt/<host>/NOTICE, lines 1–280,
+unchanged: the LLVM Project's license (Apache License 2.0 with LLVM Exceptions) and the legacy University of
+Illinois/NCSA license. The rest of that NOTICE file covers other parts of the NDK toolchain that Klipp does not ship.
