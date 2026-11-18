@@ -1,4 +1,5 @@
 import java.util.Properties
+import javax.inject.Inject
 
 /**
  * The release key lives outside the repository: ~/.klipp/keystore.properties (storeFile, storePassword, keyAlias,
@@ -10,6 +11,24 @@ val releaseKey: Properties? = run {
     val f = System.getenv("KLIPP_KEYSTORE")?.let { file(it) } ?: file("${System.getProperty("user.home")}/.klipp/keystore.properties")
     if (!f.isFile || project.findProperty("klipp.debugSigned") == "true") null
     else Properties().apply { f.inputStream().use { load(it) } }
+}
+
+/**
+ * The commit this build is made from – shown in Settings → About with a link to that exact source
+ * (GPL-3.0 §6). From git, or from SOURCE_COMMIT in a source package (no .git there). "-dirty" when the working tree has
+ * changes the commit doesn't have (such a build's source is not exactly the linked one).
+ */
+val gitCommit: String = run {
+    fun git(vararg a: String) = runCatching {
+        val p = ProcessBuilder("git", *a).directory(rootDir).redirectErrorStream(true).start()
+        p.inputStream.bufferedReader().readText().trim().takeIf { p.waitFor() == 0 }
+    }.getOrNull()
+    val head = git("rev-parse", "HEAD")
+    when {
+        head != null -> head + if (git("status", "--porcelain", "--untracked-files=no").isNullOrEmpty()) "" else "-dirty"
+        rootDir.resolve("SOURCE_COMMIT").isFile -> rootDir.resolve("SOURCE_COMMIT").readText().trim()
+        else -> "unknown"
+    }
 }
 
 plugins {
@@ -35,6 +54,7 @@ android {
         manifestPlaceholders["appLabel"] = "Klipp"
         // the export's test points: off everywhere but the designTest build
         buildConfigField("boolean", "TEST_HOOKS", "false")
+        buildConfigField("String", "GIT_COMMIT", "\"$gitCommit\"")
     }
     // the GPU tests on a phone (src/androidTest): their own app id beside the installed Klipp, so running them never
     // replaces it or touches its projects (`./gradlew connectedGpuTestAndroidTest`)
@@ -151,4 +171,19 @@ configurations.all {
         substitute(module("androidx.media3:media3-transformer")).using(project(":media3-transformer"))
         substitute(module("androidx.media3:media3-exoplayer")).using(project(":media3-exoplayer"))
     }
+}
+
+// LICENSES/ (license texts, notices, inventory.json – see docs/licensing.md) goes into the APK as assets/licenses/, so
+// the license screen works offline and every copy carries the notices.
+abstract class LicenseAssets : DefaultTask() {
+    @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE) abstract val licenses: DirectoryProperty
+    @get:OutputDirectory abstract val output: DirectoryProperty
+    @get:Inject abstract val fs: FileSystemOperations
+    @TaskAction fun copy() {
+        fs.sync { from(licenses); into(output.dir("licenses")) }
+    }
+}
+val licenseAssets = tasks.register<LicenseAssets>("licenseAssets") { licenses.set(rootProject.layout.projectDirectory.dir("LICENSES")) }
+androidComponents {
+    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(licenseAssets, LicenseAssets::output) }
 }
