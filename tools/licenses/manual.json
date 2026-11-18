@@ -122,7 +122,7 @@
    ],
    "included_in": "assets/spektrafilm",
    "status": "unclear",
-   "notes": "The profile-derived values are CC BY-SA 4.0 (license file unchanged, identical to upstream). The tables also encode the hanatos2025 spectral-upsampling data and the Schott KG3 spectrum, whose license is not stated – see docs/licensing-open-questions.md. Film and paper names are third-party trademarks."
+   "notes": "The profile-derived values are CC BY-SA 4.0 (license file unchanged, identical to upstream). The tables also encode the hanatos2025 spectral-upsampling data – traced to vkdt's mkspectra tool (docs/licensing-hanatos-provenance.md), licence of the generated table not stated – and the Schott KG3 spectrum, whose licence is not stated either (docs/licensing-open-questions.md). Film and paper names are third-party trademarks."
   },
   {
    "id": "opendrt",

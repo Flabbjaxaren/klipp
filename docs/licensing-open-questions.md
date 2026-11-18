@@ -31,19 +31,11 @@ The eight families now ship as the unmodified original files (see `docs/licensin
   transmission curve in `data/filters/heat_absorbing/schott/KG3.csv` (a digitised curve; `info.txt` names
   newport.com's heat-absorbing glass page). Neither source file is shipped; only these derived tables are.
 
-- Where the hanatos data comes from (checked in github.com/hanatos/vkdt at c47bf15, 2026-11-18):
-  - spektrafilm's `irradiance_xy_tc.npy` is computed by spektrafilm's own script `make_spectral_upsampling_luts.py`
-    (GPL, commit fa02602 "Thank you again hanatos!") from `hanatos_irradiance_xy_coeffs_250304.lut`.
-  - That `.lut` has vkdt's LUT file header exactly (magic 1234, version 2, 4 channels, 32-bit float, 512×512): it is
-    output of vkdt's `src/tools/spec/mkspectra.c`, "a lut for spectral upsampling, (x,y) -> c0 c1 c2 b" (Jakob 2019 style
-    sigmoid spectra), which vkdt itself builds as `data/spectra-em.lut` for its own spektrafilm module, from the CIE 1931
-    observer.
-  - vkdt's licence: "our code is licenced under the 2-clause bsd licence (if not clearly marked otherwise in the
-    respective source files …)" – `mkspectra.c` and `shared/fit-spectra.h` carry no other marking, so the tool is
-    BSD-2-Clause (© 2019 Johannes Hanika, `LICENCE.bsd2`). vkdt states no licence for the tables the tool generates, and
-    whether the 250304 file is the tool's default output or a variant was not checked (running the downloaded tool was
-    not allowed here). If it is, the data can be regenerated from BSD-2 code and public CIE data – the question to
-    hanatos becomes a confirmation, not a request.
+- Where the hanatos data comes from: traced in `docs/licensing-hanatos-provenance.md` – the 250304 LUT is output of
+  vkdt's `mkspectra` (default build, most likely at `8aae908e`, 2025-03-02); spektrafilm's npy is its documented
+  conversion, reproduced exactly; vkdt 1.0.0's own `spectra-em.lut` is the same table from another run. vkdt's code is
+  BSD-2-Clause, with parts adapted from Wenzel Jakob's rgb2spec (BSD-3-Clause); no licence is stated for the generated
+  table, so it is not labelled BSD here.
 
 **Contact drafts (not sent – for the owner to send or not):**
 
@@ -87,8 +79,9 @@ The eight families now ship as the unmodified original files (see `docs/licensin
    > (github.com/Flabbjaxaren/klipp), ships tables computed from that: the spectra multiplied by a film's sensitivity, one
    > table per film – not the LUT itself. Klipp may be sold on Google Play.
    >
-   > 1. Is the 250304 LUT simply `mkspectra`'s output (so under vkdt's BSD-2 licence, or free to use like the tool), or
-   >    something else?
+   > 1. Is the 250304 LUT `mkspectra`'s output from around commit 8aae908e (it has the tool's header and text, and
+   >    matches vkdt 1.0.0's `spectra-em.lut` up to optimiser noise)? May that table be used under vkdt's BSD-2 terms
+   >    (or freely), given the tool also builds on rgb2spec?
    > 2. May tables derived from it be distributed in a paid app, and how would you like it credited?
    >
    > Thank you for vkdt and the spectral upsampling work.
