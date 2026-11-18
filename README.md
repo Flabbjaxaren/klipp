@@ -4,10 +4,10 @@ A multi-track video editor for Android phones, built for touch. A Kotlin/Jetpack
 [FilmCraft](https://github.com/storytold/filmcraft) editing engine (Rust, via JNI); playback and export with Media3.
 
 <p align="center">
-  <img src="docs/screenshots/edit.png" width="24%" alt="Timeline with video, title and audio tracks">
-  <img src="docs/screenshots/color.png" width="24%" alt="Color page with the film simulation">
-  <img src="docs/screenshots/graph.png" width="24%" alt="Keyframe value graph with bezier handles">
-  <img src="docs/screenshots/text.png" width="24%" alt="Picking sentences from a transcript in the source monitor">
+  <img src="docs/screenshots/edit.png" width="24%" alt="The edit page: a title, captions, video and two audio tracks on the timeline">
+  <img src="docs/screenshots/title.png" width="24%" alt="Add › Title: a preview, then the text, then the look">
+  <img src="docs/screenshots/captions.png" width="24%" alt="Add › Captions: write a line and it goes in at the playhead">
+  <img src="docs/screenshots/color.png" width="24%" alt="The color page: color wheels with the clips of the timeline above">
 </p>
 
 > 🚧 **Status:** a hobby project in active development. Android 10+ (arm64). Tested on a **vivo X300 Ultra** and a
