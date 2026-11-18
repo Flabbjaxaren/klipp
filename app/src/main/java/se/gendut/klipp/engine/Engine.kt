@@ -32,6 +32,16 @@ object FrameTime {
     }
 }
 
+/**
+ * A new caption's start and length for captions.add: the start as the tick of the nearest frame (the engine floors
+ * seconds – a Float playhead at 5.2 s is 5.1999998 and went in a frame early), the length in whole frames (a hair over,
+ * so the floor keeps the frame count).
+ */
+fun captionAddTiming(at: Float, seconds: Double, fps: Double): Pair<Long, Double> {
+    val f = fps.takeIf { it.isFinite() && it >= 1.0 } ?: 25.0
+    return FrameTime.ticks(at.toDouble(), f) to Math.round(seconds * f).coerceAtLeast(1) / f + 1e-6
+}
+
 class EngineException(message: String) : Exception(message)
 
 /**

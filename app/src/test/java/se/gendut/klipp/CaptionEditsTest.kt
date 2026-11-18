@@ -59,4 +59,21 @@ class CaptionEditsTest {
         assertEquals(CaptionSlotProblem.NO_ROOM, captionWriteSlot(all, 7, 2.8f, 2f, 0.3f).problem)
         assertEquals(null, captionWriteSlot(all, 7, 2.5f, 2f, 0.3f).problem)
     }
+
+    @Test fun aLineAtACaptionsEndStartsOnThatFrame() {
+        // the engine floors a time to its frame: a Float playhead at 5.2 s (5.1999998) went in a frame early – inside
+        // the caption ending at 5.2 – and the line was refused. Sent as the nearest frame's tick, it starts there.
+        fun frameOf(ticks: Long, n: Long, d: Long) = java.math.BigInteger.valueOf(ticks).multiply(java.math.BigInteger.valueOf(n))
+            .divide(java.math.BigInteger.valueOf(se.gendut.klipp.engine.TICKS_PER_SECOND * d)).toLong()
+        val (t25, len25) = se.gendut.klipp.engine.captionAddTiming(5.2f, 2.0, 25.0)
+        assertEquals(130L, frameOf(t25, 25, 1))
+        assertEquals(50L, Math.floor(len25 * 25).toLong())
+        for (frame in listOf(1L, 179L, 1799L, 53946L)) {
+            val at = (frame * 1001.0 / 30000.0).toFloat()
+            assertEquals(frame, frameOf(se.gendut.klipp.engine.captionAddTiming(at, 2.0, 30000.0 / 1001).first, 30000, 1001))
+        }
+        // a room shorter than the length: whole frames, never less than one
+        assertEquals(34L, Math.floor(se.gendut.klipp.engine.captionAddTiming(1f, 1.36, 25.0).second * 25).toLong())
+        assertEquals(1L, Math.floor(se.gendut.klipp.engine.captionAddTiming(1f, 0.001, 25.0).second * 25).toLong())
+    }
 }

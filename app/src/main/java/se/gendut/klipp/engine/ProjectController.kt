@@ -2047,7 +2047,10 @@ class ProjectController(
             if (snapshot.sequence == null) engine.exec("file.newSequence", newSeqParams())
             // the given track, else the first visible one (the engine creates one if there is none)
             val track = track?.takeIf { t -> snapshot.sequence?.captionTracks?.any { it.id == t } == true } ?: snapshot.sequence?.captionTracks?.firstOrNull { it.enabled }?.id
-            val p = JSONObject().put("seconds", at.toDouble()).put("text", text?.takeIf { it.isNotBlank() } ?: Str.t(R.string.projectcontroller_new_caption)).put("durationSeconds", (seconds ?: se.gendut.klipp.AppPrefs.captionSeconds(context)).toDouble())
+            // in whole frames (see "frames" above): the engine floors seconds, so a playhead at a caption's end (5.2 s as
+            // the Float 5.1999998) went in a frame early, inside that caption – and the engine refused the line
+            val (time, len) = captionAddTiming(at, (seconds ?: se.gendut.klipp.AppPrefs.captionSeconds(context)).toDouble(), snapshot.fps)
+            val p = JSONObject().put("time", time).put("text", text?.takeIf { it.isNotBlank() } ?: Str.t(R.string.projectcontroller_new_caption)).put("durationSeconds", len)
             track?.let { p.put("track", it) }
             engine.tryExec("captions.add", p)
                 .onSuccess { r -> refresh(); onAdded(r.optLong("caption")) }
