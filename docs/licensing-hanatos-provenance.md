@@ -1,5 +1,9 @@
 # Provenance of the hanatos2025 spectral data in Klipp's film tables
 
+> **2026-11-19 (branch `spectra-own`):** Klipp's film tables are now made from spectral upsampling tables of its own
+> (`tools/spectra`, measured there against this table) – once merged, Klipp ships nothing derived from the data traced
+> below. This record is kept for the history and for anyone using spektrafilm's bundled table.
+
 Traced 2026-11-18. Only public repositories and release files were read; no third-party program was run (running
 vkdt's compiled tool was refused, and wasn't needed – vkdt's own build of the table was compared instead). **Result:
 the generating path is established; the licence of the generated data is not.** Nothing is relabelled as BSD, and no

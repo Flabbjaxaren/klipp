@@ -143,7 +143,8 @@ Parts from other projects:
   GPL-3.0. The color pipeline is ported to `app/src/main/java/se/gendut/klipp/engine/Spektra.kt`; the tables in
   `app/src/main/assets/spektrafilm` are computed with spektrafilm's code (`tools/spektrafilm/export_tables.py`).
   The film profiles and everything that encodes them (tables, LUTs) are **CC BY-SA 4.0** – see
-  `app/src/main/assets/spektrafilm/SPEKTRAFILM_LICENSE.txt`. Spectral upsampling after hanatos (vkdt, BSD-2).
+  `app/src/main/assets/spektrafilm/SPEKTRAFILM_LICENSE.txt`. The spectral upsampling tables behind the film tables are
+  Klipp's own (`tools/spectra`, after Jakob & Hanika 2019).
 - **OpenDRT** (Jed Smith, https://github.com/jedypod/open-display-transform) – GPL-3.0, in `engine/OpenDrt.kt`.
 - **FilmCraft** (the editing engine, Rust), **Media3** (Apache-2.0), **whisper.cpp** (MIT).
 - **Media3 effect** (Apache-2.0) as source code in `third_party/media3-effect`, modified so that the whole video chain

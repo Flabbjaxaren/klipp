@@ -12,36 +12,27 @@ The eight families now ship as the unmodified original files (see `docs/licensin
 
 ### A2. spektrafilm – data beside the profiles, and the license version
 
-- Files: `app/src/main/assets/spektrafilm/film/*.tc.bin` (encode the hanatos2025 spectral-upsampling data, upstream
-  `src/spektrafilm/data/luts/spectral_upsampling/irradiance_xy_tc.npy`, "Thanks to hanatos for providing luts");
-  `index.json` → `enlargerIlluminant` (a black body through the Schott KG3 heat-absorbing glass spectrum, upstream
-  `data/filters/heat_absorbing/schott/KG3.csv`, whose `info.txt` names Newport's web page as the source) and
-  `neutralFilters` (computed by spektrafilm).
-- Missing: a license statement for the hanatos data and for the Schott/Newport spectrum (manufacturer data). The
-  SPEKTRAFILM_LICENSE (CC BY-SA 4.0) covers "the profiles … and all direct derivatives"; it does not say it covers these
-  files, and GPL-3.0 (the repository's license) may not be the hanatos or Schott data's license. Klipp's CHANGELOG.txt
-  claims nothing for them.
+- **hanatos2025 spectra – replaced (branch `spectra-own`, 2026-11-19).** The film tables `film/*.tc.bin` used to encode
+  spektrafilm's `irradiance_xy_tc.npy` ("Thanks to hanatos for providing luts"; traced to vkdt's `mkspectra` in
+  `docs/licensing-hanatos-provenance.md`, no licence stated for the generated table). They are now made from Klipp's own
+  spectral upsampling tables (`tools/spectra`: written from the published method, Jakob & Hanika 2019, with the CIE
+  1931 observer and the film's illuminant as spektrafilm defines them), measured at least as accurate. Once that branch
+  is merged, Klipp ships nothing derived from the hanatos data and no question to hanatos is needed.
+- Still open: `index.json` → `enlargerIlluminant` – a 3400 K black body through the Schott KG3 heat-absorbing glass
+  transmission (upstream `data/filters/heat_absorbing/schott/KG3.csv`, a digitised curve whose `info.txt` names
+  newport.com's heat-absorbing glass page). No license is stated for the curve (manufacturer data). The
+  SPEKTRAFILM_LICENSE (CC BY-SA 4.0) covers "the profiles … and all direct derivatives"; it does not say it covers this
+  file, and GPL-3.0 (the repository's license) may not be its license. Klipp's CHANGELOG.txt claims nothing for it.
+  `neutralFilters` in `index.json` are computed by spektrafilm. The source file is not shipped; only the derived table.
 - Not needed for Klipp's distribution, but unconfirmed: whether spektrafilm's code is meant as version 3 only or "or
   later" (`LICENSE`/`pyproject.toml` "GPLv3", `CITATION.cff` `GPL-3.0-or-later`); Klipp uses it under version 3. And the README speaks of the LUTs as "commercial use, free share, no resale" while
   SPEKTRAFILM_LICENSE.txt grants CC BY-SA 4.0; Klipp follows the license file and does not sell the LUTs separately.
-- What exactly Klipp uses: `film/*.tc.bin` (20 files) are spektrafilm's `compute_hanatos2025_tc_lut` output – the
-  hanatos2025 spectra table `irradiance_xy_tc.npy` (credited to hanatos in `utils/spectral_upsampling.py`; the
-  coefficient file `hanatos_irradiance_xy_coeffs_250304.lut` is not used) multiplied by each film's sensitivity,
-  window-fitted and gamut-compressed. `index.json` → `enlargerIlluminant` is a 3400 K black body through the
-  transmission curve in `data/filters/heat_absorbing/schott/KG3.csv` (a digitised curve; `info.txt` names
-  newport.com's heat-absorbing glass page). Neither source file is shipped; only these derived tables are.
-
-- Where the hanatos data comes from: traced in `docs/licensing-hanatos-provenance.md` – the 250304 LUT is output of
-  vkdt's `mkspectra` (default build, most likely at `8aae908e`, 2025-03-02); spektrafilm's npy is its documented
-  conversion, reproduced exactly; vkdt 1.0.0's own `spectra-em.lut` is the same table from another run. vkdt's code is
-  BSD-2-Clause, with parts adapted from Wenzel Jakob's rgb2spec (BSD-3-Clause); no licence is stated for the generated
-  table, so it is not labelled BSD here.
 
 **Contact drafts (not sent – for the owner to send or not):**
 
 1. To Andrea Volpato, spektrafilm (GitHub Discussions on andreavolpato/spektrafilm; he distributes both datasets):
 
-   > **Subject: Rights for the hanatos2025 spectra and the KG3 curve in derived tables (paid app)**
+   > **Subject: Rights for the KG3 curve in derived tables (paid app)**
    >
    > Hi Andrea,
    >
@@ -49,25 +40,23 @@ The eight families now ship as the unmodified original files (see `docs/licensin
    > Klipp may later be sold on Google Play. It ships tables computed from spektrafilm at revision 3bb2c2d, with
    > SPEKTRAFILM_LICENSE.txt unchanged, a CHANGELOG.txt describing the conversion, and credit in the app's About screen.
    >
-   > Two inputs in those tables are not your profiles, and I can't find their license:
-   >
-   > 1. **hanatos2025 spectra** – `data/luts/spectral_upsampling/irradiance_xy_tc.npy`. Through
-   >    `compute_hanatos2025_tc_lut` it is multiplied by each film's sensitivity, and the result ships in Klipp as one
-   >    table per film (`film/<stock>.tc.bin`, 20 films). The file itself is not shipped.
-   > 2. **Schott KG3 transmission** – `data/filters/heat_absorbing/schott/KG3.csv` (info.txt points to Newport's page).
-   >    Through the "TH-KG3" illuminant it ends up as a 3400 K black body times that curve in Klipp's `index.json`.
+   > One input in those tables is not your profiles, and I can't find its license: the **Schott KG3 transmission**,
+   > `data/filters/heat_absorbing/schott/KG3.csv` (info.txt points to Newport's page). Through the "TH-KG3" illuminant
+   > it ends up as a 3400 K black body times that curve in Klipp's `index.json`. (Klipp's film tables use spectral
+   > upsampling tables of its own, so the hanatos2025 spectra are not part of this question.)
    >
    > Could you tell me:
-   > - Under what terms you received these two datasets, and whether they are covered by your CC BY-SA 4.0 profile
-   >   license, by the repository's GPL, or by their own terms?
-   > - Whether shipping tables derived from them inside a paid app (credited, under CC BY-SA 4.0 / GPL-3.0 as now) is
-   >   fine with you, or whom I should ask (hanatos for the spectra; Schott or Newport for the curve)?
+   > - Under what terms you received that curve, and whether it is covered by your CC BY-SA 4.0 profile license, by
+   >   the repository's GPL, or by its own terms?
+   > - Whether shipping a table derived from it inside a paid app (credited, under CC BY-SA 4.0 / GPL-3.0 as now) is
+   >   fine with you, or whom I should ask (Schott or Newport)?
    > - Whether you would like the credit worded differently?
    >
    > Klipp does not sell the LUTs or tables separately – they are part of the app and free to share like the rest of
    > spektrafilm's material. Thank you for spektrafilm.
 
-2. To hanatos (Johannes Hanika – vkdt's issues or discussions on github.com/hanatos/vkdt):
+2. To hanatos (Johannes Hanika – vkdt's issues or discussions on github.com/hanatos/vkdt) – **not needed once
+   `spectra-own` is merged** (Klipp then ships nothing derived from the hanatos table); kept for the record:
 
    > **Subject: Licence of the spectral upsampling LUT (spectra-em / hanatos2025) in derived tables**
    >

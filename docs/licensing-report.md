@@ -46,8 +46,8 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 
 ## 4. Kräver tillstånd eller juridisk granskning
 
-- **spektrafilm** (utkast till fråga i `docs/licensing-open-questions.md`, A2): licensen för hanatos-spektradata och
-  Schott KG3-spektrumet i tabellerna; om koden är "or later"; README:ns "no resale" mot licensfilens CC BY-SA.
+- **spektrafilm** (utkast till fråga i `docs/licensing-open-questions.md`, A2): licensen för Schott KG3-spektrumet i
+  tabellerna (hanatos-spektradatan ersätts av Klipps egna tabeller, gren `spectra-own`, `tools/spectra`); om koden är "or later"; README:ns "no resale" mot licensfilens CC BY-SA.
 - **Juridiskt**: Google Plays villkor mot GPL §10; kodekpatent (motorns egna H.264/HEVC/AAC/MP3 m.fl.); varumärken
   (Kodak, Fujifilm och filmnamnen, kamerornas log-namn, typsnittsnamn); om libc++ räknas som systembibliotek;
   konsumenträtt.
