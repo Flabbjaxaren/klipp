@@ -141,9 +141,12 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
         if (page >= 0) androidx.activity.compose.BackHandler { page = -1 }
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             RoundIcon(Ic.Back, stringResource(R.string.settings_back)) { if (page == 7 && about.pop()) Unit else if (page >= 0) page = -1 else onClose() }
-            Text((if (page == 7) aboutTitle(about) else null) ?: pageTitles.getOrNull(page) ?: stringResource(R.string.settings_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+            Text((if (page == 7) aboutTitle(about) else null) ?: pageTitles.getOrNull(page) ?: stringResource(R.string.settings_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 40.dp)) {
+        // a new page (or About's next step) starts at its top, not where the previous one was scrolled to
+        val scroll = remember(page, about.stack.size) { androidx.compose.foundation.ScrollState(0) }
+        Column(Modifier.weight(1f).verticalScroll(scroll).padding(bottom = 40.dp)) {
             when (page) {
                 -1 -> PanelCard(Modifier.padding(top = 8.dp)) {
                     CategoryRow(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_cat_appearance), Ic.Eye, "set:cat:appearance") { page = 0 }

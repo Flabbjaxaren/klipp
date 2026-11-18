@@ -86,3 +86,23 @@ class AboutLicensesLargeTextTest {
         rule.onNodeWithTag("notice:text").assertExists()
     }
 }
+
+/** Notices are shown reflowed for a narrow screen: only whitespace changes, and lists, indented blocks and headings stay. */
+class LicenseReflowTest {
+    @Test fun paragraphsJoinListsAndIndentedBlocksStay() {
+        val text = "  Everyone is permitted to copy and distribute verbatim copies of this\n" +
+            "license document, but changing it is not allowed.\n\n" +
+            "1. The origin of this software must not be misrepresented; you must not\n" +
+            "   claim that you wrote the original software.\n" +
+            "    This program is free software: you can redistribute it and/or modify\n" +
+            "    it under the terms of the GNU General Public License.\n" +
+            "END OF TERMS AND CONDITIONS\n" +
+            "short line\nnext"
+        val r = LicenseInventory.reflow(text)
+        assertEquals(text.filterNot { it.isWhitespace() }, r.filterNot { it.isWhitespace() })
+        assertTrue(r.startsWith("  Everyone is permitted to copy and distribute verbatim copies of this license document"))
+        assertTrue(r.contains("misrepresented; you must not\n   claim"))
+        assertTrue(r.contains("and/or modify\n    it under"))
+        assertTrue(r.contains("short line\nnext"))
+    }
+}

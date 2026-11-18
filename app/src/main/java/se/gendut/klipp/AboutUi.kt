@@ -72,6 +72,25 @@ internal object LicenseInventory {
             ?.let { "https://github.com/Flabbjaxaren/klipp/tree/$it" } ?: "https://github.com/Flabbjaxaren/klipp"
 
     const val RELEASES = "https://github.com/Flabbjaxaren/klipp/releases"
+
+    /**
+     * A notice for a narrow screen: the lines of a paragraph that a plain-text file wrapped at ~80 columns are joined, so
+     * the phone wraps them once. Only whitespace changes – the words, blank lines, indented lines (lists, code, the GPL's
+     * sample notices) and short lines (headings, signatures) stay as they are.
+     */
+    fun reflow(text: String): String {
+        val lines = text.replace("\r\n", "\n").split('\n')
+        val out = StringBuilder()
+        for ((i, line) in lines.withIndex()) {
+            out.append(line)
+            if (i == lines.lastIndex) break
+            val next = lines[i + 1]
+            val join = line.isNotBlank() && next.isNotBlank() && line.length >= 50 && !line.startsWith("   ") &&
+                !next.first().isWhitespace() && !Regex("^([-*•]|\\d+[.)]|[a-z][.)]|\\([a-z0-9]+\\))\\s").containsMatchIn(next)
+            out.append(if (join) ' ' else '\n')
+        }
+        return out.toString()
+    }
 }
 
 /** Where the About pages are: the top page, the license list, one component, or one text. */
@@ -148,7 +167,7 @@ private fun LicensesList(items: List<LicenseItem>, nav: AboutNav) {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("licenses:spektrafilm"))
             if (cat == "downloads") Text(stringResource(R.string.about_downloads_hint), color = K.OnSurfaceVar, fontSize = 13.sp, lineHeight = 18.sp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-            for (it in list) LinkRow(it.name, listOf(it.version, it.license).filter { s -> s.isNotBlank() }.joinToString(" · "), "lic:${it.id}") {
+            for (it in list) LinkRow(it.name, listOf(it.version, it.license).filter { s -> s.isNotBlank() && s != "-" }.joinToString(" · "), "lic:${it.id}") {
                 nav.stack.add(AboutStep.Item(it))
             }
         }
@@ -165,7 +184,7 @@ private fun ColumnScope.ItemDetail(item: LicenseItem, nav: AboutNav) {
             SelectionContainer { Text(value, color = K.OnSurface, fontSize = 14.sp, lineHeight = 19.sp) }
         }
     }
-    field(R.string.about_field_version, item.version)
+    field(R.string.about_field_version, item.version.takeIf { it != "-" }.orEmpty())
     field(R.string.about_field_license, item.license)
     field(R.string.about_field_copyright, item.copyright)
     field(R.string.about_field_changes, item.changes)
@@ -180,7 +199,7 @@ private fun ColumnScope.ItemDetail(item: LicenseItem, nav: AboutNav) {
 @Composable
 private fun NoticeText(path: String) {
     val ctx = LocalContext.current
-    val text = remember(path) { LicenseInventory.text(ctx, path) }
+    val text = remember(path) { LicenseInventory.reflow(LicenseInventory.text(ctx, path)) }
     SelectionContainer {
         Text(text.ifEmpty { stringResource(R.string.about_missing, path) }, color = K.OnSurface, fontSize = 13.sp, lineHeight = 18.sp,
             fontFamily = FontFamily.Monospace, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).testTag("notice:text"))
