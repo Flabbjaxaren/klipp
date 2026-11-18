@@ -70,7 +70,9 @@ def cargo():
             "component": p["name"],
             "version": p["version"],
             "kind": "rust-crate",
-            "origin": src.split("+", 1)[-1] if src != "path" else "rust/ (this repository)",
+            "origin": (f"https://crates.io/crates/{p['name']}/{p['version']}" if src.startswith("registry+")
+                       else src.split("+", 1)[-1] if src != "path" else "rust/ (this repository)"),
+            "repository": p.get("repository") or "",
             "license": p.get("license") or "",
             "features": nodes[pid]["features"],
             "included_in": "lib/arm64-v8a/libklipp_bridge.so" if pid in runtime else "not distributed (build script or proc-macro)",

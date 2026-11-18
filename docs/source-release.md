@@ -45,8 +45,9 @@ is complete even if an upstream (a git dependency, a Maven repository) disappear
 
 ## Last check
 
-**v0.20.0-beta.1** (a9be050), 2026-11-18: `make_source_package.sh` → `klipp-0.20.0-beta.1-source.tar.gz` (96 MB, sha256
-`882fd1cf…3015`, kept in `Klipp-builds/0.20.0-beta.1-ui-internal/source-package/`). Unpacked in an empty folder and built
+**v0.20.0-beta.1** (a9be050), 2026-11-18: `make_source_package.sh` → `klipp-0.20.0-beta.1-source.tar.gz` (96 MB, kept with
+its `.sha256` in `Klipp-builds/0.20.0-beta.1-ui-internal/source-package/`; regenerated after the MISSING.txt explanation
+was added – a tar's timestamps make each run's hash differ, the content is the same). Unpacked in an empty folder and built
 as `BUILDING-FROM-SOURCE.md` says, the Rust bridge offline with an empty `CARGO_HOME` (only the vendored crates): the APK
 builds – `se.gendut.klipp` 0.20.0-beta.1, versionCode 100. Against the release APK: `libc++_shared.so` and
 `libandroidx.graphics.path.so` identical; `libklipp_bridge.so` differs in its embedded source paths (panic locations:
