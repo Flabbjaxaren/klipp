@@ -37,6 +37,12 @@ jobs:
           RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo ndk -t arm64-v8a --platform 29 -o ../app/src/main/jniLibs build --release
       # v5: Node 24 and MIT throughout (v6 moved its caching into a separately licensed, proprietary component)
       - uses: gradle/actions/setup-gradle@v5
+      # every Rust crate in the bridge, every Maven library in the APK and every asset needs a reviewed license entry,
+      # and LICENSES/inventory.json must be current (docs/licensing.md)
+      - name: License inventory
+        run: |
+          ./gradlew -q :app:dependencies --configuration releaseRuntimeClasspath > "$RUNNER_TEMP/release-deps.txt"
+          python3 tools/licenses/inventory.py check --gradle-deps "$RUNNER_TEMP/release-deps.txt"
       - name: Unit tests
         run: ./gradlew testDebugUnitTest
       - name: Lint and release build

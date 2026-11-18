@@ -1,0 +1,67 @@
+# Media3 effect 1.11.1 – Klipp's version
+
+The source code of `androidx.media3:media3-effect:1.11.1` (Apache License 2.0, © The Android Open Source Project,
+https://github.com/androidx/media), with a few changes. The module replaces the Maven artifact throughout the app
+(`dependencySubstitution` in `app/build.gradle.kts`), so that Transformer and ExoPlayer use it too.
+
+## Changes
+
+- `KlippPrecision.java` (new): the "floating point through the whole chain" setting and a check that the context is
+  OpenGL ES 3 and can render to RGBA16F.
+- `TexturePool.java`: every texture pool (sampling, effects, the compositor, the final stage) gets RGBA16F when
+  `KlippPrecision.highPrecision` is on – otherwise Media3 picks floating point only for HDR output. The color math (HDR,
+  tone mapping) is unchanged. The textures made outside the pools follow the same rule (`KlippPrecision.use`):
+  `KlippFrameFill`'s held frame, `DefaultFrameDroppingShaderProgram` and `SeparableConvolutionShaderProgram` – the
+  export's fill had stored every frame in 8 bits.
+- `KlippYuv.java` (new), `fragment_shader_klipp_sdr_external_yuv_es3.glsl` (new), `DefaultShaderProgram.java`,
+  `InputSwitcher.java`: with `KlippPrecision.sdrYuv` (or a factory's GlObjectsProvider implementing `KlippYuv.Choice`)
+  SDR video is sampled as YUV (EXT_YUV_target, as Media3 does for HDR) and converted with the file's own matrix, range
+  and bit depth, unclamped – a camera's super-whites and sub-blacks reach the effects, and no driver picks another
+  matrix than the file's. Not for SDR widened to BT.2020 (HDR output). The app turns it on per phone after a check.
+- `MultipleInputVideoGraph.java`: the factory's `GlObjectsProvider` is kept behind the shared context (Klipp's
+  10-bit encoder surfaces in multi-layer exports too).
+- `DefaultVideoFrameProcessor.java`: `Factory.klippGlObjectsProvider()` for the change above.
+- `FinalShaderProgramWrapper.java`: counts rendered and late-dropped frames (`KlippPrecision.framesShown`,
+  `framesLate`, `lastLateAt`) for diagnostics and the preview's edit point layer.
+  It also shows a single late frame (typically at a clip change) instead of dropping it – one at a time, at most every
+  300 ms and never under sustained load (`KlippPrecision.takeLateFrame`, counted in `framesRescued`).
+- `KlippBlend.java` (new): blend modes for the layers (multiply, screen, overlay, soft light, add, darken,
+  lighten, difference). A layer's `OverlaySettings` that implements `KlippBlend.Settings` is blended with its mode.
+- `DefaultCompositorGlProgram.java`: a layer with a blend mode is drawn by copying the image so far into a
+  texture of its own and blending the layer with it in `KlippBlend`'s shader (`klippBlendWithMode`); other layers as before.
+
+- `KlippPrecision.frameTrace` (diagnostics, off unless set): `FinalShaderProgramWrapper` reports each frame it hands to an
+  output surface (and each it drops as late) with its presentation time and its chain.
+- `KlippPriority.java` (new) and `DefaultGlObjectsProvider.java`: the video processing contexts are created with low
+  GPU priority (EGL_IMG_context_priority) when the driver offers it, so the app's UI isn't queued behind heavy effects.
+
+- `DefaultVideoCompositor.java`, `FinalShaderProgramWrapper.java`: diagnostics only – with
+  `KlippPrecision.compositeTrace` set (the app's cut trace) the compositor logs each queued, released and composited
+  frame per input (texture ids), the final stage each output texture rendered, released and the pool's reconfiguration;
+  no change otherwise. Known Media3 issue they showed: the final stage rebuilds its output texture pool when its input
+  size changes while the consumer (the compositor) still holds a texture, and its timestamp queue then frees a texture
+  still in use – Klipp keeps every layer at one size (blank gaps at the layer's size) so it never happens.
+
+- `KlippFrameFill.java` (new): a frame for every slot of the timeline's frame rate before a transition is drawn, in
+  the export and pre-rendering (a whip over a 30 fps source in a 60 fps timeline moved at 30). Uses
+  `FrameCacheGlShaderProgram` (package-private, hence here); its bookkeeping (`Queue`) is plain and tested in the app.
+  A planner may answer `UNSEEN` for a frame: it is kept (repeated into the slots before the next one) but not shown –
+  a pre-rendered part's pre-roll, so the part's first slots hold the frame the whole timeline holds there.
+- `FinalShaderProgramWrapper.java`, `DefaultVideoFrameProcessor.java`: with `KlippPrecision.earlyStreamEnd` (the app's
+  live cuts with one renderer), a stream change that is not the end of all input counts as processed at once, even while
+  the old stream's last frames still wait for their release in the last stage. The next stream's effects are set up
+  meanwhile, so its first frame no longer enters the chain only after the old stream's last frame was shown.
+  - The waiting frames remember the stage they came from (`klippFrom`); their textures go back there.
+  - The old effects are kept (`klippRetired`) until those frames have left, then released.
+  - Final matrices set meanwhile wait until then.
+  - A flush or a redraw ends the wait.
+  - The diagnostics also log the stream change steps (regstream, regframe, configpending, streamprocessed, flush,
+    endofinput, etm, fsw).
+- `BaseGlShaderProgram.java`: a released program hands a late frame back undrawn (and logs it, tag `KlippGl`). A
+  frame handed on before the chain was rebuilt – a task already in the GL thread's queue (`FrameConsumptionManager`) –
+  could reach a program after its release: it drew with the deleted GL program ("glError: invalid value" in
+  `glUseProgram`) and the player failed, the picture standing still (vivo, paused seeks around a pre-rendered push).
+
+The resources (`res/raw`, shaders) and the manifest come from the AAR file of the same version.
+
+To update: unpack `media3-effect-<version>-sources.jar` and the AAR's `res/` here and redo the changes above.
