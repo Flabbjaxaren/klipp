@@ -130,8 +130,10 @@ The FilmCraft version is pinned in `rust/Cargo.toml` (`rev`). Update it delibera
 
 ## 📜 License
 
-Klipp is free software under the **GNU General Public License v3.0** (see `LICENSE`). Everything it contains or
-downloads from other projects, with licenses and changes, is listed in **`THIRD_PARTY.md`**.
+Klipp is free software under the **GNU General Public License v3.0** (see `LICENSE` and `docs/licensing.md`). Everything
+it contains or downloads from other projects, with licenses and changes, is listed in **`THIRD_PARTY.md`**; the full
+inventory, license texts and notices are in **`LICENSES/`** and in the app (Settings → About → Licenses and source code).
+Each release's Corresponding Source: `docs/source-release.md`.
 
 Parts from other projects:
 
