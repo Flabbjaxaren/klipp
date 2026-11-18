@@ -24,5 +24,7 @@ nothing is re-downloaded), and so are the projects that use them.
 4. Publish a GitHub release `sounds-1` (pre-release, not "latest") with the zips from the out folder, and test a
    download of each pack on a phone. A changed file is a new release (`sounds-2`), never a replaced asset.
 
-The zips hold the publishers' files unchanged (Kenney's own zip renamed; BigSoundBank's OGGs plus a CREDITS.txt).
+The zips hold the publishers' files unchanged (Kenney's own zip renamed; BigSoundBank's OGGs plus a CREDITS.txt) –
+except a BigSoundBank sound whose page gave a WAV: it is converted to Ogg Vorbis (`oggenc -q 10`, same rate and channels),
+recorded in `sounds-originals/CONVERTED.json`, and marked "converted" in CREDITS.txt (CC0 allows it).
 Credit is not required by CC0 but given: Kenney (kenney.nl), BigSoundBank / Joseph Sardin.

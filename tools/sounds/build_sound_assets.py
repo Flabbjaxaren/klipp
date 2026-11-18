@@ -17,7 +17,8 @@ Redistribution is checked before anything is packed: a Kenney zip must carry Ken
 BigSoundBank sound must be marked CC0 on its page (tools/sounds/evidence/bigsoundbank-licenses-*.md, read 2026-11-18).
 Nothing is changed in the files: a Kenney pack is published as its own zip (renamed), the BigSoundBank sounds of one
 Klipp pack go into one zip with CREDITS.txt (page, author, license marking, SHA-256 of each file) and the CC0 1.0 legal
-code. Every zip is written deterministically (sorted, fixed timestamps), so
+code. A sound the site offered only as WAV may be converted to Ogg Vorbis by hand and recorded in
+<sources>/CONVERTED.json (from/to files, their SHA-256, how); CREDITS.txt then says so for that sound. Every zip is written deterministically (sorted, fixed timestamps), so
 the same sources give the same SHA-256.
 
 Writes <out dir>/<asset files>, tools/sounds/<release>.json (asset, sha256, bytes, license, sources) and prints the
@@ -79,6 +80,12 @@ def main():
     sources = args[0] if args else os.path.join(builds, "sounds-originals")
     out = args[1] if len(args) > 1 else os.path.join(builds, release)
     evidence = bsb_evidence()
+    # sounds the site offered only as WAV, converted to Ogg Vorbis by hand (recorded in <sources>/CONVERTED.json)
+    conv_file = os.path.join(sources, "CONVERTED.json")
+    converted = json.load(open(conv_file)) if os.path.isfile(conv_file) else {}
+    for i, c in converted.items():
+        if sha(os.path.join(sources, c["to"])) != c["to_sha256"] or sha(os.path.join(sources, c["from"])) != c["from_sha256"]:
+            problems.append(f"{i}: CONVERTED.json doesn't match the files – convert again and record it")
     cc0 = open(os.path.join(EVIDENCE, "CC0-1.0-legalcode.txt"), "rb").read()
     os.makedirs(out, exist_ok=True)
     problems, assets = [], []
@@ -124,9 +131,13 @@ def main():
         dst = os.path.join(out, name)
         credits = ("Sounds from BigSoundBank (https://bigsoundbank.com) – CC0 1.0 Universal (LICENSE-CC0-1.0.txt;\n"
                    "https://creativecommons.org/publicdomain/zero/1.0/). Credit is optional; given here: Additional sounds:\n"
-                   "Joseph SARDIN - BigSoundBank.com. The files are unmodified; Klipp cuts its clips on the phone.\n\n"
+                   "Joseph SARDIN - BigSoundBank.com. The files are BigSoundBank's own OGG files, unmodified, except those\n"
+                   "marked 'converted' (offered as WAV; converted to Ogg Vorbis by the Klipp contributors). Klipp cuts its\n"
+                   "clips on the phone.\n\n"
                    + "".join(f"{i}.ogg  {evidence[i][0]}  author: {evidence[i][1]}  page says: {evidence[i][2]}  "
-                             f"sha256 {sha(os.path.join(sources, f'{i}.ogg'))}\n" for i in ids))
+                             f"sha256 {sha(os.path.join(sources, f'{i}.ogg'))}"
+                             + (f"  converted: {converted[i]['how']}; WAV sha256 {converted[i]['from_sha256']}" if i in converted else "")
+                             + "\n" for i in ids))
         with zipfile.ZipFile(dst, "w", zipfile.ZIP_STORED) as z:  # OGG is compressed already
             for n, data in [("CREDITS.txt", credits.encode()), ("LICENSE-CC0-1.0.txt", cc0)] + [(f"{i}.ogg", open(os.path.join(sources, f"{i}.ogg"), "rb").read()) for i in ids]:
                 info = zipfile.ZipInfo(n, FIXED_TIME)
@@ -135,7 +146,8 @@ def main():
         assets.append({"pack": pack, "file": name, "sha256": sha(dst), "bytes": os.path.getsize(dst), "license": "CC0-1.0",
                        "source": "https://bigsoundbank.com", "license_evidence": "tools/sounds/evidence/bigsoundbank-licenses-2026-11-18.md",
                        "sounds": [{"file": f"{i}.ogg", "page": evidence[i][0], "author": evidence[i][1], "marking": evidence[i][2],
-                                   "sha256": sha(os.path.join(sources, f"{i}.ogg"))} for i in ids]})
+                                   "sha256": sha(os.path.join(sources, f"{i}.ogg")),
+                                   **({"converted": converted[i]} if i in converted else {})} for i in ids]})
 
     manifest = {"release": release, "url": f"https://github.com/Flabbjaxaren/klipp/releases/tag/{release}", "assets": assets,
                 "problems": problems}
