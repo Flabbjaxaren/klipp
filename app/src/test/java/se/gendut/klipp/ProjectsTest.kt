@@ -131,6 +131,8 @@ class ProjectsTest {
         rule.onNodeWithText("Tidigare versioner…").performScrollTo().performClick()
         rule.waitForIdle()
         rule.onNodeWithTag("versionsNotBackup").assertExists()
+        // the versions are read off the main thread – wait for them (on a slow machine they came after waitForIdle)
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("version:1700000000000").fetchSemanticsNodes().isNotEmpty() }
         // what picking one does is said plainly: restored as a new project, this one stays (F5)
         rule.onNodeWithText("återställs som ett nytt projekt", substring = true).assertExists()
         rule.onNodeWithText("Återställ som nytt projekt", substring = true).assertExists()
