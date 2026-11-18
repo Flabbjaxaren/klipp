@@ -732,9 +732,8 @@ ModeSwipeTest.
 
 ## 5. Oprövat och kända problem
 
-- **Uppgift 4 är inte verifierad på telefon.** Telefonen hade ingen internetanslutning, så talmodellen (59 MB) kunde
-  inte laddas ned. Påverkansraden och vyväxlingen är enhetstestade (TranscriptCutTest, TranscriptViewTest). På
-  telefonen är bara vyväxlingen och Tillbaka provade.
+- **Uppgift 4 verifierades först på vivon (2026-11-18).** OnePlus hade ingen internetanslutning, så talmodellen (59 MB)
+  kunde inte laddas ned där. Resultatet finns i uppföljningen nedan.
 - **F6 är bekräftat men inte rättat (fanns före UI-ändringen):** när V1–V3 redan är upptagna vid spelhuvudet lägger
   motorn en ny titel på V4 eller högre. Tidslinjen visar bara V1–V3, så titeln syns inte, och vid nästa ändring släpps
   markeringen. Detta kräver ett separat beslut om tidslinjen eller titelns placering.
@@ -781,3 +780,20 @@ Telefonprov på OnePlus, 177-ui och 179-ui (testpaketet, eget testprojekt):
 
 Enhetssviten (`5c56258`): 714 tester, 713 godkända, 0 misslyckade, 1 överhoppat (`FilmCpuRenderTest.renderCases`).
 Nya testklasser: AddSheetsFlowTest. CaptionEditsTest har utökats med platsen för skrivna rader.
+
+## Prov på vivon (2026-11-18, 179-ui och 180-ui, testpaketet, egna testprojekt)
+
+| Prov | Resultat |
+|---|---|
+| Titel (text före utseende, mallbyte behåller texten, knappen syns) | som på OnePlus: titeln las till med "Maja Lind" |
+| Kast uppåt i undertextarket | arket står kvar |
+| Undertexter › Skriv själv, två rader i följd | 1,2–3,2 s och 3,2–5,2 s, spelhuvudet följer |
+| I en undertext | knappen avstängd med förklaring, inget läggs till |
+| **Rad vid slutet av en undertext (5,2 s) – fel i 179-ui** | knappen sa "Goes in 00:00:05:05", men inget lades till. Spelhuvudet är ett Float (5,2 → 5,1999998), motorn avrundar sekunder nedåt till ruta, och raden hamnade en ruta in i undertexten före. Motorn vägrade med "a caption already covers this time", och meddelandet låg bakom arket. Rättat i `captionAddTiming`: starten skickas som närmaste rutas tick (som flytt och klipp redan gör), längden i hela rutor. 180-ui: raderna hamnar på 7,16–9,16 och 9,16–11,16 (7,16 och 9,16 avrundas fel på samma sätt) |
+| Tillbaka, lager för lager (transkriptionsvy, markering, alla ark, namnkort, egenskaper, hastighetsraden, färgrutnätet, färgsidan, undertextredigeraren) | 17/17 tryck exakt som på OnePlus |
+| **Uppgift 4 – ta bort ord i transkriptionen** | talprov på 10,6 s (V1+A1), orden "är ett" markerade. Rutan före borttagningen: "Removed: 00:00:00:07 – 00:00:00:16 (0,4 s) · Cut from V1, A1: 2 clips · What comes after moves 0,4 s earlier". Efter borttagningen: båda spåren klippta, 0,36 s kortare (9 rutor), orden borta ur texten, ett ångra-steg. Ett ångra återställer allt, och Tillbaka går till tidslinjen |
+
+Kvar att besluta: ett fel från motorn medan ett ark är öppet visas i appens meddelanderad bakom arket och syns inte.
+Rättningen ovan tar bort orsaken i Skriv själv, men andra fel i ark visas på samma sätt.
+
+Enhetssviten (180-ui): 715 tester, 714 godkända, 0 misslyckade, 1 överhoppat. Nytt: `CaptionEditsTest.aLineAtACaptionsEndStartsOnThatFrame`.
