@@ -136,11 +136,12 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
     // (the empty parts take the touches too: the editor lies under the page)
     Column(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.windowInsetsPadding(WindowInsets.safeDrawing).testTag("settings")) {
         var page by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(-1) }
-        val pageTitles = listOf(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_group_playback), stringResource(R.string.settings_group_export), stringResource(R.string.settings_group_developer), stringResource(R.string.settings_group_help))
+        val pageTitles = listOf(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_group_playback), stringResource(R.string.settings_group_export), stringResource(R.string.settings_group_developer), stringResource(R.string.settings_group_help), stringResource(R.string.settings_group_about))
+        val about = remember { AboutNav() }
         if (page >= 0) androidx.activity.compose.BackHandler { page = -1 }
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            RoundIcon(Ic.Back, stringResource(R.string.settings_back)) { if (page >= 0) page = -1 else onClose() }
-            Text(pageTitles.getOrNull(page) ?: stringResource(R.string.settings_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+            RoundIcon(Ic.Back, stringResource(R.string.settings_back)) { if (page == 7 && about.pop()) Unit else if (page >= 0) page = -1 else onClose() }
+            Text((if (page == 7) aboutTitle(about) else null) ?: pageTitles.getOrNull(page) ?: stringResource(R.string.settings_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
         }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 40.dp)) {
             when (page) {
@@ -152,6 +153,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                     CategoryRow(stringResource(R.string.settings_group_export), stringResource(R.string.settings_cat_export), Ic.Download, "set:cat:export") { page = 4 }
                     CategoryRow(stringResource(R.string.settings_group_developer), stringResource(R.string.settings_cat_developer), Ic.Gear, "set:cat:developer") { page = 5 }
                     CategoryRow(stringResource(R.string.settings_group_help), stringResource(R.string.settings_cat_help), Ic.Bulb, "set:cat:help") { page = 6 }
+                    CategoryRow(stringResource(R.string.settings_group_about), stringResource(R.string.settings_cat_about), Ic.Transcript, "set:cat:about") { page = 7 }
                 }
                 0 -> PanelCard(Modifier.padding(top = 8.dp)) {
             Text(stringResource(R.string.settings_accent_color), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
@@ -299,6 +301,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             }, Modifier.padding(horizontal = 16.dp, vertical = 10.dp).testTag("set:showTips"))
             if (reset) Text(stringResource(R.string.settings_help_tips_back), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp).testTag("set:tipsBack"))
                 }
+                7 -> AboutPage(about)
             }
         }
     }

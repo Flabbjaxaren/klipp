@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_group_about">Om</string>
+    <string name="settings_cat_about">Version, licenser och källkod</string>
+    <string name="about_build">Bygge %1$d · commit %2$s</string>
+    <string name="about_copyright">© Klipps bidragsgivare.\n\nKlipp är fri programvara: du får sprida den vidare och/eller ändra den enligt villkoren i GNU General Public License, version 3, utgiven av Free Software Foundation. Den sprids i hopp om att den ska vara användbar, men UTAN NÅGON GARANTI; inte ens underförstådd garanti om SÄLJBARHET eller LÄMPLIGHET FÖR ETT VISST ÄNDAMÅL. Se licensen för detaljer.\n\nOavsett om du betalat för Klipp eller inte är de här rättigheterna dina: du får kopiera, ändra och dela den enligt GPL, och få dess källkod.</string>
+    <string name="about_licenses">Licenser och källkod</string>
+    <string name="about_licenses_hint">GPL, källkoden för den här versionen, programvara och data från andra</string>
+    <string name="about_source">Källkod</string>
+    <string name="about_source_hint">Klipps fullständiga källkod för exakt den här versionen, och alla releaser med sina källkodspaket.</string>
+    <string name="about_source_hint_local">Det här bygget gjordes från en arbetskopia med ändringar som inte finns i någon publicerad commit – länken visar den commit det utgick från.</string>
+    <string name="about_source_commit">Källkoden för den här versionen</string>
+    <string name="about_source_releases">Releaser och källkodspaket</string>
+    <string name="about_gpl_text">GNU General Public License – hela texten</string>
+    <string name="about_group_klipp">Klipp</string>
+    <string name="about_group_code">Kod från andra projekt</string>
+    <string name="about_group_assets">Filmtabeller och modeller</string>
+    <string name="about_group_fonts">Typsnitt</string>
+    <string name="about_group_downloads">Hämtas när du ber om det</string>
+    <string name="about_group_maven">Android-bibliotek</string>
+    <string name="about_group_rust">Motorbibliotek (Rust)</string>
+    <string name="about_spektrafilm">Filmsimuleringens tabeller är härledda från spektrafilm av Andrea Volpato (github.com/andreavolpato/spektrafilm), licensierade CC BY-SA 4.0, och omvandlade för Klipp av Klipps bidragsgivare (CHANGELOG.txt beskriver hur). De omfattas inte av Klipps GPL.</string>
+    <string name="about_downloads_hint">Ingår inte i appen: talmodeller och ljud hämtas bara när du ber om dem, under sina egna licenser.</string>
+    <string name="about_field_version">Version</string>
+    <string name="about_field_license">Licens</string>
+    <string name="about_field_copyright">Upphovsrätt</string>
+    <string name="about_field_changes">Ändringar</string>
+    <string name="about_field_included">Var i Klipp</string>
+    <string name="about_field_notes">Anmärkningar</string>
+    <string name="about_field_origin">Källa</string>
+    <string name="about_open_origin">Öppna källans sida</string>
+    <string name="about_missing">Den här texten saknas i appen: %1$s</string>
+</resources>
