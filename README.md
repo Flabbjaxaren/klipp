@@ -26,11 +26,12 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
   razor, linked audio, compound clips, markers, sync by sound (camera + separate recorder), undo/redo for everything.
 - 👆 **Touch first:** swipe down through a clip to cut it, drag a clip up out of the timeline to delete it, drag any
   edge to trim (with a loupe and a two-frame trim view), long-press to lift, pinch to zoom; scrub on the ruler or the
-  picture and slide the finger down for ½, ¼, ⅛ speed; two-finger tap = undo, three = redo.
+  picture and slide the finger down for ½, ¼, ⅛ speed; two-finger tap = undo, three = redo (not yet inside the Add
+  sheets).
 - 📝 **Text-based editing:** on-device speech recognition (whisper.cpp with voice activity detection; Swedish,
   English and multilingual models in three quality steps) turns the audio into text. In the timeline: delete words to
-  cut the video, remove pauses and filler words. In the source monitor: read a clip as sentences and tap the ones you
-  want to insert – one transcript per clip, shared by both. Automatic captions.
+  cut the video, remove pauses and filler words. In the source monitor (tap a clip in Media): read it as sentences and
+  tap the ones you want to insert – one transcript per clip, shared by both. Automatic captions.
 - 🎨 **Color:** node-based grading (wheels, curves, qualifiers, power windows with object tracking), LUTs, scopes,
   spektrafilm film simulation, OpenDRT, floating point through the whole video chain. Log input from phones and
   cinema cameras: Apple Log, vivo Log, S-Log3, V-Log, LogC3/LogC4, F-Log2, Log3G10, DaVinci Intermediate, ACEScct, T-Log.
@@ -109,8 +110,8 @@ replace an installed Klipp.
 ## ⚠️ Known limitations
 
 - Clips imported through the system photo picker get generic names (e.g. `28.mp4`) – Android hides the file names.
-- Projects live inside the app: export them (Projects → long-press → Export…, with the media files) before
-  uninstalling Klipp or moving to another phone.
+- Projects live inside the app: back them up with their media (Projects → long-press → Back up to a folder… or Save a
+  project package with media…) before uninstalling Klipp or moving to another phone.
 - vivo Log has no published specification; its curve was measured and its colors fitted to vivo's own vivo Log →
   Rec.709 LUT.
 - Speech recognition runs on the CPU (the GPU path was tried and dropped: unstable drivers, slower on phones).
