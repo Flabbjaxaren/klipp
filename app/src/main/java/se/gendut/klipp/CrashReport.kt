@@ -134,7 +134,7 @@ fun CrashDialog(text: String, onCopy: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.crashreport_title)) },
-        text = {
+        text = { androidx.compose.foundation.layout.Column {
             SelectionContainer {
                 Text(
                     stringResource(R.string.crashreport_intro) + "\n\n" + text.take(4000),
@@ -142,7 +142,9 @@ fun CrashDialog(text: String, onCopy: () -> Unit, onDismiss: () -> Unit) {
                     modifier = Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState()),
                 )
             }
-        },
+            // a message (an action refused, an error) shows in the dialog, not behind it
+            MessageHost(inline = true)
+        } },
         confirmButton = { FlatTextButton(onClick = onCopy) { Text(stringResource(R.string.crashreport_copy)) } },
         dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.crashreport_close)) } },
         containerColor = K.SurfaceHigh,

@@ -300,7 +300,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
         AlertDialog(
             onDismissRequest = { menuFor = null },
             title = { Text(p.name) },
-            text = {
+            text = { androidx.compose.foundation.layout.Column {
                 // (scrolls on a small screen: the backup rows have hints)
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     MenuRow(stringResource(R.string.projectsscreen_open)) { menuFor = null; backend.open(p.id); onClose() }
@@ -336,7 +336,9 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                     Text(stringResource(R.string.projectsscreen_safety_note), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp,
                         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 10.dp).testTag("safetyNote"))
                 }
-            },
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = { FlatTextButton(onClick = { menuFor = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
             containerColor = K.SurfaceHigh,
         )
@@ -346,7 +348,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
         AlertDialog(
             onDismissRequest = { versionsOf = null },
             title = { Text(stringResource(R.string.projectsscreen_versions_title, p.name)) },
-            text = {
+            text = { androidx.compose.foundation.layout.Column {
                 Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                     Text(stringResource(R.string.projectsscreen_versions_not_backup), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp,
                         modifier = Modifier.padding(bottom = 8.dp).testTag("versionsNotBackup"))
@@ -364,7 +366,9 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                         }
                     }
                 }
-            },
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = { FlatTextButton(onClick = { versionsOf = null }) { Text(stringResource(R.string.projectsscreen_close)) } },
             containerColor = K.SurfaceHigh,
         )
@@ -374,7 +378,10 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
         AlertDialog(
             onDismissRequest = { renaming = null },
             title = { Text(stringResource(R.string.projectsscreen_rename)) },
-            text = { TextInput(stringResource(R.string.projectsscreen_name), name, focus = true) { name = it } },
+            text = { androidx.compose.foundation.layout.Column { TextInput(stringResource(R.string.projectsscreen_name), name, focus = true) { name = it }
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = { FlatTextButton(onClick = { renaming = null; backend.rename(p.id, name.ifBlank { p.name }) }) { Text(stringResource(R.string.projectsscreen_save)) } },
             dismissButton = { FlatTextButton(onClick = { renaming = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
             containerColor = K.SurfaceHigh,
@@ -384,7 +391,10 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text(stringResource(R.string.projectsscreen_delete_title, p.name)) },
-            text = { Text(stringResource(R.string.projectsscreen_delete_text)) },
+            text = { androidx.compose.foundation.layout.Column { Text(stringResource(R.string.projectsscreen_delete_text))
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = { FlatTextButton(onClick = { deleting = null; backend.delete(p.id) }) { Text(stringResource(R.string.projectsscreen_delete), color = K.Error) } },
             dismissButton = { FlatTextButton(onClick = { deleting = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
             containerColor = K.SurfaceHigh,
@@ -628,7 +638,7 @@ fun NewProjectDialog(onDismiss: () -> Unit, onCreate: (NewProjectSpec) -> Unit) 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.projectsscreen_new_project)) },
-        text = {
+        text = { androidx.compose.foundation.layout.Column {
             Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
                 TextInput(stringResource(R.string.projectsscreen_name), name) { name = it }
                 // the format in three plain choices; the others are under Advanced
@@ -682,7 +692,9 @@ fun NewProjectDialog(onDismiss: () -> Unit, onCreate: (NewProjectSpec) -> Unit) 
                     }
                 }
             }
-        },
+            // a message (an action refused, an error) shows in the dialog, not behind it
+            MessageHost(inline = true)
+        } },
         confirmButton = {
             FlatTextButton(
                 onClick = {
@@ -785,7 +797,7 @@ fun ProjectSettingsDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.projectsscreen_project_settings)) },
-        text = {
+        text = { androidx.compose.foundation.layout.Column {
             Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState())) {
                 TextInput(stringResource(R.string.projectsscreen_name), n) { n = it }
                 FormatPicker(preset, preset == null, auto = false) { p, _ -> preset = p; if (p != null) { w = p.w.toString(); h = p.h.toString() } }
@@ -801,7 +813,9 @@ fun ProjectSettingsDialog(
                 )
                 extra()
             }
-        },
+            // a message (an action refused, an error) shows in the dialog, not behind it
+            MessageHost(inline = true)
+        } },
         confirmButton = {
             FlatTextButton(onClick = {
                 val ww = (w.toIntOrNull() ?: width).coerceIn(16, 8192) / 2 * 2

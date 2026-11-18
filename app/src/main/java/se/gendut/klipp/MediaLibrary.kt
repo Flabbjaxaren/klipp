@@ -295,7 +295,7 @@ fun MediaSheet(visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen
             onDismissRequest = { confirmDelete = false },
             containerColor = K.SurfaceHigh,
             title = { Text(stringResource(R.string.medialibrary_delete_title), color = K.OnSurface) },
-            text = {
+            text = { androidx.compose.foundation.layout.Column {
                 val clipsText = pluralStringResource(R.plurals.medialibrary_clip_count, all.size, all.size)
                 val foldersText = pluralStringResource(R.plurals.medialibrary_folder_count, binList.size, binList.size)
                 val summary = if (binList.isNotEmpty()) stringResource(R.string.medialibrary_delete_summary_with_folders, clipsText, foldersText)
@@ -307,7 +307,9 @@ fun MediaSheet(visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen
                     listOfNotNull(summary, usedText, stringResource(R.string.medialibrary_delete_tail)).joinToString(" "),
                     color = K.OnSurfaceVar, modifier = Modifier.testTag("deleteText"),
                 )
-            },
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = {
                 FlatTextButton({ haptics.heavy(); lib.delete(items, binList); confirmDelete = false; clearPick() }, Modifier.testTag("deleteOk")) { Text(stringResource(R.string.medialibrary_delete), color = K.Error) }
             },

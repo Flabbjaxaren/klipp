@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -67,7 +68,8 @@ fun SoundFxSheet(
     DisposableEffect(Unit) { onDispose { preview.release() } }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = K.Surface) {
         var tab by remember { mutableStateOf(0) }
-        Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f).upwardStaysInside().testTag("sfxSheet")) {
+        Box(Modifier.fillMaxWidth().fillMaxHeight(0.9f).upwardStaysInside().testTag("sfxSheet")) {
+        Column(Modifier.fillMaxSize()) {
             Text(stringResource(R.string.sfx_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
             if (tab < 2) Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
             val tabs = listOf(stringResource(R.string.sfx_tab_packs), "Freesound") +
@@ -80,6 +82,8 @@ fun SoundFxSheet(
                 tabs.lastIndex -> FilesTab(onAdd)
                 else -> TextToSpeechCard(onAdd)
             }
+        }
+        MessageHost(Modifier.align(Alignment.TopCenter).padding(top = 6.dp))
         }
     }
 }

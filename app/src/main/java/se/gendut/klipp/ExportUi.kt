@@ -232,7 +232,7 @@ fun ExportDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.exportui_title)) },
-        text = {
+        text = { androidx.compose.foundation.layout.Column {
             Column(Modifier.testTag("exportDialog")) {
                 // the same height on every tab, so the dialog stays where it is when the tab changes; the summary is always in view
                 Column(Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
@@ -247,7 +247,9 @@ fun ExportDialog(
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).testTag("exp:summary"),
                 )
             }
-        },
+            // a message (an action refused, an error) shows in the dialog, not behind it
+            MessageHost(inline = true)
+        } },
         // a plan that can't be made can't be started (the reason is shown above the options)
         confirmButton = {
             FlatTextButton(onClick = { if (plan.ok) onExport(s, name.ifBlank { defaultName }) }, enabled = plan.ok, modifier = Modifier.testTag("exp:go")) {

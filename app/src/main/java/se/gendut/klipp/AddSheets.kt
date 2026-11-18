@@ -1,6 +1,9 @@
 package se.gendut.klipp
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -59,14 +62,18 @@ private fun AddSheet(
         onDismissRequest = { if (canClose()) onDismiss() }, sheetState = sheet, containerColor = K.Surface,
         scrimColor = if (tall) K.Bg.copy(alpha = 0.5f) else Color.Transparent,
     ) {
-        Column((if (tall) Modifier.fillMaxHeight(0.9f) else Modifier).fillMaxWidth().upwardStaysInside().testTag(tag)) {
-            SheetHeader(title) { if (canClose()) onDismiss() }
-            top?.invoke(this)
-            Column(if (tall) Modifier.weight(1f).verticalScroll(rememberScrollState()) else Modifier) {
-                content()
-                Spacer(Modifier.height(24.dp))
+        Box((if (tall) Modifier.fillMaxHeight(0.9f) else Modifier).fillMaxWidth().upwardStaysInside().testTag(tag)) {
+            Column((if (tall) Modifier.fillMaxHeight() else Modifier).fillMaxWidth()) {
+                SheetHeader(title) { if (canClose()) onDismiss() }
+                top?.invoke(this)
+                Column(if (tall) Modifier.weight(1f).verticalScroll(rememberScrollState()) else Modifier) {
+                    content()
+                    Spacer(Modifier.height(24.dp))
+                }
+                bottom?.invoke(this)
             }
-            bottom?.invoke(this)
+            // a message (an action refused, an error) shows here, over the sheet – not behind it
+            MessageHost(Modifier.align(Alignment.TopCenter).padding(top = 6.dp))
         }
     }
 }

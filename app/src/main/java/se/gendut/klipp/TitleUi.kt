@@ -743,7 +743,10 @@ private fun AutoCaptionsCard(controller: se.gendut.klipp.engine.ProjectControlle
             if (confirm) androidx.compose.material3.AlertDialog(
                 onDismissRequest = { confirm = false },
                 title = { Text(stringResource(R.string.titleui_replace_auto_title)) },
-                text = { Text(stringResource(R.string.titleui_replace_auto_body, old, autoName)) },
+                text = { androidx.compose.foundation.layout.Column { Text(stringResource(R.string.titleui_replace_auto_body, old, autoName))
+                    // a message (an action refused, an error) shows in the dialog, not behind it
+                    MessageHost(inline = true)
+                } },
                 confirmButton = { FlatTextButton({ confirm = false; ac.start(ctx, controller, model, pick.language, track) }, Modifier.testTag("asr:replace")) { Text(stringResource(R.string.titleui_replace)) } },
                 dismissButton = { FlatTextButton({ confirm = false }) { Text(stringResource(R.string.titleui_cancel)) } },
                 containerColor = K.SurfaceHigh,

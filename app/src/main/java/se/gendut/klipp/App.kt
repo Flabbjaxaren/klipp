@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -106,10 +107,82 @@ internal val MODE_ICONS = listOf(Ic.Edit, Ic.Color_, Ic.Audio)
 /** The program monitor is never smaller than this in portrait. */
 private val MIN_MONITOR_H = 120.dp
 
+/**
+ * Short messages (what happened, why something can't be done). A message shows once, in the topmost window that has a
+ * [MessageHost] – the editor, or the sheet or dialog open over it – so it is seen where the user is, never behind a
+ * sheet, and that window stays open with what has been typed in it. It doesn't show twice (the same text again while it
+ * shows, or a second window) and never late (a window opened after it, or the editor once the sheet over it closes).
+ */
 class Toaster {
     var message by mutableStateOf<String?>(null)
     var key by mutableIntStateOf(0)
-    fun show(m: String) { message = m; key++ }
+    /** The hosts and their layers (the editor 0, a sheet 1, a dialog 2); the topmost is the highest layer's latest. */
+    internal val hosts = androidx.compose.runtime.mutableStateListOf<Pair<Any, Int>>()
+    internal fun top(): Any? = hosts.withIndex().maxWithOrNull(compareBy({ it.value.second }, { it.index }))?.value?.first
+    /** The host the current message shows in, and the last message that has had its turn (shown, or cut short). */
+    internal var shownIn: Any? = null
+    internal var done = 0
+    fun show(m: String) {
+        if (m == message && done != key) return
+        message = m; shownIn = null; key++
+    }
+    companion object {
+        /** How long a message shows: longer ones longer, to be read. */
+        fun duration(m: String?) = (1600L + 40L * (m?.length ?: 0)).coerceAtMost(5000L)
+    }
+}
+
+/** The messages for the windows over the editor (sheets, dialogs): see [MessageHost]. */
+val LocalToaster = androidx.compose.runtime.staticCompositionLocalOf<Toaster?> { null }
+
+/**
+ * Where messages show in this window: over its top ([inline] false), or as a line in its content (dialogs). Only the
+ * topmost window's host shows a message, and only one that came while it was open.
+ */
+@Composable
+fun MessageHost(modifier: Modifier = Modifier, inline: Boolean = false, toaster: Toaster? = LocalToaster.current, layer: Int = if (inline) 2 else 1) {
+    toaster ?: return
+    val id = remember { Any() }
+    val since = remember(toaster) { toaster.key }
+    androidx.compose.runtime.DisposableEffect(toaster) {
+        val entry = id to layer
+        toaster.hosts.add(entry)
+        onDispose { toaster.hosts.remove(entry); if (toaster.shownIn === id) toaster.done = toaster.key }
+    }
+    val top = toaster.top() === id
+    var text by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(toaster.key, top) {
+        val k = toaster.key
+        val mine = toaster.shownIn === id
+        if (!top) { if (mine) toaster.done = k; text = null; return@LaunchedEffect }
+        if (k <= since || toaster.done == k || (toaster.shownIn != null && !mine)) { text = null; return@LaunchedEffect }
+        toaster.shownIn = id
+        text = toaster.message
+        delay(Toaster.duration(text))
+        text = null
+        toaster.done = k
+    }
+    val live = Modifier.semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite }.testTag("message")
+    if (inline) {
+        text?.let { Text(it, color = K.Error, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = modifier.then(live).padding(vertical = 6.dp)) }
+        return
+    }
+    var last by remember { mutableStateOf("") }
+    text?.let { last = it }
+    AnimatedVisibility(
+        text != null,
+        enter = slideInVertically(spring(0.5f, 500f)) { -it * 2 } + fadeIn(),
+        exit = slideOutVertically { -it * 2 } + fadeOut(),
+        modifier = modifier
+    ) {
+        Text(
+            last,
+            color = K.OnMark,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = live.padding(horizontal = 16.dp).clip(RoundedCornerShape(20.dp)).background(K.Mark).padding(horizontal = 18.dp, vertical = 10.dp)
+        )
+    }
 }
 
 /** UI state the tests can read. */
@@ -124,6 +197,18 @@ fun KlippApp(
     ui: AppUi = remember { AppUi() },
     controller: se.gendut.klipp.engine.ProjectController? = null,
     toaster: Toaster = remember { Toaster() },
+) {
+    // the sheets and dialogs show messages in their own window (MessageHost), not behind themselves
+    CompositionLocalProvider(LocalToaster provides toaster) { KlippAppContent(state, ui, controller, toaster) }
+}
+
+@OptIn(kotlinx.coroutines.FlowPreview::class)
+@Composable
+private fun KlippAppContent(
+    state: EditorState,
+    ui: AppUi,
+    controller: se.gendut.klipp.engine.ProjectController?,
+    toaster: Toaster,
 ) {
     val grade = remember { ColorGrade() }
     val mix = remember { AudioMix() }
@@ -217,7 +302,10 @@ fun KlippApp(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = close,
             title = { Text(stringResource(when { n.saved -> R.string.app_export_saved_late_title; n.failure != null -> R.string.app_export_failed_title; else -> R.string.app_export_interrupted_title })) },
-            text = { Text(if (n.failure != null) stringResource(R.string.app_export_failed, n.failure) else stringResource(if (n.saved) R.string.app_export_saved_late else R.string.app_export_interrupted, n.name)) },
+            text = { androidx.compose.foundation.layout.Column { Text(if (n.failure != null) stringResource(R.string.app_export_failed, n.failure) else stringResource(if (n.saved) R.string.app_export_saved_late else R.string.app_export_interrupted, n.name))
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = {
                 FlatTextButton(onClick = close, modifier = Modifier.testTag(tag + "Ok")) {
                     Text(stringResource(R.string.app_ok))
@@ -291,7 +379,10 @@ fun KlippApp(
         androidx.compose.material3.AlertDialog(
             onDismissRequest = close,
             title = { Text(stringResource(R.string.app_export_denied_title)) },
-            text = { Text(stringResource(R.string.app_export_denied)) },
+            text = { androidx.compose.foundation.layout.Column { Text(stringResource(R.string.app_export_denied))
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = {
                 FlatTextButton(onClick = { close(); lastExportAsk?.let { (st, n) -> runExport(st, n) } }, modifier = Modifier.testTag("exportDeniedRetry")) {
                     Text(stringResource(R.string.app_try_again))
@@ -985,7 +1076,10 @@ fun KlippApp(
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { confirmNew = false },
                 title = { Text(stringResource(R.string.app_new_project_title)) },
-                text = { Text(stringResource(R.string.app_new_project_text)) },
+                text = { androidx.compose.foundation.layout.Column { Text(stringResource(R.string.app_new_project_text))
+                    // a message (an action refused, an error) shows in the dialog, not behind it
+                    MessageHost(inline = true)
+                } },
                 confirmButton = { FlatTextButton(onClick = { confirmNew = false; controller?.newProject() }) { Text(stringResource(R.string.app_new_project)) } },
                 dismissButton = { FlatTextButton(onClick = { confirmNew = false }) { Text(stringResource(R.string.app_cancel)) } },
                 containerColor = K.SurfaceHigh,
@@ -1038,7 +1132,7 @@ fun KlippApp(
             )
         }
 
-        ToastHost(toaster, Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 70.dp))
+        MessageHost(Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 70.dp), toaster = toaster, layer = 0)
     }
     }
 }
@@ -1074,7 +1168,7 @@ internal fun TimecodeDialog(now: Float, onDismiss: () -> Unit, onGo: (Float) -> 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.app_go_to_time)) },
-        text = {
+        text = { androidx.compose.foundation.layout.Column {
             Column {
                 androidx.compose.material3.OutlinedTextField(
                     text, { text = it }, singleLine = true, placeholder = { Text(formatTc(now), fontFamily = FontFamily.Monospace) },
@@ -1086,7 +1180,9 @@ internal fun TimecodeDialog(now: Float, onDismiss: () -> Unit, onGo: (Float) -> 
                 Spacer(Modifier.height(6.dp))
                 Text(if (text.isNotBlank() && parsed != null) "→ " + formatTc(parsed) else stringResource(R.string.app_timecode_hint), color = K.OnSurfaceVar, fontSize = 12.sp)
             }
-        },
+            // a message (an action refused, an error) shows in the dialog, not behind it
+            MessageHost(inline = true)
+        } },
         confirmButton = { FlatTextButton(onClick = { parsed?.let(onGo) }, enabled = parsed != null) { Text(stringResource(R.string.app_go)) } },
         dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.app_cancel)) } },
         containerColor = K.SurfaceHigh,
@@ -1186,30 +1282,6 @@ private fun MonitorHandle(onDrag: (Float) -> Unit, onEnd: () -> Unit, onReset: (
     ) { Box(Modifier.size(40.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(K.OutlineVar)) }
 }
 
-@Composable
-private fun ToastHost(toaster: Toaster, modifier: Modifier) {
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(toaster.key) {
-        if (toaster.key == 0) return@LaunchedEffect
-        visible = true
-        delay(1600)
-        visible = false
-    }
-    AnimatedVisibility(
-        visible,
-        enter = slideInVertically(spring(0.5f, 500f)) { -it * 2 } + fadeIn(),
-        exit = slideOutVertically { -it * 2 } + fadeOut(),
-        modifier = modifier
-    ) {
-        Text(
-            toaster.message ?: "",
-            color = K.OnMark,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.clip(RoundedCornerShape(20.dp)).background(K.Mark).padding(horizontal = 18.dp, vertical = 10.dp)
-        )
-    }
-}
 
 /** The master fader (0..1, where it is going) and the normalization (dB) as values (for the undo history). */
 data class MasterValues(val fader: Float, val norm: Float) {

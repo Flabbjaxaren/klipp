@@ -411,7 +411,7 @@ fun ColorPage(
         AlertDialog(
             onDismissRequest = { stillMenu = null },
             title = { Text(stringResource(R.string.colorpage_still_title, st.label)) },
-            text = {
+            text = { androidx.compose.foundation.layout.Column {
                 Column {
                     if (cid != null) NodeMenuRow(stringResource(R.string.colorpage_apply_still_grade)) {
                         // the still may come from another clip: the color carries over, not stabilization or tracking
@@ -424,7 +424,9 @@ fun ColorPage(
                         stillMenu = null; if (gs.compare?.id == st.id) gs.compare = null; StillStore.delete(st)
                     }
                 }
-            },
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = { FlatTextButton(onClick = { stillMenu = null }) { Text(stringResource(R.string.colorpage_close)) } },
             containerColor = K.SurfaceHigh,
         )
@@ -435,7 +437,7 @@ fun ColorPage(
         AlertDialog(
             onDismissRequest = { nodeMenu = null },
             title = { Text(if (n.label.isNotBlank()) stringResource(R.string.colorpage_node_title_label, n.id, Str.name(n.label)) else stringResource(R.string.colorpage_node_title, n.id)) },
-            text = {
+            text = { androidx.compose.foundation.layout.Column {
                 Column {
                     NodeMenuRow(stringResource(R.string.colorpage_node_rename)) { nodeMenu = null; renaming = n }
                     NodeMenuRow(if (n.enabled) stringResource(R.string.colorpage_node_disable) else stringResource(R.string.colorpage_node_enable)) {
@@ -452,7 +454,9 @@ fun ColorPage(
                         nodeMenu = null; cid?.let { id -> gs.set(id, gs.of(id).let { cg -> cg.copy(nodes = cg.nodes.filter { it.id != n.id }) }); nodeId = gs.of(id).nodes.first().id }
                     }
                 }
-            },
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = { FlatTextButton(onClick = { nodeMenu = null }) { Text(stringResource(R.string.colorpage_close)) } },
             containerColor = K.SurfaceHigh,
         )
@@ -469,7 +473,10 @@ fun ColorPage(
         AlertDialog(
             onDismissRequest = { renaming = null },
             title = { Text(stringResource(R.string.colorpage_node_rename)) },
-            text = { TextInput(stringResource(R.string.colorpage_node_name), name, focus = true) { name = it.take(40) } },
+            text = { androidx.compose.foundation.layout.Column { TextInput(stringResource(R.string.colorpage_node_name), name, focus = true) { name = it.take(40) }
+                // a message (an action refused, an error) shows in the dialog, not behind it
+                MessageHost(inline = true)
+            } },
             confirmButton = { FlatTextButton(onClick = { save() }, Modifier.testTag("nodeRenameSave")) { Text(stringResource(R.string.colorpage_save)) } },
             dismissButton = { FlatTextButton(onClick = { renaming = null }) { Text(stringResource(R.string.colorpage_cancel)) } },
             containerColor = K.SurfaceHigh,
