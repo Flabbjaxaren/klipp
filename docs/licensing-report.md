@@ -1,6 +1,6 @@
 # Licensarbetet – slutrapport för granskning
 
-Gren `licensing` (lokal, inte pushad), utgår från `c993d4d` (= `main` på GitHub). Senaste commit: se `git log`. Ingen APK-release, tagg eller extern
+Gren `licensing`, utgår från `c993d4d`; granskas och slås ihop via en PR mot `main`. Ingen APK-release, tagg eller extern
 kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 
 ## 1. Vad som har gjorts
@@ -13,7 +13,9 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 | Licensvy | Inställningar → Om → Licenser och källkod (utan utvecklarläge): version, bygge, commit, GPL-notis och användarnas rättigheter, hela GPL-texten offline, källkodslänk till exakt commit, alla komponenter med licens/upphovsrätt/notiser, spektrafilm-avsnitt, nedladdningar | `AboutUi.kt` |
 | Typsnitt | de 8 med reserverat namn är nu originalfilerna, oförändrade; Merriweather ritas med samma optiska storlek som förut | `docs/licensing-fonts.md` |
 | Freesound | sökningen borttagen; tidigare hämtade ljud listas och fungerar | `SoundFxUi.kt`, `SoundFx.kt` |
-| Ljudpaket | versionssatta, SHA-256-låsta paket på Klipps release `sounds-1` förberedda (app-stöd, verktyg, instruktion); slås på per paket när låsningen fylls i | `tools/sounds/`, `SoundFx.HOSTED` |
+| GPL | helheten erbjuds under GPLv3 (`GPL-3.0-only`); bryggans uttryckliga `GPL-3.0-or-later` kvar; uppströms "GPLv3" tolkas inte som only eller or-later | `docs/licensing.md`, README, THIRD_PARTY |
+| Originaltexter | alla licens- och notisfiler jämförda med originalen (gnu.org, apache.org, mozilla.org, creativecommons.org, uppströms repon vid låst version, Cargo-källorna, NDK, jar): identiska; CI kontrollerar kopiorna | `inventory.py check` |
+| Ljudpaket | nya nedladdningar från Kenneys döda länkar och BigSoundBanks ljudmapp avstängda, med besked i ljudbiblioteket; hämtade ljud och projekt kvar. Versionssatta, SHA-256-låsta paket på Klipps release `sounds-1` förberedda: verktyget kontrollerar återdistributionsrätten (Kenneys CC0-License.txt, BigSoundBanks CC0-märkning per ljud) och packar CC0-texten och krediteringar med | `tools/sounds/`, `SoundFx.HOSTED` |
 | Talmodeller | låsta till revision + SHA-256 (samma filer); befintliga modeller behålls | `Transcribe.kt` |
 | Media3 | 18 ändrade filer märkta; 7 egenförfattade tillägg Apache-2.0 med "The Klipp contributors"; 2 härledda behåller AOSP-upphovsrätt | `third_party/media3-*` |
 | spektrafilm | licensfilen oförändrad (identisk med upstream), ny `CHANGELOG.txt` (revision, vad som omvandlats och hur, vad som inte kommer från profilerna) | `assets/spektrafilm/` |
@@ -36,15 +38,11 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 
 ## 3. Kräver ditt beslut
 
-1. **Publicering**: pusha grenen `licensing` och slå ihop den i `main`; lägga källpaketet för v0.20.0-beta.1 som tillgång
-   på den releasen. (Allt är förberett, inget gjort.)
-2. **Ljudpaketen**: ladda ner originalen för hand (Kenney ×7, BigSoundBank ×75 – `tools/sounds/README.md`), bygga och
-   publicera releasen `sounds-1`. Fram till dess: Kenney-paketen går inte att hämta (deras länkar dog i november),
-   BigSoundBank hämtas som förut från `/UPLOAD/`.
-3. **Klipps egen GPL-formulering**: hela appen kan bara erbjudas under GPL-3.0 (OpenDRT är "GPLv3", spektrafilm i
-   huvudsak "GPLv3"). `rust/Cargo.toml` säger `GPL-3.0-or-later`, README "GPL v3.0". Välj: `GPL-3.0-only` överallt,
-   eller "or later" för Klipps egen kod. Upphovsrättsraden är "the Klipp contributors" – ett namn om du vill.
-4. **Ikonerna**: deras ursprung ("designskissen") är inte dokumenterat.
+1. **Ljudpaketen**: lägg originalen i `~/AndroidStudioProjects/Klipp-builds/sounds-originals/` (Kenney ×7 zip,
+   BigSoundBank ×75 ogg – `tools/sounds/README.md`); därefter byggs, kontrolleras och låses paketen. Publicering av
+   `sounds-1` kräver ditt godkännande.
+2. **Kontakt** om spektrafilms övriga data: utkasten i `docs/licensing-open-questions.md` (A2) – skickas av dig, eller inte.
+3. **Ikonerna**: deras ursprung ("designskissen") är inte dokumenterat.
 
 ## 4. Kräver tillstånd eller juridisk granskning
 
@@ -57,9 +55,8 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 ## 5. Checklista före betald Play-lansering
 
 - [ ] Granska och slå ihop `licensing`; CI grön
-- [ ] Ljudpaketen: originalen, `build_sound_assets.py`, låsningarna, releasen `sounds-1`, prov på telefon
+- [ ] Ljudpaketen: originalen, `build_sound_assets.py`, låsningarna, releasen `sounds-1` (godkännande), prov på telefon
 - [ ] Svar från spektrafilm (A2) eller dokumenterat beslut
-- [ ] GPL-formuleringen beslutad och rättad
 - [ ] Juridisk genomgång (punkt 4)
 - [ ] Per release: tagga och pusha först (källkodslänken pekar på commiten), rent bygge, `inventory.py check`,
       källpaket + byggkontroll, källpaketet på releasen

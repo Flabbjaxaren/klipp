@@ -21,16 +21,76 @@ The eight families now ship as the unmodified original files (see `docs/licensin
   SPEKTRAFILM_LICENSE (CC BY-SA 4.0) covers "the profiles … and all direct derivatives"; it does not say it covers these
   files, and GPL-3.0 (the repository's license) may not be the hanatos or Schott data's license. Klipp's CHANGELOG.txt
   claims nothing for them.
-- Also unclear: spektrafilm's code license version – `LICENSE` and `pyproject.toml` say GPL v3, `CITATION.cff` says
-  `GPL-3.0-or-later`. And the README speaks of the LUTs as "commercial use, free share, no resale" while
+- Not needed for Klipp's distribution, but unconfirmed: whether spektrafilm's code is meant as version 3 only or "or
+  later" (`LICENSE`/`pyproject.toml` "GPLv3", `CITATION.cff` `GPL-3.0-or-later`); Klipp uses it under version 3. And the README speaks of the LUTs as "commercial use, free share, no resale" while
   SPEKTRAFILM_LICENSE.txt grants CC BY-SA 4.0; Klipp follows the license file and does not sell the LUTs separately.
-- Draft question to Andrea Volpato (GitHub Discussions, not sent):
-  > Klipp (GPL-3.0 Android video editor, may be sold) ports spektrafilm's pipeline and ships tables computed from your
-  > profiles (revision 3bb2c2d), with SPEKTRAFILM_LICENSE.txt unchanged and a CHANGELOG.txt. Three questions: (1) Are the
-  > hanatos2025 upsampling data (irradiance_xy_tc.npy) and the KG3 filter spectrum under a license we should name, or
-  > who should we ask? (2) Is the code GPL-3.0-only or -or-later (CITATION.cff says or-later)? (3) Is a paid app that
-  > ships these tables, credited and under CC BY-SA, within what you intend?
-- And to hanatos (vkdt), if Andrea doesn't know: the license of the upsampling coefficient data.
+- What exactly Klipp uses: `film/*.tc.bin` (20 files) are spektrafilm's `compute_hanatos2025_tc_lut` output – the
+  hanatos2025 spectra table `irradiance_xy_tc.npy` (credited to hanatos in `utils/spectral_upsampling.py`; the
+  coefficient file `hanatos_irradiance_xy_coeffs_250304.lut` is not used) multiplied by each film's sensitivity,
+  window-fitted and gamut-compressed. `index.json` → `enlargerIlluminant` is a 3400 K black body through the
+  transmission curve in `data/filters/heat_absorbing/schott/KG3.csv` (a digitised curve; `info.txt` names
+  newport.com's heat-absorbing glass page). Neither source file is shipped; only these derived tables are.
+
+**Contact drafts (not sent – for the owner to send or not):**
+
+1. To Andrea Volpato, spektrafilm (GitHub Discussions on andreavolpato/spektrafilm; he distributes both datasets):
+
+   > **Subject: Rights for the hanatos2025 spectra and the KG3 curve in derived tables (paid app)**
+   >
+   > Hi Andrea,
+   >
+   > I make Klipp, a GPL-3.0 video editor for Android (github.com/Flabbjaxaren/klipp) that ports spektrafilm's pipeline.
+   > Klipp may later be sold on Google Play. It ships tables computed from spektrafilm at revision 3bb2c2d, with
+   > SPEKTRAFILM_LICENSE.txt unchanged, a CHANGELOG.txt describing the conversion, and credit in the app's About screen.
+   >
+   > Two inputs in those tables are not your profiles, and I can't find their license:
+   >
+   > 1. **hanatos2025 spectra** – `data/luts/spectral_upsampling/irradiance_xy_tc.npy`. Through
+   >    `compute_hanatos2025_tc_lut` it is multiplied by each film's sensitivity, and the result ships in Klipp as one
+   >    table per film (`film/<stock>.tc.bin`, 20 films). The file itself is not shipped.
+   > 2. **Schott KG3 transmission** – `data/filters/heat_absorbing/schott/KG3.csv` (info.txt points to Newport's page).
+   >    Through the "TH-KG3" illuminant it ends up as a 3400 K black body times that curve in Klipp's `index.json`.
+   >
+   > Could you tell me:
+   > - Under what terms you received these two datasets, and whether they are covered by your CC BY-SA 4.0 profile
+   >   license, by the repository's GPL, or by their own terms?
+   > - Whether shipping tables derived from them inside a paid app (credited, under CC BY-SA 4.0 / GPL-3.0 as now) is
+   >   fine with you, or whom I should ask (hanatos for the spectra; Schott or Newport for the curve)?
+   > - Whether you would like the credit worded differently?
+   >
+   > Klipp does not sell the LUTs or tables separately – they are part of the app and free to share like the rest of
+   > spektrafilm's material. Thank you for spektrafilm.
+
+2. To hanatos (Johannes Hanika, vkdt – github.com/hanatos), if Andrea refers there:
+
+   > **Subject: License of the hanatos2025 spectra table used by spektrafilm**
+   >
+   > Hi,
+   >
+   > spektrafilm (github.com/andreavolpato/spektrafilm) ships `irradiance_xy_tc.npy`, a spectral-upsampling table it
+   > credits to you. My GPL-3.0 Android video editor, Klipp (github.com/Flabbjaxaren/klipp), ships tables computed from
+   > it: the spectra multiplied by a film's sensitivity, one table per film, not the table itself. Klipp may be sold on
+   > Google Play.
+   >
+   > Under which license may that data and tables derived from it be distributed, including in a paid app? And how would
+   > you like it credited?
+   >
+   > Thank you.
+
+3. To Schott (the glass's maker) or Newport (the page the curve came from), if neither of the above can answer:
+
+   > **Subject: Use of the published KG3 transmission curve in software**
+   >
+   > Hello,
+   >
+   > An open-source film-simulation project uses the published spectral transmission of Schott KG3 heat-absorbing glass
+   > (digitised from the curve on Newport's heat-absorbing glass filter page) to model an enlarger lamp. My video editor,
+   > Klipp, ships one derived value table: a 3400 K lamp spectrum after that filter, sampled at 81 wavelengths.
+   > Klipp may be sold on Google Play.
+   >
+   > May the published curve, and values derived from it, be used this way? Should a credit or notice be shown?
+   >
+   > Thank you.
 
 ### A3. Freesound API in a paid app – resolved 2026-11-18
 
@@ -49,14 +109,13 @@ The Freesound search was removed from Klipp. Sounds a user downloaded from Frees
   all need the owner's approval. Sound 0448 records an iPhone camera shutter (small risk); 2479: check by ear that
   Klipp's cut has no music.
 
-### A5. Klipp's own license wording (checked again 2026-11-18)
+### A5. Klipp's own license wording – resolved 2026-11-18
 
-- What the notices say: OpenDRT.dctl "License: GPLv3" (no other version statement in its repository); spektrafilm:
-  LICENSE (GPL v3 text), pyproject.toml "GPLv3", README "GPLv3 licensed", only CITATION.cff "GPL-3.0-or-later", no file
-  headers; Klipp: README/THIRD_PARTY "GPL v3.0", `rust/Cargo.toml` `GPL-3.0-or-later`, no file headers. Everything else
-  is permissive. So the app as a whole can only be offered under GPL-3.0; no third-party license was changed. Decide: make Cargo.toml `GPL-3.0-only`, or state that
-  Klipp's own code is "or later" while the whole is v3.
-- Copyright line: the app and docs say "© the Klipp contributors". If a named holder is wanted, decide the name.
+The distribution as a whole is offered under GPLv3 (`GPL-3.0-only`); the explicit `GPL-3.0-or-later` of the JNI
+bridge's own code (`rust/Cargo.toml`) stays. Upstream notices were read as they are (OpenDRT "License: GPLv3";
+spektrafilm "GPLv3" in LICENSE/pyproject/README, `GPL-3.0-or-later` in CITATION.cff) – that wording alone is not
+taken to settle "only" or "or later" for those projects; both permit version 3. No third-party license was changed
+(`docs/licensing.md`). Copyright line: "© the Klipp contributors" (a named holder can be added later).
 
 ### A6. Files Klipp added inside the Media3 modules – resolved 2026-11-18
 

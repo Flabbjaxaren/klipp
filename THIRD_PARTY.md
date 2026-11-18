@@ -1,7 +1,8 @@
 # Third-party software and data
 
-Klipp itself is licensed under the GNU General Public License v3.0 (`LICENSE`; see `docs/licensing.md` for "only" vs
-"or later"). It contains or downloads the following. The complete, machine-readable list – every Rust crate and Maven
+Klipp as distributed (the app and this repository as a whole) is offered under the GNU General Public License,
+version 3 only (`GPL-3.0-only`, `LICENSE`); the JNI bridge's own code (`rust/`) is `GPL-3.0-or-later` – see
+`docs/licensing.md`. It contains or downloads the following. The complete, machine-readable list – every Rust crate and Maven
 library with its exact version, origin and license files – is **`LICENSES/inventory.json`**; the license texts and
 notices are in **`LICENSES/`** and ship inside the app (Settings → About → Licenses and source code). Open questions:
 `docs/licensing-open-questions.md`.
@@ -22,8 +23,8 @@ notices are in **`LICENSES/`** and ship inside the app (Settings → About → L
 | **libc++** (Android NDK 29.0.14206865, LLVM) | `libc++_shared.so` | Apache-2.0 WITH LLVM-exception; legacy NCSA (`LICENSES/third-party/libc++/NOTICE.txt`) | None |
 | **AndroidX / Jetpack Compose / Media3 common** (Maven), **Kotlin**, **kotlinx.coroutines**, **Guava** | classes.dex | Apache-2.0 | None |
 | **Checker Framework qualifiers** 3.43.0 – © the Checker Framework developers | classes.dex | MIT (`LICENSES/third-party/maven/checker-qual-LICENSE.txt`) | None |
-| **spektrafilm** (code) – © Andrea Volpato et al. | ported to `engine/Spektra.kt`, `engine/FilmFx.kt`, `engine/FilmGl.kt` | GPL-3.0 (version: see `docs/licensing.md`) | Ported to Kotlin/GLSL |
-| **OpenDRT** v1.1.0 – Jed Smith | ported to `engine/OpenDrt.kt` | GPL-3.0 (version 3 only) | Ported; SDR only, two inputs added |
+| **spektrafilm** (code) – © Andrea Volpato et al. | ported to `engine/Spektra.kt`, `engine/FilmFx.kt`, `engine/FilmGl.kt` | GPL v3 ("GPLv3"; its CITATION.cff says or-later; Klipp uses it under version 3) | Ported to Kotlin/GLSL |
+| **OpenDRT** v1.1.0 – Jed Smith | ported to `engine/OpenDrt.kt` | GPL v3 ("License: GPLv3" in its notice; Klipp uses it under version 3) | Ported; SDR only, two inputs added |
 
 ## Data and fonts in the app (assets)
 

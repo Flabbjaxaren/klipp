@@ -14,7 +14,7 @@
    "kind": "own",
    "category": "klipp",
    "origin": "https://github.com/Flabbjaxaren/klipp",
-   "license": "GPL-3.0",
+   "license": "GPL-3.0-only",
    "copyright": "© the Klipp contributors",
    "notices": [
     "LICENSES/texts/GPL-3.0.txt"
@@ -25,7 +25,7 @@
     "assets/yuvcheck/*"
    ],
    "status": "verified",
-   "notes": "Klipp's own code and resources, and two small clips Klipp generated (assets/gap: black video for empty stretches; assets/yuvcheck: decoder test clips). 'GPL-3.0-only' or '-or-later' is not settled – see docs/licensing.md."
+   "notes": "Klipp's own code and resources, and two small clips Klipp generated (assets/gap: black video for empty stretches; assets/yuvcheck: decoder test clips). The distribution as a whole is offered under GPL-3.0-only; the JNI bridge's own code (rust/) is GPL-3.0-or-later as rust/Cargo.toml says (docs/licensing.md)."
   },
   {
    "id": "media3-vendored",
@@ -77,7 +77,8 @@
    "license": "Apache-2.0 WITH LLVM-exception (and the legacy University of Illinois/NCSA license for older code)",
    "copyright": "© the LLVM Project contributors; © 2003-2019 University of Illinois at Urbana-Champaign",
    "notices": [
-    "LICENSES/third-party/libc++/NOTICE.txt"
+    "LICENSES/third-party/libc++/NOTICE.txt",
+    "LICENSES/third-party/libc++/SOURCE.txt"
    ],
    "included_in": "lib/arm64-v8a/libc++_shared.so",
    "status": "verified",
@@ -97,8 +98,8 @@
    ],
    "changes": "Ported to Kotlin and GLSL: engine/Spektra.kt, engine/FilmFx.kt, engine/FilmGl.kt.",
    "included_in": "classes*.dex",
-   "status": "incomplete",
-   "notes": "GPL v3 per LICENSE and pyproject.toml; CITATION.cff says GPL-3.0-or-later. Whether 'or later' is granted is not settled (docs/licensing.md)."
+   "status": "verified",
+   "notes": "LICENSE (GPL v3 text), pyproject.toml 'GPLv3', README 'GPLv3 licensed', CITATION.cff 'GPL-3.0-or-later'. Whether upstream means only or or-later is for its author to say; Klipp uses it under version 3, which it permits either way."
   },
   {
    "id": "spektrafilm-tables",
@@ -131,7 +132,7 @@
    "kind": "port",
    "category": "code",
    "origin": "https://github.com/jedypod/open-display-transform",
-   "license": "GPL-3.0-only",
+   "license": "GPL-3.0",
    "copyright": "Jed Smith",
    "notices": [
     "LICENSES/texts/GPL-3.0.txt"
@@ -139,7 +140,7 @@
    "changes": "Ported to Kotlin (engine/OpenDrt.kt), SDR only; inputs Rec.709 video and Apple Log added.",
    "included_in": "classes*.dex",
    "status": "verified",
-   "notes": "OpenDRT.dctl: 'License: GPLv3', no 'or later' statement – so version 3 only."
+   "notes": "OpenDRT.dctl says 'License: GPLv3' (the repository's LICENSE is the GPL v3 text). That wording alone doesn't settle version 3 only vs 'or later'; Klipp uses it under version 3, which it permits either way."
   },
   {
    "id": "filmcraft-fonts",

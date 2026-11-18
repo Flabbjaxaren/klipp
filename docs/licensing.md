@@ -8,29 +8,27 @@ show what the files say, not that a use is cleared.
 
 ## Klipp's own code
 
-- License: **GNU General Public License, version 3** – the text is `LICENSE` (also `LICENSES/texts/GPL-3.0.txt` and
-  in the app).
+- License: Klipp **as distributed – the app and this repository as a whole – is offered under the GNU General Public
+  License, version 3 only (GPLv3, SPDX `GPL-3.0-only`)**. The text is `LICENSE` (also `LICENSES/texts/GPL-3.0.txt`
+  and in the app).
+- Klipp's own components keep an explicit "or later" where one is stated: the JNI bridge's own code (`rust/`) is
+  `GPL-3.0-or-later`, as `rust/Cargo.toml` says. Anyone may use that code under a later GPL version; the combined app
+  is still offered under version 3.
 - Copyright: the Klipp contributors (every commit in the repository is by the project's owner, partly written with
   an AI assistant). The source files carry no per-file headers.
-- **"Only" or "or later" is not settled** (see below). The README and `THIRD_PARTY.md` say "GPL v3.0";
-  `rust/Cargo.toml` declares `GPL-3.0-or-later` for the JNI bridge.
 
-### GPL-3.0-only or GPL-3.0-or-later?
+### Why the whole is offered under version 3 only
 
-What the parts of the program that come from others actually say:
+The distribution combines Klipp's code with GPL code from others. Their notices, as they read (2026-11-18):
 
-| Part | What its notices say | Consequence |
-|---|---|---|
-| OpenDRT (ported in `engine/OpenDrt.kt`) | `OpenDRT.dctl`: "License: GPLv3"; the repository's `LICENSE` is the GPL v3 text. No "or (at your option) any later version" statement. | Only version 3 is granted. |
-| spektrafilm code (ported in `engine/Spektra.kt` and `engine/FilmFx.kt`, on the GPU in `engine/FilmGl.kt`) | `LICENSE`: GPL v3 text; `pyproject.toml`: "GPLv3"; `CITATION.cff`: `GPL-3.0-or-later`. No per-file notice. | Unclear: the citation metadata says "or later", the license files don't. Treated as version 3 only until the author confirms. |
-| Klipp's own code | README "GPL v3.0", `rust/Cargo.toml` "GPL-3.0-or-later" | Owner's choice. |
+| Part | What its notices say |
+|---|---|
+| OpenDRT (ported in `engine/OpenDrt.kt`) | `OpenDRT.dctl`: "License: GPLv3"; the repository's `LICENSE` is the GPL v3 text. No "or (at your option) any later version" statement. |
+| spektrafilm code (ported in `engine/Spektra.kt` and `engine/FilmFx.kt`, on the GPU in `engine/FilmGl.kt`) | `LICENSE`: GPL v3 text; `pyproject.toml` "GPLv3"; README "GPLv3 licensed"; `CITATION.cff` `GPL-3.0-or-later`. No file headers. |
 
-So the **program as a whole can be conveyed under GPL-3.0**, and it **cannot be offered under "or later" as a
-whole**: the OpenDRT port (and possibly the spektrafilm port) grants version 3 only. Klipp's own files could be
-"or later" individually, which does not change what the combined app is under. `rust/Cargo.toml`'s
-`GPL-3.0-or-later` was left as it is – making it `GPL-3.0-only`, or stating "or later" for Klipp's own code in the
-README, is the owner's decision (listed in the open questions). Nothing should be relabelled "or later" because one
-manifest says so.
+The wording "GPLv3" alone does not settle whether these projects mean version 3 only or "or later" – that is for
+their authors to say, and Klipp does not claim either for them. What is certain is that both permit version 3, so
+version 3 is what Klipp offers for the whole. No third-party license or notice was changed.
 
 ### Selling the app
 

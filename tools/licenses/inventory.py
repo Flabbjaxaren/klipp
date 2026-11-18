@@ -184,6 +184,38 @@ def missing_notices(entries):
             if not os.path.isfile(os.path.join(ROOT, n))]
 
 
+def verbatim_problems(crates):
+    """License and notice files that must be byte-identical to their originals (copied, never edited)."""
+    pairs = [("LICENSES/texts/GPL-3.0.txt", "LICENSE")]
+    for m in ("media3-effect", "media3-exoplayer", "media3-transformer"):
+        pairs.append(("LICENSES/texts/Apache-2.0.txt", f"third_party/{m}/LICENSE"))
+    for f in ("LICENSE", "AUTHORS"):
+        pairs.append((f"LICENSES/third-party/whisper.cpp/{f}", f"third_party/whisper.cpp/{f}"))
+    out = [f"{a} differs from its original {b}" for a, b in pairs
+           if open(os.path.join(ROOT, a), "rb").read() != open(os.path.join(ROOT, b), "rb").read()]
+    roots = {}
+    for c in crates:
+        if not c["distributed"]:
+            continue
+        files, src = c["_license_files"], c["_dir"]
+        if not files:  # git crates: the repository root
+            top = src
+            while top != os.path.dirname(top) and not os.path.exists(os.path.join(top, "Cargo.lock")):
+                top = os.path.dirname(top)
+            files, src = sorted(f for f in os.listdir(top) if LICENSE_FILE.match(f)), top
+            roots[os.path.basename(os.path.dirname(top)).rsplit("-", 1)[0]] = top  # filmcraft, craft-libs
+        for f in files:
+            shipped = os.path.join(OUT, "third-party", "rust", f"{c['component']}-{c['version']}", f)
+            if not os.path.isfile(shipped) or open(shipped, "rb").read() != open(os.path.join(src, f), "rb").read():
+                out.append(f"LICENSES/third-party/rust/{c['component']}-{c['version']}/{f} is not its crate's original (run inventory.py build)")
+    for name, top in roots.items():
+        for f in ("LICENSE-MIT", "LICENSE-APACHE", "NOTICE"):
+            shipped = os.path.join(OUT, "third-party", name, f)
+            if os.path.isfile(os.path.join(top, f)) and (not os.path.isfile(shipped) or open(shipped, "rb").read() != open(os.path.join(top, f), "rb").read()):
+                out.append(f"LICENSES/third-party/{name}/{f} is not {name}'s original")
+    return out
+
+
 def rust_status(c, overrides):
     o = overrides.get(c["component"], {})
     if not c["distributed"]:
@@ -231,6 +263,7 @@ def main():
         print(f"LICENSES/inventory.json: {len(inv['components'])} components "
               f"({len(man['entries'])} reviewed by hand, {len(mav)} Maven, {len(crates)} Rust)")
     if mode == "check":
+        problems += verbatim_problems(crates)
         # the generated inventory must match what was reviewed (run `inventory.py build` after changing manual.json)
         try:
             shipped = json.load(open(os.path.join(OUT, "inventory.json")))
