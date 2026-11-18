@@ -1019,9 +1019,11 @@ object Fonts {
     /**
      * A font family that comes with the app (assets/fonts, see fonts.json): [variable] = one file with a weight axis
      * (bold = weight 700), otherwise separate files per style; [styles] = the files there are (regular, bold, italic,
-     * boldItalic). A style without a file is synthesized by Android (slanted / thickened).
+     * boldItalic). A style without a file is synthesized by Android (slanted / thickened). [axes]: the other axes of a
+     * variable file, fixed (fonts.json "axes", e.g. Merriweather's "'opsz' 72, 'wdth' 100") – the files are the
+     * publishers' originals, unmodified (OFL reserved font names), so a look is chosen here instead of in the file.
      */
-    class Bundled(val name: String, val dir: String, val variable: Boolean, val styles: Set<String>)
+    class Bundled(val name: String, val dir: String, val variable: Boolean, val styles: Set<String>, val axes: String = "")
 
     /** The app's font families by name (empty until [init]). */
     var bundled: Map<String, Bundled> = emptyMap()
@@ -1044,7 +1046,7 @@ object Fonts {
                 val st = o.getJSONArray("styles").let { s -> (0 until s.length()).map { s.getString(it) }.toSet() }
                 // a bundled name the phone's list already has (Inter) gets its own name, so saved projects keep their look
                 val n = o.getString("name").let { if (it in builtIn) "$it Display" else it }
-                n to Bundled(n, o.getString("dir"), o.getBoolean("variable"), st)
+                n to Bundled(n, o.getString("dir"), o.getBoolean("variable"), st, o.optString("axes"))
             }
         }.getOrDefault(emptyMap())
         dir = java.io.File(context.filesDir, "fonts").apply { mkdirs() }
@@ -1074,13 +1076,17 @@ object Fonts {
         else -> Typeface.NORMAL
     }
 
+    /** A variable bundled file's settings: the weight (bold = 700) and the family's fixed axes. */
+    internal fun variation(b: Bundled, bold: Boolean): String =
+        listOf("'wght' ${if (bold) 700 else 400}", b.axes).filter { it.isNotBlank() }.joinToString(", ")
+
     private fun bundledFace(b: Bundled, bold: Boolean, italic: Boolean): Typeface? = runCatching {
         val am = assets ?: return null
         fun file(k: String) = "fonts/${b.dir}/${k.replaceFirstChar { it.uppercase() }}.ttf"
         if (b.variable) {
             val it = italic && "italic" in b.styles
             val tf = Typeface.Builder(am, file(if (it) "italic" else "regular"))
-                .setFontVariationSettings("'wght' ${if (bold) 700 else 400}").build()
+                .setFontVariationSettings(variation(b, bold)).build()
             // no italic file: slanted by Android
             if (italic && !it) Typeface.create(tf, Typeface.ITALIC) else tf
         } else {
