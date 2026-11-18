@@ -1,5 +1,9 @@
 #version 300 es
-// Klipp (Apache 2.0, like the rest of the module): SDR video sampled as YUV (EXT_YUV_target) and converted with the
+// Copyright 2021, 2022 The Android Open Source Project
+// Modified for Klipp (2026) – derived from fragment_shader_transformation_sdr_external_es2.glsl and
+// fragment_shader_transformation_external_yuv_es3.glsl; licensed under the Apache License, Version 2.0
+// (https://www.apache.org/licenses/LICENSE-2.0), like the rest of the module.
+// Klipp: SDR video sampled as YUV (EXT_YUV_target) and converted with the
 // file's own matrix and range (KlippYuv), not clamped – a camera's super-whites and sub-blacks reach the effects.
 // Otherwise as fragment_shader_transformation_sdr_external_es2.glsl.
 
