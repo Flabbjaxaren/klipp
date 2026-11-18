@@ -15,8 +15,11 @@ What is here and how it was made
 
   film/<stock>.json      a film's characteristic curves, channel densities, base density, DIR couplers' values and
                          settings, sampled from its spektrafilm profile (after spektrafilm's digest_params)
-  film/<stock>.tc.bin    the film's spectral-upsampling table: spektrafilm's hanatos2025 spectra × the film's
-                         sensitivity, with window fitting and gamut compression, as 32-bit floats
+  film/<stock>.tc.bin    the film's spectral-upsampling table: Klipp's own spectra for the film's reference
+                         illuminant (tools/spectra – not spektrafilm's bundled hanatos2025 table) × the film's
+                         sensitivity, rebalanced per channel so that mid grey gives the same exposure as with the
+                         bundled table, with spektrafilm's window fitting and gamut compression, as 16-bit floats
+                         (export_tables.py --spectra)
   film/<stock>.scan.bin  (slide films) the scan of the film's densities to an sRGB-encoded image as a 3D table
   print/<paper>.json     a paper's curves, channel densities, base density and sensitivity, plus its curve model
   print/<paper>.scan.bin the scan of the paper's densities to an sRGB-encoded image as a 3D table
@@ -37,12 +40,12 @@ What is here and how it was made
 
 Material in these tables that is not from the spektrafilm profiles
   Some values come from data that spektrafilm ships beside its profiles, whose own license is not stated there:
-  the hanatos2025 spectral-upsampling data (in film/*.tc.bin; spektrafilm's
-  data/luts/spectral_upsampling/irradiance_xy_tc.npy, credited to hanatos) and the Schott KG3 heat-absorbing glass
-  spectrum behind "TH-KG3" in index.json (spektrafilm's data/filters/heat_absorbing/schott, which names Newport's
-  web page as its source). The neutral print filter database was computed by spektrafilm. This changelog does not
-  claim a license for that material – it is listed as an open question in the Klipp repository
-  (docs/licensing-open-questions.md).
+  the Schott KG3 heat-absorbing glass spectrum behind "TH-KG3" in index.json (spektrafilm's
+  data/filters/heat_absorbing/schott, which names Newport's web page as its source). The neutral print filter
+  database was computed by spektrafilm. This changelog does not claim a license for that material – it is listed as
+  an open question in the Klipp repository (docs/licensing-open-questions.md).
+  The spectral upsampling in film/*.tc.bin is Klipp's own (tools/spectra in the Klipp repository, GPL-3.0-or-later),
+  built from the CIE 1931 standard observer and the film's reference illuminant as spektrafilm defines them.
 
 Names
   Film and paper names (Kodak, Fujifilm, Portra, Velvia …) identify the stocks the profiles describe. They are
