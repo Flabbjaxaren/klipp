@@ -41,13 +41,13 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 1. **Ljudpaketen**: lägg originalen i `~/AndroidStudioProjects/Klipp-builds/sounds-originals/` (Kenney ×7 zip,
    BigSoundBank ×75 ogg – `tools/sounds/README.md`); därefter byggs, kontrolleras och låses paketen. Publicering av
    `sounds-1` kräver ditt godkännande.
-2. **Kontakt** om spektrafilms övriga data: utkasten i `docs/licensing-open-questions.md` (A2) – skickas av dig, eller inte.
+2. ~~Kontakt om spektrafilms övriga data~~ – löst: egna spektraltabeller; KG3 räknas till spektrafilms licens (ditt beslut 2026-11-19, A2).
 3. **Ikonerna**: deras ursprung ("designskissen") är inte dokumenterat.
 
 ## 4. Kräver tillstånd eller juridisk granskning
 
-- **spektrafilm** (utkast till fråga i `docs/licensing-open-questions.md`, A2): licensen för Schott KG3-spektrumet i
-  tabellerna; om koden är "or later"; README:ns "no resale" mot licensfilens CC BY-SA.
+- **spektrafilm** (A2): KG3 räknas till spektrafilms licens (beslut 2026-11-19); kvar för juristen bara om koden är
+  "or later" och README:ns "no resale" mot licensfilens CC BY-SA (Klipp säljer inte tabellerna separat).
 - **Juridiskt**: Google Plays villkor mot GPL §10; kodekpatent (motorns egna H.264/HEVC/AAC/MP3 m.fl.); varumärken
   (Kodak, Fujifilm och filmnamnen, kamerornas log-namn, typsnittsnamn); om libc++ räknas som systembibliotek;
   konsumenträtt.
@@ -56,7 +56,7 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 
 - [ ] Granska och slå ihop `licensing`; CI grön
 - [ ] Ljudpaketen: originalen, `build_sound_assets.py`, låsningarna, releasen `sounds-1` (godkännande), prov på telefon
-- [ ] Svar från spektrafilm (A2) eller dokumenterat beslut
+- [x] spektrafilm (A2): egna spektraltabeller; KG3 – dokumenterat beslut 2026-11-19
 - [ ] Juridisk genomgång (punkt 4)
 - [ ] Per release: tagga och pusha först (källkodslänken pekar på commiten), rent bygge, `inventory.py check`,
       källpaket + byggkontroll, källpaketet på releasen

@@ -10,61 +10,20 @@ are not legal clearance – items marked **legal** need a lawyer's view before a
 
 The eight families now ship as the unmodified original files (see `docs/licensing-fonts.md`, decision at the top).
 
-### A2. spektrafilm – data beside the profiles, and the license version
+### A2. spektrafilm – data beside the profiles, and the license version – resolved 2026-11-19
 
 - **Spectral upsampling – resolved 2026-11-19.** The film tables `film/*.tc.bin` are made from Klipp's own spectral
   upsampling tables (`tools/spectra`, written from the published method, Jakob & Hanika 2019, with the CIE 1931
   observer and the film's illuminant as spektrafilm defines them). spektrafilm's bundled spectral table is not used.
-- Still open: `index.json` → `enlargerIlluminant` – a 3400 K black body through the Schott KG3 heat-absorbing glass
-  transmission (upstream `data/filters/heat_absorbing/schott/KG3.csv`, a digitised curve whose `info.txt` names
-  newport.com's heat-absorbing glass page). No license is stated for the curve (manufacturer data). The
-  SPEKTRAFILM_LICENSE (CC BY-SA 4.0) covers "the profiles … and all direct derivatives"; it does not say it covers this
-  file, and GPL-3.0 (the repository's license) may not be its license. Klipp's CHANGELOG.txt claims nothing for it.
-  `neutralFilters` in `index.json` are computed by spektrafilm. The source file is not shipped; only the derived table.
+- **KG3 – resolved by the owner's decision 2026-11-19.** `index.json` → `enlargerIlluminant` is a 3400 K black body
+  through the Schott KG3 heat-absorbing glass transmission (upstream `data/filters/heat_absorbing/schott/KG3.csv`, a
+  digitised curve whose `info.txt` names newport.com's heat-absorbing glass page; no separate license is stated for it).
+  The curve is distributed by spektrafilm as part of its data, so Klipp treats it as covered by spektrafilm's licenses
+  and distributes the derived table on spektrafilm's terms (`SPEKTRAFILM_LICENSE.txt`). No contact is planned. The source
+  file is not shipped; only the derived table. `neutralFilters` in `index.json` are computed by spektrafilm.
 - Not needed for Klipp's distribution, but unconfirmed: whether spektrafilm's code is meant as version 3 only or "or
   later" (`LICENSE`/`pyproject.toml` "GPLv3", `CITATION.cff` `GPL-3.0-or-later`); Klipp uses it under version 3. And the README speaks of the LUTs as "commercial use, free share, no resale" while
   SPEKTRAFILM_LICENSE.txt grants CC BY-SA 4.0; Klipp follows the license file and does not sell the LUTs separately.
-
-**Contact drafts (not sent – for the owner to send or not):**
-
-1. To Andrea Volpato, spektrafilm (GitHub Discussions on andreavolpato/spektrafilm; he distributes both datasets):
-
-   > **Subject: Rights for the KG3 curve in derived tables (paid app)**
-   >
-   > Hi Andrea,
-   >
-   > I make Klipp, a GPL-3.0 video editor for Android (github.com/Flabbjaxaren/klipp) that ports spektrafilm's pipeline.
-   > Klipp may later be sold on Google Play. It ships tables computed from spektrafilm at revision 3bb2c2d, with
-   > SPEKTRAFILM_LICENSE.txt unchanged, a CHANGELOG.txt describing the conversion, and credit in the app's About screen.
-   >
-   > One input in those tables is not your profiles, and I can't find its license: the **Schott KG3 transmission**,
-   > `data/filters/heat_absorbing/schott/KG3.csv` (info.txt points to Newport's page). Through the "TH-KG3" illuminant
-   > it ends up as a 3400 K black body times that curve in Klipp's `index.json`.
-   >
-   > Could you tell me:
-   > - Under what terms you received that curve, and whether it is covered by your CC BY-SA 4.0 profile license, by
-   >   the repository's GPL, or by its own terms?
-   > - Whether shipping a table derived from it inside a paid app (credited, under CC BY-SA 4.0 / GPL-3.0 as now) is
-   >   fine with you, or whom I should ask (Schott or Newport)?
-   > - Whether you would like the credit worded differently?
-   >
-   > Klipp does not sell the LUTs or tables separately – they are part of the app and free to share like the rest of
-   > spektrafilm's material. Thank you for spektrafilm.
-
-2. To Schott (the glass's maker) or Newport (the page the curve came from), if neither of the above can answer:
-
-   > **Subject: Use of the published KG3 transmission curve in software**
-   >
-   > Hello,
-   >
-   > An open-source film-simulation project uses the published spectral transmission of Schott KG3 heat-absorbing glass
-   > (digitised from the curve on Newport's heat-absorbing glass filter page) to model an enlarger lamp. My video editor,
-   > Klipp, ships one derived value table: a 3400 K lamp spectrum after that filter, sampled at 81 wavelengths.
-   > Klipp may be sold on Google Play.
-   >
-   > May the published curve, and values derived from it, be used this way? Should a credit or notice be shown?
-   >
-   > Thank you.
 
 ### A3. Freesound API in a paid app – resolved 2026-11-18
 

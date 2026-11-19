@@ -45,7 +45,7 @@ version 3 is what Klipp offers for the whole. No third-party license or notice w
 |---|---|---|
 | Title fonts (`app/src/main/assets/fonts`, 33 families; the 8 with a Reserved Font Name unmodified) | SIL OFL 1.1, two families Apache-2.0 | `OFL.txt` / `LICENSE.txt` (+ `CHANGES.txt`) in each folder; the audit and decision: `docs/licensing-fonts.md` |
 | Fonts compiled into the engine (FilmCraft: Inter ×5, JetBrains Mono, Noto Serif – byte-identical, unmodified) | SIL OFL 1.1 | `LICENSES/third-party/filmcraft/OFL-*.txt` |
-| spektrafilm tables (`app/src/main/assets/spektrafilm`) | CC BY-SA 4.0 for what encodes the profiles; see the open questions for the rest | `SPEKTRAFILM_LICENSE.txt` (unchanged), `CHANGELOG.txt` (what Klipp changed) |
+| spektrafilm tables (`app/src/main/assets/spektrafilm`) | CC BY-SA 4.0 for what encodes the profiles; the KG3 spectrum as part of spektrafilm's data (open questions, A2) | `SPEKTRAFILM_LICENSE.txt` (unchanged), `CHANGELOG.txt` (what Klipp changed) |
 | Silero VAD model (`assets/silero-vad-v6.2.0.bin`) | MIT | `LICENSES/third-party/silero-vad/` |
 | Speech models and sound packs downloaded at run time | per source – see `THIRD_PARTY.md`; pinned by SHA-256 (models now, sound packs once `sounds-1` is published) | shown in the app |
 

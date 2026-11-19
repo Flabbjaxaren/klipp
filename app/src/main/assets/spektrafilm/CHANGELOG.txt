@@ -39,11 +39,10 @@ What is here and how it was made
   of spektrafilm's GPL code) evaluates the rest of the pipeline on the phone.
 
 Material in these tables that is not from the spektrafilm profiles
-  Some values come from data that spektrafilm ships beside its profiles, whose own license is not stated there:
-  the Schott KG3 heat-absorbing glass spectrum behind "TH-KG3" in index.json (spektrafilm's
-  data/filters/heat_absorbing/schott, which names Newport's web page as its source). The neutral print filter
-  database was computed by spektrafilm. This changelog does not claim a license for that material – it is listed as
-  an open question in the Klipp repository (docs/licensing-open-questions.md).
+  Some values come from data that spektrafilm ships beside its profiles: the Schott KG3 heat-absorbing glass
+  spectrum behind "TH-KG3" in index.json (spektrafilm's data/filters/heat_absorbing/schott, which names Newport's
+  web page as its source). No separate license is stated for it; Klipp distributes it as part of spektrafilm's data,
+  on spektrafilm's terms. The neutral print filter database was computed by spektrafilm.
   The spectral upsampling in film/*.tc.bin is Klipp's own (tools/spectra in the Klipp repository, GPL-3.0-or-later),
   built from the CIE 1931 standard observer and the film's reference illuminant as spektrafilm defines them.
 
