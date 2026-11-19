@@ -164,7 +164,7 @@ identiskt resultat; experiment 2 är Kotlin.
 |---|---|---|
 | Originalets kod | GPL-3.0 (`LICENSE`); `pyproject.toml` "GPLv3", `CITATION.cff` "GPL-3.0-or-later" | "only" eller "or later" otydligt; förenligt med Klipp |
 | Profiler och LUT:ar | CC BY-SA 4.0, förord v1.1 (`SPEKTRAFILM_LICENSE.txt`) | Klipp levererar den och attribuerar redan |
-| hanatos spektralkoefficienter (`hanatos_irradiance_xy_coeffs_250304.lut`, `irradiance_xy_tc.npy`) | **ingen uttalad licens** i spektrafilm, bara ett tack | Klipps tc-LUT:ar bygger på dem; `THIRD_PARTY.md` anger BSD-2-Clause för den portade algoritmen – källans villkor bör bekräftas |
+| Spektraltabellen i originalet (`irradiance_xy_tc.npy`) | ingen uttalad licens | används inte längre: Klipps tc-LUT:ar bygger sedan 2026-11-19 på Klipps egna spektraltabeller (`tools/spectra`) |
 | Filterspektra (`data/filters/*`) | tillverkarnas mätdata utan licens | Klipp levererar härledda TH-KG3 och dikroiska filter – samma oklarhet |
 | Testbilder i originalet (`img/test`, `img/targets`) | ingen licens | ej återanvändbara |
 | SpektraLab | GPL-3.0(-or-later); egna profiler utan licens; `spklib` som binär | inget att ta in utöver idéer |
@@ -206,4 +206,4 @@ Acceptanskriterier:
    negativfilm utan papper, filmen stängs av – deras "film"-sekvenser har körts utan film.
 3. **Appen:** en negativfilm med `print = null` ger ett nullpekarfel i `FilmFx.warm`; filmen stängs av tyst
    (bara en rad i loggen). Bara nåbart via JSON/bryggan, men bör ge besked eller falla tillbaka.
-4. **hanatos-koefficienternas licens** bör bekräftas (avsnitt 5).
+4. ~~Spektraltabellens licens~~ – löst: Klipp använder egna spektraltabeller (`tools/spectra`).

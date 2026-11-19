@@ -16,7 +16,7 @@ What is here and how it was made
   film/<stock>.json      a film's characteristic curves, channel densities, base density, DIR couplers' values and
                          settings, sampled from its spektrafilm profile (after spektrafilm's digest_params)
   film/<stock>.tc.bin    the film's spectral-upsampling table: Klipp's own spectra for the film's reference
-                         illuminant (tools/spectra – not spektrafilm's bundled hanatos2025 table) × the film's
+                         illuminant (tools/spectra – not the table bundled with spektrafilm) × the film's
                          sensitivity, rebalanced per channel so that mid grey gives the same exposure as with the
                          bundled table, with spektrafilm's window fitting and gamut compression, as 16-bit floats
                          (export_tables.py --spectra)

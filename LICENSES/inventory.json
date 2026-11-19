@@ -123,7 +123,7 @@
    ],
    "included_in": "assets/spektrafilm",
    "status": "unclear",
-   "notes": "The profile-derived values are CC BY-SA 4.0 (license file unchanged, identical to upstream). The spectral upsampling in the film tables is Klipp's own (tools/spectra, GPL-3.0-or-later; built from the CIE 1931 observer and the films' illuminants) – spektrafilm's hanatos2025 table is not used. The enlarger light in index.json encodes the Schott KG3 spectrum, whose licence is not stated (docs/licensing-open-questions.md). Film and paper names are third-party trademarks."
+   "notes": "The profile-derived values are CC BY-SA 4.0 (license file unchanged, identical to upstream). The spectral upsampling in the film tables is Klipp's own (tools/spectra, GPL-3.0-or-later; built from the CIE 1931 observer and the films' illuminants) – spektrafilm's bundled spectral table is not used. The enlarger light in index.json encodes the Schott KG3 spectrum, whose licence is not stated (docs/licensing-open-questions.md). Film and paper names are third-party trademarks."
   },
   {
    "id": "opendrt",

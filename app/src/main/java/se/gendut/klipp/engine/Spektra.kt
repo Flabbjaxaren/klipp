@@ -668,7 +668,7 @@ object Spektra {
             1.0 / exp(s / K)
         } ?: 1.0
 
-        /** hanatos2025: linear RGB (after the matrix [m]) → the film's raw exposure. */
+        /** Spectral upsampling: linear RGB (after the matrix [m]) → the film's raw exposure. */
         fun filmRaw(m: DoubleArray, rgb: DoubleArray): DoubleArray {
             val x = m[0] * rgb[0] + m[1] * rgb[1] + m[2] * rgb[2]
             val y = m[3] * rgb[0] + m[4] * rgb[1] + m[5] * rgb[2]

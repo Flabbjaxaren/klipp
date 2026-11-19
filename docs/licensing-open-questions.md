@@ -12,12 +12,9 @@ The eight families now ship as the unmodified original files (see `docs/licensin
 
 ### A2. spektrafilm – data beside the profiles, and the license version
 
-- **hanatos2025 spectra – replaced (branch `spectra-own`, 2026-11-19).** The film tables `film/*.tc.bin` used to encode
-  spektrafilm's `irradiance_xy_tc.npy` ("Thanks to hanatos for providing luts"; traced to vkdt's `mkspectra` in
-  `docs/licensing-hanatos-provenance.md`, no licence stated for the generated table). They are now made from Klipp's own
-  spectral upsampling tables (`tools/spectra`: written from the published method, Jakob & Hanika 2019, with the CIE
-  1931 observer and the film's illuminant as spektrafilm defines them), measured at least as accurate. Once that branch
-  is merged, Klipp ships nothing derived from the hanatos data and no question to hanatos is needed.
+- **Spectral upsampling – resolved 2026-11-19.** The film tables `film/*.tc.bin` are made from Klipp's own spectral
+  upsampling tables (`tools/spectra`, written from the published method, Jakob & Hanika 2019, with the CIE 1931
+  observer and the film's illuminant as spektrafilm defines them). spektrafilm's bundled spectral table is not used.
 - Still open: `index.json` → `enlargerIlluminant` – a 3400 K black body through the Schott KG3 heat-absorbing glass
   transmission (upstream `data/filters/heat_absorbing/schott/KG3.csv`, a digitised curve whose `info.txt` names
   newport.com's heat-absorbing glass page). No license is stated for the curve (manufacturer data). The
@@ -42,8 +39,7 @@ The eight families now ship as the unmodified original files (see `docs/licensin
    >
    > One input in those tables is not your profiles, and I can't find its license: the **Schott KG3 transmission**,
    > `data/filters/heat_absorbing/schott/KG3.csv` (info.txt points to Newport's page). Through the "TH-KG3" illuminant
-   > it ends up as a 3400 K black body times that curve in Klipp's `index.json`. (Klipp's film tables use spectral
-   > upsampling tables of its own, so the hanatos2025 spectra are not part of this question.)
+   > it ends up as a 3400 K black body times that curve in Klipp's `index.json`.
    >
    > Could you tell me:
    > - Under what terms you received that curve, and whether it is covered by your CC BY-SA 4.0 profile license, by
@@ -55,27 +51,7 @@ The eight families now ship as the unmodified original files (see `docs/licensin
    > Klipp does not sell the LUTs or tables separately – they are part of the app and free to share like the rest of
    > spektrafilm's material. Thank you for spektrafilm.
 
-2. To hanatos (Johannes Hanika – vkdt's issues or discussions on github.com/hanatos/vkdt) – **not needed once
-   `spectra-own` is merged** (Klipp then ships nothing derived from the hanatos table); kept for the record:
-
-   > **Subject: Licence of the spectral upsampling LUT (spectra-em / hanatos2025) in derived tables**
-   >
-   > Hi,
-   >
-   > spektrafilm ships `hanatos_irradiance_xy_coeffs_250304.lut`, which it credits to you. It has vkdt's LUT header and
-   > looks like the output of `src/tools/spec/mkspectra.c` (sigmoid coefficients per xy, from the CIE 1931 observer);
-   > spektrafilm turns it into `irradiance_xy_tc.npy`. My GPL-3.0 Android video editor, Klipp
-   > (github.com/Flabbjaxaren/klipp), ships tables computed from that: the spectra multiplied by a film's sensitivity, one
-   > table per film – not the LUT itself. Klipp may be sold on Google Play.
-   >
-   > 1. Is the 250304 LUT `mkspectra`'s output from around commit 8aae908e (it has the tool's header and text, and
-   >    matches vkdt 1.0.0's `spectra-em.lut` up to optimiser noise)? May that table be used under vkdt's BSD-2 terms
-   >    (or freely), given the tool also builds on rgb2spec?
-   > 2. May tables derived from it be distributed in a paid app, and how would you like it credited?
-   >
-   > Thank you for vkdt and the spectral upsampling work.
-
-3. To Schott (the glass's maker) or Newport (the page the curve came from), if neither of the above can answer:
+2. To Schott (the glass's maker) or Newport (the page the curve came from), if neither of the above can answer:
 
    > **Subject: Use of the published KG3 transmission curve in software**
    >

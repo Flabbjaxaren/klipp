@@ -2,8 +2,8 @@
 
 The film node exposes the negative to a *spectrum*, not to RGB. For every colour of the picture, a table gives a smooth
 spectrum with that colour's chromaticity, and the film's spectral sensitivities turn it into exposure. spektrafilm ships
-one such table (`irradiance_xy_tc.npy`, from vkdt's `mkspectra` – see `docs/licensing-hanatos-provenance.md`; no licence is
-stated for it). Since 2026-11 Klipp's film tables are made from tables of its own instead, built by `klipp_spectra.py`
+one such table (`irradiance_xy_tc.npy`, no licence stated for it). Since 2026-11 Klipp's film tables are made from tables
+of its own instead, built by `klipp_spectra.py`
 here from the published method only and the CIE colour-matching functions and illuminants spektrafilm already uses.
 
 ## Method (`klipp_spectra.py`)
