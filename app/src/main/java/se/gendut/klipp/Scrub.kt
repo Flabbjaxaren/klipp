@@ -90,6 +90,10 @@ private const val MONITOR_SCRUB_SECONDS = 6.0
  *
  * With [within] (the color page): only the scrub, kept inside the range it gives – the clip being graded. The picture
  * has its own double tap and two-finger zoom there, and a zoomed picture is moved with the finger instead.
+ *
+ * With [pictureZoom] (the edit page's picture can be zoomed, see [pictureZoomable]): the picture's own touch has the double
+ * tap and the pinch, a zoomed picture is moved with the finger, and the second finger steps a frame when it is lifted
+ * again after a tap – a second finger that moves (a pinch) steps nothing.
  */
 fun Modifier.monitorTouch(
     state: EditorState,
@@ -98,16 +102,19 @@ fun Modifier.monitorTouch(
     onTier: (Int) -> Unit,
     onDoubleTap: () -> Unit,
     within: (() -> ClosedFloatingPointRange<Float>?)? = null,
-): Modifier = this.pointerInput(enabled, within != null) {
+    pictureZoom: Boolean = false,
+): Modifier = this.pointerInput(enabled, within != null, pictureZoom) {
     if (!enabled) return@pointerInput
     val color = within != null
+    // the picture has its own double tap and pinch (and moves a zoomed picture)
+    val zoomHost = color || pictureZoom
     var lastTapUp = 0L
     var lastTapPos = androidx.compose.ui.geometry.Offset.Zero
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         // (on the color page the picture's double tap has taken the press already)
-        if (down.isConsumed && !color) return@awaitEachGesture
-        if (!color && down.uptimeMillis - lastTapUp < viewConfiguration.doubleTapTimeoutMillis && (down.position - lastTapPos).getDistance() < 48.dp.toPx()) {
+        if (down.isConsumed && !zoomHost) return@awaitEachGesture
+        if (!zoomHost && down.uptimeMillis - lastTapUp < viewConfiguration.doubleTapTimeoutMillis && (down.position - lastTapPos).getDistance() < 48.dp.toPx()) {
             lastTapUp = 0L
             haptics.confirm()
             onDoubleTap()
@@ -118,18 +125,41 @@ fun Modifier.monitorTouch(
         var scrubbing = false
         var stepped = false
         var moved = false
+        // more than one finger was down at some point: never a scrub (a pinch that ends with one finger still moving)
+        var multi = false
+        // (pictureZoom) the second finger's tap that steps a frame when it lifts: its id, down time, place and direction
+        var tapId: androidx.compose.ui.input.pointer.PointerId? = null
+        var tapAt = 0L
+        var tapFrom = androidx.compose.ui.geometry.Offset.Zero
+        var tapDir = 0
+        fun step(dir: Int) {
+            state.playing = false
+            state.playhead = snapFrame((state.playhead + dir * FRAME).coerceIn(0f, state.projectEnd.coerceAtLeast(0f)))
+            haptics.tick()
+            stepped = true
+        }
         while (true) {
             val ev = awaitPointerEvent()
+            if (ev.changes.count { it.pressed } > 1) multi = true
             // two fingers on the color page: the picture's zoom
             if (color && !scrubbing && ev.changes.count { it.pressed } > 1) break
             if (!color) for (c in ev.changes) if (c.id != down.id && c.changedToDownIgnoreConsumed() && !scrubbing) {
                 val first = ev.changes.firstOrNull { it.id == down.id }?.position ?: down.position
                 val dir = if (c.position.x >= first.x) 1 else -1
-                state.playing = false
-                state.playhead = snapFrame((state.playhead + dir * FRAME).coerceIn(0f, state.projectEnd.coerceAtLeast(0f)))
-                haptics.tick()
-                stepped = true
-                c.consume()
+                if (pictureZoom) { tapId = c.id; tapAt = c.uptimeMillis; tapFrom = c.position; tapDir = dir }
+                else { step(dir); c.consume() }
+            }
+            tapId?.let { id ->
+                val t = ev.changes.firstOrNull { it.id == id }
+                when {
+                    t == null -> tapId = null
+                    // the picture's pinch took it, or it moved: not a tap
+                    t.isConsumed || (t.position - tapFrom).getDistance() > viewConfiguration.touchSlop -> tapId = null
+                    !t.pressed -> {
+                        if (t.uptimeMillis - tapAt < viewConfiguration.longPressTimeoutMillis) { step(tapDir); t.consume() }
+                        tapId = null
+                    }
+                }
             }
             val c = ev.changes.firstOrNull { it.id == down.id } ?: break
             if (!c.pressed) {
@@ -138,10 +168,11 @@ fun Modifier.monitorTouch(
                 }
                 break
             }
-            if (color && !scrubbing && c.isConsumed) break
+            // the picture's own touch took the finger (a zoomed picture moved, a pinch)
+            if (zoomHost && !scrubbing && c.isConsumed) break
             val d = c.position - down.position
             if (d.getDistance() > viewConfiguration.touchSlop) moved = true
-            if (!scrubbing && !stepped && ev.changes.count { it.pressed } == 1 && abs(d.x) > viewConfiguration.touchSlop && abs(d.x) > abs(d.y)) {
+            if (!scrubbing && !stepped && !multi && ev.changes.count { it.pressed } == 1 && abs(d.x) > viewConfiguration.touchSlop && abs(d.x) > abs(d.y)) {
                 scrubbing = true
                 state.playing = false
                 tiers.start(c.position.x, down.position.y, state.playhead.toDouble())

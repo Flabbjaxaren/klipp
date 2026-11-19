@@ -190,25 +190,37 @@ fun Modifier.redrawOnResize(playback: ProgramPlayback, state: EditorState): Modi
 }
 
 @OptIn(UnstableApi::class)
+/**
+ * Whether two fingers zoom the program picture: on the color page, while a title's corners are placed, and on the edit
+ * page – except while the selected clip's own handles take the picture (properties open: one finger moves the clip, two
+ * scale and rotate it).
+ */
+fun pictureZoomable(state: EditorState, gs: GradeState?): Boolean = gs?.active == true || state.pinEdit != null || !state.inspecting
+
+/** The sequence has something to show (disabled clips aren't shown): otherwise the monitor shows the import prompt. */
+fun hasPicture(controller: ProjectController): Boolean =
+    controller.snapshot.playable().sequence.let { q -> q?.video?.any { it.clips.isNotEmpty() } == true || q?.captions?.isNotEmpty() == true }
+
 @Composable
 fun ProgramMonitor(
     controller: ProjectController, playback: ProgramPlayback, state: EditorState, gs: GradeState? = null,
     look: se.gendut.klipp.engine.Look = playback.look,
     /** The monitor's box (the picture is fitted inside it); 16:9 of the width by default. */
     modifier: Modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-    /** Double tap on the picture at 100 % (color page; elsewhere the monitor's own touch handles it). */
+    /** Double tap on the picture at 100 % (where the picture can be zoomed, see [pictureZoomable]). */
     onFullscreen: (() -> Unit)? = null,
     onImport: () -> Unit,
 ) {
     // disabled clips aren't shown (gap)
     val q = controller.snapshot.playable().sequence
-    val hasClips = q?.video?.any { it.clips.isNotEmpty() } == true || q?.captions?.isNotEmpty() == true
+    val hasClips = hasPicture(controller)
     val aspect = if (q != null && q.width > 0 && q.height > 0) q.width.toFloat() / q.height else 16f / 9f
-    // color page: pinch to look closer (see MonitorZoom); back to 100 % when leaving the page or changing the format
-    // ... and while a title's corners are placed (look closer before putting a corner on something)
-    val zoomable = (gs?.active == true || state.pinEdit != null) && hasClips
+    // pinch to look closer (see MonitorZoom, [pictureZoomable]); back to 100 % when switching between the edit and the
+    // color page, when the clip's own handles take the picture, or when the format changes
+    val zoomable = pictureZoomable(state, gs) && hasClips
     val zoom = remember { MonitorZoom() }
     LaunchedEffect(zoomable, aspect) { if (!zoomable) zoom.reset() }
+    LaunchedEffect(gs?.active == true) { zoom.reset() }
     val scope = rememberCoroutineScope()
     Box(
         modifier.background(Color.Black)
@@ -243,7 +255,7 @@ fun ProgramMonitor(
                     derivedStateOf {
                         val t = state.playhead.toDouble()
                         // half a millisecond of margin: the playhead (Float) on an edit point never counts as a gap
-                        q.video.filter { it.enabled }.none { tr -> tr.clips.any { it.text == null && t >= it.start - 5e-4 && t < it.end + 5e-4 } }
+                        q?.video.orEmpty().filter { it.enabled }.none { tr -> tr.clips.any { it.text == null && t >= it.start - 5e-4 && t < it.end + 5e-4 } }
                     }
                 }
                 if (noVideo) Box(Modifier.fillMaxSize().background(Color.Black).testTag("noVideo"))

@@ -875,6 +875,7 @@ private fun KlippAppContent(
                 haptics = haptics,
                 onTier = { monitorTier = it }, onDoubleTap = { state.playing = false; fullscreen = true },
                 within = if (grading) ({ currentColorClip(clipsNow.value, state)?.let { it.start..(it.end - 1f / FPS).coerceAtLeast(it.start) } }) else null,
+                pictureZoom = controller != null && playback != null && !grading && pictureZoomable(state, gs) && hasPicture(controller),
             )
             // the picture a little in from the screen's edges, with square corners (rounded ones looked like a crop)
             Box(mod.padding(start = 8.dp, end = 8.dp, top = 4.dp).clipToBounds().background(Color.Black).then(pictureTouch).testTag("monitorArea"), contentAlignment = Alignment.Center) {
