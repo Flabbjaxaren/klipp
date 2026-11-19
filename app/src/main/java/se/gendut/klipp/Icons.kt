@@ -132,6 +132,8 @@ object Ic {
     val Bulb = stroke("bulb", "M9 18h6", "M10 21h4", "M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z")
     val Still = stroke("still", "M4 7h3l2-2h6l2 2h3v12H4z", "M12 10a3 3 0 1 0 0.01 0")
     val Fullscreen = stroke("fullscreen", "M4 9V4h5", "M20 9V4h-5", "M4 15v5h5", "M20 15v5h-5")
+    /** A phone with the bands an app's buttons and text cover (the safe zones over the picture). */
+    val SafeZone = stroke("safezone", "M8 2h8a2 2 0 012 2v16a2 2 0 01-2 2H8a2 2 0 01-2-2V4a2 2 0 012-2z", "M9 6h6", "M9 18h4", "M15 11v4")
     /** Four tiles: the gallery. */
     val Grid = stroke(
         "grid", "M5 3h4a2 2 0 012 2v4a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z", "M15 3h4a2 2 0 012 2v4a2 2 0 01-2 2h-4a2 2 0 01-2-2V5a2 2 0 012-2z",

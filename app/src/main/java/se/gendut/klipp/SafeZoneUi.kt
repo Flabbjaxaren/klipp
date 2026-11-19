@@ -44,8 +44,14 @@ val LocalSafeZone = compositionLocalOf<SafeZones.Platform?> { null }
  * Showing it or switching platform never moves anything in the project.
  */
 @Composable
-fun SafeZoneOverlay(platform: SafeZones.Platform, alpha: Float, modifier: Modifier = Modifier) {
+fun SafeZoneOverlay(platform: SafeZones.Platform, alpha: Float, modifier: Modifier = Modifier, vertical: Boolean = true) {
     val z = remember(platform) { SafeZones.of(platform) }
+    // not a 9:16 picture: the zones are drawn stretched – said on the picture, not only in the menu
+    if (!vertical) Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Text(stringResource(R.string.safezone_not_vertical), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 4.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.6f))
+                .padding(horizontal = 8.dp, vertical = 3.dp).testTag("safeZones:notVertical"))
+    }
     Canvas(modifier.fillMaxSize().testTag("safeZones:${platform.key}")) {
         val shade = Color(0xFF0C0E12).copy(alpha = alpha.coerceIn(0f, 1f))
         for (c in z.covered) drawRect(shade, Offset(c.left * size.width, c.top * size.height), Size(c.width() * size.width, c.height() * size.height))
@@ -69,7 +75,7 @@ fun SafeZoneButton(state: EditorState, vertical: Boolean, onChanged: () -> Unit,
             Modifier.size(32.dp).clip(CircleShape).background(if (on) K.PrimaryContainer else Color.Black.copy(alpha = 0.45f))
                 .clickable(onClickLabel = stringResource(R.string.safezone_button)) { haptics.tick(); open = true }.testTag("safeZoneButton"),
             contentAlignment = Alignment.Center,
-        ) { Icon(Ic.Fullscreen, stringResource(R.string.safezone_button), tint = if (on) K.PrimarySoft else Color.White, modifier = Modifier.size(18.dp)) }
+        ) { Icon(Ic.SafeZone, stringResource(R.string.safezone_button), tint = if (on) K.PrimarySoft else Color.White, modifier = Modifier.size(18.dp)) }
         DropdownMenu(open, { open = false }, containerColor = K.SurfaceHighest, modifier = Modifier.widthIn(min = 240.dp).testTag("safeZoneMenu")) {
             Column(Modifier.padding(vertical = 4.dp)) {
                 Text(stringResource(R.string.safezone_button), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
