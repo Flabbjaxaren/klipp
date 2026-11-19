@@ -70,7 +70,7 @@ private fun AddSheet(
         // a low screen (landscape): everything scrolls as one – the tabs and the button kept in view would leave the
         // content a sliver, and with the keyboard up the field being typed in no room at all
         val compact = tall && LocalConfiguration.current.screenHeightDp < COMPACT_SHEET_HEIGHT
-        Box((if (tall) Modifier.fillMaxHeight(0.9f) else Modifier).fillMaxWidth().upwardStaysInside().testTag(tag)) {
+        Box((if (tall) Modifier.fillMaxHeight(0.9f) else Modifier).fillMaxWidth().upwardStaysInside().fingerTaps().testTag(tag)) {
             if (compact) Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 SheetHeader(title) { if (canClose()) onDismiss() }
                 top?.invoke(this)

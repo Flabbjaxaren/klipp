@@ -772,7 +772,9 @@ private fun KlippAppContent(
         }
     }
 
-    CompositionLocalProvider(LocalGradeState provides gs) {
+    // the same taps inside the sheets the editor opens (windows of their own, see fingerTaps)
+    val undoRedo = remember(state) { UndoRedo({ undo() }, { redo() }) }
+    CompositionLocalProvider(LocalGradeState provides gs, LocalUndoRedo provides undoRedo) {
     BoxWithConstraints(
         Modifier
             .fillMaxSize()

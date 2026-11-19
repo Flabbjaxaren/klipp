@@ -69,7 +69,7 @@ fun SoundFxSheet(
     DisposableEffect(Unit) { onDispose { preview.release() } }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = K.Surface) {
         var tab by remember { mutableStateOf(0) }
-        Box(Modifier.fillMaxWidth().fillMaxHeight(0.9f).upwardStaysInside().testTag("sfxSheet")) {
+        Box(Modifier.fillMaxWidth().fillMaxHeight(0.9f).upwardStaysInside().fingerTaps().testTag("sfxSheet")) {
         Column(Modifier.fillMaxSize()) {
             Text(stringResource(R.string.sfx_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
             if (tab < 1) Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
