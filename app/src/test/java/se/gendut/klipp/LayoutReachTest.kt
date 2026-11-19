@@ -96,6 +96,26 @@ class LayoutReachTest {
         rule.waitForIdle()
         reach(msg("Det finns redan en undertext vid spelhuvudet"), "$name: a message in the captions sheet", tap = false)
         rule.onNode(isRoot().and(androidx.compose.ui.test.hasAnyDescendant(hasTestTag("captionsSheet")))).captureRoboImage("build/shots/97_${name}_undertexter.png")
+        // the captions in the project: the track picker, the visibility, the style – and in the style view every tab's controls
+        st.captions = listOf(UiCaption(1, 0.5f, 2f, "Rad", track = 0))
+        rule.onNodeWithTag("capsPart:existing").let { n -> runCatching { n.performScrollTo() }; n.performClick() }
+        rule.waitForIdle()
+        reach(rule.onNodeWithTag("capTrackPicker"), "$name: the caption track picker")
+        reach(rule.onNodeWithTag("capTrackVisible"), "$name: show this track")
+        reach(rule.onNodeWithTag("capStyle"), "$name: the style")
+        rule.onNodeWithTag("capStyle").let { n -> runCatching { n.performScrollTo() }; n.performClick() }
+        rule.waitForIdle()
+        reach(rule.onNodeWithTag("capStyleBack"), "$name: back from the style")
+        for (t in listOf("styles", "look", "place", "words")) reach(rule.onNodeWithTag("capTab:$t"), "$name: the style tab $t")
+        reach(rule.onNodeWithTag("capPreset:social"), "$name: Big social")
+        rule.onNodeWithTag("capTab:place").let { n -> runCatching { n.performScrollTo() }; n.performClick() }
+        rule.waitForIdle()
+        reach(rule.onNodeWithTag("capPlace:under"), "$name: below the middle")
+        reach(rule.onNodeWithTag("capFit"), "$name: fit to the safe area")
+        rule.onNodeWithTag("capTab:words").let { n -> runCatching { n.performScrollTo() }; n.performClick() }
+        rule.waitForIdle()
+        reach(rule.onNodeWithTag("cap:markWord"), "$name: mark the current word")
+        rule.onNode(isRoot().and(androidx.compose.ui.test.hasAnyDescendant(hasTestTag("captionsSheet")))).captureRoboImage("build/shots/98_${name}_stil.png")
         assertTrue(sheet >= 1)
     }
 

@@ -76,7 +76,9 @@ private fun AddSheet(
         val compact = tall && LocalConfiguration.current.screenHeightDp < COMPACT_SHEET_HEIGHT
         val ownScroll = rememberScrollState()
         val sc = scroll ?: ownScroll
-        val h by androidx.compose.animation.core.animateFloatAsState(heightFraction, androidx.compose.animation.core.spring(1f, 400f), label = "sheetHeight")
+        // (a low screen: the whole height – a lowered sheet would leave no room)
+        val h by androidx.compose.animation.core.animateFloatAsState(if (LocalConfiguration.current.screenHeightDp < COMPACT_SHEET_HEIGHT) 0.9f else heightFraction,
+            androidx.compose.animation.core.spring(1f, 400f), label = "sheetHeight")
         Box((if (tall) Modifier.fillMaxHeight(h) else Modifier).fillMaxWidth().upwardStaysInside().fingerTaps().testTag(tag)) {
             if (compact) Column(Modifier.fillMaxSize().verticalScroll(sc)) {
                 SheetHeader(title) { if (canClose()) onDismiss() }
