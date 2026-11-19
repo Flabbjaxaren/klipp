@@ -1,6 +1,7 @@
 package se.gendut.klipp
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.wrapContentSize
@@ -777,6 +778,10 @@ private fun KlippAppContent(
         }
     }
 
+    // typing in a panel over the timeline: the rows above it step aside (see EditorState.typingInPanel)
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    val imeUp = androidx.compose.foundation.layout.WindowInsets.isImeVisible
+    LaunchedEffect(imeUp, state.editingCaption, state.inspecting) { state.typingInPanel = imeUp && (state.editingCaption || state.inspecting) }
     CompositionLocalProvider(LocalGradeState provides gs,
         LocalSafeZone provides se.gendut.klipp.engine.SafeZones.byKey(state.safeZone)) {
     BoxWithConstraints(
@@ -933,7 +938,7 @@ private fun KlippAppContent(
                     )
                 } else Column(if (fill) Modifier.fillMaxHeight() else Modifier) {
                     MonitorArea(monitorMod)
-                    Transport(state)
+                    if (!state.typingInPanel) Transport(state)
                 }
             }
         }
@@ -1017,7 +1022,7 @@ private fun KlippAppContent(
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             topBar()
             TopArea(fill = false, monitorMod = Modifier.fillMaxWidth().height(monitorH.coerceIn(MIN_MONITOR_H, maxMonitorH.coerceAtLeast(MIN_MONITOR_H))))
-            if (sourceMedia == null) MonitorHandle(
+            if (sourceMedia == null && !state.typingInPanel) MonitorHandle(
                 onDrag = { dy -> monitorH = (monitorH + with(density) { dy.toDp() }).coerceIn(MIN_MONITOR_H, maxMonitorH.coerceAtLeast(MIN_MONITOR_H)) },
                 onEnd = { AppPrefs.setMonitorHeight(context, monitorH.value) },
                 onReset = { haptics.tick(); monitorH = defaultMonitorH; AppPrefs.setMonitorHeight(context, 0f) },

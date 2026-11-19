@@ -327,7 +327,8 @@ internal fun EditPage(
     val inTranscript = transcript != null && state.editView == EditView.TRANSCRIPT
     Column(Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(K.Surface)) {
       // the row's room: on a narrow phone the tool shows its icon only (its name is in its menu and read out)
-      BoxWithConstraints(Modifier.fillMaxWidth()) {
+      // (typing in a panel over the timeline: the row steps aside, the panel's text field gets its room)
+      if (!state.typingInPanel) BoxWithConstraints(Modifier.fillMaxWidth()) {
         val narrow = maxWidth < 400.dp
         if (inTranscript) Row(
             Modifier.fillMaxWidth().height(52.dp).padding(horizontal = 8.dp),

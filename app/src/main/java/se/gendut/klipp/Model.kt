@@ -463,6 +463,11 @@ class EditorState(initial: List<Clip> = initialClips()) {
         selectedCut = cut
     }
     var captions by mutableStateOf(listOf<UiCaption>())
+    /**
+     * Typing in a panel over the timeline (a caption's or a title's text, the keyboard up): the transport and the edit
+     * page's tool row step aside, so the field lies above the keyboard with the picture in view.
+     */
+    var typingInPanel by mutableStateOf(false)
     /** The next source opened shows its text first (opened from the media panel's text-based editing). */
     var sourceInText by mutableStateOf(false)
     /** The platform whose safe zones are drawn over the preview (a SafeZones.Platform key; null = none) – saved with the project. */
