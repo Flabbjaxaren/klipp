@@ -30,17 +30,13 @@ The eight families now ship as the unmodified original files (see `docs/licensin
 The Freesound search was removed from Klipp. Sounds a user downloaded from Freesound before stay listed and usable
 (CC0, with their author and license kept beside them). No question to Freesound is needed now.
 
-### A4. Kenney and BigSoundBank downloads – prepared, needs the originals and a release
+### A4. Kenney and BigSoundBank sounds – resolved 2026-11-19
 
-- Kenney (CC0, License.txt in each zip): the old zip URLs stopped working in 2026-11. BigSoundBank (CC0 on every sound
-  page): the app fetches `/UPLOAD/`, which the site excludes for automated access.
-- Prepared: versioned packs on Klipp's own GitHub release `sounds-1`, each pinned by size and SHA-256 in the app
-  (`SoundFx.HOSTED`, `tools/sounds/`). A pack switches to its hosted file only when it has a pin; until then it uses
-  its old source, and packs already on phones are kept.
-- Left: the originals have to be downloaded **by hand** (kenney.nl's robots.txt disallows AI agents, BigSoundBank's
-  disallows `/UPLOAD/` for all robots), then `tools/sounds/build_sound_assets.py`, the pins, and publishing the release –
-  all need the owner's approval. Sound 0448 records an iPhone camera shutter (small risk); 2479: check by ear that
-  Klipp's cut has no music.
+The eleven packs come with the app (`app/src/main/assets/sounds/*-sounds-1.zip`, SHA-256-pinned in `SoundFx.BUNDLED`,
+`tools/sounds/sounds-1.json`): the publishers' originals, downloaded by hand, CC0, packed with their license and credits.
+A pack is installed into the sound library from the app's own file, offline; nothing is fetched from kenney.nl or
+bigsoundbank.com, and no `sounds-1` release is needed. Sound 0448 records an iPhone camera shutter (small risk); 2479:
+check by ear that Klipp's cut has no music.
 
 ### A5. Klipp's own license wording – resolved 2026-11-18
 

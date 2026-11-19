@@ -15,7 +15,7 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 | Freesound | sökningen borttagen; tidigare hämtade ljud listas och fungerar | `SoundFxUi.kt`, `SoundFx.kt` |
 | GPL | helheten erbjuds under GPLv3 (`GPL-3.0-only`); bryggans uttryckliga `GPL-3.0-or-later` kvar; uppströms "GPLv3" tolkas inte som only eller or-later | `docs/licensing.md`, README, THIRD_PARTY |
 | Originaltexter | alla licens- och notisfiler jämförda med originalen (gnu.org, apache.org, mozilla.org, creativecommons.org, uppströms repon vid låst version, Cargo-källorna, NDK, jar): identiska; CI kontrollerar kopiorna | `inventory.py check` |
-| Ljudpaket | nya nedladdningar från Kenneys döda länkar och BigSoundBanks ljudmapp avstängda, med besked i ljudbiblioteket; hämtade ljud och projekt kvar. Versionssatta, SHA-256-låsta paket på Klipps release `sounds-1` förberedda: verktyget kontrollerar återdistributionsrätten (Kenneys CC0-License.txt, BigSoundBanks CC0-märkning per ljud) och packar CC0-texten och krediteringar med | `tools/sounds/`, `SoundFx.HOSTED` |
+| Ljudpaket | nya nedladdningar från Kenneys döda länkar och BigSoundBanks ljudmapp avstängda, med besked i ljudbiblioteket; hämtade ljud och projekt kvar. Versionssatta, SHA-256-låsta paket (`sounds-1`), sedan 2026-11-19 med i appen (`assets/sounds`): verktyget kontrollerar återdistributionsrätten (Kenneys CC0-License.txt, BigSoundBanks CC0-märkning per ljud) och packar CC0-texten och krediteringar med | `tools/sounds/`, `SoundFx.BUNDLED` |
 | Talmodeller | låsta till revision + SHA-256 (samma filer); befintliga modeller behålls | `Transcribe.kt` |
 | Media3 | 18 ändrade filer märkta; 7 egenförfattade tillägg Apache-2.0 med "The Klipp contributors"; 2 härledda behåller AOSP-upphovsrätt | `third_party/media3-*` |
 | spektrafilm | licensfilen oförändrad (identisk med upstream), ny `CHANGELOG.txt` (revision, vad som omvandlats och hur, vad som inte kommer från profilerna) | `assets/spektrafilm/` |
@@ -38,9 +38,8 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 
 ## 3. Kräver ditt beslut
 
-1. **Ljudpaketen**: lägg originalen i `~/AndroidStudioProjects/Klipp-builds/sounds-originals/` (Kenney ×7 zip,
-   BigSoundBank ×75 ogg – `tools/sounds/README.md`); därefter byggs, kontrolleras och låses paketen. Publicering av
-   `sounds-1` kräver ditt godkännande.
+1. ~~Ljudpaketen~~ – löst 2026-11-19: de elva paketen följer med i appen (`assets/sounds`, låsta med SHA-256); inget
+   hämtas från förlagen och ingen release `sounds-1` behövs (A4).
 2. ~~Kontakt om spektrafilms övriga data~~ – löst: egna spektraltabeller; KG3 räknas till spektrafilms licens (ditt beslut 2026-11-19, A2).
 3. ~~Ikonerna~~ – löst 2026-11-19: ritade av Claude för designutkastet (ägarens uppgift); jämförda med Lucide, Feather och Tabler utan kopierade former (A7).
 
@@ -55,7 +54,7 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
 ## 5. Checklista före betald Play-lansering
 
 - [ ] Granska och slå ihop `licensing`; CI grön
-- [ ] Ljudpaketen: originalen, `build_sound_assets.py`, låsningarna, releasen `sounds-1` (godkännande), prov på telefon
+- [x] Ljudpaketen: med i appen (`assets/sounds`), låsta och kontrollerade – kvar: prov på telefon
 - [x] spektrafilm (A2): egna spektraltabeller; KG3 – dokumenterat beslut 2026-11-19
 - [ ] Juridisk genomgång (punkt 4)
 - [ ] Per release: tagga och pusha först (källkodslänken pekar på commiten), rent bygge, `inventory.py check`,

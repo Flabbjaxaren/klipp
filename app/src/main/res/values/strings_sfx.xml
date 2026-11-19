@@ -10,8 +10,8 @@
     <string name="sfx_file_busy">Copying…</string>
     <string name="sfx_file_failed">The file could not be read as audio</string>
     <string name="sfx_size_mb">%1$.1f MB</string>
-    <string name="sfx_download">Download</string>
-    <string name="sfx_download_failed">Download failed: %1$s</string>
+    <string name="sfx_download">Install</string>
+    <string name="sfx_download_failed">Couldn\'t install the pack: %1$s</string>
     <string name="sfx_remove_pack">Remove pack</string>
     <string name="sfx_seconds">%1$.1f s</string>
     <string name="sfx_add">Add</string>
@@ -30,6 +30,6 @@
     <string name="sfx_pack_comedy">boings, rimshots, record scratches, drum rolls, applause, laughter</string>
     <string name="sfx_pack_accent">heartbeats, magic chimes, punches, booms, cymbals</string>
     <string name="sfx_freesound_earlier">%1$d sounds downloaded earlier · CC0 · its search is no longer in Klipp</string>
-    <string name="sfx_pack_unavailable">Not available yet</string>
-    <string name="sfx_packs_moving">Some packs can\'t be downloaded right now – Klipp is moving them to a download of its own. Sounds you have already downloaded stay, and your projects keep using them.</string>
+    <string name="sfx_pack_unavailable">Not in the app</string>
+    <string name="sfx_packs_moving">Some packs aren\'t in this version of the app. Sounds you already have stay, and your projects keep using them.</string>
 </resources>

@@ -11,43 +11,33 @@ import org.robolectric.annotation.Config
 import se.gendut.klipp.engine.SoundFx
 import java.io.File
 
-/** Sound packs: a hosted pack is a pinned file on Klipp's release, kept only if it matches (tools/sounds). */
+/** Sound packs: every pack comes with the app as its pinned file, used only if it matches (tools/sounds). */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class SoundPacksTest {
-    @Test fun aDownloadIsKeptOnlyIfItIsThePinnedFile() {
+    @Test fun aPackFileIsUsedOnlyIfItIsThePinnedFile() {
         val f = File.createTempFile("pack", ".zip")
         try {
             f.writeText("abc")
-            val pin = SoundFx.Hosted("x-sounds-1.zip", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", 3)
+            val pin = SoundFx.Bundled("x-sounds-1.zip", "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", 3)
             assertTrue(SoundFx.verified(f, pin))
             assertFalse(SoundFx.verified(f, pin.copy(sha256 = "0".repeat(64))))
             assertFalse(SoundFx.verified(f, pin.copy(bytes = 4)))
-            assertEquals("https://github.com/Flabbjaxaren/klipp/releases/download/sounds-1/x-sounds-1.zip", pin.url)
+            assertEquals("sounds/x-sounds-1.zip", pin.asset)
         } finally { f.delete() }
     }
 
-    @Test fun pinsMatchTheManifestAndEveryPackHasASource() {
-        val ids = SoundFx.PACKS.map { it.id }.toSet()
-        assertTrue(SoundFx.HOSTED.keys.all { it in ids })
-        val manifest = listOf(File("../tools/sounds/${SoundFx.SOUNDS_RELEASE}.json"), File("tools/sounds/${SoundFx.SOUNDS_RELEASE}.json")).firstOrNull { it.isFile }
-        if (manifest == null) { assertTrue("pins without a manifest", SoundFx.HOSTED.isEmpty()); return }
+    /** Every pack is in the app, its file is there and is the one in the manifest – nothing is downloaded. */
+    @Test fun everyPackIsInTheAppAndMatchesTheManifest() {
+        assertEquals(SoundFx.PACKS.map { it.id }.toSet(), SoundFx.BUNDLED.keys)
+        val manifest = listOf(File("../tools/sounds/${SoundFx.SOUNDS_RELEASE}.json"), File("tools/sounds/${SoundFx.SOUNDS_RELEASE}.json")).first { it.isFile }
         val assets = JSONObject(manifest.readText()).getJSONArray("assets")
         val byPack = (0 until assets.length()).map { assets.getJSONObject(it) }.associateBy { it.getString("pack") }
-        for ((pack, h) in SoundFx.HOSTED) {
-            val a = byPack[pack] ?: error("$pack is pinned but not in ${manifest.name}")
+        val dir = listOf(File("src/main/assets"), File("app/src/main/assets")).first { it.isDirectory }
+        for ((pack, h) in SoundFx.BUNDLED) {
+            val a = byPack[pack] ?: error("$pack is in the app but not in ${manifest.name}")
             assertEquals(pack, a.getString("file"), h.file); assertEquals(pack, a.getString("sha256"), h.sha256); assertEquals(pack, a.getLong("bytes"), h.bytes)
+            assertTrue("$pack: ${h.asset} matches its pin", SoundFx.verified(File(dir, h.asset), h))
         }
-    }
-
-    @Test fun aPackWithoutAFileOnKlippsReleaseIsNotDownloadedAndNothingIsTouched() {
-        val ctx = org.robolectric.RuntimeEnvironment.getApplication()
-        val pack = SoundFx.PACKS.first { it.hosted == null }
-        // a pack already on the phone (from before) stays as it is
-        val dir = File(SoundFx.dir(ctx), pack.id).apply { mkdirs() }
-        File(dir, "Hit.wav").writeText("x"); File(dir, ".done").writeText("old")
-        val r = kotlinx.coroutines.runBlocking { SoundFx.download(ctx, pack) }
-        assertTrue(r.exceptionOrNull() is SoundFx.PackUnavailable)
-        assertTrue(File(dir, "Hit.wav").exists() && SoundFx.installed(ctx, pack))
     }
 }

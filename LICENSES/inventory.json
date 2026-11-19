@@ -369,9 +369,12 @@
    "license": "CC0-1.0",
    "copyright": "Kenney (kenney.nl) – credit appreciated, not required",
    "notices": [],
-   "included_in": "downloaded on request (not in the APK)",
-   "status": "incomplete",
-   "notes": "Each zip's License.txt says CC0. kenney.nl's old zip links stopped working in 2026-11 (redirect to the asset pages). Prepared: the packs as versioned, SHA-256-pinned files on Klipp's release sounds-1 (tools/sounds); they need the originals downloaded by hand (kenney.nl disallows automated access) and the release published."
+   "included_in": "assets/sounds/kenney-*-sounds-1.zip (in the APK; installed into the sound library on request, offline)",
+   "status": "verified",
+   "notes": "Each zip is the publisher's original file (SHA-256 as downloaded by hand from kenney.nl, tools/sounds/sounds-1.json) with its License.txt: CC0. Bundled with the app since 2026-11-19; nothing is fetched from kenney.nl.",
+   "files": [
+    "assets/sounds/kenney-*-sounds-1.zip"
+   ]
   },
   {
    "id": "download:bigsoundbank",
@@ -383,9 +386,12 @@
    "license": "CC0-1.0",
    "copyright": "Joseph Sardin – BigSoundBank.com (credit optional); four sounds recorded by others, also CC0",
    "notices": [],
-   "included_in": "downloaded on request (not in the APK)",
-   "status": "incomplete",
-   "notes": "All 75 sound pages say CC0. The app still fetches bigsoundbank.com/UPLOAD/<id>.ogg, which robots.txt/ai.txt exclude for automated access. Prepared: one versioned, SHA-256-pinned zip per pack on Klipp's release sounds-1 (tools/sounds), from originals downloaded by hand. 0448 is a recording of an iPhone camera sound."
+   "included_in": "assets/sounds/bsb-*-sounds-1.zip (in the APK; installed into the sound library on request, offline)",
+   "status": "verified",
+   "notes": "All 75 sound pages say CC0 (recorded per sound in tools/sounds/evidence); the originals were downloaded by hand and packed with the CC0 legal code and per-file credits (tools/sounds/sounds-1.json). Bundled with the app since 2026-11-19; nothing is fetched from bigsoundbank.com. 0448 is a recording of an iPhone camera sound.",
+   "files": [
+    "assets/sounds/bsb-*-sounds-1.zip"
+   ]
   },
   {
    "id": "download:freesound",

@@ -13,20 +13,18 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import se.gendut.klipp.engine.SoundFx
 
-/** Packs without a file on Klipp's release: no download button, and the sheet says why (in Swedish here). */
+/** The packs are in the app: each offers Install, and there is no note about packs that can't be had. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "sv-w411dp-h891dp-xxhdpi")
 class SoundPacksUiTest {
     @get:Rule val rule = createComposeRule()
 
-    @Test fun unavailablePacksSayWhyAndOfferNoDownload() {
+    @Test fun everyPackOffersInstall() {
         rule.setContent { KlippTheme { SoundFxSheet(onDismiss = {}, onAdd = { _, _, _ -> }) } }
         rule.waitForIdle()
-        rule.onNodeWithTag("sfx:moving").assertExists()
-        rule.onNodeWithText("Vissa paket går inte att hämta just nu", substring = true).assertExists()
-        val first = SoundFx.PACKS.first { it.hosted == null }
-        rule.onNodeWithTag("sfxUnavailable:${first.id}", useUnmergedTree = true).assertExists()
-        assertEquals(0, rule.onAllNodesWithTag("sfxDownload:${first.id}", useUnmergedTree = true).fetchSemanticsNodes().size)
+        assertEquals(0, rule.onAllNodesWithTag("sfx:moving").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("sfxDownload:${SoundFx.PACKS.first().id}", useUnmergedTree = true).assertExists()
+        assertEquals(0, rule.onAllNodesWithTag("sfxUnavailable:${SoundFx.PACKS.first().id}", useUnmergedTree = true).fetchSemanticsNodes().size)
     }
 }

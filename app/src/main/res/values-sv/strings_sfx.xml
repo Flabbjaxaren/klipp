@@ -10,8 +10,8 @@
     <string name="sfx_file_busy">Kopierar…</string>
     <string name="sfx_file_failed">Filen gick inte att läsa som ljud</string>
     <string name="sfx_size_mb">%1$.1f MB</string>
-    <string name="sfx_download">Hämta</string>
-    <string name="sfx_download_failed">Det gick inte att hämta: %1$s</string>
+    <string name="sfx_download">Installera</string>
+    <string name="sfx_download_failed">Det gick inte att installera paketet: %1$s</string>
     <string name="sfx_remove_pack">Ta bort paketet</string>
     <string name="sfx_seconds">%1$.1f s</string>
     <string name="sfx_add">Lägg till</string>
@@ -30,6 +30,6 @@
     <string name="sfx_pack_comedy">boing, rimshots, skivscratch, trumvirvlar, applåder, skratt</string>
     <string name="sfx_pack_accent">hjärtslag, magiska klockspel, slag, smällar, cymbaler</string>
     <string name="sfx_freesound_earlier">%1$d ljud hämtade tidigare · CC0 · sökningen finns inte längre i Klipp</string>
-    <string name="sfx_pack_unavailable">Inte tillgängligt än</string>
-    <string name="sfx_packs_moving">Vissa paket går inte att hämta just nu – Klipp flyttar dem till en egen nedladdning. Ljud du redan har hämtat finns kvar, och dina projekt fortsätter att använda dem.</string>
+    <string name="sfx_pack_unavailable">Finns inte i appen</string>
+    <string name="sfx_packs_moving">Vissa paket finns inte i den här versionen av appen. Ljud du redan har finns kvar, och dina projekt fortsätter att använda dem.</string>
 </resources>

@@ -17,8 +17,6 @@ import org.json.JSONObject
 import se.gendut.klipp.R
 import java.io.File
 import java.io.RandomAccessFile
-import java.net.HttpURLConnection
-import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.zip.ZipInputStream
@@ -35,34 +33,42 @@ import java.util.zip.ZipInputStream
  */
 object SoundFx {
     /**
-     * A downloadable pack. [name] is the publisher's (proper) name; [descRes] says what is in it; [page] is where the
+     * A sound pack. [name] is the publisher's (proper) name; [descRes] says what is in it; [page] is where the
      * publisher offers it. Either a zip of sound files (no [clips], Kenney) or [clips] cut from single files
-     * (BigSoundBank). New downloads come only from Klipp's own release ([hosted]); a pack without one can't be
-     * downloaded now (the publishers' old download links stopped working or exclude automated access) – packs already
-     * on the phone stay.
+     * (BigSoundBank). The packs come with the app ([bundled]): added to the library from the app's own files, without
+     * the internet – nothing is fetched from the publishers. A pack without one can't be added (packs already on the
+     * phone stay).
      */
     data class Pack(
         val id: String, val name: String, @StringRes val descRes: Int, val page: String?, val mb: Float,
-        val source: String = KENNEY, val clips: List<Clip> = emptyList(), val hosted: Hosted? = HOSTED[id],
+        val source: String = KENNEY, val clips: List<Clip> = emptyList(), val bundled: Bundled? = BUNDLED[id],
     )
 
     /**
-     * A pack as a versioned file on Klipp's own GitHub release [SOUNDS_RELEASE] (tools/sounds: the publishers' original
-     * files, CC0, checked and packed with their license and credits). Downloaded only if its [sha256] and [bytes] match.
-     * A pack without one is fetched from its publisher as before.
+     * A pack as a file in the app (assets/sounds; tools/sounds: the publishers' original files, CC0, checked and packed
+     * with their license and credits). Used only if its [sha256] and [bytes] match.
      */
-    data class Hosted(val file: String, val sha256: String, val bytes: Long) {
-        val url get() = "https://github.com/Flabbjaxaren/klipp/releases/download/$SOUNDS_RELEASE/$file"
+    data class Bundled(val file: String, val sha256: String, val bytes: Long) {
+        val asset get() = "sounds/$file"
     }
 
-    /** The release with the sound packs; a new set of files is a new release (sounds-2 …), never a changed one. */
+    /** The set of sound pack files (tools/sounds/sounds-1.json); a new set is sounds-2 …, never changed files. */
     const val SOUNDS_RELEASE = "sounds-1"
 
-    /**
-     * The packs prepared for [SOUNDS_RELEASE] (tools/sounds/sounds-1.json, made by tools/sounds/build_sound_assets.py).
-     * Empty until the files are built from the publishers' originals and the release is published.
-     */
-    val HOSTED: Map<String, Hosted> = mapOf()
+    /** The packs in the app – [SOUNDS_RELEASE]'s files (tools/sounds/sounds-1.json, made by tools/sounds/build_sound_assets.py). */
+    val BUNDLED: Map<String, Bundled> = mapOf(
+        "kenney-impact" to Bundled("kenney-impact-sounds-1.zip", "029d734af1582474edf3a694d1b0cebc97c1c152f2f39fa34d4c2bafc5de77f8", 800850),
+        "kenney-interface" to Bundled("kenney-interface-sounds-1.zip", "f2193d072726d6758a5f7871b2dcc54dcce0d5c35c6f0a62f92549b327c81232", 834536),
+        "kenney-ui" to Bundled("kenney-ui-sounds-1.zip", "946fc23a63d535d693eb31b2eabb80c8c28d6351e2186b344ceb71b2cb1d5eb6", 411949),
+        "kenney-rpg" to Bundled("kenney-rpg-sounds-1.zip", "6dbeaf8544da958d8f2adcb4a4a4b76c1ade34a05f8ab9edccd327da7375f38b", 964837),
+        "kenney-scifi" to Bundled("kenney-scifi-sounds-1.zip", "119340f351a5098ad814f78719438c0da355a9ce8a4c8a3af6a8d48aa3d49e04", 5875104),
+        "kenney-digital" to Bundled("kenney-digital-sounds-1.zip", "24e6ce28b76a6d8c89cff4d331e0965ff5c3de8a73c612028e9d363cc64e4f06", 990367),
+        "kenney-jingles" to Bundled("kenney-jingles-sounds-1.zip", "b729ba57959bd58793d2c5cafa348aaf2655d354f3da35ec4729e03ec77197b8", 1239525),
+        "bsb-whoosh" to Bundled("bsb-whoosh-sounds-1.zip", "4a6da52949c6210df740288fe46850218e46ef906718703d1b000e492b6c1baa", 573838),
+        "bsb-social" to Bundled("bsb-social-sounds-1.zip", "a765221a7ec780aeb7bbcb07e080c9381bfce54d09a647f9887a5706dce43d85", 734789),
+        "bsb-comedy" to Bundled("bsb-comedy-sounds-1.zip", "ab5d259ac63b794f32803a03c9d53087494ad64d11603a8e14b25c4432efd8ac", 2584433),
+        "bsb-accent" to Bundled("bsb-accent-sounds-1.zip", "72c6fc7ec6d151aecfa35973c86f368887e90f9a05595c49a143a0943d9fd8c2", 1898601),
+    )
 
     /**
      * One sound cut from a BigSoundBank file (its id): [t0]–[t1] s, raised [gainDb] (to a peak of about −1 dBFS),
@@ -220,14 +226,14 @@ object SoundFx {
      * Returns the number of sounds.
      */
     suspend fun download(context: Context, pack: Pack): Result<Int> = withContext(Dispatchers.IO) {
-        // only Klipp's own pinned files: nothing is fetched from the publishers' old links
-        val hosted = pack.hosted ?: return@withContext Result.failure(PackUnavailable(pack.id))
+        // only the app's own pinned files: nothing is fetched from the publishers
+        val hosted = pack.bundled ?: return@withContext Result.failure(PackUnavailable(pack.id))
         if (pack.clips.isNotEmpty()) return@withContext downloadHostedClips(context, pack, hosted)
         val out = packDir(context, pack.id)
         val zip = File(context.cacheDir, "sfx_${pack.id}.zip")
         progress[pack.id] = 0f
         try {
-            fetchVerified(hosted, zip) { p -> progress[pack.id] = p * 0.5f }
+            fetchVerified(context, hosted, zip) { p -> progress[pack.id] = p * 0.5f }
             out.deleteRecursively(); out.mkdirs()
             val entries = ZipInputStream(zip.inputStream().buffered()).use { z ->
                 generateSequence { z.nextEntry }.count { isSound(it.name) }
@@ -264,12 +270,12 @@ object SoundFx {
     }
 
     /** A hosted pack of [Pack.clips]: one verified zip with the source files, cut as [downloadClips] does. */
-    private suspend fun downloadHostedClips(context: Context, pack: Pack, hosted: Hosted): Result<Int> {
+    private suspend fun downloadHostedClips(context: Context, pack: Pack, hosted: Bundled): Result<Int> {
         val zip = File(context.cacheDir, "sfx_${pack.id}.zip")
         val dir = File(context.cacheDir, "sfx_${pack.id}_src").apply { deleteRecursively(); mkdirs() }
         return try {
             progress[pack.id] = 0f
-            fetchVerified(hosted, zip) { p -> progress[pack.id] = p * 0.3f }
+            fetchVerified(context, hosted, zip) { p -> progress[pack.id] = p * 0.3f }
             ZipInputStream(zip.inputStream().buffered()).use { z ->
                 while (true) {
                     val e = z.nextEntry ?: break
@@ -289,17 +295,18 @@ object SoundFx {
         }
     }
 
-    /** A pack with no file on Klipp's release yet: new downloads are off (see [Pack]). */
-    class PackUnavailable(id: String) : Exception("$id is not available for download")
+    /** A pack that isn't in the app: it can't be added (see [Pack]). */
+    class PackUnavailable(id: String) : Exception("$id is not in the app")
 
-    /** Downloads [h] to [out] and keeps it only if it is the pinned file (size and SHA-256); otherwise throws. */
-    private fun fetchVerified(h: Hosted, out: File, onProgress: (Float) -> Unit) {
-        fetch(h.url, out, onProgress)
+    /** Copies the app's file [h] to [out] and keeps it only if it is the pinned file (size and SHA-256); otherwise throws. */
+    private fun fetchVerified(context: Context, h: Bundled, out: File, onProgress: (Float) -> Unit) {
+        context.assets.open(h.asset).use { i -> out.outputStream().use { o -> i.copyTo(o) } }
+        onProgress(1f)
         if (!verified(out, h)) { out.delete(); error("${h.file} is not the expected file") }
     }
 
     /** Is [f] the pinned file [h]? */
-    fun verified(f: File, h: Hosted): Boolean =
+    fun verified(f: File, h: Bundled): Boolean =
         f.length() == h.bytes && se.gendut.klipp.engine.SpeechModels.sha256(f).equals(h.sha256, ignoreCase = true)
 
     /**
@@ -386,28 +393,6 @@ object SoundFx {
 
     private fun safe(name: String) = name.replace(Regex("[^A-Za-z0-9 ._-]"), "_").trim().ifBlank { "sound" }
 
-    private fun fetch(url: String, out: File, onProgress: (Float) -> Unit) {
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.connectTimeout = 15_000; c.readTimeout = 30_000
-        c.setRequestProperty("User-Agent", "Klipp (Android video editor)")
-        try {
-            if (c.responseCode !in 200..299) error("HTTP ${c.responseCode}")
-            val total = c.contentLengthLong
-            var done = 0L
-            c.inputStream.use { inp ->
-                out.outputStream().use { o ->
-                    val buf = ByteArray(64 * 1024)
-                    while (true) {
-                        val n = inp.read(buf)
-                        if (n < 0) break
-                        o.write(buf, 0, n)
-                        done += n
-                        if (total > 0) onProgress(done.toFloat() / total)
-                    }
-                }
-            }
-        } finally { c.disconnect() }
-    }
 
     /**
      * Decodes any audio file Android can read (OGG Vorbis, MP3, …) to 16-bit PCM WAV – optionally only [t0]–[t1] s,

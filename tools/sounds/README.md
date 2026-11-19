@@ -2,12 +2,12 @@
 
 The app's sound packs are CC0 (Kenney, BigSoundBank). Instead of fetching them from the publishers' sites at run time –
 Kenney's old zip links stopped working in 2026-11, and BigSoundBank excludes its audio folder from automated access –
-Klipp downloads them only from its own GitHub release **`sounds-1`**, each file pinned by size and SHA-256
-(`SoundFx.HOSTED`). A pack without a pin can't be downloaded (the sound library says why); nothing is fetched from the
-publishers' old links any more. Packs already on a phone are kept as they are (installed = their `.done` marker;
-nothing is re-downloaded), and so are the projects that use them.
+they come with the app since 2026-11-19: the set **`sounds-1`** in `app/src/main/assets/sounds/` (about 17 MB), each
+file pinned by size and SHA-256 (`SoundFx.BUNDLED`). A pack is installed into the sound library from that file, offline;
+nothing is downloaded. Packs already on a phone are kept as they are (installed = their `.done` marker), and so are the
+projects that use them.
 
-## Making a release
+## Making a set
 
 1. **Download the originals by hand, in a browser** (both sites disallow automated downloading – don't script it):
    - Kenney, each pack's page → *Download*: `kenney.nl/assets/impact-sounds`, `interface-sounds`, `ui-audio`,
@@ -20,9 +20,8 @@ nothing is re-downloaded), and so are the projects that use them.
    and is an OGG file), then packs one zip per Klipp pack (deterministic; BigSoundBank zips get `CREDITS.txt` with page,
    author, marking and SHA-256 per file, and `LICENSE-CC0-1.0.txt`) into `Klipp-builds/sounds-1/`, writes
    `tools/sounds/sounds-1.json` and prints the pins. Anything that fails a check is not packed.
-3. Paste the pins into `SoundFx.HOSTED`; `SoundPacksTest` checks them against `sounds-1.json`.
-4. Publish a GitHub release `sounds-1` (pre-release, not "latest") with the zips from the out folder, and test a
-   download of each pack on a phone. A changed file is a new release (`sounds-2`), never a replaced asset.
+3. Copy the zips into `app/src/main/assets/sounds/` and paste the pins into `SoundFx.BUNDLED`; `SoundPacksTest` checks both against `sounds-1.json`.
+4. Install each pack on a phone. A changed file is a new set (`sounds-2`, new file names), never a replaced one.
 
 The zips hold the publishers' files unchanged (Kenney's own zip renamed; BigSoundBank's OGGs plus a CREDITS.txt) –
 except a BigSoundBank sound whose page gave a WAV: it is converted to Ogg Vorbis (`oggenc -q 10`, same rate and channels),
