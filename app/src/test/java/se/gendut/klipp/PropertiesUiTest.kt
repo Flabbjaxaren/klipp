@@ -107,6 +107,9 @@ class FakeProps : PropsBackend {
     override fun newCaptionTrack(name: String, onMade: (Long) -> Unit) { log += "newtrack $name"; onMade(nextTrack) }
     override fun deleteCaptionTracks(ids: List<Long>) { log += "deletetracks ${ids.joinToString(",")}" }
     override fun fitCaptionsToSafeArea(track: Long, platform: String): String { log += "fit $track $platform"; return "ok" }
+    /** A portrait sequence (the safe zones offered) unless a test says otherwise. */
+    var isPortrait = true
+    override val portrait get() = isPortrait
     override fun trimCaption(id: Long, inEdge: Boolean, dt: Float) { log += "trimcaption $id ${if (inEdge) "in" else "out"} ${"%.2f".format(java.util.Locale.ROOT, dt)}" }
 }
 

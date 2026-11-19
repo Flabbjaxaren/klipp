@@ -2355,6 +2355,8 @@ class ProjectController(
         onMessage(if (removed == 0) Str.t(R.string.projectcontroller_nothing_removed) else Str.p(R.plurals.projectcontroller_parts_removed, removed, removed, seconds))
     } }
 
+    override val portrait: Boolean get() = snapshot.sequence?.let { it.height > it.width } == true
+
     override val captionsVisible: Boolean get() = snapshot.sequence?.captionTracks?.any { it.enabled } == true
     override val hasCaptionTrack: Boolean get() = snapshot.sequence?.captionTracks?.isNotEmpty() == true
     override val captionTracks: List<se.gendut.klipp.CaptionTrackUi> get() = snapshot.sequence?.captionTracks.orEmpty().map {

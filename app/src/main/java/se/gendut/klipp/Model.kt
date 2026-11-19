@@ -363,6 +363,8 @@ interface PropsBackend {
     fun newCaptionTrack(name: String, onMade: (Long) -> Unit = {}) {}
     /** Delete caption tracks – one undo step. */
     fun deleteCaptionTracks(ids: List<Long>) {}
+    /** The sequence is portrait (taller than wide): the platforms' safe zones apply (they are shown and offered only then). */
+    val portrait: Boolean get() = false
     /** Fit a caption track's placement to a platform's safe area; the message to show. */
     fun fitCaptionsToSafeArea(track: Long, platform: String): String = ""
     /** Audio effects on an audio clip (the engine's effect id, e.g. "denoise"). */

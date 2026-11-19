@@ -137,5 +137,19 @@ class CaptionPresetsAndSafeZonesTest {
         assertEquals(0, rule.onAllNodes(androidx.compose.ui.test.hasTestTag("capPlace:under")).fetchSemanticsNodes().size)
     }
 
+    /** A landscape sequence: no safe zones offered (they are for portrait video). */
+    @Test fun noSafeAreaFitInLandscape() {
+        val fake = FakeProps().apply { tracks = listOf(CaptionTrackUi(10, "Auto captions", 1, true)); isPortrait = false }
+        val st = EditorState().apply { props = fake; captions = listOf(UiCaption(1, 0.5f, 2f, "Rad", track = 10)) }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { CaptionsSheet(st) {} } } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("capsPart:style").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("capSection:place").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("capPlace:under").assertExists()
+        assertEquals(0, rule.onAllNodes(androidx.compose.ui.test.hasTestTag("capFit")).fetchSemanticsNodes().size)
+    }
+
     @Suppress("unused") private fun RectF.str() = "[$left,$top,$right,$bottom]"
 }

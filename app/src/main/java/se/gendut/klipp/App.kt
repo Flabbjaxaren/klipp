@@ -897,8 +897,8 @@ private fun KlippAppContent(
                 if (grading) ColorViewerTools(state, gs, clips, lookOf(grade), onFullscreen = { state.playing = false; fullscreen = true })
                 // the program's audio level (what is heard, after the master)
                 else if (controller != null) ProgramMeter(state.playing, Modifier.align(Alignment.CenterEnd).padding(end = 6.dp, top = 10.dp, bottom = 10.dp).width(16.dp).fillMaxHeight())
-                // the platforms' safe zones over the picture (edit page; kept in the project)
-                if (!grading && controller != null && playback != null && hasPicture(controller)) {
+                // the platforms' safe zones over the picture (edit page, a portrait sequence only; kept in the project)
+                if (!grading && controller != null && playback != null && hasPicture(controller) && controller.portrait) {
                     val q = controller.snapshot.sequence
                     SafeZoneButton(state, vertical = q != null && q.height * 9 == q.width * 16, onChanged = { controller.requestSave() },
                         modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 28.dp))

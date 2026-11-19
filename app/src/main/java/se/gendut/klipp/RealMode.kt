@@ -265,7 +265,7 @@ fun ProgramMonitor(
                 // a still instead of black
                 LivePreview(controller, state, gs = gs, look = look, force = (!playback.frameShown && !state.playing) || look != playback.look)
                 // a platform's safe zones (edit page): drawn over the picture here only, never in the render or the export
-                if (gs?.active != true) se.gendut.klipp.engine.SafeZones.byKey(state.safeZone)?.let {
+                if (gs?.active != true && q != null && q.height > q.width) se.gendut.klipp.engine.SafeZones.byKey(state.safeZone)?.let {
                     SafeZoneOverlay(it, state.safeZoneAlpha, vertical = q != null && q.height * 9 == q.width * 16)
                 }
                 if (state.boxPick != null) BoxPickOverlay(state)

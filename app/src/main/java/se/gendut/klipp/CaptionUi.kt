@@ -366,7 +366,8 @@ private fun CaptionPlacement(backend: PropsBackend, track: Long, st: CaptionStyl
     PropSlider(stringResource(R.string.captionstyle_line_width), (st.wrapWidth ?: 0.9f) * 100f, 20f, 90f, 90f, { "%.0f %%".format(it) }, "capWrap", lane = false) {
         set(mapOf("wrapWidth" to if (it >= 89.5f) -1f else it / 100f))
     }
-    // fit to a platform's safe area: the platform shown over the picture, or chosen here
+    // fit to a platform's safe area (a portrait sequence only): the platform shown over the picture, or chosen here
+    if (backend.portrait) {
     SectionLabel(stringResource(R.string.captionstyle_fit))
     Text(stringResource(R.string.captionstyle_fit_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
     val shown = LocalSafeZone.current
@@ -381,6 +382,7 @@ private fun CaptionPlacement(backend: PropsBackend, track: Long, st: CaptionStyl
         val msg = backend.fitCaptionsToSafeArea(track, platform)
         toaster?.show(msg)
     }, Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("capFit"), icon = Ic.Crop, filled = false)
+    }
 }
 
 @Composable
