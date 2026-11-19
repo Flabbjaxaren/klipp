@@ -419,10 +419,12 @@ fun LivePreview(
         val caps = q.captions.filter { it.text.isNotBlank() && t >= it.start - 5e-4 && t < it.start + it.duration - 5e-4 }
         if (caps.isNotEmpty()) drawContext.canvas.nativeCanvas.let { cv ->
             cv.save(); cv.scale(s, s)
+            // (several tracks at once: stacked, as in the export)
+            val shifts = captionShifts(q)
             for (cap in caps) {
                 val st = q.captionTracks.firstOrNull { it.id == cap.track }?.style ?: se.gendut.klipp.engine.CaptionStyle()
                 val step = if (st.wordColor != null) se.gendut.klipp.engine.CaptionWords.stepAt(cap.text, cap.start, cap.end, q.words, st.wordCount, t.toDouble()) else null
-                se.gendut.klipp.engine.OverlayRenderer.drawCaption(cv, step?.text ?: cap.text, st, w, h, step?.word ?: -1)
+                se.gendut.klipp.engine.OverlayRenderer.drawCaption(cv, step?.text ?: cap.text, st, w, h, step?.word ?: -1, shifts[cap.id] ?: 0f)
             }
             cv.restore()
         }
@@ -499,3 +501,9 @@ private fun ClipSnap.withLive(p: ClipProps): ClipSnap = copy(
         name = p.titleLook.ifEmpty { text.name },
     ),
 )
+
+/** The captions' stacking for a sequence, kept for the last one (each preview frame asks). */
+private var shiftsFor: Pair<se.gendut.klipp.engine.SequenceSnap, Map<Long, Float>>? = null
+private fun captionShifts(q: se.gendut.klipp.engine.SequenceSnap): Map<Long, Float> =
+    shiftsFor?.takeIf { it.first === q }?.second
+        ?: se.gendut.klipp.engine.CaptionStack.shifts(q.captions, q.captionTracks, q.width, q.height).also { shiftsFor = q to it }

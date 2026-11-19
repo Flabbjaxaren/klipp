@@ -95,7 +95,8 @@ fun srcOf(c: ClipSnap, offset: Double = 0.0): SegSrc =
 sealed interface Overlay {
     data class Title(val t: TextSnap) : Overlay
     /** [word]: the index of the word being spoken (among the text's words), -1 = none marked. */
-    data class Caption(val text: String, val style: CaptionStyle = CaptionStyle(), val word: Int = -1) : Overlay
+    /** [shift]: moved up (−) or down, a fraction of the frame's height, clear of another track's caption (CaptionStack). */
+    data class Caption(val text: String, val style: CaptionStyle = CaptionStyle(), val word: Int = -1, val shift: Float = 0f) : Overlay
 }
 
 /** Linear opacity ramp (transition): from [a0] at [t0] to [a1] at [t1]. */
@@ -297,12 +298,15 @@ object LayerPlanner {
             if (over.isNotEmpty()) layers += Layer("${t.name} transitions", nonOverlapping(over.sortedBy { it.start }))
             if (base.isNotEmpty()) layers += Layer(t.name, base)
         }
+        // captions of several tracks at the same time and place: stacked, not on each other
+        val shifts = CaptionStack.shifts(q.captions, q.captionTracks, q.width, q.height)
         for (c in q.captions.sortedBy { it.start }) {
             val style = q.captionTracks.firstOrNull { it.id == c.track }?.style ?: CaptionStyle()
             if (c.duration <= EPS || c.text.isBlank()) continue
-            if (style.wordColor == null) overlays += OverlayItem(c.start, c.end, Overlay.Caption(c.text, style))
+            val sh = shifts[c.id] ?: 0f
+            if (style.wordColor == null) overlays += OverlayItem(c.start, c.end, Overlay.Caption(c.text, style, shift = sh))
             else for (s in CaptionWords.steps(c.text, c.start, c.end, q.words, style.wordCount)) {
-                if (s.end - s.start > EPS) overlays += OverlayItem(s.start, s.end, Overlay.Caption(s.text, style, s.word))
+                if (s.end - s.start > EPS) overlays += OverlayItem(s.start, s.end, Overlay.Caption(s.text, style, s.word, sh))
             }
         }
         if (layers.isEmpty() && overlays.isEmpty()) return null
@@ -900,7 +904,7 @@ object OverlayRenderer {
         is Overlay.Title -> TitleArt.draw(o.t, w, h)
         is Overlay.Caption -> Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { bmp ->
             bmp.eraseColor(Color.TRANSPARENT)
-            drawCaption(Canvas(bmp), o.text, o.style, w, h, o.word)
+            drawCaption(Canvas(bmp), o.text, o.style, w, h, o.word, o.shift)
         }
     }
 
@@ -924,7 +928,7 @@ object OverlayRenderer {
     /** A caption's lines and where they go: the paint, the lines (wrapped), the first baseline and the line height. */
     private class CaptionLayout(val p: Paint, val lines: List<String>, val y0: Float, val lh: Float, val zoom: Float)
 
-    private fun layoutCaption(text: String, st: CaptionStyle, w: Int, h: Int, markWords: Boolean): CaptionLayout? {
+    private fun layoutCaption(text: String, st: CaptionStyle, w: Int, h: Int, markWords: Boolean, shift: Float = 0f): CaptionLayout? {
         val scale = h / 1080f
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = st.size.coerceIn(8f, 300f) * scale
@@ -949,7 +953,7 @@ object OverlayRenderer {
             st.anchor == "middle" -> (h - block) / 2f + p.textSize
             else -> h - margin - lh * (lines.size - 1)
         }
-        return CaptionLayout(p, lines, y, lh, zoom)
+        return CaptionLayout(p, lines, y + shift * h, lh, zoom)
     }
 
     /**
@@ -977,10 +981,10 @@ object OverlayRenderer {
         return out
     }
 
-    fun drawCaption(cv: Canvas, text: String, st: CaptionStyle, w: Int, h: Int, word: Int = -1) {
+    fun drawCaption(cv: Canvas, text: String, st: CaptionStyle, w: Int, h: Int, word: Int = -1, shift: Float = 0f) {
         val scale = h / 1080f
         val markWords = st.wordColor != null && word >= 0
-        val lay = layoutCaption(text, st, w, h, markWords) ?: return
+        val lay = layoutCaption(text, st, w, h, markWords, shift) ?: return
         val p = lay.p
         val marked = st.wordColor?.takeIf { word >= 0 }?.let { c -> Paint(p).apply { color = c; textAlign = Paint.Align.LEFT } }
         val zoom = lay.zoom
