@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- CaptionTracksUi.kt: the captions in the project, their tracks -->
+    <string name="captiontracks_edit">Edit caption track</string>
+    <plurals name="captiontracks_lines">
+        <item quantity="one">%d line</item>
+        <item quantity="other">%d lines</item>
+    </plurals>
+    <string name="captiontracks_empty">Empty</string>
+    <string name="captiontracks_new">New track</string>
+    <string name="captiontracks_new_name">Captions %d</string>
+    <string name="captiontracks_rename">Rename</string>
+    <string name="captiontracks_rename_title">Name of the caption track</string>
+    <string name="captiontracks_save">Save</string>
+    <string name="captiontracks_visible">Show this track in the picture and the export</string>
+    <string name="captiontracks_visible_hint">Choosing which track to edit doesn\'t change this</string>
+    <string name="captiontracks_empty_track">This track is empty.</string>
+    <plurals name="captiontracks_remove_empty">
+        <item quantity="one">Remove %d empty track</item>
+        <item quantity="other">Remove %d empty tracks</item>
+    </plurals>
+    <plurals name="captiontracks_removed">
+        <item quantity="one">%d empty track removed – undo brings it back</item>
+        <item quantity="other">%d empty tracks removed – undo brings them back</item>
+    </plurals>
+    <string name="captiontracks_target">New lines go to</string>
+    <string name="captiontracks_target_new">A new track is made: %1$s</string>
+    <string name="captiontracks_style_row">Style: %1$s</string>
+    <string name="captiontracks_list">Lines on %1$s</string>
+
+    <!-- CaptionUi.kt: the style view -->
+    <string name="captionstyle_title">Style</string>
+    <string name="captionstyle_back">Back</string>
+    <string name="captionstyle_scope">%1$s · the whole track</string>
+    <string name="captionstyle_tab_styles">Styles</string>
+    <string name="captionstyle_tab_look">Look</string>
+    <string name="captionstyle_tab_place">Placement</string>
+    <string name="captionstyle_tab_words">Word marking</string>
+    <string name="captionstyle_preset_standard">Standard</string>
+    <string name="captionstyle_preset_social">Big social</string>
+    <string name="captionstyle_preset_plate">Text plate</string>
+    <string name="captionstyle_preset_own">Own</string>
+    <string name="captionstyle_presets_hint">A style changes the look only – the text, the times and the placement stay. Your own look is kept when you pick a style, under Own.</string>
+    <string name="captionstyle_place_top">Top</string>
+    <string name="captionstyle_place_middle">Middle</string>
+    <string name="captionstyle_place_under">Below middle</string>
+    <string name="captionstyle_place_bottom">Bottom</string>
+    <string name="captionstyle_height">Height (from the top)</string>
+    <string name="captionstyle_line_width">Line width</string>
+    <string name="captionstyle_place_scope">Applies to the whole track %1$s</string>
+    <string name="captionstyle_fit">Fit to safe area</string>
+    <string name="captionstyle_fit_hint">Moves the captions (and makes long lines narrower) so that every line, outline and plate included, stays clear of the app\'s buttons and text.</string>
+    <string name="captionstyle_mark_word">Mark the current word</string>
+    <string name="captionstyle_mark_word_hint">The word being spoken gets the colour</string>
+    <string name="captionstyle_words_hint">1 = one word at a time</string>
+    <string name="captionstyle_no_word_times">The word times come from automatic captions (made from the speech). Lines written by hand or imported have none, so their words aren\'t marked.</string>
+
+    <!-- SafeZoneUi.kt -->
+    <string name="safezone_button">Safe zones</string>
+    <string name="safezone_off">Off</string>
+    <string name="safezone_opacity">Visibility</string>
+    <string name="safezone_hint">Only in the preview – never in the export. A guide after the platforms\' own guidance; the apps change.</string>
+    <string name="safezone_not_vertical">Made for vertical 9:16 video</string>
+    <string name="safezone_tiktok">TikTok</string>
+    <string name="safezone_reels">Instagram Reels</string>
+    <string name="safezone_stories">Instagram Stories</string>
+    <string name="safezone_shorts">YouTube Shorts</string>
+
+    <!-- ProjectController.fitCaptionsToSafeArea -->
+    <string name="captionfit_empty">There are no captions on the track to fit.</string>
+    <string name="captionfit_too_tall">The captions are taller than %1$s\'s safe area – make the text smaller or the lines shorter.</string>
+    <string name="captionfit_too_wide">The lines reach the side in %1$s – centre them or make the text smaller.</string>
+    <string name="captionfit_already">The captions already fit %1$s\'s safe area.</string>
+    <string name="captionfit_done">Placed inside %1$s\'s safe area.</string>
+</resources>

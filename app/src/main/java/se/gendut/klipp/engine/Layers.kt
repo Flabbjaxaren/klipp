@@ -921,7 +921,10 @@ object OverlayRenderer {
      * A caption with the track's style (font, size, color, background box, outline, alignment, position). Lines too wide
      * for the frame wrap. [word]: the word (index in the text) drawn in the style's word color.
      */
-    fun drawCaption(cv: Canvas, text: String, st: CaptionStyle, w: Int, h: Int, word: Int = -1) {
+    /** A caption's lines and where they go: the paint, the lines (wrapped), the first baseline and the line height. */
+    private class CaptionLayout(val p: Paint, val lines: List<String>, val y0: Float, val lh: Float, val zoom: Float)
+
+    private fun layoutCaption(text: String, st: CaptionStyle, w: Int, h: Int, markWords: Boolean): CaptionLayout? {
         val scale = h / 1080f
         val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             textSize = st.size.coerceIn(8f, 300f) * scale
@@ -929,23 +932,63 @@ object OverlayRenderer {
             textAlign = when (st.align) { "left" -> Paint.Align.LEFT; "right" -> Paint.Align.RIGHT; else -> Paint.Align.CENTER }
             color = st.color
         }
-        val marked = st.wordColor?.takeIf { word >= 0 }?.let { c -> Paint(p).apply { color = c; textAlign = Paint.Align.LEFT } }
-        val zoom = if (marked != null) st.wordZoom.coerceIn(1f, 2f) else 1f
-        val gap = p.measureText(" ")
+        val zoom = if (markWords) st.wordZoom.coerceIn(1f, 2f) else 1f
         val tokens = { line: String -> line.trim().split(Regex("\\s+")) }
         // for wrapping: room for the line's longest word enlarged, so a line breaks the same way whichever word is marked
-        val width = { line: String -> if (marked == null) p.measureText(line) else tokens(line).let { t -> p.measureText(line) + (zoom - 1f) * t.maxOf { p.measureText(it) } } }
-        val lines = text.split('\n').filter { it.isNotEmpty() }.flatMap { wrap(it, width, w * 0.9f) }
-        if (lines.isEmpty()) return
+        val width = { line: String -> if (!markWords) p.measureText(line) else tokens(line).let { t -> p.measureText(line) + (zoom - 1f) * t.maxOf { p.measureText(it) } } }
+        val lines = text.split('\n').filter { it.isNotEmpty() }.flatMap { wrap(it, width, w * (st.wrapWidth ?: 0.9f)) }
+        if (lines.isEmpty()) return null
         val lh = p.textSize * st.lineSpacing.coerceIn(0.8f, 3f)
         val margin = st.margin.coerceIn(0f, 0.45f) * h
         val block = lh * (lines.size - 1) + p.textSize
         // the first line's baseline according to the position
-        var y = when (st.anchor) {
-            "top" -> margin + p.textSize
-            "middle" -> (h - block) / 2f + p.textSize
+        val y = when {
+            // below the middle (Klipp's placement): the block's center at that height
+            st.centerY != null -> st.centerY * h - block / 2f + p.textSize
+            st.anchor == "top" -> margin + p.textSize
+            st.anchor == "middle" -> (h - block) / 2f + p.textSize
             else -> h - margin - lh * (lines.size - 1)
         }
+        return CaptionLayout(p, lines, y, lh, zoom)
+    }
+
+    /**
+     * Where a caption is drawn in a [w]×[h] frame (px): its text with the outline and the background plate – the
+     * whole block, with room for a marked word grown at its largest. Null for an empty caption.
+     */
+    fun captionBounds(text: String, st: CaptionStyle, w: Int, h: Int): RectF? {
+        val lay = layoutCaption(text, st, w, h, st.wordColor != null) ?: return null
+        val p = lay.p
+        val fm = p.fontMetrics
+        val edge = if (st.outline > 0f) st.outline * (h / 1080f) else 0f
+        val side = w * 0.05f
+        val x = when (st.align) { "left" -> side; "right" -> w - side; else -> w / 2f }
+        val pad = p.textSize * 0.3f
+        val out = RectF()
+        var y = lay.y0
+        for (line in lay.lines) {
+            val tw = p.measureText(line) + if (lay.zoom > 1f) (lay.zoom - 1f) * line.trim().split(Regex("\\s+")).maxOf { p.measureText(it) } else 0f
+            val l = when (st.align) { "left" -> x; "right" -> x - tw; else -> x - tw / 2 }
+            val r = if (st.background) RectF(l - pad, y - p.textSize, l + tw + pad, y + p.textSize * 0.3f)
+                else RectF(l - edge, y + fm.ascent * lay.zoom - edge, l + tw + edge, y + fm.descent * lay.zoom + edge)
+            if (out.isEmpty) out.set(r) else out.union(r)
+            y += lay.lh
+        }
+        return out
+    }
+
+    fun drawCaption(cv: Canvas, text: String, st: CaptionStyle, w: Int, h: Int, word: Int = -1) {
+        val scale = h / 1080f
+        val markWords = st.wordColor != null && word >= 0
+        val lay = layoutCaption(text, st, w, h, markWords) ?: return
+        val p = lay.p
+        val marked = st.wordColor?.takeIf { word >= 0 }?.let { c -> Paint(p).apply { color = c; textAlign = Paint.Align.LEFT } }
+        val zoom = lay.zoom
+        val gap = p.measureText(" ")
+        val tokens = { line: String -> line.trim().split(Regex("\\s+")) }
+        val lines = lay.lines
+        val lh = lay.lh
+        var y = lay.y0
         val side = w * 0.05f
         val x = when (st.align) { "left" -> side; "right" -> w - side; else -> w / 2f }
         val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = st.backgroundColor }

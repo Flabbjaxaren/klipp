@@ -2084,32 +2084,139 @@ class ProjectController(
 
     override fun setCaptionStyle(track: Long, values: Map<String, Any>) {
         scope.launch { editLock.withLock {
-            if (values.keys.none { it in WORD_STYLE_KEYS || it == "reset" || it == "social" }) applyCaptionStyle(track, values)
+            // a change of the track's name (Klipp's settings) and of the engine's style together: one undo step
+            if (values.keys.none { it in KLIPP_STYLE_KEYS }) applyCaptionStyle(track, values)
             else group(Str.t(R.string.projectcontroller_undo_caption_style)) { applyCaptionStyle(track, values) }
             refresh()
         } }
     }
 
     private val WORD_STYLE_KEYS = setOf("wordColor", "wordCount", "wordZoom")
+    /** Keys that change the track's name (where Klipp keeps what the engine has no fields for) or set several values. */
+    private val KLIPP_STYLE_KEYS = WORD_STYLE_KEYS + setOf("reset", "social", "preset", "restoreOwn", "placement", "centerY", "wrapWidth")
 
-    /** "social" = large marked words; "wordColor" ("" = off) goes in the track's name, the rest to the engine's style. */
+    /**
+     * The style of a caption track. Besides the engine's own keys:
+     *  * "preset" (a [CaptionPresets.Kind] name; "social" = Big social, as before): the preset's look – the track's own look
+     *    is kept first when it is no preset, "restoreOwn" brings it back;
+     *  * "placement" top / middle / under / bottom ("under" = below the middle, [UNDER_MIDDLE]), "centerY" its height;
+     *  * the word marking ("wordColor", "" = off, "wordCount", "wordZoom").
+     * Klipp's values go in the track's name ([CaptionStyle.klippTag]), the rest to the engine's style. A preset never
+     * changes the placement, the text or the times.
+     */
     private suspend fun applyCaptionStyle(track: Long, values: Map<String, Any>) {
+        val t = snapshot.sequence?.captionTracks?.firstOrNull { it.id == track } ?: return
         val tall = snapshot.sequence?.let { it.height > it.width } == true
-        val all = if (values["social"] == true) mapOf(
-            "font" to "Sans fet", "size" to (if (tall) 64.0 else 104.0), "color" to "#ffffffff", "background" to false,
-            "outline" to 6.0, "outlineColor" to "#000000ff", "anchor" to "bottom", "align" to "center", "margin" to 0.18, "wordColor" to "#ffd400ff",
-        ) else values
-        if (all["reset"] == true || all.keys.any { it in WORD_STYLE_KEYS }) snapshot.sequence?.captionTracks?.firstOrNull { it.id == track }?.let { t ->
-            val color = if (all["reset"] == true) "" else all["wordColor"] as? String ?: t.style.wordColor?.let { CaptionStyle.hex(it) } ?: ""
-            val name = t.name.substringBefore(CaptionStyle.WORD_TAG) +
-                if (color.isEmpty()) "" else CaptionStyle.wordTag(color, all["wordCount"] as? Int ?: t.style.wordCount, all["wordZoom"] as? Float ?: t.style.wordZoom)
-            engine.tryExec("captions.setTrack", JSONObject().put("track", track).put("name", name)).onFailure { onMessage(friendly(it.message)) }
+        val v = HashMap<String, Any>()
+        var saved = t.style.savedLook
+        var centerY = t.style.centerY
+        val preset = (values["preset"] as? String)?.let { n -> CaptionPresets.Kind.entries.firstOrNull { it.name == n } }
+            ?: if (values["social"] == true) CaptionPresets.Kind.SOCIAL else null
+        if (preset != null) {
+            // the track's own look is kept, so it can be chosen again (a preset's isn't – it can be chosen anyway)
+            if (CaptionPresets.of(t.style) == null) saved = CaptionPresets.encode(CaptionPresets.lookOf(t.style))
+            v += CaptionPresets.look(preset, tall)
         }
-        val style = all - WORD_STYLE_KEYS
+        if (values["restoreOwn"] == true) {
+            val own = saved?.let { CaptionPresets.decode(it) } ?: return
+            v += own
+            saved = null
+        }
+        v += values - setOf("preset", "social", "restoreOwn", "placement", "centerY", "wrapWidth")
+        when (val pl = values["placement"] as? String) {
+            null -> {}
+            "under" -> { v["anchor"] = "middle"; if (centerY == null) centerY = UNDER_MIDDLE }
+            else -> { v["anchor"] = pl; centerY = null }
+        }
+        (values["centerY"] as? Number)?.let { centerY = it.toFloat().coerceIn(0.05f, 0.95f) }
+        var wrap = t.style.wrapWidth
+        if (values.containsKey("wrapWidth")) wrap = (values["wrapWidth"] as? Number)?.toFloat()?.takeIf { it > 0f }?.coerceIn(0.2f, 0.9f)
+        if (values["reset"] == true) { centerY = null; saved = null; wrap = null }
+        val color = if (values["reset"] == true) "" else v["wordColor"] as? String ?: t.style.wordColor?.let { CaptionStyle.hex(it) } ?: ""
+        val count = (v["wordCount"] as? Number)?.toInt() ?: if (values["reset"] == true) 0 else t.style.wordCount
+        val zoom = (v["wordZoom"] as? Number)?.toFloat() ?: if (values["reset"] == true) 1f else t.style.wordZoom
+        val name = CaptionStyle.shownName(t.name) + CaptionStyle.klippTag(color, count, zoom, centerY, saved, wrap)
+        if (name != t.name) engine.tryExec("captions.setTrack", JSONObject().put("track", track).put("name", name)).onFailure { onMessage(friendly(it.message)) }
+        val style = v - WORD_STYLE_KEYS
         if (style.isEmpty()) return
         val p = JSONObject().put("track", track)
-        style.forEach { (k, v) -> p.put(k, v) }
+        style.forEach { (k, x) -> p.put(k, x) }
         engine.tryExec("captions.setStyle", p).onFailure { onMessage(friendly(it.message)) }
+    }
+
+    /** Where "below the middle" puts a caption block's center (a fraction of the frame's height from the top). */
+    val UNDER_MIDDLE = 0.6f
+
+    /**
+     * Fit the track's placement to a platform's safe area (see [CaptionFit]): the message to show – what was done, or why
+     * it couldn't be. One undo step; the text, the times and the look stay.
+     */
+    override fun fitCaptionsToSafeArea(track: Long, platform: String): String {
+        val q = snapshot.sequence ?: return Str.t(R.string.captionfit_empty)
+        val t = q.captionTracks.firstOrNull { it.id == track } ?: return Str.t(R.string.captionfit_empty)
+        val p = SafeZones.byKey(platform) ?: return Str.t(R.string.captionfit_empty)
+        val texts = (q.captions + q.hiddenCaptions).filter { it.track == track }.map { it.text }
+        val r = CaptionFit.fit(texts, t.style, q.width, q.height, SafeZones.of(p))
+        val name = Str.t(p.label)
+        return when (r.problem) {
+            CaptionFit.Problem.EMPTY -> Str.t(R.string.captionfit_empty)
+            CaptionFit.Problem.TOO_TALL -> Str.t(R.string.captionfit_too_tall, name)
+            CaptionFit.Problem.TOO_WIDE -> Str.t(R.string.captionfit_too_wide, name)
+            null -> {
+                val v = r.values.orEmpty()
+                val st = t.style
+                val changed = v.any { (k, x) ->
+                    when (k) {
+                        "margin" -> abs((x as Number).toFloat() - st.margin) > 1e-4f
+                        "centerY" -> st.centerY == null || abs((x as Number).toFloat() - st.centerY) > 1e-4f
+                        else -> true
+                    }
+                }
+                if (!changed) Str.t(R.string.captionfit_already, name)
+                else { setCaptionStyle(track, v); Str.t(R.string.captionfit_done, name) }
+            }
+        }
+    }
+
+    /** Show or hide one caption track (in the picture and the export) – the others stay as they are. */
+    override fun setCaptionTrackVisible(track: Long, visible: Boolean) {
+        scope.launch { editLock.withLock {
+            engine.tryExec("captions.setTrack", JSONObject().put("track", track).put("enabled", visible)).onFailure { onMessage(friendly(it.message)) }
+            refresh()
+        } }
+    }
+
+    /** A caption track's name (Klipp's settings kept after it). */
+    override fun renameCaptionTrack(track: Long, name: String) {
+        val clean = name.replace(CaptionStyle.WORD_TAG, "").trim()
+        if (clean.isEmpty()) return
+        scope.launch { editLock.withLock {
+            val t = snapshot.sequence?.captionTracks?.firstOrNull { it.id == track } ?: return@withLock
+            val tag = t.name.removePrefix(CaptionStyle.shownName(t.name))
+            engine.tryExec("captions.setTrack", JSONObject().put("track", track).put("name", clean + tag)).onFailure { onMessage(friendly(it.message)) }
+            refresh()
+        } }
+    }
+
+    /** A new, empty caption track named [name]; [onMade] gets its id. */
+    override fun newCaptionTrack(name: String, onMade: (Long) -> Unit) {
+        scope.launch { editLock.withLock {
+            if (snapshot.sequence == null) engine.exec("file.newSequence", newSeqParams())
+            engine.tryExec("captions.newTrack", JSONObject().put("name", name))
+                .onSuccess { r -> refresh(); onMade(r.optLong("track")) }
+                .onFailure { onMessage(friendly(it.message)); refresh() }
+        } }
+    }
+
+    /** Delete caption tracks (empty ones, from the overview) – one undo step. */
+    override fun deleteCaptionTracks(ids: List<Long>) {
+        if (ids.isEmpty()) return
+        scope.launch { editLock.withLock {
+            group(Str.t(R.string.projectcontroller_undo_delete_caption_tracks)) {
+                for (id in ids) engine.tryExec("captions.deleteTrack", JSONObject().put("track", id)).onFailure { onMessage(friendly(it.message)) }
+            }
+            refresh()
+        } }
     }
 
     override fun captionStyle(track: Long) = snapshot.sequence?.captionTracks?.firstOrNull { it.id == track }?.style
@@ -2144,9 +2251,22 @@ class ProjectController(
     suspend fun importCaptionFile(f: java.io.File, name: String) = editLock.withLock {
         group(Str.t(R.string.projectcontroller_undo_auto_captions)) {
             if (snapshot.sequence == null) engine.exec("file.newSequence", newSeqParams())
-            val old = snapshot.sequence?.captionTracks.orEmpty().filter { it.name.substringBefore(CaptionStyle.WORD_TAG) == name }.flatMap { it.captionIds }
+            // the previous run's track is replaced: its lines and the track itself go (an emptied track was left behind
+            // before, one more "Auto captions" per run) – its style, Klipp's settings and visibility carry over
+            val prev = snapshot.sequence?.captionTracks.orEmpty().filter { CaptionStyle.shownName(it.name) == name }
+            val old = prev.flatMap { it.captionIds }
             if (old.isNotEmpty()) engine.exec("captions.delete", JSONObject().put("captions", JSONArray().apply { old.forEach { put(it) } }))
-            engine.exec("captions.import", JSONObject().put("path", f.absolutePath).put("name", name))
+            for (t in prev) engine.exec("captions.deleteTrack", JSONObject().put("track", t.id))
+            val r = engine.exec("captions.import", JSONObject().put("path", f.absolutePath).put("name", name))
+            prev.firstOrNull()?.let { was ->
+                val id = r.optLong("track")
+                val st = was.style
+                engine.exec("captions.setStyle", JSONObject().put("track", id).put("font", st.font).put("size", st.size.toDouble())
+                    .put("color", CaptionStyle.hex(st.color)).put("background", st.background).put("backgroundColor", CaptionStyle.hex(st.backgroundColor))
+                    .put("align", st.align).put("anchor", st.anchor).put("margin", st.margin.toDouble()).put("lineSpacing", st.lineSpacing.toDouble())
+                    .put("outline", st.outline.toDouble()).put("outlineColor", CaptionStyle.hex(st.outlineColor)))
+                engine.exec("captions.setTrack", JSONObject().put("track", id).put("name", was.name).put("enabled", was.enabled))
+            }
         }
         refresh()
     }
@@ -2238,7 +2358,7 @@ class ProjectController(
     override val captionsVisible: Boolean get() = snapshot.sequence?.captionTracks?.any { it.enabled } == true
     override val hasCaptionTrack: Boolean get() = snapshot.sequence?.captionTracks?.isNotEmpty() == true
     override val captionTracks: List<se.gendut.klipp.CaptionTrackUi> get() = snapshot.sequence?.captionTracks.orEmpty().map {
-        se.gendut.klipp.CaptionTrackUi(it.id, it.name.substringBefore(CaptionStyle.WORD_TAG).ifBlank { Str.t(R.string.captionui_track_unnamed) }, it.count, it.enabled)
+        se.gendut.klipp.CaptionTrackUi(it.id, CaptionStyle.shownName(it.name).ifBlank { Str.t(R.string.captionui_track_unnamed) }, it.count, it.enabled)
     }
 
     override fun setCaptionsVisible(visible: Boolean) {

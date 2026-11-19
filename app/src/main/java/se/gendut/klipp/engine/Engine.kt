@@ -308,18 +308,40 @@ data class CaptionStyle(
     val wordCount: Int = 0,
     /** The size of the word being spoken relative to the others (1 = the same). */
     val wordZoom: Float = 1f,
+    /**
+     * Klipp: where the caption block's center sits, as a fraction of the frame's height from the top (the placement
+     * "below the middle"); null = by [anchor] and [margin]. Stored in the track's name, as the word settings.
+     */
+    val centerY: Float? = null,
+    /** Klipp: the track's own look, kept while a preset is used (see CaptionPresets) – so it can be chosen again. */
+    val savedLook: String? = null,
+    /** Klipp: the widest a line may be before it wraps, a fraction of the frame's width; null = 0.9 (fit to a safe area sets it). */
+    val wrapWidth: Float? = null,
 ) {
-    /** This style with the word settings stored in the track called [trackName]. */
+    /** This style with Klipp's settings stored in the track called [trackName] (the word marking, the center, the saved look). */
     fun withWordsOf(trackName: String): CaptionStyle {
         val kv = trackName.substringAfter(WORD_TAG, "").split(';').drop(1).associate { it.substringBefore('=') to it.substringAfter('=') }
-        return copy(wordColor = wordColorOf(trackName), wordCount = kv["n"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0, wordZoom = kv["zoom"]?.toFloatOrNull()?.coerceIn(1f, 2f) ?: 1f)
+        return copy(wordColor = wordColorOf(trackName), wordCount = kv["n"]?.toIntOrNull()?.coerceAtLeast(0) ?: 0, wordZoom = kv["zoom"]?.toFloatOrNull()?.coerceIn(1f, 2f) ?: 1f,
+            centerY = kv["y"]?.toFloatOrNull()?.coerceIn(0.05f, 0.95f), savedLook = kv["c"]?.takeIf { it.isNotEmpty() },
+            wrapWidth = kv["ww"]?.toFloatOrNull()?.coerceIn(0.2f, 0.9f))
     }
 
     companion object {
+        /** Klipp's settings follow this in a caption track's name (the engine has no fields for them); the name shown is what comes before. */
         const val WORD_TAG = ";klipp:word="
         fun wordColorOf(trackName: String): Int? =
             trackName.substringAfter(WORD_TAG, "").substringBefore(';').takeIf { it.isNotEmpty() }?.let { parseColor(it, 0xFFFFD400.toInt()) }
         fun wordTag(color: String, count: Int, zoom: Float) = "$WORD_TAG$color;n=$count;zoom=$zoom"
+        /**
+         * The tag for a track's name: the word color ("" = no marking) first, then the word count and zoom, the center
+         * and the saved look when set. Empty when nothing is set (the name stays as the user wrote it).
+         */
+        fun klippTag(color: String, count: Int, zoom: Float, centerY: Float? = null, savedLook: String? = null, wrapWidth: Float? = null): String {
+            if (color.isEmpty() && count == 0 && zoom == 1f && centerY == null && savedLook == null && wrapWidth == null) return ""
+            return wordTag(color, count, zoom) + (centerY?.let { ";y=$it" } ?: "") + (wrapWidth?.let { ";ww=$it" } ?: "") + (savedLook?.let { ";c=$it" } ?: "")
+        }
+        /** The name a track is shown by: without Klipp's tag. */
+        fun shownName(trackName: String) = trackName.substringBefore(WORD_TAG)
         /** "#rrggbb" or "#rrggbbaa" → ARGB. */
         fun parseColor(s: String?, def: Int): Int {
             val h = s?.removePrefix("#") ?: return def

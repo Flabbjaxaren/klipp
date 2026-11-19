@@ -357,6 +357,14 @@ interface PropsBackend {
     /** The track's style (applies to all lines on the track), e.g. "font" to "Serif", "size" to 60. */
     fun setCaptionStyle(track: Long, values: Map<String, Any>) {}
     fun captionStyle(track: Long): se.gendut.klipp.engine.CaptionStyle? = null
+    /** One caption track shown or hidden (in the picture and the export). */
+    fun setCaptionTrackVisible(track: Long, visible: Boolean) {}
+    fun renameCaptionTrack(track: Long, name: String) {}
+    fun newCaptionTrack(name: String, onMade: (Long) -> Unit = {}) {}
+    /** Delete caption tracks – one undo step. */
+    fun deleteCaptionTracks(ids: List<Long>) {}
+    /** Fit a caption track's placement to a platform's safe area; the message to show. */
+    fun fitCaptionsToSafeArea(track: Long, platform: String): String = ""
     /** Audio effects on an audio clip (the engine's effect id, e.g. "denoise"). */
     fun addAudioFx(id: Long, effect: String) {}
     fun removeAudioFx(id: Long, index: Int) {}
@@ -455,6 +463,10 @@ class EditorState(initial: List<Clip> = initialClips()) {
         selectedCut = cut
     }
     var captions by mutableStateOf(listOf<UiCaption>())
+    /** The platform whose safe zones are drawn over the preview (a SafeZones.Platform key; null = none) – saved with the project. */
+    var safeZone by mutableStateOf<String?>(null)
+    /** How strongly the covered zones are shaded (0..1). */
+    var safeZoneAlpha by mutableFloatStateOf(0.45f)
     /** A caption track exists (even hidden) – the timeline then shows its caption lane. */
     var hasCaptionLane by mutableStateOf(false)
     /** Captions are visible (some caption track is on). */

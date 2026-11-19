@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- CaptionTracksUi.kt -->
+    <string name="captiontracks_edit">Redigera undertextspår</string>
+    <plurals name="captiontracks_lines">
+        <item quantity="one">%d rad</item>
+        <item quantity="other">%d rader</item>
+    </plurals>
+    <string name="captiontracks_empty">Tomt</string>
+    <string name="captiontracks_new">Nytt spår</string>
+    <string name="captiontracks_new_name">Undertexter %d</string>
+    <string name="captiontracks_rename">Byt namn</string>
+    <string name="captiontracks_rename_title">Undertextspårets namn</string>
+    <string name="captiontracks_save">Spara</string>
+    <string name="captiontracks_visible">Visa detta spår i bild och export</string>
+    <string name="captiontracks_visible_hint">Att välja vilket spår du redigerar ändrar inte detta</string>
+    <string name="captiontracks_empty_track">Spåret är tomt.</string>
+    <plurals name="captiontracks_remove_empty">
+        <item quantity="one">Ta bort %d tomt spår</item>
+        <item quantity="other">Ta bort %d tomma spår</item>
+    </plurals>
+    <plurals name="captiontracks_removed">
+        <item quantity="one">%d tomt spår borttaget – ångra tar tillbaka det</item>
+        <item quantity="other">%d tomma spår borttagna – ångra tar tillbaka dem</item>
+    </plurals>
+    <string name="captiontracks_target">Nya rader hamnar på</string>
+    <string name="captiontracks_target_new">Ett nytt spår skapas: %1$s</string>
+    <string name="captiontracks_style_row">Stil: %1$s</string>
+    <string name="captiontracks_list">Rader på %1$s</string>
+
+    <!-- CaptionUi.kt: stilvyn -->
+    <string name="captionstyle_title">Stil</string>
+    <string name="captionstyle_back">Tillbaka</string>
+    <string name="captionstyle_scope">%1$s · hela spåret</string>
+    <string name="captionstyle_tab_styles">Stilar</string>
+    <string name="captionstyle_tab_look">Utseende</string>
+    <string name="captionstyle_tab_place">Placering</string>
+    <string name="captionstyle_tab_words">Ordmarkering</string>
+    <string name="captionstyle_preset_standard">Standard</string>
+    <string name="captionstyle_preset_social">Stor social</string>
+    <string name="captionstyle_preset_plate">Textplatta</string>
+    <string name="captionstyle_preset_own">Egen</string>
+    <string name="captionstyle_presets_hint">Ett förval ändrar bara utseendet – text, tider och placering ligger kvar. Ditt eget utseende sparas när du väljer ett förval, under Egen.</string>
+    <string name="captionstyle_place_top">Uppe</string>
+    <string name="captionstyle_place_middle">Mitten</string>
+    <string name="captionstyle_place_under">Under mitten</string>
+    <string name="captionstyle_place_bottom">Nere</string>
+    <string name="captionstyle_height">Höjd (från överkanten)</string>
+    <string name="captionstyle_line_width">Radbredd</string>
+    <string name="captionstyle_place_scope">Gäller hela spåret %1$s</string>
+    <string name="captionstyle_fit">Anpassa till säkert område</string>
+    <string name="captionstyle_fit_hint">Flyttar undertexterna (och gör långa rader smalare) så att varje rad, med kontur och platta, går fri från appens knappar och text.</string>
+    <string name="captionstyle_mark_word">Markera aktuellt ord</string>
+    <string name="captionstyle_mark_word_hint">Ordet som sägs får färgen</string>
+    <string name="captionstyle_words_hint">1 = ett ord i taget</string>
+    <string name="captionstyle_no_word_times">Ordtiderna kommer från automatisk textning (gjord från talet). Rader som skrivits för hand eller importerats saknar dem, så deras ord markeras inte.</string>
+
+    <!-- SafeZoneUi.kt -->
+    <string name="safezone_button">Säkra zoner</string>
+    <string name="safezone_off">Av</string>
+    <string name="safezone_opacity">Synlighet</string>
+    <string name="safezone_hint">Bara i förhandsvisningen – aldrig i exporten. En riktlinje efter plattformarnas egna anvisningar; apparna ändras.</string>
+    <string name="safezone_not_vertical">Gjord för stående 9:16-video</string>
+    <string name="safezone_tiktok">TikTok</string>
+    <string name="safezone_reels">Instagram Reels</string>
+    <string name="safezone_stories">Instagram Stories</string>
+    <string name="safezone_shorts">YouTube Shorts</string>
+
+    <!-- ProjectController.fitCaptionsToSafeArea -->
+    <string name="captionfit_empty">Det finns inga undertexter på spåret att anpassa.</string>
+    <string name="captionfit_too_tall">Undertexterna är högre än det säkra området för %1$s – gör texten mindre eller raderna kortare.</string>
+    <string name="captionfit_too_wide">Raderna når ut i sidan för %1$s – centrera dem eller gör texten mindre.</string>
+    <string name="captionfit_already">Undertexterna ryms redan i det säkra området för %1$s.</string>
+    <string name="captionfit_done">Placerade inom det säkra området för %1$s.</string>
+</resources>
