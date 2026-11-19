@@ -87,7 +87,7 @@ internal fun CaptionDock(state: EditorState) {
     )
 }
 
-/** Edit the selected caption: the text and the track's style (font, size, color, box, outline, position). */
+/** Edit the selected caption: its text and times (the track's look is in Add › Captions › Style). */
 @Composable
 fun CaptionInspector(state: EditorState) {
     val backend = state.props ?: return
@@ -106,8 +106,7 @@ fun CaptionInspector(state: EditorState) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
             CaptionTextField(c, backend)
             CaptionTimes(state, c, backend)
-            SectionLabel(stringResource(R.string.captionui_style_scope, trackName))
-            CaptionStyleEditor(backend, c.track)
+            // (the look is the track's: it is set in Add › Captions › Style, not here)
             // (the page ends clear of undo and redo, which lie over its corner)
             Spacer(Modifier.height(LocalBarSpace.current + 36.dp))
         }

@@ -30,6 +30,7 @@
 
     <!-- CaptionUi.kt: stilvyn -->
     <string name="captionstyle_title">Stil</string>
+    <string name="captionstyle_applies_to">Stilen gäller spåret</string>
     <string name="captionstyle_back">Tillbaka</string>
     <string name="captionstyle_scope">%1$s · hela spåret</string>
     <string name="captionstyle_tab_styles">Stilar</string>
@@ -57,6 +58,8 @@
 
     <!-- SafeZoneUi.kt -->
     <string name="safezone_button">Säkra zoner</string>
+    <string name="dock_raise">Höj arket</string>
+    <string name="dock_lower">Sänk arket</string>
     <string name="safezone_off">Av</string>
     <string name="safezone_opacity">Synlighet</string>
     <string name="safezone_hint">Bara i förhandsvisningen – aldrig i exporten. En riktlinje efter plattformarnas egna anvisningar; apparna ändras.</string>

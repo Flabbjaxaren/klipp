@@ -30,6 +30,7 @@
 
     <!-- CaptionUi.kt: the style view -->
     <string name="captionstyle_title">Style</string>
+    <string name="captionstyle_applies_to">The style applies to the track</string>
     <string name="captionstyle_back">Back</string>
     <string name="captionstyle_scope">%1$s · the whole track</string>
     <string name="captionstyle_tab_styles">Styles</string>
@@ -57,6 +58,8 @@
 
     <!-- SafeZoneUi.kt -->
     <string name="safezone_button">Safe zones</string>
+    <string name="dock_raise">Raise the sheet</string>
+    <string name="dock_lower">Lower the sheet</string>
     <string name="safezone_off">Off</string>
     <string name="safezone_opacity">Visibility</string>
     <string name="safezone_hint">Only in the preview – never in the export. A guide after the platforms\' own guidance; the apps change.</string>

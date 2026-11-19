@@ -105,14 +105,14 @@ class LayoutReachTest {
         reach(rule.onNodeWithTag("capStyle"), "$name: the style")
         rule.onNodeWithTag("capStyle").let { n -> runCatching { n.performScrollTo() }; n.performClick() }
         rule.waitForIdle()
-        reach(rule.onNodeWithTag("capStyleBack"), "$name: back from the style")
-        for (t in listOf("styles", "look", "place", "words")) reach(rule.onNodeWithTag("capTab:$t"), "$name: the style tab $t")
+        reach(rule.onNodeWithTag("capsPart:style"), "$name: the Style tab", tap = false)
         reach(rule.onNodeWithTag("capPreset:social"), "$name: Big social")
-        rule.onNodeWithTag("capTab:place").let { n -> runCatching { n.performScrollTo() }; n.performClick() }
+        for (t in listOf("look", "place", "words")) reach(rule.onNodeWithTag("capSection:$t"), "$name: the style section $t")
+        rule.onNodeWithTag("capSection:place").let { n -> runCatching { n.performScrollTo() }; n.performClick() }
         rule.waitForIdle()
         reach(rule.onNodeWithTag("capPlace:under"), "$name: below the middle")
         reach(rule.onNodeWithTag("capFit"), "$name: fit to the safe area")
-        rule.onNodeWithTag("capTab:words").let { n -> runCatching { n.performScrollTo() }; n.performClick() }
+        rule.onNodeWithTag("capSection:words").let { n -> runCatching { n.performScrollTo() }; n.performClick() }
         rule.waitForIdle()
         reach(rule.onNodeWithTag("cap:markWord"), "$name: mark the current word")
         rule.onNode(isRoot().and(androidx.compose.ui.test.hasAnyDescendant(hasTestTag("captionsSheet")))).captureRoboImage("build/shots/98_${name}_stil.png")

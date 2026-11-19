@@ -327,10 +327,10 @@ internal fun TitlesOnTimeline(state: EditorState, onEdit: () -> Unit) {
 internal fun TitleTabs(state: EditorState, tab: Int, onTab: (Int) -> Unit) {
     val n = state.clips.count { it.kind == ClipKind.TITLE }
     if (n == 0) return
-    ConnectedToggleGroup(
-        listOf(stringResource(R.string.titleui_tab_new), stringResource(R.string.titleui_tab_on_timeline, n)), tab, onTab,
-        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(), tag = { listOf("titleTab:new", "titleTab:list")[it] },
-    )
+    ToolTabs(listOf(
+        ToolTab(stringResource(R.string.titleui_tab_new), Ic.Plus, "titleTab:new"),
+        ToolTab(stringResource(R.string.titleui_tab_on_timeline, n), Ic.Layers, "titleTab:list"),
+    ), tab, onTab, Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
 }
 
 /** Add › Title's content in one column (the sheet itself puts the tabs on top and the button at the bottom). */
@@ -344,16 +344,17 @@ internal fun TitlesTab(state: EditorState, backend: PropsBackend, onEdit: () -> 
     } else TitlesOnTimeline(state, onEdit)
 }
 
-/** The captions sheet's parts: made from the speech, written by hand (or imported), and those in the project. */
-enum class CaptionsPart { SPEECH, WRITE, EXISTING }
+/** The captions sheet's parts: those in the project, written by hand (or imported), made from the speech, and the style. */
+enum class CaptionsPart { EXISTING, WRITE, SPEECH, STYLE }
 
 @Composable
 internal fun CaptionTabs(state: EditorState, part: CaptionsPart, onPart: (CaptionsPart) -> Unit) {
-    ConnectedToggleGroup(
-        listOf(stringResource(R.string.titleui_caps_from_speech), stringResource(R.string.titleui_caps_write), stringResource(R.string.titleui_caps_existing, state.captions.size)),
-        part.ordinal, { onPart(CaptionsPart.entries[it]) },
-        Modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(), tag = { "capsPart:${CaptionsPart.entries[it].name.lowercase()}" },
-    )
+    ToolTabs(listOf(
+        ToolTab(stringResource(R.string.titleui_caps_existing, state.captions.size), Ic.Subs, "capsPart:existing"),
+        ToolTab(stringResource(R.string.titleui_caps_write), Ic.Edit, "capsPart:write"),
+        ToolTab(stringResource(R.string.titleui_caps_from_speech), Ic.Mic, "capsPart:speech"),
+        ToolTab(stringResource(R.string.captionstyle_title), Ic.Text, "capsPart:style"),
+    ), part.ordinal, { onPart(CaptionsPart.entries[it]) }, Modifier.padding(horizontal = 12.dp, vertical = 4.dp))
 }
 
 /** The first part shown: the captions in the project when there are any, else making them from the speech. */
@@ -361,7 +362,7 @@ internal fun firstCaptionsPart(state: EditorState) = if (state.captions.isNotEmp
 
 /** One part of the captions sheet. */
 @Composable
-internal fun CaptionsPartContent(state: EditorState, backend: PropsBackend, part: CaptionsPart, onPart: (CaptionsPart) -> Unit, onEdit: () -> Unit, onStyle: (Long) -> Unit = {}) {
+internal fun CaptionsPartContent(state: EditorState, backend: PropsBackend, part: CaptionsPart, onPart: (CaptionsPart) -> Unit, onEdit: () -> Unit) {
     when (part) {
         CaptionsPart.SPEECH -> {
             (backend as? se.gendut.klipp.engine.ProjectController)?.let { AutoCaptionsCard(it) }
@@ -375,7 +376,8 @@ internal fun CaptionsPartContent(state: EditorState, backend: PropsBackend, part
             }
         }
         CaptionsPart.WRITE -> CaptionsWrite(state, backend)
-        CaptionsPart.EXISTING -> CaptionsExisting(state, backend, onPart, onEdit, onStyle)
+        CaptionsPart.EXISTING -> CaptionsExisting(state, backend, onPart, onEdit) { onPart(CaptionsPart.STYLE) }
+        CaptionsPart.STYLE -> CaptionsStylePart(state, backend, onPart)
     }
 }
 

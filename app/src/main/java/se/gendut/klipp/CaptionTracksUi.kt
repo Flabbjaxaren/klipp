@@ -197,20 +197,41 @@ private fun FillButtons(onPart: (CaptionsPart) -> Unit) {
     }
 }
 
-/** The style view's header: back to the overview, the track and that the style is the whole track's. */
+/**
+ * The captions sheet's Style tab: the track it applies to (the same picker – the overview follows the same track), the
+ * presets as cards, then Look, Placement and Word marking – one of them open at a time (no tabs inside the tab, no
+ * long list of open controls). The picture stays in view above the sheet.
+ */
 @Composable
-fun CaptionStyleHeader(trackName: String, onBack: () -> Unit) {
+internal fun CaptionsStylePart(state: EditorState, backend: PropsBackend, onPart: (CaptionsPart) -> Unit) {
     val haptics = rememberHaptics()
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+    val tracks = backend.captionTracks
+    if (tracks.isEmpty()) {
+        Text(stringResource(R.string.titleui_caps_none), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        FillButtons(onPart)
+        return
+    }
+    val current = captionShownTrack(tracks, state.captionTrack) ?: return
+    CaptionTrackPicker(state, backend, tracks, current, stringResource(R.string.captionstyle_applies_to))
+    val st = backend.captionStyle(current) ?: se.gendut.klipp.engine.CaptionStyle()
+    CaptionStyleContent(backend, current, CaptionStyleTab.STYLES)
+    var open by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
+    for ((tab, label, icon) in listOf(
+        Triple(CaptionStyleTab.LOOK, R.string.captionstyle_tab_look, Ic.Text),
+        Triple(CaptionStyleTab.PLACE, R.string.captionstyle_tab_place, Ic.Center),
+        Triple(CaptionStyleTab.WORDS, R.string.captionstyle_tab_words, Ic.Subs),
+    )) {
+        val on = open == tab.name
         Row(
-            Modifier.clip(RoundedCornerShape(20.dp)).clickable(onClickLabel = stringResource(R.string.captionstyle_back)) { haptics.tick(); onBack() }
-                .padding(horizontal = 10.dp, vertical = 8.dp).testTag("capStyleBack"),
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp).clip(RoundedCornerShape(14.dp)).background(if (on) K.SurfaceHighest else K.SurfaceHigh)
+                .clickable { haptics.tick(); open = if (on) null else tab.name }.padding(horizontal = 14.dp, vertical = 12.dp).testTag("capSection:${tab.name.lowercase()}"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Ic.Back, null, tint = K.OnSurface, modifier = Modifier.size(20.dp))
-            Text(stringResource(R.string.captionstyle_back), color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp))
+            Icon(icon, null, tint = if (on) K.PrimarySoft else K.OnSurfaceVar, modifier = Modifier.size(20.dp))
+            Text(stringResource(label), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = 12.dp))
+            if (tab == CaptionStyleTab.WORDS && st.wordColor != null) androidx.compose.foundation.layout.Box(Modifier.padding(end = 8.dp).size(8.dp).clip(androidx.compose.foundation.shape.CircleShape).background(K.Primary))
+            Icon(Ic.ChevronDown, null, tint = K.OnSurfaceVar, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = if (on) 180f else 0f })
         }
-        Text(stringResource(R.string.captionstyle_scope, trackName), color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).padding(start = 8.dp))
+        androidx.compose.animation.AnimatedVisibility(on) { Column { CaptionStyleContent(backend, current, tab) } }
     }
 }

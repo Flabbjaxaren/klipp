@@ -1,0 +1,99 @@
+package se.gendut.klipp
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+
+/** How much of the screen a docked sheet takes: low (the picture and the top of the timeline in view) or high. */
+private const val DOCK_LOW = 0.55f
+private const val DOCK_HIGH = 0.9f
+
+/**
+ * A sheet docked at the bottom of the editor (Add › Title, Captions, Sound, Voice-over): it lies over the lower part
+ * only and doesn't block the rest – the picture and the timeline above it can still be touched (a track, a clip, a
+ * caption) while it is open. Its handle raises and lowers it; with the keyboard up it takes the room above it. It is a
+ * part of the editor's own window, so the editor's finger taps (undo, redo) work on it as everywhere else.
+ * [onDismiss] after it has slid away; [canClose] can keep it open (a recording voice-over).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun DockSheet(
+    tag: String,
+    onDismiss: () -> Unit,
+    canClose: () -> Boolean = { true },
+    /** A tall sheet (most): low or high by the handle; a short one keeps its own height (the voice-over). */
+    tall: Boolean = true,
+    content: @Composable ColumnScope.(close: () -> Unit) -> Unit,
+) {
+    val vis = remember { MutableTransitionState(false) }
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { vis.targetState = true; started = true }
+    val close = { if (canClose()) vis.targetState = false }
+    // gone once it has slid away
+    LaunchedEffect(vis.currentState, vis.isIdle) { if (started && vis.isIdle && !vis.currentState && !vis.targetState) onDismiss() }
+    androidx.activity.compose.BackHandler(enabled = vis.targetState) { close() }
+    var high by remember { mutableStateOf(false) }
+    val compact = LocalConfiguration.current.screenHeightDp < COMPACT_SHEET_HEIGHT
+    val ime = WindowInsets.isImeVisible
+    val h by animateFloatAsState(if (compact || ime || high) DOCK_HIGH else DOCK_LOW, spring(1f, 400f), label = "dockHeight")
+    val haptics = rememberHaptics()
+    // (the box itself takes no touches: only the sheet does – what lies above it stays usable)
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        AnimatedVisibility(vis, enter = slideInVertically(spring(0.8f, 400f)) { it }, exit = slideOutVertically(spring(1f, 500f)) { it }) {
+            Column(
+                (if (tall) Modifier.fillMaxHeight(h) else Modifier).fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(K.Surface)
+                    // the sheet's empty parts take the touch too (the editor lies under them)
+                    .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
+                    .imePadding().navigationBarsPadding()
+                    .testTag(tag),
+            ) {
+                // the handle: raise or lower (a short sheet has none)
+                if (tall && !compact) Box(
+                    Modifier.fillMaxWidth().height(22.dp).clickable(onClickLabel = stringResource(if (high) R.string.dock_lower else R.string.dock_raise)) { haptics.tick(); high = !high }
+                        .semantics { contentDescription = "dockHandle" }.testTag("dockHandle"),
+                    contentAlignment = Alignment.Center,
+                ) { Box(Modifier.size(36.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(K.OutlineVar)) }
+                else Box(Modifier.height(10.dp))
+                content(close)
+            }
+        }
+    }
+}

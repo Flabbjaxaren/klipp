@@ -67,16 +67,16 @@ fun SoundFxSheet(
     val ctx = LocalContext.current
     val preview = remember { Preview(ctx) }
     DisposableEffect(Unit) { onDispose { preview.release() } }
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = K.Surface) {
+    DockSheet("sfxDock", onDismiss) { _ ->
         var tab by remember { mutableStateOf(0) }
-        Box(Modifier.fillMaxWidth().fillMaxHeight(0.9f).upwardStaysInside().fingerTaps().testTag("sfxSheet")) {
+        Box(Modifier.fillMaxWidth().weight(1f).upwardStaysInside().testTag("sfxSheet")) {
         Column(Modifier.fillMaxSize()) {
             Text(stringResource(R.string.sfx_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
             if (tab < 1) Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
-            val tabs = listOf(stringResource(R.string.sfx_tab_packs)) +
-                (if (speech) listOf(stringResource(R.string.sfx_tab_speech)) else emptyList()) + stringResource(R.string.sfx_tab_files)
-            ConnectedToggleGroup(tabs, tab, { tab = it; preview.stop() },
-                Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), tag = { "sfxTab:$it" })
+            val tabs = listOf(ToolTab(stringResource(R.string.sfx_tab_packs), Ic.Note, "sfxTab:0")) +
+                (if (speech) listOf(ToolTab(stringResource(R.string.sfx_tab_speech), Ic.Mic, "sfxTab:1")) else emptyList()) +
+                ToolTab(stringResource(R.string.sfx_tab_files), Ic.Folder, "sfxTab:${if (speech) 2 else 1}")
+            ToolTabs(tabs, tab, { tab = it; preview.stop() }, Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
             when (tab) {
                 0 -> PacksTab(preview, onAdd)
                 tabs.lastIndex -> FilesTab(onAdd)

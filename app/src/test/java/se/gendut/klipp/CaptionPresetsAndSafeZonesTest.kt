@@ -103,37 +103,38 @@ class CaptionPresetsAndSafeZonesTest {
         assertEquals(CaptionFit.Problem.TOO_TALL, r.problem)
     }
 
-    /** The style view: Style opens it in the same sheet, a preset is a look only, Back returns to the overview. */
-    @Test fun theStyleViewOpensFromTheOverviewAndGoesBack() {
+    /**
+     * The captions sheet: In the project first, then Write, From speech and Style. The style row in the overview opens
+     * the Style tab for the same track; a preset is a look only; Look, Placement and Word marking open one at a time.
+     */
+    @Test fun theStyleTabFollowsTheTrackAndItsSectionsOpenOneAtATime() {
         val fake = FakeProps().apply { tracks = listOf(CaptionTrackUi(10, "Auto captions", 1, true)) }
         val st = EditorState().apply { props = fake; captions = listOf(UiCaption(1, 0.5f, 2f, "Rad", track = 10)) }
         rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { CaptionsSheet(st) {} } } }
         rule.waitForIdle()
+        // the tabs in that order, the overview first
+        val order = listOf("existing", "write", "speech", "style").map { rule.onNodeWithTag("capsPart:$it").fetchSemanticsNode().boundsInRoot.left }
+        assertEquals(order.sorted(), order)
+        rule.onNodeWithTag("caption:row:1").assertExists()
         rule.onNodeWithTag("capStyle").performClick()
         rule.waitForIdle()
-        rule.onNodeWithTag("captionStyleView").assertExists()
-        rule.onNodeWithTag("capPreset:social").performClick()
+        rule.onNodeWithTag("capPreset:social").performScrollTo().performClick()
         rule.waitForIdle()
         assertEquals(listOf("captionstyle 10 preset=SOCIAL"), fake.log.filter { it.startsWith("captionstyle") })
-        // Placement: below the middle, and fit for a platform
-        rule.onNodeWithTag("capTab:place").performClick()
+        // Placement opens; Word marking then closes it
+        rule.onNodeWithTag("capSection:place").performScrollTo().performClick()
         rule.waitForIdle()
-        rule.onNodeWithTag("capPlace:under").performClick()
+        rule.onNodeWithTag("capPlace:under").performScrollTo().performClick()
         rule.waitForIdle()
         assertTrue(fake.log.contains("captionstyle 10 placement=under"))
         rule.onNodeWithTag("capFitFor:reels").performScrollTo().performClick()
-        rule.onNodeWithTag("capFit").performScrollTo()
-        rule.waitForIdle()
-        val b = rule.onNodeWithTag("capFit").fetchSemanticsNode().boundsInWindow
-        val sheet = rule.onNodeWithTag("captionsSheet").fetchSemanticsNode().boundsInWindow
-        assertTrue("fit button inside the sheet: $b in $sheet", b.top >= sheet.top - 1 && b.bottom <= sheet.bottom + 1)
-        rule.onNodeWithTag("capFit").performClick()
+        rule.onNodeWithTag("capFit").performScrollTo().performClick()
         rule.waitForIdle()
         assertTrue(fake.log.toString(), fake.log.contains("fit 10 reels"))
-        rule.onNodeWithTag("capStyleBack").performClick()
+        rule.onNodeWithTag("capSection:words").performScrollTo().performClick()
         rule.waitForIdle()
-        assertEquals(0, rule.onAllNodes(androidx.compose.ui.test.hasTestTag("captionStyleView")).fetchSemanticsNodes().size)
-        rule.onNodeWithTag("caption:row:1").assertExists()
+        rule.onNodeWithTag("cap:markWord").assertExists()
+        assertEquals(0, rule.onAllNodes(androidx.compose.ui.test.hasTestTag("capPlace:under")).fetchSemanticsNodes().size)
     }
 
     @Suppress("unused") private fun RectF.str() = "[$left,$top,$right,$bottom]"

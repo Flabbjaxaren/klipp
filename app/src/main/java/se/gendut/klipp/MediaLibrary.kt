@@ -193,10 +193,10 @@ fun MediaSheet(
                         BigButton(stringResource(if (lib.busy) R.string.medialibrary_importing else R.string.medialibrary_import), onImport)
                     }
                 }
-                if (onOpenText != null && !selecting) ConnectedToggleGroup(
-                    listOf(stringResource(R.string.medialibrary_tab_library), stringResource(R.string.medialibrary_tab_text)), tab, { haptics.tick(); tab = it },
-                    Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp).fillMaxWidth(), tag = { "mediaTab:$it" },
-                )
+                if (onOpenText != null && !selecting) ToolTabs(listOf(
+                    ToolTab(stringResource(R.string.medialibrary_tab_library), Ic.Media, "mediaTab:0"),
+                    ToolTab(stringResource(R.string.medialibrary_tab_text), Ic.Transcript, "mediaTab:1"),
+                ), tab, { tab = it }, Modifier.padding(horizontal = 12.dp).padding(bottom = 6.dp))
                 if (tab == 1 && onOpenText != null && !selecting) {
                     TextEditingFiles(lib, onOpenText)
                     return@Column

@@ -777,9 +777,7 @@ private fun KlippAppContent(
         }
     }
 
-    // the same taps inside the sheets the editor opens (windows of their own, see fingerTaps)
-    val undoRedo = remember(state) { UndoRedo({ undo() }, { redo() }) }
-    CompositionLocalProvider(LocalGradeState provides gs, LocalUndoRedo provides undoRedo,
+    CompositionLocalProvider(LocalGradeState provides gs,
         LocalSafeZone provides se.gendut.klipp.engine.SafeZones.byKey(state.safeZone)) {
     BoxWithConstraints(
         Modifier
@@ -1072,6 +1070,8 @@ private fun KlippAppContent(
             }
         }
 
+        // a caption or a clip opened in its editor (tapped in the timeline while a sheet is open): the sheet makes way
+        LaunchedEffect(state.inspecting, state.editingCaption) { if (state.inspecting || state.editingCaption) addSheet = null }
         when (addSheet) {
             AddAction.SOUND -> audioTools?.addSound?.let { add -> SoundFxSheet(onDismiss = { addSheet = null }, speech = true) { file, name, secs -> add(file, name, secs); addSheet = null } }
             AddAction.VOICE -> VoiceSheet(voice) { addSheet = null }
