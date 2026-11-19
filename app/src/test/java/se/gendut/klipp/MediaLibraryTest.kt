@@ -20,6 +20,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import androidx.compose.ui.test.onAllNodesWithTag
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -157,6 +158,25 @@ class MediaLibraryTest {
         assertTrue(t2, t2.startsWith("1 klipp och 1 mapp"))
         rule.onNodeWithTag("deleteOk").performClick(); rule.waitForIdle()
         assertTrue(lib.media.none { it.id == 2L } && lib.bins.isEmpty())
+    }
+
+    /** Text-based editing from the media panel: the files with sound, one opens in the source's text view. */
+    @Test fun theTextTabOpensAFileForTextBasedEditing() {
+        val lib = FakeLibrary()
+        val opened = mutableListOf<Long>()
+        val asText = mutableListOf<Long>()
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { MediaSheet(true, lib, {}, { opened += it.id }, {}, onOpenText = { asText += it.id }) } } }
+        idle()
+        rule.onNodeWithTag("mediaTab:1").performClick()
+        idle()
+        rule.onNodeWithTag("mediaText:1").assertExists()
+        rule.onNodeWithTag("mediaText:2").assertExists()
+        // the drone shot has no sound: nothing to read
+        assertEquals(0, rule.onAllNodesWithTag("mediaText:3").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("mediaText:2").performClick()
+        idle()
+        assertEquals(listOf(2L), asText)
+        assertEquals(emptyList<Long>(), opened)
     }
 
     @Test fun snapshotParsesBins() {

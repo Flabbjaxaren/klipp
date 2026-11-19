@@ -217,6 +217,10 @@
     <string name="medialibrary_rename_folder">Byt namn på mappen</string>
     <string name="medialibrary_delete">Ta bort</string>
     <string name="medialibrary_title">Media</string>
+    <string name="medialibrary_tab_library">Bibliotek</string>
+    <string name="medialibrary_tab_text">Textredigering</string>
+    <string name="medialibrary_text_hint">Öppna en fil och läs den som text: den transkriberas en gång, sedan markerar du meningarna du vill ha – de läggs in vid spelhuvudet och nästa följer efter.</string>
+    <string name="medialibrary_text_none">Inga filer med ljud än – importera under Bibliotek.</string>
     <string name="medialibrary_new_folder">Ny mapp</string>
     <string name="medialibrary_new_folder_name">Ny mapp</string>
     <string name="medialibrary_importing">Importerar…</string>

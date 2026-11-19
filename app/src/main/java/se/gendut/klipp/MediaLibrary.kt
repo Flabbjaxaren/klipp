@@ -92,8 +92,14 @@ private data class NameAsk(val title: String, val initial: String, val done: (St
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun MediaSheet(visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen: (MediaInfo) -> Unit, onClose: () -> Unit) {
+fun MediaSheet(
+    visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen: (MediaInfo) -> Unit, onClose: () -> Unit,
+    /** Text-based editing: the file opens in the source monitor's text view (null = no such tab). */
+    onOpenText: ((MediaInfo) -> Unit)? = null,
+) {
     val haptics = rememberHaptics()
+    // the library, or text-based editing (pick a file, then its text)
+    var tab by remember { mutableStateOf(0) }
     var folder by remember { mutableStateOf<Long?>(null) }
     var picked by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var pickedBins by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -186,6 +192,14 @@ fun MediaSheet(visible: Boolean, lib: MediaLibrary, onImport: () -> Unit, onOpen
                         }
                         BigButton(stringResource(if (lib.busy) R.string.medialibrary_importing else R.string.medialibrary_import), onImport)
                     }
+                }
+                if (onOpenText != null && !selecting) ConnectedToggleGroup(
+                    listOf(stringResource(R.string.medialibrary_tab_library), stringResource(R.string.medialibrary_tab_text)), tab, { haptics.tick(); tab = it },
+                    Modifier.padding(horizontal = 16.dp).padding(bottom = 8.dp).fillMaxWidth(), tag = { "mediaTab:$it" },
+                )
+                if (tab == 1 && onOpenText != null && !selecting) {
+                    TextEditingFiles(lib, onOpenText)
+                    return@Column
                 }
                 // where we are: Media › B-roll › Drone
                 if (folder != null) {
@@ -404,4 +418,35 @@ fun controllerLibrary(c: se.gendut.klipp.engine.ProjectController) = object : Me
     override fun renameBin(bin: Long, name: String) { c.renameBin(bin, name) }
     override fun delete(items: List<Long>, bins: List<Long>) { c.deleteMedia(items, bins) }
     override fun relinkFromFolder(tree: Uri) { c.relinkFromFolder(tree) }
+}
+
+/**
+ * Text-based editing, from the media panel: the files with sound. One opens in the source monitor's text view –
+ * transcribed once (the transcript is kept with the file), sentences marked there go onto the timeline at the
+ * playhead, and the playhead then stands after them, so the next ones follow on.
+ */
+@Composable
+private fun TextEditingFiles(lib: MediaLibrary, onOpen: (MediaInfo) -> Unit) {
+    val haptics = rememberHaptics()
+    val files = lib.media.filter { it.hasAudio && !it.offline }
+    Text(stringResource(R.string.medialibrary_text_hint), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+    if (files.isEmpty()) {
+        Text(stringResource(R.string.medialibrary_text_none), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(24.dp))
+        return
+    }
+    androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize().testTag("mediaTextFiles")) {
+        items(files.size, key = { files[it].id }) { i ->
+            val m = files[i]
+            Row(
+                Modifier.fillMaxWidth().clickable { haptics.tick(); onOpen(m) }.padding(horizontal = 16.dp, vertical = 12.dp).testTag("mediaText:${m.id}"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                androidx.compose.material3.Icon(if (m.hasVideo) Ic.Film else Ic.Audio, null, tint = K.OnSurfaceVar, modifier = Modifier.size(20.dp))
+                Text(m.name, color = K.OnSurface, fontSize = 15.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+                Text(durText(m.duration), color = K.OnSurfaceVar, fontSize = 12.sp)
+            }
+        }
+        item { Spacer(Modifier.height(60.dp)) }
+    }
 }

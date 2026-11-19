@@ -1081,7 +1081,8 @@ private fun KlippAppContent(
         }
 
         if (controller != null && sourcePlayback != null) {
-            MediaSheet(mediaOpen, remember(controller) { controllerLibrary(controller) }, ::openImport, onOpen = { state.playing = false; playback?.player?.pause(); sourceMedia = it; mediaOpen = false; goTo(0) }, onClose = { mediaOpen = false })
+            MediaSheet(mediaOpen, remember(controller) { controllerLibrary(controller) }, ::openImport, onOpen = { state.playing = false; playback?.player?.pause(); sourceMedia = it; mediaOpen = false; goTo(0) }, onClose = { mediaOpen = false },
+                onOpenText = { state.sourceInText = true; state.playing = false; playback?.player?.pause(); sourceMedia = it; mediaOpen = false; goTo(0) })
             ExportOverlay(exportJob?.takeIf { it.active }?.percent) { se.gendut.klipp.engine.ExportJobs.cancel(se.gendut.klipp.engine.ExportJobs.Reason.USER) }
         }
 

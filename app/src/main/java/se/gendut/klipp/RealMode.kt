@@ -577,7 +577,8 @@ fun SourcePanel(
     val fps = se.gendut.klipp.engine.MediaProbe.frameRate(uri, m.fps)
     val frame = 1.0 / (if (fps > 1) fps else 25.0)
     // the Text view instead of the picture, and its marked sentences
-    var textMode by remember(m) { mutableStateOf(false) }
+    var textMode by remember(m) { mutableStateOf(text != null && state.sourceInText) }
+    LaunchedEffect(m) { state.sourceInText = false }
     var sentencesMarked by remember(m) { mutableStateOf<IntRange?>(null) }
 
     LaunchedEffect(m) { state.playing = false; source.open(m.id, uri, pos) }

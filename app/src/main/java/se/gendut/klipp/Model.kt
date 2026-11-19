@@ -463,6 +463,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
         selectedCut = cut
     }
     var captions by mutableStateOf(listOf<UiCaption>())
+    /** The next source opened shows its text first (opened from the media panel's text-based editing). */
+    var sourceInText by mutableStateOf(false)
     /** The platform whose safe zones are drawn over the preview (a SafeZones.Platform key; null = none) – saved with the project. */
     var safeZone by mutableStateOf<String?>(null)
     /** How strongly the covered zones are shaded (0..1). */

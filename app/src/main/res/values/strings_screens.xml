@@ -217,6 +217,10 @@
     <string name="medialibrary_rename_folder">Rename folder</string>
     <string name="medialibrary_delete">Delete</string>
     <string name="medialibrary_title">Media</string>
+    <string name="medialibrary_tab_library">Library</string>
+    <string name="medialibrary_tab_text">Text-based editing</string>
+    <string name="medialibrary_text_hint">Open a file and read it as text: it is transcribed once, then mark the sentences you want – they go onto the timeline at the playhead, and the next ones follow on.</string>
+    <string name="medialibrary_text_none">No files with sound yet – import one under Library.</string>
     <string name="medialibrary_new_folder">New folder</string>
     <string name="medialibrary_new_folder_name">New folder</string>
     <string name="medialibrary_importing">Importing…</string>
