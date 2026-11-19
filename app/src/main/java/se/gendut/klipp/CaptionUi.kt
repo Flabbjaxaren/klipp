@@ -193,7 +193,7 @@ private val CAPTION_COLORS = listOf(0xFFFFFFFF, 0xFFFFE07A, 0xFFFFB77C, 0xFF9FE7
 private const val WORDS_ALL = 11f
 private val WORD_COLORS = listOf(0xFFFFD400, 0xFF3DF58A, 0xFF4FD8FF, 0xFFFF5FA8, 0xFFFF8A1F)
 
-/** The style applies to the whole caption track (as in FilmCraft/Premiere): every line looks the same. */
+/** The style applies to the whole caption track (as in other editing programs): every line looks the same. */
 @Composable
 fun CaptionStyleEditor(backend: PropsBackend, track: Long) {
     val haptics = rememberHaptics()

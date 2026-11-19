@@ -737,7 +737,7 @@ fn slip_roll_and_track_flags() {
     let s4: Value = serde_json::from_str(&b.snapshot()).unwrap();
     assert_eq!(s4["sequence"]["video"][0]["enabled"], false);
     assert_eq!(s4["sequence"]["audio"][0]["locked"], true);
-    // clip off/on (Shift+E in Premiere): only that clip (and linked audio), undo turns it back on
+    // clip off/on (Shift+E, as in other editing programs): only that clip (and linked audio), undo turns it back on
     assert_eq!(s4["sequence"]["video"][0]["clips"][0]["enabled"], true);
     ok(&mut b, "clip.enable", json!({"clips": [r]}));
     let s5: Value = serde_json::from_str(&b.snapshot()).unwrap();

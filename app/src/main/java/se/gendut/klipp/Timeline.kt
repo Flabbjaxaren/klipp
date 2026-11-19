@@ -167,7 +167,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
 
     // room for the track name and a button (eye/speaker) right in the header
     val headerW = 68.dp
-    // the caption lane is fixed under the ruler (as in Premiere/FilmCraft) when the sequence has a caption track
+    // the caption lane is fixed under the ruler (as in other editing programs) when the sequence has a caption track
     val rulerBaseH = 28.dp
     val capH = if (state.hasCaptionLane) 30.dp else 0.dp
     val rulerH = rulerBaseH + capH
@@ -1202,7 +1202,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             val thr = snapPx / pps
                             when {
                                 slipping && !lockedHit -> {
-                                    // drag right = earlier frames into the clip (like Premiere's slip)
+                                    // drag right = earlier frames into the clip (a slip, as in other editing programs)
                                     val want = -dt * orig.speed
                                     slipD = state.slipLimit(orig, want)
                                     if (DEBUG_GESTURES) println("slip move want=$want d=$slipD")
@@ -1644,7 +1644,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     )
                     t += minor
                 }
-                // pre-render state (like Premiere's render bar): green = rendered (plays from a finished file), red = heavy
+                // pre-render state (a render bar, as in other editing programs): green = rendered (plays from a finished file), red = heavy
                 // parts (layers, effects, transitions) computed in real time
                 for (c in se.gendut.klipp.engine.RenderCache.states) {
                     if (!c.ready && !c.heavy) continue
@@ -1811,7 +1811,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         }
                     }
                 }
-                // track volume automation (yellow line with keyframes, as in Premiere): +6 dB at the top, −60 dB at the bottom
+                // track volume automation (yellow line with keyframes, as in other editing programs): +6 dB at the top, −60 dB at the bottom
                 state.trackVolKf.forEachIndexed { k, kfs ->
                     if (kfs.isEmpty()) return@forEachIndexed
                     val ti = 3 + k

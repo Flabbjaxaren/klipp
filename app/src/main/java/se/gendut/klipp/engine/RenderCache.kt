@@ -21,7 +21,7 @@ import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Pre-render (like Premiere's "Render In to Out"): the timeline is split into chunks at every edge (clips, transitions,
+ * Pre-render (as in other editing programs): the timeline is split into chunks at every edge (clips, transitions,
  * layers) and a chunk is rendered – with all layers, grades, masks and transitions – to a file at preview size with dense
  * keyframes. Playback then plays the file instead of computing the chunk's image ([substitute]): one decoder instead of
  * several, no real-time effects, and every chunk starts on a keyframe (no hitch at the clip switch).

@@ -86,7 +86,7 @@ interface MediaLibrary {
 private data class NameAsk(val title: String, val initial: String, val done: (String) -> Unit)
 
 /**
- * The Media panel: folders (bins) as in Premiere, tap = open in the Source monitor, hold = select (multiple).
+ * The Media panel: folders (bins) as in other editing programs, tap = open in the Source monitor, hold = select (multiple).
  * Selected items can be moved to a folder, renamed or removed from the project. If the media is used in the
  * timeline the panel asks first – those clips are removed too. The files on the phone are never touched.
  */

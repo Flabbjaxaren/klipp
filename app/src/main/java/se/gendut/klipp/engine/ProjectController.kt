@@ -1883,7 +1883,7 @@ class ProjectController(
             }
             if (seconds != null) {
                 val frames = Math.round(seconds * snapshot.fps).toInt().coerceAtLeast(1)
-                // video: Cross Dissolve; audio: Constant Power (Premiere's default for audio)
+                // video: Cross Dissolve; audio: Constant Power (as in other editing programs)
                 engine.tryExec(
                     if (audio) "sequence.applyAudioTransition" else "sequence.applyVideoTransition",
                     JSONObject().put("clip", id).put("effect", if (audio) "constant_power" else "cross_dissolve").put("frames", frames).put("edge", if (edgeIn) "in" else "out"),

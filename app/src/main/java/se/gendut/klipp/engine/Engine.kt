@@ -180,7 +180,7 @@ data class ClipSnap(
     val kf: Map<String, List<Kf>> = emptyMap(),
     /** Audio effects (the engine's rack, only those with DSP). */
     val afx: List<AfxSnap> = emptyList(),
-    /** Disabled (Premiere's "Enable", Shift+E): stays in the timeline but isn't seen/heard and isn't exported. */
+    /** Disabled (as in other editing programs, Shift+E): stays in the timeline but isn't seen/heard and isn't exported. */
     val enabled: Boolean = true,
     /** Plays in reverse (the source's end first). */
     val reverse: Boolean = false,
@@ -246,7 +246,7 @@ data class TrackSnap(
     val volumeDb: Double = 0.0,
     val transitions: List<TransitionSnap> = emptyList(),
     val syncLock: Boolean = true,
-    /** The video track is shown (the eye in Premiere). A hidden track isn't played or exported. */
+    /** The video track is shown (the eye, as in other editing programs). A hidden track isn't played or exported. */
     val enabled: Boolean = true,
     /** Volume automation (the track's keyframes): (sequence time s, dB), linear in dB in between. */
     val volKf: List<Pair<Double, Double>> = emptyList(),

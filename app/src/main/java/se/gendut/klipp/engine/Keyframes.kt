@@ -16,7 +16,7 @@ const val DEFAULT_INFLUENCE = 1.0 / 3.0
 /** The keyframe menu's interpolations. */
 object KfEase {
     const val LINEAR = "linear"
-    /** Bezier with a third of the segment's influence on both sides (Premiere's/FilmCraft's Easy Ease). */
+    /** Bezier with a third of the segment's influence on both sides (an easy ease, as in other editing programs). */
     const val EASY = "easy"
     const val IN = "in"
     const val OUT = "out"

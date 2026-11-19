@@ -248,7 +248,7 @@ object LayerPlanner {
                 if (stillBelow == null) {
                     // the incoming clip's start before the edit point and the outgoing clip's end after: the material
                     // outside the clip in the file; where the file runs out (the clip starts at the file's start or ends at
-                    // its end) a freeze frame of the first or last frame respectively for the rest, as in Premiere
+                    // its end) a freeze frame of the first or last frame respectively for the rest, as in other editing programs
                     val handles = ArrayList<Seg>()
                     if (showOver && cut - x.start > EPS) {
                         handles += handleSegs(to, x.start, cut - x.start, -(cut - x.start), mediaDur, ramp(true), fx(true, true))

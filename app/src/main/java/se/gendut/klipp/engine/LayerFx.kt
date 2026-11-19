@@ -320,7 +320,7 @@ data class MaskKey(val t: Double, val cx: Float, val cy: Float, val w: Float, va
     }
 }
 
-/** How the layer blends with the one below (as in Premiere/Photoshop). Stored by name; [label] is the display name. */
+/** How the layer blends with the one below (as in other editing programs). Stored by name; [label] is the display name. */
 enum class BlendMode(@androidx.annotation.StringRes private val labelRes: Int) {
     NORMAL(R.string.layerfx_blend_normal), MULTIPLY(R.string.layerfx_blend_multiply), SCREEN(R.string.layerfx_blend_screen),
     OVERLAY(R.string.layerfx_blend_overlay), SOFT_LIGHT(R.string.layerfx_blend_soft_light), ADD(R.string.layerfx_blend_add),

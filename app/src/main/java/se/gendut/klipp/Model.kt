@@ -13,7 +13,7 @@ import se.gendut.klipp.engine.valueAt
 
 /** The sequence frame rate (set from the engine; 25 until a project exists). */
 var projectFps by androidx.compose.runtime.mutableDoubleStateOf(25.0)
-/** Frames per second in the timecode (integer: 29.97 shows as 30, as in Premiere without drop frame). */
+/** Frames per second in the timecode (integer: 29.97 shows as 30, as in other editing programs without drop frame). */
 val FPS: Int get() = kotlin.math.round(projectFps).toInt().coerceAtLeast(1)
 /** Length of one frame (s). */
 val FRAME: Float get() = (1.0 / projectFps).toFloat()
@@ -117,7 +117,7 @@ fun formatTc(sec: Float): String {
 }
 
 /**
- * A typed timecode → seconds (null = not a time). Digits only are read as in Premiere, filled from the right
+ * A typed timecode → seconds (null = not a time). Digits only are read as in other editing programs, filled from the right
  * (hhmmssff: "1512" = 15 s 12 frames); with separators (: . , ;) the groups are read from the right (ss:ff, mm:ss:ff,
  * hh:mm:ss:ff). A leading + or - moves relative to [from].
  */
@@ -180,7 +180,7 @@ interface EditBackend {
     fun deleteCaptions(ids: List<Long>) {}
 }
 
-/** Track states (like the track header in Premiere): lock, sync lock, visible (video) / mute and solo (audio). */
+/** Track states (as in other editing programs' track headers): lock, sync lock, visible (video) / mute and solo (audio). */
 data class TrackState(
     val locked: Boolean = false,
     val enabled: Boolean = true,
@@ -394,7 +394,7 @@ class EditorState(initial: List<Clip> = initialClips()) {
     /** Speed ramp on a clip (set when the engine is attached). */
     var onSpeedRamp: ((Long, se.gendut.klipp.engine.SpeedRamp) -> Unit)? by mutableStateOf(null)
     var onBeatMarkers: ((Long) -> Unit)? by mutableStateOf(null)
-    /** Linked selection (Premiere: Linked Selection): video and audio follow each other. */
+    /** Linked selection (as in other editing programs): video and audio follow each other. */
     var linkedSelection by mutableStateOf(true)
     var onLinkedSelection: ((Boolean) -> Unit)? by mutableStateOf(null)
 
@@ -431,7 +431,7 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var liveToken = 0
     /** The playhead is moved by hand (scrubbing) – the program monitor shows stills meanwhile. */
     var scrubbing by mutableStateOf(false)
-    /** While a clip edge is trimmed: the frame at the edit point (source time), as in Premiere. */
+    /** While a clip edge is trimmed: the frame at the edit point (source time), as in other editing programs. */
     var trimView by mutableStateOf<TrimView?>(null)
     /** Each audio clip's level and its keyframes (the volume line on the clips). */
     var clipLevels by mutableStateOf<Map<Long, ClipLevel>>(emptyMap())
@@ -912,7 +912,7 @@ class EditorState(initial: List<Clip> = initialClips()) {
         if (locked(orig.track) || locked(track)) { onNotice?.invoke(Str.t(R.string.model_track_locked)); return }
         backend?.let { b ->
             // to another track: the linked partners move as many tracks the other way out from the middle (V1 → V2 takes
-            // A1 → A2), as in Premiere – otherwise the audio stayed on its track and overwrote the audio there
+            // A1 → A2), as in other editing programs – otherwise the audio stayed on its track and overwrote the audio there
             val partners = partnersOf(orig)
             val d = levelOf(track) - levelOf(orig.track)
             if (d != 0 && partners.isNotEmpty()) {
@@ -996,7 +996,7 @@ class EditorState(initial: List<Clip> = initialClips()) {
     }
 
     /**
-     * Disable/enable clips (Premiere's "Enable", Shift+E): a disabled clip stays but is not seen/heard and is not
+     * Disable/enable clips (as in other editing programs, Shift+E): a disabled clip stays but is not seen/heard and is not
      * exported. Each clip is toggled separately.
      */
     /** Color label on the clips and their linked partners (null = none). Locked tracks too: a label isn't an edit of the cut. */

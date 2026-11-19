@@ -382,14 +382,14 @@ fn clip_json(c: &TrackItem) -> Value {
         "sourceIn": secs(c.source_in),
         "speed": c.speed,
         "link": c.link,
-        // compound clip (Premiere's Group): the clips are selected, moved and colored together in the app
+        // compound clip (as in other editing programs): the clips are selected, moved and colored together in the app
         "group": c.group,
         "reverse": c.reverse,
-        // disabled clip (Premiere's "Enable"): stays in place but is not seen/heard
+        // disabled clip (as in other editing programs): stays in place but is not seen/heard
         "enabled": c.enabled,
         // freeze frame: the source time shown for the whole clip
         "hold": c.frame_hold.map(secs),
-        // color label (Premiere's Label menu)
+        // color label (as in other editing programs)
         "label": c.label.name(),
     });
     if let Some(m) = c.effect("motion") {
