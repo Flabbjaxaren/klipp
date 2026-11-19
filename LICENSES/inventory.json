@@ -192,8 +192,8 @@
    "copyright": "© the Klipp contributors",
    "notices": [],
    "included_in": "classes*.dex",
-   "status": "incomplete",
-   "notes": "Simple 24×24 line shapes written as path data 'the same shapes as in the design mockup'; no match with an icon library was found, but the mockup's own source is not recorded."
+   "status": "verified",
+   "notes": "Simple 24×24 line shapes written as path data for Klipp's design mockup, drawn by Claude (the owner's recollection). Compared 2026-11-19 with Lucide, Feather and Tabler (6 731 icons): no reused path data; only basic geometry coincides (docs/licensing-open-questions.md A7)."
   },
   {
    "id": "fonts-json",

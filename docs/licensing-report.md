@@ -42,7 +42,7 @@ kontakt har gjorts. Tekniska kontroller är inte en juridisk bedömning.
    BigSoundBank ×75 ogg – `tools/sounds/README.md`); därefter byggs, kontrolleras och låses paketen. Publicering av
    `sounds-1` kräver ditt godkännande.
 2. ~~Kontakt om spektrafilms övriga data~~ – löst: egna spektraltabeller; KG3 räknas till spektrafilms licens (ditt beslut 2026-11-19, A2).
-3. **Ikonerna**: deras ursprung ("designskissen") är inte dokumenterat.
+3. ~~Ikonerna~~ – löst 2026-11-19: ritade av Claude för designutkastet (ägarens uppgift); jämförda med Lucide, Feather och Tabler utan kopierade former (A7).
 
 ## 4. Kräver tillstånd eller juridisk granskning
 

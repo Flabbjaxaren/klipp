@@ -58,10 +58,17 @@ exceptions they declare) – they carry "Copyright 2026 The Klipp contributors",
 (46 lines from SilenceMediaSource and others) and the YUV shader (29 of 41 lines from Media3's shaders) are derived: they
 keep the Android Open Source Project's copyright, with a "Modified for Klipp" notice.
 
-### A7. Line icons
+### A7. Line icons – resolved 2026-11-19
 
-- `app/src/main/java/se/gendut/klipp/Icons.kt` says the icons are "the same shapes as in the design mockup". No match
-  with an icon library was found (they are simple path data), but where the mockup's shapes came from is not recorded.
+- `app/src/main/java/se/gendut/klipp/Icons.kt` says the icons are "the same shapes as in the design mockup". The owner
+  recalls that the mockup and its icons were drawn by Claude (Anthropic's AI assistant) for Klipp. They were already in
+  the project's first version (0.16.1); no mockup file is kept.
+- Checked 2026-11-19: all 83 icons rasterised and compared with Lucide 0.460.0 (1 539 icons), Feather 4.29.2 (287) and
+  Tabler 3.24.0 (4 905 outline icons). No icon reuses a library's path data: the path strings are written differently
+  (own coordinates and constructions). The only near-identical shapes are basic geometry that any 24 × 24 line icon
+  set draws the same way (plus, ×, chevrons, a straight divider, an isometric cube, a half-filled circle, crop marks).
+  The rest are at most loosely similar (the nearest match for each icon is in the 0.4–0.9 overlap range, and the higher
+  ones are the same object drawn differently, e.g. a folder or an eye).
 
 ## B. Legal questions (not answered by technical checks)
 
