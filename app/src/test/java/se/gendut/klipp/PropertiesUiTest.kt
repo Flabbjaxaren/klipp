@@ -97,6 +97,16 @@ class FakeProps : PropsBackend {
     /** The caption tracks the overview and the editor name (one by default). */
     var tracks = listOf(se.gendut.klipp.CaptionTrackUi(0, "Undertexter", 1, true))
     override val captionTracks get() = tracks
+    /** The caption tracks' styles (the default style when not set). */
+    val styles = HashMap<Long, se.gendut.klipp.engine.CaptionStyle>()
+    override fun captionStyle(track: Long) = styles[track] ?: se.gendut.klipp.engine.CaptionStyle()
+    override fun setCaptionStyle(track: Long, values: Map<String, Any>) { log += "captionstyle $track " + values.entries.sortedBy { it.key }.joinToString(",") { "${it.key}=${it.value}" } }
+    override fun setCaptionTrackVisible(track: Long, visible: Boolean) { log += "trackvisible $track $visible" }
+    override fun renameCaptionTrack(track: Long, name: String) { log += "renametrack $track $name" }
+    var nextTrack = 50L
+    override fun newCaptionTrack(name: String, onMade: (Long) -> Unit) { log += "newtrack $name"; onMade(nextTrack) }
+    override fun deleteCaptionTracks(ids: List<Long>) { log += "deletetracks ${ids.joinToString(",")}" }
+    override fun fitCaptionsToSafeArea(track: Long, platform: String): String { log += "fit $track $platform"; return "ok" }
     override fun trimCaption(id: Long, inEdge: Boolean, dt: Float) { log += "trimcaption $id ${if (inEdge) "in" else "out"} ${"%.2f".format(java.util.Locale.ROOT, dt)}" }
 }
 

@@ -618,7 +618,8 @@ private fun KlippAppContent(
         if (controller == null) return@LaunchedEffect
         se.gendut.klipp.engine.LutStore.init(context)
         controller.extraSave = { gradeToJson(grade, mix).put("linkedSelection", state.linkedSelection).put("grades", gs.toJson())
-            .put("transitionBlur", se.gendut.klipp.engine.TransitionLooks.toJson()) }
+            .put("transitionBlur", se.gendut.klipp.engine.TransitionLooks.toJson())
+            .put("safeZone", org.json.JSONObject().put("platform", state.safeZone ?: "").put("alpha", state.safeZoneAlpha.toDouble())) }
         // the pieces get the clip's grade as part of the split (undone with it) – no separate color step
         controller.onSplit = { old, fresh -> gs.grades[old]?.let { g -> gs.setAll(fresh.associateWith { g }, record = false) } }
         controller.onNewClips = { ids -> ids.filter { gs.grades.containsKey(it) }.takeIf { it.isNotEmpty() }?.let { stale -> gs.setAll(stale.associateWith { se.gendut.klipp.engine.ClipGrade() }, record = false) } }
@@ -627,6 +628,10 @@ private fun KlippAppContent(
             se.gendut.klipp.engine.RenderCache.renderAll = false
             se.gendut.klipp.engine.RenderCache.halted = false
             se.gendut.klipp.engine.TransitionLooks.load(o.optJSONObject("transitionBlur"))
+            o.optJSONObject("safeZone").let { z ->
+                state.safeZone = se.gendut.klipp.engine.SafeZones.byKey(z?.optString("platform"))?.key
+                state.safeZoneAlpha = (z?.optDouble("alpha", 0.45) ?: 0.45).toFloat().coerceIn(0.1f, 0.9f)
+            }
             state.clearSideHistory()
             // playback gets the look, grades and master right away – otherwise it is rebuilt just after start
             playback?.grades = HashMap(gs.grades)
@@ -774,7 +779,8 @@ private fun KlippAppContent(
 
     // the same taps inside the sheets the editor opens (windows of their own, see fingerTaps)
     val undoRedo = remember(state) { UndoRedo({ undo() }, { redo() }) }
-    CompositionLocalProvider(LocalGradeState provides gs, LocalUndoRedo provides undoRedo) {
+    CompositionLocalProvider(LocalGradeState provides gs, LocalUndoRedo provides undoRedo,
+        LocalSafeZone provides se.gendut.klipp.engine.SafeZones.byKey(state.safeZone)) {
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -888,6 +894,12 @@ private fun KlippAppContent(
                 if (grading) ColorViewerTools(state, gs, clips, lookOf(grade), onFullscreen = { state.playing = false; fullscreen = true })
                 // the program's audio level (what is heard, after the master)
                 else if (controller != null) ProgramMeter(state.playing, Modifier.align(Alignment.CenterEnd).padding(end = 6.dp, top = 10.dp, bottom = 10.dp).width(16.dp).fillMaxHeight())
+                // the platforms' safe zones over the picture (edit page; kept in the project)
+                if (!grading && controller != null && playback != null && hasPicture(controller)) {
+                    val q = controller.snapshot.sequence
+                    SafeZoneButton(state, vertical = q != null && q.height * 9 == q.width * 16, onChanged = { controller.requestSave() },
+                        modifier = Modifier.align(Alignment.TopEnd).padding(top = 6.dp, end = 28.dp))
+                }
             }
         }
 

@@ -11,6 +11,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextReplacement
 import org.junit.Assert.assertEquals
@@ -133,18 +135,51 @@ class CaptionEditingTest {
         assertTrue(rule.onAllNodesWithTag("captionEdgeWhy").fetchSemanticsNodes().size == 2)
     }
 
-    /** With several caption tracks the style asks which one; the button names the track it changes. */
-    @Test fun theStyleNamesItsTrack() {
-        val fake = FakeProps().apply { tracks = listOf(se.gendut.klipp.CaptionTrackUi(10, "Intervju.srt", 12, true), se.gendut.klipp.CaptionTrackUi(11, "Automatiska undertexter", 30, true)) }
+    /**
+     * The overview follows one track: the first with lines until another is chosen in the picker ("name · lines",
+     * "Empty"); its lines only, its own visibility, an empty track says so. Choosing a track shows or hides nothing.
+     */
+    @Test fun theOverviewFollowsTheChosenTrack() {
+        val fake = FakeProps().apply { tracks = listOf(se.gendut.klipp.CaptionTrackUi(10, "Intervju.srt", 1, true), se.gendut.klipp.CaptionTrackUi(11, "Auto captions", 0, true)) }
         val st = EditorState().apply { props = fake; captions = listOf(UiCaption(1, 0.5f, 2f, "Rad", track = 10)) }
-        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { androidx.compose.foundation.layout.Column { CaptionsTab(st, fake) {} } } } }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { androidx.compose.foundation.layout.Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState())) { CaptionsTab(st, fake) {} } } } }
         rule.waitForIdle()
-        // nothing chosen: no style yet, a word to choose
-        assertEquals(0, rule.onAllNodesWithTag("capStyle").fetchSemanticsNodes().size)
-        rule.onNodeWithTag("capTrackChoose").assertExists()
+        rule.onNodeWithText("Intervju.srt · 1 rad").assertExists()
+        rule.onNodeWithTag("caption:row:1").assertExists()
+        rule.onNodeWithTag("capStyle").assertExists()
+        // the other track: chosen in the picker – the list follows it, and it is empty
+        rule.onNodeWithTag("capTrackPicker").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Auto captions · Tomt").assertExists()
         rule.onNodeWithTag("capTrack:11").performClick()
         rule.waitForIdle()
         assertEquals(11L, st.captionTrack)
-        rule.onNodeWithText("Stil – alla undertexter i ”Automatiska undertexter”").assertExists()
+        assertEquals(0, rule.onAllNodesWithTag("caption:row:1").fetchSemanticsNodes().size)
+        rule.onNodeWithTag("capTrackEmpty").assertExists()
+        assertTrue("choosing shows or hides nothing", fake.log.none { it.startsWith("trackvisible") || it.startsWith("visible") })
+        // this track's visibility, by itself
+        rule.onNodeWithTag("capTrackVisible").performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("trackvisible 11 false"), fake.log.filter { it.startsWith("trackvisible") })
+        // empty tracks are removed on request only
+        rule.onNodeWithTag("capRemoveEmpty").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(listOf("deletetracks 11"), fake.log.filter { it.startsWith("deletetracks") })
+        // renaming: offered for the track (its dialog has a text field – checked on the phones, see LayoutReachTest)
+        rule.onNodeWithTag("capTrackRename").assertExists()
+    }
+
+    /** A line written with no caption track yet goes to a new track with a name of its own. */
+    @Test fun aWrittenLineWithoutATrackMakesANamedTrack() {
+        val fake = FakeProps().apply { tracks = emptyList() }
+        val st = EditorState().apply { props = fake; playhead = 1f; captionDraft = "Hej" }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { androidx.compose.foundation.layout.Column { CaptionsWrite(st, fake); CaptionWriteButton(st, fake) } } } }
+        rule.waitForIdle()
+        rule.onNodeWithText("Ett nytt spår skapas: Undertexter 1").assertExists()
+        rule.onNodeWithTag("captionWriteAdd").performClick()
+        rule.waitForIdle()
+        assertEquals("newtrack Undertexter 1", fake.log.first { it.startsWith("newtrack") })
+        assertTrue(fake.log.any { it.startsWith("addcaption") && it.contains(" Hej 50") })
+        assertEquals(50L, st.captionTrack)
     }
 }

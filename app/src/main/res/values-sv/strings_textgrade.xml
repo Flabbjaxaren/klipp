@@ -99,8 +99,8 @@
     <string name="captionui_margin">Avstånd från kanten</string>
     <string name="captionui_spoken_word">Ordet som sägs</string>
     <string name="captionui_social">Stora sociala undertexter</string>
-    <string name="captionui_words_on_screen">Ord på skärmen</string>
-    <string name="captionui_word_zoom">Storlek på ordet som sägs</string>
+    <string name="captionui_words_on_screen">Ord i bild</string>
+    <string name="captionui_word_zoom">Storlek på aktuellt ord</string>
     <string name="captionui_words_all">Alla</string>
     <string name="titleui_tab_text">Text</string>
     <string name="titleui_tab_style">Stil</string>

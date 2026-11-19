@@ -60,18 +60,25 @@ private fun AddSheet(
     top: (@Composable ColumnScope.() -> Unit)? = null,
     /** Below the content, always in view (the sheet's main action). */
     bottom: (@Composable ColumnScope.() -> Unit)? = null,
+    /** How much of the screen a tall sheet takes – lower to keep the picture in view above it (the caption style). */
+    heightFraction: Float = 0.9f,
+    /** The content's scroll (a sheet that shows different views keeps one per view). */
+    scroll: androidx.compose.foundation.ScrollState? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true, confirmValueChange = { it != SheetValue.Hidden || canClose() })
     ModalBottomSheet(
         onDismissRequest = { if (canClose()) onDismiss() }, sheetState = sheet, containerColor = K.Surface,
-        scrimColor = if (tall) K.Bg.copy(alpha = 0.5f) else Color.Transparent,
+        scrimColor = if (tall && heightFraction > 0.75f) K.Bg.copy(alpha = 0.5f) else Color.Transparent,
     ) {
         // a low screen (landscape): everything scrolls as one – the tabs and the button kept in view would leave the
         // content a sliver, and with the keyboard up the field being typed in no room at all
         val compact = tall && LocalConfiguration.current.screenHeightDp < COMPACT_SHEET_HEIGHT
-        Box((if (tall) Modifier.fillMaxHeight(0.9f) else Modifier).fillMaxWidth().upwardStaysInside().fingerTaps().testTag(tag)) {
-            if (compact) Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        val ownScroll = rememberScrollState()
+        val sc = scroll ?: ownScroll
+        val h by androidx.compose.animation.core.animateFloatAsState(heightFraction, androidx.compose.animation.core.spring(1f, 400f), label = "sheetHeight")
+        Box((if (tall) Modifier.fillMaxHeight(h) else Modifier).fillMaxWidth().upwardStaysInside().fingerTaps().testTag(tag)) {
+            if (compact) Column(Modifier.fillMaxSize().verticalScroll(sc)) {
                 SheetHeader(title) { if (canClose()) onDismiss() }
                 top?.invoke(this)
                 content()
@@ -80,7 +87,7 @@ private fun AddSheet(
             } else Column((if (tall) Modifier.fillMaxHeight() else Modifier).fillMaxWidth()) {
                 SheetHeader(title) { if (canClose()) onDismiss() }
                 top?.invoke(this)
-                Column(if (tall) Modifier.weight(1f).verticalScroll(rememberScrollState()) else Modifier) {
+                Column(if (tall) Modifier.weight(1f).verticalScroll(sc) else Modifier) {
                     content()
                     Spacer(Modifier.height(24.dp))
                 }
@@ -126,11 +133,28 @@ internal fun TitleSheet(state: EditorState, onDismiss: () -> Unit) {
 internal fun CaptionsSheet(state: EditorState, onDismiss: () -> Unit) {
     val backend = state.props ?: return
     var part by remember { mutableStateOf(firstCaptionsPart(state)) }
+    // the style view: in the same sheet, lowered so the picture shows above it; back returns to the overview as it was
+    var styleTrack by remember { mutableStateOf<Long?>(null) }
+    var styleTab by remember { mutableStateOf(CaptionStyleTab.STYLES) }
+    val overviewScroll = rememberScrollState()
+    val styleScroll = rememberScrollState()
+    val st = styleTrack?.let { id -> backend.captionTracks.firstOrNull { it.id == id } }
+    if (styleTrack != null && st == null) styleTrack = null
+    androidx.activity.compose.BackHandler(enabled = st != null) { styleTrack = null }
+    // one sheet for both views (it stays open while switching): its title, top, height and scroll follow the view
     AddSheet(
-        stringResource(R.string.design_add_captions), "captionsSheet", onDismiss,
-        top = { CaptionTabs(state, part) { part = it } },
-        bottom = if (part == CaptionsPart.WRITE) ({ CaptionWriteButton(state, backend) }) else null,
+        stringResource(if (st != null) R.string.captionstyle_title else R.string.design_add_captions), "captionsSheet", onDismiss,
+        top = {
+            if (st != null) {
+                CaptionStyleHeader(st.name) { styleTrack = null }
+                CaptionStyleTabs(backend.captionStyle(st.id) ?: se.gendut.klipp.engine.CaptionStyle(), styleTab, { styleTab = it })
+            } else CaptionTabs(state, part) { part = it }
+        },
+        bottom = if (st == null && part == CaptionsPart.WRITE) ({ CaptionWriteButton(state, backend) }) else null,
+        heightFraction = if (st != null) 0.58f else 0.9f,
+        scroll = if (st != null) styleScroll else overviewScroll,
     ) {
-        CaptionsPartContent(state, backend, part, { part = it }, onDismiss)
+        if (st != null) androidx.compose.foundation.layout.Column(Modifier.testTag("captionStyleView")) { CaptionStyleContent(backend, st.id, styleTab) }
+        else CaptionsPartContent(state, backend, part, { part = it }, onDismiss) { id -> styleTrack = id; styleTab = CaptionStyleTab.STYLES }
     }
 }

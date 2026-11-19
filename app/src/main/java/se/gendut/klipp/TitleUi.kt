@@ -361,7 +361,7 @@ internal fun firstCaptionsPart(state: EditorState) = if (state.captions.isNotEmp
 
 /** One part of the captions sheet. */
 @Composable
-internal fun CaptionsPartContent(state: EditorState, backend: PropsBackend, part: CaptionsPart, onPart: (CaptionsPart) -> Unit, onEdit: () -> Unit) {
+internal fun CaptionsPartContent(state: EditorState, backend: PropsBackend, part: CaptionsPart, onPart: (CaptionsPart) -> Unit, onEdit: () -> Unit, onStyle: (Long) -> Unit = {}) {
     when (part) {
         CaptionsPart.SPEECH -> {
             (backend as? se.gendut.klipp.engine.ProjectController)?.let { AutoCaptionsCard(it) }
@@ -375,7 +375,7 @@ internal fun CaptionsPartContent(state: EditorState, backend: PropsBackend, part
             }
         }
         CaptionsPart.WRITE -> CaptionsWrite(state, backend)
-        CaptionsPart.EXISTING -> CaptionsExisting(state, backend, onPart, onEdit)
+        CaptionsPart.EXISTING -> CaptionsExisting(state, backend, onPart, onEdit, onStyle)
     }
 }
 
@@ -386,18 +386,6 @@ internal fun CaptionsTab(state: EditorState, backend: PropsBackend, onEdit: () -
     CaptionTabs(state, part) { part = it }
     CaptionsPartContent(state, backend, part, { part = it }, onEdit)
     if (part == CaptionsPart.WRITE) CaptionWriteButton(state, backend)
-}
-
-/** The caption track new lines go to and the style applies to: the chosen one, else the first visible one. */
-@Composable
-private fun CaptionTrackChips(state: EditorState, backend: PropsBackend, tracks: List<CaptionTrackUi>, target: Long?) {
-    if (tracks.size <= 1) return
-    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        val haptics = rememberHaptics()
-        for (t in tracks) SpringChip(stringResource(R.string.titleui_caption_track_count, t.name, t.count), target == t.id,
-            { haptics.tick(); state.captionTrack = t.id }, Modifier.testTag("capTrack:${t.id}"))
-    }
 }
 
 /**
@@ -422,13 +410,9 @@ internal fun CaptionsWrite(state: EditorState, backend: PropsBackend) {
             }
         },
     )
-    // which track the line goes to (when there are several)
+    // which track the line goes to – always said (a new one is made, with a name of its own, when there is none)
     val tracks = backend.captionTracks
-    val target = captionStyleTrack(tracks, state.captionTrack) ?: tracks.firstOrNull { it.enabled }?.id
-    if (tracks.size > 1) {
-        SectionLabel(stringResource(R.string.titleui_caps_write_track))
-        CaptionTrackChips(state, backend, tracks, target)
-    }
+    CaptionTrackPicker(state, backend, tracks, captionShownTrack(tracks, state.captionTrack), stringResource(R.string.captiontracks_target))
     SectionLabel(stringResource(R.string.titleui_caps_import_title))
     Text(stringResource(R.string.titleui_caps_import_hint), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
     PillButton(stringResource(R.string.titleui_import_captions), { haptics.tick(); backend.importCaptions() },
@@ -441,7 +425,7 @@ internal fun CaptionWriteButton(state: EditorState, backend: PropsBackend) {
     val haptics = rememberHaptics()
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val tracks = backend.captionTracks
-    val target = captionStyleTrack(tracks, state.captionTrack) ?: tracks.firstOrNull { it.enabled }?.id
+    val target = captionShownTrack(tracks, state.captionTrack)
     // where the line goes: at the playhead, as long as set, shortened to end where the next caption on the track starts
     val slot = captionWriteSlot(state.captions, target, state.playhead, AppPrefs.captionSeconds(ctx).toFloat(), 0.3f)
     Column(Modifier.fillMaxWidth().background(K.Surface).padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -456,56 +440,17 @@ internal fun CaptionWriteButton(state: EditorState, backend: PropsBackend) {
         AddAtPlayhead(state, Modifier.fillMaxWidth().testTag("captionWriteAdd"), enabled = state.captionDraft.isNotBlank() && slot.ok) {
             haptics.confirm()
             val text = state.captionDraft.trim()
-            backend.addCaption(slot.start, text, target, slot.length) { id ->
+            val added = { id: Long ->
                 // the next line follows on: the playhead to this one's end, the field empty again
                 state.captions.firstOrNull { it.id == id }?.let { state.playhead = it.end }
                 state.captionDraft = ""
             }
-        }
-    }
-}
-
-/** The captions in the project: the track (chosen when there are several), the style named by its track, the list. */
-@Composable
-internal fun CaptionsExisting(state: EditorState, backend: PropsBackend, onPart: (CaptionsPart) -> Unit, onEdit: () -> Unit) {
-    val haptics = rememberHaptics()
-    if (state.captions.isEmpty()) {
-        Text(stringResource(R.string.titleui_caps_none), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PillButton(stringResource(R.string.titleui_caps_from_speech), { onPart(CaptionsPart.SPEECH) }, icon = Ic.Subs, filled = false)
-            PillButton(stringResource(R.string.titleui_caps_write), { onPart(CaptionsPart.WRITE) }, icon = Ic.Text, filled = false)
-        }
-        return
-    }
-    Text(stringResource(R.string.titleui_captions_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
-    // the tracks: a style is the track's – with several, the one it applies to is chosen (never silently the first)
-    val tracks = backend.captionTracks
-    val target = captionStyleTrack(tracks, state.captionTrack)
-    if (tracks.size > 1) {
-        SectionLabel(stringResource(R.string.titleui_caption_tracks))
-        CaptionTrackChips(state, backend, tracks, target)
-        if (target == null) Text(stringResource(R.string.titleui_caption_track_choose), color = K.OnSurfaceVar, fontSize = 12.sp,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("capTrackChoose"))
-    }
-    // the style (the chosen track's, said on the button) and shown / hidden (all tracks)
-    var styleOpen by remember { mutableStateOf(false) }
-    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        val name = tracks.firstOrNull { it.id == target }?.name
-        if (name != null) SpringChip(stringResource(R.string.captionui_style_scope, name), styleOpen, { haptics.tick(); styleOpen = !styleOpen }, Modifier.testTag("capStyle"))
-        if (backend.hasCaptionTrack) {
-            val vis = backend.captionsVisible
-            SpringChip(stringResource(if (vis) R.string.titleui_captions_shown_all else R.string.titleui_captions_hidden_all), vis, { backend.setCaptionsVisible(!vis) })
-        }
-    }
-    if (target != null) androidx.compose.animation.AnimatedVisibility(styleOpen) { Column { CaptionStyleEditor(backend, target) } }
-    // the captions: a row opens the caption editor (text, times, style) – the same one as tapping it in the timeline
-    SectionLabel(stringResource(R.string.titleui_caps_list))
-    for (c in state.captions.take(300)) key(c.id) {
-        ListRow(formatTc(c.start), c.text.replace('\n', ' '), "caption:row:${c.id}") {
-            haptics.tick(); state.playing = false; state.playhead = c.start
-            state.clearSelection(); state.selectedCaption = c.id; state.editingCaption = true
-            onEdit()
+            // no track yet: one with a name of its own first (not the engine's "Subtitle")
+            if (target != null) backend.addCaption(slot.start, text, target, slot.length, added)
+            else backend.newCaptionTrack(newCaptionTrackName(tracks) { Str.t(R.string.captiontracks_new_name, it) }) { id ->
+                state.captionTrack = id
+                backend.addCaption(slot.start, text, id, slot.length, added)
+            }
         }
     }
 }
