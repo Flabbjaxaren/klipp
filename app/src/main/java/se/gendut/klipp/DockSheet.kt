@@ -51,6 +51,8 @@ private const val DOCK_LOW = 0.36f
 private const val DOCK_HIGH = 0.9f
 private const val DOCK_MIN = 0.24f
 private var dockHeight = DOCK_LOW
+/** In landscape: the editor's left column (App's landscape row). */
+private const val SIDE_WIDTH = 0.46f
 
 /**
  * A sheet docked at the bottom of the editor (Add › Title, Captions, Sound, Voice-over): it lies over the lower part
@@ -79,6 +81,9 @@ fun DockSheet(
     var frac by remember { mutableStateOf(dockHeight) }
     var dragging by remember { mutableStateOf(false) }
     val compact = LocalConfiguration.current.screenHeightDp < COMPACT_SHEET_HEIGHT
+    // landscape: over the left column (the picture and the tools, as the editor's bottom bar) – the timeline on the
+    // right stays usable
+    val side = LocalConfiguration.current.let { it.screenWidthDp > it.screenHeightDp }
     val screenPx = with(androidx.compose.ui.platform.LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
     val ime = WindowInsets.isImeVisible
     val target = if (compact || ime) DOCK_HIGH else frac
@@ -87,10 +92,10 @@ fun DockSheet(
     val h = if (dragging) target else anim
     val haptics = rememberHaptics()
     // (the box itself takes no touches: only the sheet does – what lies above it stays usable)
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+    Box(Modifier.fillMaxSize(), contentAlignment = if (side) Alignment.BottomStart else Alignment.BottomCenter) {
         AnimatedVisibility(vis, enter = slideInVertically(spring(0.8f, 400f)) { it }, exit = slideOutVertically(spring(1f, 500f)) { it }) {
             Column(
-                (if (tall) Modifier.fillMaxHeight(h) else Modifier).fillMaxWidth()
+                (if (tall) Modifier.fillMaxHeight(h) else Modifier).fillMaxWidth(if (side) SIDE_WIDTH else 1f)
                     .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(K.Surface)
                     // the sheet's empty parts take the touch too (the editor lies under them)
                     .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
