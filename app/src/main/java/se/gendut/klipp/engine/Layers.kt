@@ -687,27 +687,50 @@ object TitleFollow {
 }
 
 @OptIn(UnstableApi::class)
-fun Placement.toSettings(): OverlaySettings = StaticOverlaySettings.Builder()
-    .setAlphaScale(alpha.coerceIn(0f, 1f))
-    .setOverlayFrameAnchor(ovX, ovY)
-    .setBackgroundFrameAnchor(bgX, bgY)
-    .setScale(scale.coerceAtLeast(0.001f), scale.coerceAtLeast(0.001f))
-    .setRotationDegrees(rotation)
-    .build()
+fun Placement.toSettings(): OverlaySettings = inRange().let { p ->
+    StaticOverlaySettings.Builder()
+        .setAlphaScale(p.alpha.coerceIn(0f, 1f))
+        .setOverlayFrameAnchor(p.ovX, p.ovY)
+        .setBackgroundFrameAnchor(p.bgX, p.bgY)
+        .setScale(p.scale.coerceAtLeast(0.001f), p.scale.coerceAtLeast(0.001f))
+        .setRotationDegrees(p.rotation)
+        .build()
+}
+
+/**
+ * The same placement with both anchors inside −1..1, which is all Media3's overlay settings take (outside it they
+ * throw, and the export failed with "Video frame processing error": a title whose entrance starts beyond the frame's
+ * edge, e.g. a lower third bouncing in on a vertical frame). The part of the frame anchor that lies outside is moved
+ * over to the overlay's own anchor – the overlay is a frame-size image, so moving the frame anchor by d is moving the
+ * overlay anchor by −d / scale. What can't be expressed either way is far outside the picture and is clamped.
+ */
+fun Placement.inRange(aspect: Float = 1f): Placement {
+    if (bgX in -1f..1f && bgY in -1f..1f && ovX in -1f..1f && ovY in -1f..1f) return this
+    val k = scale.coerceAtLeast(0.001f)
+    val cx = bgX.coerceIn(-1f, 1f)
+    val cy = bgY.coerceIn(-1f, 1f)
+    // the overlay is turned around its anchor ([rotation], counterclockwise, in pixels – hence [aspect] = width / height):
+    // the move in the frame turned back into the overlay's own directions
+    val th = Math.toRadians(-rotation.toDouble())
+    val dx = (bgX - cx) * aspect
+    val dy = bgY - cy
+    val ux = (dx * kotlin.math.cos(th) - dy * kotlin.math.sin(th)).toFloat() / aspect
+    val uy = (dx * kotlin.math.sin(th) + dy * kotlin.math.cos(th)).toFloat()
+    return copy(bgX = cx, bgY = cy, ovX = (ovX - ux / k).coerceIn(-1f, 1f), ovY = (ovY - uy / k).coerceIn(-1f, 1f))
+}
 
 /** The engine's motion (sequence pixels, %, degrees clockwise) → Media3 overlay (NDC, factor, degrees counterclockwise). */
 @OptIn(UnstableApi::class)
 fun motionSettings(c: ClipSnap?, alpha: Float, w: Int, h: Int): OverlaySettings {
-    val b = StaticOverlaySettings.Builder().setAlphaScale(alpha.coerceIn(0f, 1f))
-    if (c != null && c.hasMotion(w, h)) {
-        val px = c.x ?: (w / 2.0)
-        val py = c.y ?: (h / 2.0)
-        b.setBackgroundFrameAnchor((px / w * 2 - 1).toFloat(), (1 - py / h * 2).toFloat())
-        val k = (c.scale / 100.0).toFloat().coerceAtLeast(0.001f)
-        b.setScale(k, k)
-        b.setRotationDegrees((-c.rotation).toFloat())
-    }
-    return b.build()
+    if (c == null || !c.hasMotion(w, h)) return StaticOverlaySettings.Builder().setAlphaScale(alpha.coerceIn(0f, 1f)).build()
+    val px = c.x ?: (w / 2.0)
+    val py = c.y ?: (h / 2.0)
+    // (a clip moved so its center is outside the frame – sliding in from a side: kept in the range the settings take)
+    val p = Placement(0f, 0f, (px / w * 2 - 1).toFloat(), (1 - py / h * 2).toFloat(), (c.scale / 100.0).toFloat().coerceAtLeast(0.001f), (-c.rotation).toFloat(), alpha)
+        .inRange(if (h > 0) w.toFloat() / h else 1f)
+    return StaticOverlaySettings.Builder().setAlphaScale(p.alpha.coerceIn(0f, 1f))
+        .setOverlayFrameAnchor(p.ovX, p.ovY).setBackgroundFrameAnchor(p.bgX, p.bgY)
+        .setScale(p.scale, p.scale).setRotationDegrees(p.rotation).build()
 }
 
 /**
