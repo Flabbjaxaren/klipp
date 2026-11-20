@@ -555,8 +555,9 @@ object ProgramTracks : androidx.media3.exoplayer.audio.DefaultAudioSink.AudioTra
         audioSessionId: Int, context: android.content.Context?,
     ): android.media.AudioTrack {
         val default = androidx.media3.exoplayer.audio.DefaultAudioSink.AudioTrackProvider.DEFAULT
-        if (!lowLatency || config.offload || config.tunneling) return default.getAudioTrack(config, attributes, audioSessionId, context)
-        return runCatching {
+        if (config.offload || config.tunneling) return default.getAudioTrack(config, attributes, audioSessionId, context)
+        if (!lowLatency) return earlyStart(default.getAudioTrack(config, attributes, audioSessionId, context))
+        return earlyStart(runCatching {
             android.media.AudioTrack.Builder()
                 .setAudioAttributes(attributes.audioAttributesV21.audioAttributes)
                 .setAudioFormat(android.media.AudioFormat.Builder().setSampleRate(config.sampleRate).setChannelMask(config.channelConfig).setEncoding(config.encoding).build())
@@ -571,6 +572,25 @@ object ProgramTracks : androidx.media3.exoplayer.audio.DefaultAudioSink.AudioTra
             // nine frames dropped at a cut after every rebuild). Only the refused request (the primary output) is kept
             if (t.performanceMode != android.media.AudioTrack.PERFORMANCE_MODE_LOW_LATENCY) t
             else { t.release(); CutTrace.log("sink", "low latency granted – a normal track instead"); null }
-        } ?: default.getAudioTrack(config, attributes, audioSessionId, context)
+        } ?: default.getAudioTrack(config, attributes, audioSessionId, context))
+    }
+
+    /** How much the track holds before it starts playing (ms): see [earlyStart]. */
+    const val START_MS = 100
+
+    /**
+     * The track starts playing once it holds [START_MS] – not only when its whole buffer (half a second) is full, the
+     * stream default. Playback reads about that far ahead of the position, and an effect with latency (noise reduction:
+     * 2048 samples held back at every start) left the track just short of full: it never started, the picture waited
+     * for the clock, and the stall watch rebuilt the player after 1.5 s – at every play after a seek, and at every piece a
+     * fade split the clip into. (Android 12 and later; before that the track starts as before.)
+     */
+    private fun earlyStart(t: android.media.AudioTrack): android.media.AudioTrack {
+        if (android.os.Build.VERSION.SDK_INT >= 31) runCatching {
+            val frames = (t.sampleRate.toLong() * START_MS / 1000).toInt().coerceIn(1, t.bufferSizeInFrames.coerceAtLeast(1))
+            t.setStartThresholdInFrames(frames)
+            CutTrace.log("sink", "start threshold ${t.startThresholdInFrames} of ${t.bufferSizeInFrames} frames")
+        }
+        return t
     }
 }
