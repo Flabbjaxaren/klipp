@@ -68,6 +68,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -201,6 +202,19 @@ fun pictureZoomable(state: EditorState, gs: GradeState?): Boolean = gs?.active =
 fun hasPicture(controller: ProjectController): Boolean =
     controller.snapshot.playable().sequence.let { q -> q?.video?.any { it.clips.isNotEmpty() } == true || q?.captions?.isNotEmpty() == true }
 
+/**
+ * Around the program picture: a neutral grey (not black – a 9:16 picture's dark edges ran into black bars) and a thin
+ * line just outside the picture's edge. Drawn by the app over its own view only – never in the render or the export.
+ */
+internal val MONITOR_SURROUND = Color(0xFF1E1E1E)
+
+/** The thin line just outside the picture (before its clip, so it lies around the picture, not on it; follows the zoom). */
+internal fun Modifier.pictureFrame(): Modifier = drawBehind {
+    val w = 1.dp.toPx()
+    drawRect(Color.White.copy(alpha = 0.28f), topLeft = androidx.compose.ui.geometry.Offset(-w, -w),
+        size = Size(size.width + 2 * w, size.height + 2 * w), style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+}
+
 @Composable
 fun ProgramMonitor(
     controller: ProjectController, playback: ProgramPlayback, state: EditorState, gs: GradeState? = null,
@@ -223,7 +237,8 @@ fun ProgramMonitor(
     LaunchedEffect(gs?.active == true) { zoom.reset() }
     val scope = rememberCoroutineScope()
     Box(
-        modifier.background(Color.Black)
+        // (with a picture: a neutral grey surround, so the picture's own black edges stand apart from it – see pictureFrame)
+        modifier.background(if (hasClips) MONITOR_SURROUND else Color.Black)
             .then(if (zoomable) Modifier.clipToBounds().onSizeChanged { zoom.monitor = Size(it.width.toFloat(), it.height.toFloat()) }
                 .zoomGestures(zoom, onDoubleTapOut = { scope.launch { zoom.animateOut() } }, onFullscreen = onFullscreen) else Modifier),
         contentAlignment = Alignment.Center
@@ -233,7 +248,7 @@ fun ProgramMonitor(
             // clipped to the frame: nothing (scaled/moved layer, still) is drawn outside the program image
             Box(
                 Modifier.fillMaxSize().wrapContentSize().aspectRatio(aspect, matchHeightConstraintsFirst = aspect < 16f / 9f)
-                    .onSizeChanged { zoom.image = Size(it.width.toFloat(), it.height.toFloat()) }.zoomed(zoom).clipToBounds()
+                    .onSizeChanged { zoom.image = Size(it.width.toFloat(), it.height.toFloat()) }.zoomed(zoom).pictureFrame().clipToBounds()
             ) {
                 // the composition always outputs the sequence format (each clip is fitted in Playback), the box has the same shape.
                 // Zoomed: a TextureView – a SurfaceView's image can't be scaled or clipped with the layout.
