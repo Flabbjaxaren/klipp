@@ -1247,6 +1247,21 @@ object SyncStats {
         val seen = androidx.media3.effect.KlippPrecision.lateTimes.count { at -> at >= markUptime && spans.none { at >= it[0] && (it[1] == 0L || at <= it[1]) } }
         return "played %.1f s: chain %.1f fps, %d late (%d not covered)".format(sec, shown / sec, late, seen) + (if (skipped > 0) ", film skipped under a layer ×$skipped" else "") + if (per.isEmpty()) "" else "; " + per.joinToString("; ")
     }
+    /**
+     * The run since [start] fell clearly behind: at least 2 s, the main chain at under 80 % of [fps] and ten frames or
+     * more dropped as late (the preview's resolution hint, see PlaybackSync).
+     */
+    fun fellBehind(fps: Double): Boolean {
+        val sec = (System.nanoTime() - markAt) / 1e9
+        if (markAt == 0L || sec < 2.0 || fps <= 0.0) return false
+        val shown = androidx.media3.effect.KlippPrecision.framesShown - markShown
+        val late = androidx.media3.effect.KlippPrecision.framesLate - markLate
+        return shown / sec < 0.8 * fps && late >= 10
+    }
+
+    /** The hint was given in this session (once is enough). */
+    @Volatile var previewHintGiven = false
+
     fun describe(): String = buildString {
         for (l in layers.values) {
             val avg = if (l.samples > 0) l.sumAbs / l.samples else 0

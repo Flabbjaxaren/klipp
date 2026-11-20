@@ -521,7 +521,17 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
     // a short summary of each playback run in the trail (frames out, late, per layer shown/dropped) – measured on phones
     LaunchedEffect(playback) {
         snapshotFlow { state.playing }.collect { on ->
-            if (on) SyncStats.start() else SyncStats.summary()?.let { CrashReport.note(it + " (GPU priority ${androidx.media3.effect.KlippPriority.granted ?: "–"})") }
+            if (on) SyncStats.start() else {
+                SyncStats.summary()?.let { CrashReport.note(it + " (GPU priority ${androidx.media3.effect.KlippPriority.granted ?: "–"})") }
+                // the preview at full resolution with a timeline larger than 1440p fell behind: the film and the nodes
+                // run at 4K there (vivo, 4K with film: about 5 frames a second, at 1080 or 1440 every frame) – said once
+                val seq = controller.snapshot.sequence
+                if (!SyncStats.previewHintGiven && se.gendut.klipp.engine.VideoPipeline.previewShort == 0 &&
+                    seq != null && minOf(seq.width, seq.height) > 1440 && SyncStats.fellBehind(controller.snapshot.fps)) {
+                    SyncStats.previewHintGiven = true
+                    onError(Str.t(R.string.preview_full_falls_behind))
+                }
+            }
         }
     }
     // the volume slider is audible while dragging (lowering right away; raising up to the player's max volume)
