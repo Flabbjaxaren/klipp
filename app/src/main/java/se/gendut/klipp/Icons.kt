@@ -68,6 +68,8 @@ object Ic {
     val Plus = stroke("plus", "M12 5v14", "M5 12h14")
     val Media = stroke("media", "M6 5h12a3 3 0 013 3v8a3 3 0 01-3 3H6a3 3 0 01-3-3V8a3 3 0 013-3z", "M3 9h18")
     val Edit = stroke("edit", "M4 7h16", "M4 12h16", "M4 17h16")
+    /** A pencil: writing by hand. */
+    val Pencil = stroke("pencil", "M4 20l1-5L16 4l4 4L9 19z", "M13.5 6.5l4 4")
     val Color_ = stroke("color", "M12 3a9 9 0 1 0 0.01 0", "M12 3v18")
     val Audio = stroke("audio", "M4 10v4", "M8 6v12", "M12 9v6", "M16 4v16", "M20 10v4")
     /** A sound to add (a note) – apart from the Sound mode's waveform. */

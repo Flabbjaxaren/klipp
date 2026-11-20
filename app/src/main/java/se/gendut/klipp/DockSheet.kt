@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -41,9 +42,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
-/** How much of the screen a docked sheet takes: low (the picture and the top of the timeline in view) or high. */
-private const val DOCK_LOW = 0.55f
+/**
+ * How much of the screen a docked sheet takes: low (the picture and the timeline's tracks in view above it – on a
+ * phone the picture, the transport and the tool row take the upper 45 %, the tracks the next fifth) or high. The handle
+ * is dragged to any height between [DOCK_MIN] and [DOCK_HIGH]; the height is kept for the next sheet.
+ */
+private const val DOCK_LOW = 0.36f
 private const val DOCK_HIGH = 0.9f
+private const val DOCK_MIN = 0.24f
+private var dockHeight = DOCK_LOW
 
 /**
  * A sheet docked at the bottom of the editor (Add › Title, Captions, Sound, Voice-over): it lies over the lower part
@@ -69,10 +76,15 @@ fun DockSheet(
     // gone once it has slid away
     LaunchedEffect(vis.currentState, vis.isIdle) { if (started && vis.isIdle && !vis.currentState && !vis.targetState) onDismiss() }
     androidx.activity.compose.BackHandler(enabled = vis.targetState) { close() }
-    var high by remember { mutableStateOf(false) }
+    var frac by remember { mutableStateOf(dockHeight) }
+    var dragging by remember { mutableStateOf(false) }
     val compact = LocalConfiguration.current.screenHeightDp < COMPACT_SHEET_HEIGHT
+    val screenPx = with(androidx.compose.ui.platform.LocalDensity.current) { LocalConfiguration.current.screenHeightDp.dp.toPx() }
     val ime = WindowInsets.isImeVisible
-    val h by animateFloatAsState(if (compact || ime || high) DOCK_HIGH else DOCK_LOW, spring(1f, 400f), label = "dockHeight")
+    val target = if (compact || ime) DOCK_HIGH else frac
+    val anim by animateFloatAsState(target, spring(1f, 400f), label = "dockHeight")
+    // (while dragged: the finger's height, not the spring's)
+    val h = if (dragging) target else anim
     val haptics = rememberHaptics()
     // (the box itself takes no touches: only the sheet does – what lies above it stays usable)
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
@@ -85,9 +97,17 @@ fun DockSheet(
                     .imePadding().navigationBarsPadding()
                     .testTag(tag),
             ) {
-                // the handle: raise or lower (a short sheet has none)
+                // the handle: drag to any height, tap = raise or lower (a short sheet has none)
                 if (tall && !compact) Box(
-                    Modifier.fillMaxWidth().height(22.dp).clickable(onClickLabel = stringResource(if (high) R.string.dock_lower else R.string.dock_raise)) { haptics.tick(); high = !high }
+                    Modifier.fillMaxWidth().height(28.dp)
+                        .pointerInput(screenPx) {
+                            detectVerticalDragGestures(
+                                onDragStart = { dragging = true }, onDragEnd = { dragging = false; dockHeight = frac }, onDragCancel = { dragging = false },
+                            ) { ch, dy -> ch.consume(); frac = (frac - dy / screenPx).coerceIn(DOCK_MIN, DOCK_HIGH) }
+                        }
+                        .clickable(onClickLabel = stringResource(if (frac > 0.6f) R.string.dock_lower else R.string.dock_raise)) {
+                            haptics.tick(); frac = if (frac > 0.6f) DOCK_LOW else DOCK_HIGH; dockHeight = frac
+                        }
                         .semantics { contentDescription = "dockHandle" }.testTag("dockHandle"),
                     contentAlignment = Alignment.Center,
                 ) { Box(Modifier.size(36.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(K.OutlineVar)) }

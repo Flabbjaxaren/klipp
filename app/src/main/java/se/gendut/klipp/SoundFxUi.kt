@@ -67,11 +67,12 @@ fun SoundFxSheet(
     val ctx = LocalContext.current
     val preview = remember { Preview(ctx) }
     DisposableEffect(Unit) { onDispose { preview.release() } }
-    DockSheet("sfxDock", onDismiss) { _ ->
+    DockSheet("sfxDock", onDismiss) { close ->
         var tab by remember { mutableStateOf(0) }
         Box(Modifier.fillMaxWidth().weight(1f).upwardStaysInside().testTag("sfxSheet")) {
         Column(Modifier.fillMaxSize()) {
-            Text(stringResource(R.string.sfx_title), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
+            // (Done closes it: a docked sheet isn't swiped away)
+            SheetHeader(stringResource(R.string.sfx_title)) { close() }
             if (tab < 1) Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
             val tabs = listOf(ToolTab(stringResource(R.string.sfx_tab_packs), Ic.Note, "sfxTab:0")) +
                 (if (speech) listOf(ToolTab(stringResource(R.string.sfx_tab_speech), Ic.Mic, "sfxTab:1")) else emptyList()) +

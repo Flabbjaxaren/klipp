@@ -351,7 +351,7 @@ enum class CaptionsPart { EXISTING, WRITE, SPEECH, STYLE }
 internal fun CaptionTabs(state: EditorState, part: CaptionsPart, onPart: (CaptionsPart) -> Unit) {
     ToolTabs(listOf(
         ToolTab(stringResource(R.string.titleui_caps_existing, state.captions.size), Ic.Subs, "capsPart:existing"),
-        ToolTab(stringResource(R.string.titleui_caps_write), Ic.Edit, "capsPart:write"),
+        ToolTab(stringResource(R.string.titleui_caps_write), Ic.Pencil, "capsPart:write"),
         ToolTab(stringResource(R.string.titleui_caps_from_speech), Ic.Mic, "capsPart:speech"),
         ToolTab(stringResource(R.string.captionstyle_title), Ic.Text, "capsPart:style"),
     ), part.ordinal, { onPart(CaptionsPart.entries[it]) }, Modifier.padding(horizontal = 12.dp, vertical = 4.dp))

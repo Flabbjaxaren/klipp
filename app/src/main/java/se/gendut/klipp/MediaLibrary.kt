@@ -428,7 +428,8 @@ fun controllerLibrary(c: se.gendut.klipp.engine.ProjectController) = object : Me
 @Composable
 private fun TextEditingFiles(lib: MediaLibrary, onOpen: (MediaInfo) -> Unit) {
     val haptics = rememberHaptics()
-    val files = lib.media.filter { it.hasAudio && !it.offline }
+    // (files with something to read: not the sound effects, a second or shorter)
+    val files = lib.media.filter { it.hasAudio && !it.offline && it.duration >= 2.0 }
     Text(stringResource(R.string.medialibrary_text_hint), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
     if (files.isEmpty()) {
         Text(stringResource(R.string.medialibrary_text_none), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(24.dp))
