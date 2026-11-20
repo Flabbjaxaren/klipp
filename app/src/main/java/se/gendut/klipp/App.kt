@@ -539,13 +539,13 @@ private fun KlippAppContent(
             // (not the render's own revision: a finished chunk would then cancel rendering of the next)
             listOf(controller.revision, gs.revision, se.gendut.klipp.engine.TransitionLooks.blur.toMap(), se.gendut.klipp.engine.RenderCache.renderAll, se.gendut.klipp.engine.RenderCache.renderRange, se.gendut.klipp.engine.RenderCache.slowRevision,
                 se.gendut.klipp.engine.RenderCache.cleared, se.gendut.klipp.engine.RenderCache.halted, se.gendut.klipp.engine.RenderCache.auto,
-                se.gendut.klipp.engine.VideoPipeline.previewShort, se.gendut.klipp.engine.FrameSnap.revision, se.gendut.klipp.engine.RenderCache.hold)
+                se.gendut.klipp.engine.VideoPipeline.previewShort, se.gendut.klipp.engine.VideoPipeline.renderFull, se.gendut.klipp.engine.FrameSnap.revision, se.gendut.klipp.engine.RenderCache.hold)
         }.debounce(1200).collectLatest {
             val snap = controller.snapshot
             val grades = HashMap(gs.grades)
             val chunks = runCatching {
                 se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, controller::uriOf)
-                    ?.let { p -> se.gendut.klipp.engine.RenderCache.chunks(p, { id -> grades[id] }, controller::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort) }
+                    ?.let { p -> se.gendut.klipp.engine.RenderCache.chunks(p, { id -> grades[id] }, controller::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.renderShortFor(p.width, p.height)) }
             }.getOrNull().orEmpty()
             se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy || se.gendut.klipp.engine.RenderCache.isSlow(it)) }
             // every transition between two clips: playback shows it only pre-rendered (a cut until then, see

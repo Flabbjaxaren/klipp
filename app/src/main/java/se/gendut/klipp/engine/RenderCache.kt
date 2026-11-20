@@ -209,7 +209,7 @@ object RenderCache {
                 for (sg in segs) {
                     sb.append('[').append(r(sg.start)).append(',').append(r(sg.end)).append(',')
                     when (val s = sg.src) {
-                        is SegSrc.Media -> sb.append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item))).append(refKey(uriOf(s.item))).append(',').append(r(s.srcIn)).append(',').append(s.speed)
+                        is SegSrc.Media -> sb.append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item), short, minOf(plan.width, plan.height))).append(refKey(uriOf(s.item))).append(',').append(r(s.srcIn)).append(',').append(s.speed)
                         is SegSrc.Still -> { sb.append("S").append(uriOf(s.item)).append(refKey(uriOf(s.item))).append(',').append(r(s.sec)); heavy = true }
                     }
                     // ramps and transition windows only where they apply in the chunk (a transition further on does not change this one)
@@ -250,7 +250,7 @@ object RenderCache {
             val sb = StringBuilder()
             sb.append("v").append(VERSION).append(if (androidx.media3.effect.KlippPrecision.sdrYuv) "y" else "").append('|').append(plan.width).append('x').append(plan.height).append('@').append(fps).append('/').append(short)
                 .append('|').append(r(from)).append('-').append(r(to)).append("|L0[").append(r(c.start)).append(',').append(r(c.end)).append(',')
-                .append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item))).append(refKey(uriOf(s.item))).append(',').append(r(c.sourceIn)).append(',').append(s.speed).append(",C").append(videoKey(c))
+                .append("M").append(uriOf(s.item)).append(proxyKey(uriOf(s.item), short, minOf(plan.width, plan.height))).append(refKey(uriOf(s.item))).append(',').append(r(c.sourceIn)).append(',').append(s.speed).append(",C").append(videoKey(c))
             gradeOf(c.id)?.let { g -> sb.append(gradeKey(g)) }
             sb.append(']')
             return sha1(sb.toString())
@@ -272,7 +272,29 @@ object RenderCache {
 
     /** Chunks are made from the proxy when there is one: a chunk made from the original is made again once the proxy exists (and back). */
     // (a proxy with headroom keeps the super-whites a grade can pull down: another picture)
-    private fun proxyKey(u: Uri?): String = if (u != null && Proxies.videoUri(u) != u) "~p" + (if (Headroom.isHeadroom(Proxies.videoUri(u))) "h" else "") else ""
+    private fun proxyKey(u: Uri?, short: Int, seqShort: Int): String {
+        if (u == null) return ""
+        val src = sourceOf(u, short, seqShort)
+        return if (src != u) "~p" + (if (Headroom.isHeadroom(src)) "h" else "") else ""
+    }
+
+    /**
+     * The file a part is rendered from: the proxy when there is one – but for files at the timeline's full size
+     * ([short] 0, see [VideoPipeline.renderFull]) the original when the proxy is smaller than the timeline (a 4K render
+     * from a 1080p proxy would be no sharper than the live picture).
+     */
+    fun sourceOf(u: Uri, short: Int, seqShort: Int): Uri {
+        val p = Proxies.videoUri(u)
+        if (p == u || short > 0) return p
+        val ps = Proxies.proxyShort(u) ?: return p
+        return if (ps < seqShort) u else p
+    }
+
+    /** [sourceOf] for a snapshot's clips. */
+    private fun sourcesOf(s: Snapshot, uriOf: (Long) -> Uri?, short: Int): (Long) -> Uri? {
+        val seqShort = s.sequence?.let { minOf(it.width, it.height) } ?: 0
+        return { id -> uriOf(id)?.let { sourceOf(it, short, seqShort) } }
+    }
 
     /** What in the clip affects the image (not the audio: volume, audio effects, name). */
     private fun videoKey(c: ClipSnap): String = listOf(
@@ -486,10 +508,11 @@ object RenderCache {
      * long one costs nothing to read through). Bounded: [PRE_ROLL_SYNC_STEPS] steps back from key frame to key frame
      * and [PRE_ROLL_LIMIT] seconds; a clip that can't be read, a reversed one or a freeze frame: [preRoll]'s estimate.
      */
-    internal fun preRollFor(context: Context, s0: Snapshot, uriOf: (Long) -> Uri?, a: Double, export: Boolean): Double {
+    internal fun preRollFor(context: Context, s0: Snapshot, uriOf: (Long) -> Uri?, a: Double, export: Boolean, short: Int = VideoPipeline.previewShort): Double {
         if (a <= 1e-9) return 0.0
+        val src = if (export) uriOf else sourcesOf(s0, uriOf, short)
         // (the clips as the render reads them: their in points on their own frames, see FrameSnap)
-        val s = FrameSnap.snapshot(s0) { id -> uriOf(id)?.let { if (export) it else Proxies.videoUri(it) } }
+        val s = FrameSnap.snapshot(s0, src)
         val q = s.sequence ?: return 0.0
         val fps = s.fps.takeIf { it > 0.0 } ?: return preRoll(s, a)
         val g = FrameGrid(fps)
@@ -499,7 +522,7 @@ object RenderCache {
         for (t in q.video) for (c in t.clips) {
             if (!c.enabled || c.text != null || c.start > a + 1e-9 || c.start + c.duration <= a + 1e-9) continue
             val sp = c.speed
-            val uri = uriOf(c.item)?.let { if (export) it else Proxies.videoUri(it) }
+            val uri = src(c.item)
             if (uri == null || c.reverse || c.hold != null || sp <= 1e-6) { p = maxOf(p, preRoll(s, a)); continue }
             val need = runCatching { readStartTau(context, uri, c, sp, slotEnd, visibleUs, fps) }.getOrNull()
             p = maxOf(p, if (need == null) preRoll(s, a) else a - (need - g.stepUs) / 1e6)
@@ -627,18 +650,19 @@ object RenderCache {
         context: Context, s: Snapshot, uriOf: (Long) -> Uri?, grades: Map<Long, ClipGrade>, a: Double, b: Double, out: File,
         export: se.gendut.klipp.engine.ExportSettings? = null,
     ): Result<Unit> {
-        val short = VideoPipeline.previewShort
+        val short = s.sequence?.let { VideoPipeline.renderShortFor(it.width, it.height) } ?: VideoPipeline.previewShort
         val settings = export ?: renderSettings(s, short)
+        val src = if (export != null) uriOf else sourcesOf(s, uriOf, short)
         // the same reading as a chunk's: from before [a] and one frame past [b] when the timeline goes on
         val end = renderEnd(s, Chunk(a, b, "", false))
         FrameHolds.await(context, FrameHolds.holdsOf(s, uriOf))
         Reversals.await(context, s, uriOf)
-        FrameSnap.await(context, s) { id -> uriOf(id)?.let { if (export == null) Proxies.videoUri(it) else it } }
+        FrameSnap.await(context, s, src)
         val anyHdr = withContext(Dispatchers.IO) { CompositionBuilder.anyHdr(context, s, probe = true, uriOf = uriOf) }
         val built = CompositionBuilder.buildFull(
             s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
-            videoUriOf = { id -> uriOf(id)?.let { if (export == null) Proxies.videoUri(it) else it } },
-            previewShort = if (export == null) short else 0, range = (a - preRollFor(context, s, uriOf, a, export = export != null))..end, visibleFrom = a, output = settings,
+            videoUriOf = src,
+            previewShort = if (export == null) short else 0, range = (a - preRollFor(context, s, uriOf, a, export = export != null, short = short))..end, visibleFrom = a, output = settings,
         ) ?: return Result.failure(IllegalStateException("nothing to render in $a–$b"))
         out.delete()
         if (end <= b) return Exporter.transform(context, built.composition, out, settings, tenBit = false, note = false, oneColor = export == null) { }
@@ -752,9 +776,10 @@ object RenderCache {
             FrameHolds.await(context, FrameHolds.holdsOf(s, uriOf))
             Reversals.await(context, s, uriOf)
             // the clips' first frame times (their in points on their own frames, see FrameSnap)
-            FrameSnap.await(context, s) { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
+            val short = s.sequence?.let { VideoPipeline.renderShortFor(it.width, it.height) } ?: VideoPipeline.previewShort
+            val src = sourcesOf(s, uriOf, short)
+            FrameSnap.await(context, s, src)
             val anyHdr = withContext(Dispatchers.IO) { CompositionBuilder.anyHdr(context, s, probe = true, uriOf = uriOf) }
-            val short = VideoPipeline.previewShort
             var n = 0
             for (c in list) {
                 while (!canWork()) kotlinx.coroutines.delay(300)
@@ -765,7 +790,7 @@ object RenderCache {
                 // camera file beside the proxy's transcode and the node caches (APV 4K on the vivo: "Codec exception", the
                 // decoder's instances taken) – and the chunk's key holds whether a proxy is used, so it was rendered again
                 // once the proxy was there.
-                while (proxyPending(s, uriOf, c.a - preRollFor(context, s, uriOf, c.a, export = false), renderEnd(s, c))) {
+                while (proxyPending(s, uriOf, c.a - preRollFor(context, s, uriOf, c.a, export = false, short = short), renderEnd(s, c))) {
                     waitingForProxy = true
                     if (generation != gen || c.hash !in wanted) { waitingForProxy = false; return Result.success(n) }
                     kotlinx.coroutines.delay(500)
@@ -775,8 +800,8 @@ object RenderCache {
                 currentDone = 0f
                 val built = CompositionBuilder.buildFull(
                     s, uriOf, Look.NONE, overlays = false, grades = grades, hdrMode = VideoPipeline.toneMapMode(anyHdr, false),
-                    videoUriOf = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }, previewShort = short,
-                    range = (c.a - preRollFor(context, s, uriOf, c.a, export = false))..renderEnd(s, c), visibleFrom = c.a, output = renderSettings(s, short),
+                    videoUriOf = src, previewShort = short,
+                    range = (c.a - preRollFor(context, s, uriOf, c.a, export = false, short = short))..renderEnd(s, c), visibleFrom = c.a, output = renderSettings(s, short),
                 ) ?: run { done += c.b - c.a; continue }
                 val tmp = File(d, "${c.hash}.tmp")
                 // one more attempt if it failed (the encoder can be busy for a while, e.g. by an export)

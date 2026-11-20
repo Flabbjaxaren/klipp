@@ -229,6 +229,10 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             }, vp.previewShort, "set:previewShort") { vp.setPreviewShort(ctx, it) }
             Text(stringResource(R.string.settings_preview_note),
                 color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            DropField(stringResource(R.string.settings_render_resolution), listOf(
+                Opt(false, stringResource(R.string.settings_render_as_preview), stringResource(R.string.settings_default), key = "rfPreview"),
+                Opt(true, stringResource(R.string.settings_render_full), stringResource(R.string.settings_render_full_hint), key = "rfFull"),
+            ), vp.renderFull, "set:renderFull") { vp.setRenderFull(ctx, it) }
             SwitchRow(stringResource(R.string.settings_ten_bit_display), stringResource(R.string.settings_ten_bit_display_hint),
                 vp.displayTenBit, "set:10display") { vp.setDisplayTenBit(ctx, it) }
             DropField(stringResource(R.string.settings_hdr_to_sdr), listOf(

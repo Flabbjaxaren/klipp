@@ -27,6 +27,10 @@
     <string name="settings_preview_1080_hint">sharp on the phone screen (default)</string>
     <string name="settings_preview_other_hint">sharper, heavier</string>
     <string name="preview_full_falls_behind">The preview couldn’t keep up at full resolution. Choose 1080p under App settings → Video pipeline → Preview resolution – it looks the same on the phone screen, and export is still at full resolution.</string>
+    <string name="settings_render_resolution">Render resolution</string>
+    <string name="settings_render_as_preview">Same as the preview</string>
+    <string name="settings_render_full">Timeline resolution</string>
+    <string name="settings_render_full_hint">4K files in a 4K timeline (the parts that aren’t rendered still play at the preview resolution) – sharper when you zoom in, renders about 2–3 times slower, files about 4 times larger</string>
     <string name="settings_preview_note">Playback scales the image down before nodes, film and look are computed – much lighter with 4K and heavy grades. Export and the node cache always compute at full resolution (grain may look slightly coarser in the preview).</string>
     <string name="settings_ten_bit_display">10-bit to the display</string>
     <string name="settings_ten_bit_display_hint">the program monitor is drawn in RGBA_1010102 (for 10-bit displays). Applies the next time the app starts</string>

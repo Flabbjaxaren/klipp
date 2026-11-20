@@ -57,6 +57,28 @@ object VideoPipeline {
         private set
     val PREVIEW_SIZES = listOf(720, 1080, 1440, 0)
 
+    /**
+     * Pre-rendered parts at the timeline's own resolution (a 4K timeline: 4K files) while the live parts stay at
+     * [previewShort] – sharper when zooming into a paused picture, slower to render and larger files. Off: the renders
+     * have the preview's size (as before). Only matters for a timeline larger than the preview.
+     */
+    var renderFull by mutableStateOf(false)
+        private set
+
+    /**
+     * The short side pre-rendered files are made at for a timeline of [w]×[h]: 0 (full) with [renderFull] when the
+     * timeline is larger than the preview, otherwise the preview's ([previewShort]).
+     */
+    fun renderShortFor(w: Int, h: Int): Int =
+        if (renderFull && previewShort > 0 && minOf(w, h) > previewShort) 0 else previewShort
+
+    /**
+     * The player's frame size (short side, 0 = the timeline's) for a timeline of [w]×[h]: the timeline's own when its
+     * renders are full size (they play at that size; the live parts are computed at [previewShort] and scaled up last),
+     * otherwise the preview's.
+     */
+    fun playerShortFor(w: Int, h: Int): Int = if (renderShortFor(w, h) == 0) 0 else previewShort
+
     fun init(c: Context) {
         val p = prefs(c)
         highPrecision = p.getBoolean("video16f", true)
@@ -65,9 +87,12 @@ object VideoPipeline {
         // (older setting: on/off)
         previewShort = if (p.contains("videoPreviewShort")) p.getInt("videoPreviewShort", 1080).takeIf { it in PREVIEW_SIZES } ?: 1080
             else if (p.getBoolean("videoPreviewScale", true)) 1080 else 0
+        renderFull = p.getBoolean("renderFull", false)
         KlippPrecision.highPrecision = highPrecision
         SdrYuvCheck.init(c)
     }
+
+    fun setRenderFull(c: Context, on: Boolean) { renderFull = on; prefs(c).edit().putBoolean("renderFull", on).apply() }
 
     fun setHighPrecision(c: Context, on: Boolean) {
         highPrecision = on; KlippPrecision.highPrecision = on
@@ -174,7 +199,7 @@ object VideoPipeline {
     fun describe(): String =
         "video chain: ${if (highPrecision) "float (RGBA16F)" else "8-bit"} – pools ${KlippPrecision.floatPools} float / ${KlippPrecision.bytePools} 8-bit, " +
             "display ${if (displayTenBit) "10-bit requested" else "8-bit"}${TenBitGlObjectsProvider.lastDisplay?.let { " – got $it" } ?: ""}\n" +
-            "playback: ${if (previewShort > 0) "preview ${previewShort}p" else "full resolution"}, GPU priority ${androidx.media3.effect.KlippPriority.granted ?: "–"}\n" + PassTimes.describe()
+            "playback: ${if (previewShort > 0) "preview ${previewShort}p" else "full resolution"}${if (renderFull) ", renders at full resolution" else ""}, GPU priority ${androidx.media3.effect.KlippPriority.granted ?: "–"}\n" + PassTimes.describe()
 }
 
 /**

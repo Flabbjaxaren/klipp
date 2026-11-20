@@ -159,5 +159,34 @@ class VideoPipelineTest {
         val full = item(0)
         assertTrue(full[0] is se.gendut.klipp.engine.GradeNodeEffect)
         assertEquals(androidx.media3.common.util.Size(3840, 2160), (full.last { it is androidx.media3.effect.Presentation } as androidx.media3.effect.Presentation).configure(3840, 2160))
+        // renders at full size: the frames are 4K (the rendered files play at their size), a live clip is still computed
+        // at the preview's 1080 and scaled up last
+        val mixed = cb.buildFull(s, uriOf, grades = mapOf(first.id to g), forceSingle = true, liveGrades = true, previewShort = 1080, outShort = 0)!!
+            .composition.sequences[0].editedMediaItems.first { it.mediaItem.localConfiguration?.uri == uriOf(first.item) }.effects.videoEffects
+            .filterNot { it is se.gendut.klipp.engine.PrerollDrop }
+        assertEquals("down to 1080 before the nodes", androidx.media3.common.util.Size(1920, 1080), (mixed[0] as androidx.media3.effect.Presentation).configure(3840, 2160))
+        assertTrue(mixed[1] is se.gendut.klipp.engine.GradeNodeEffect)
+        assertEquals("then up to the timeline's 4K", androidx.media3.common.util.Size(3840, 2160),
+            (mixed.last { it is androidx.media3.effect.Presentation } as androidx.media3.effect.Presentation).configure(1920, 1080))
+    }
+
+    @Test fun rendersAtTheTimelineSizeOnlyWhenChosenAndLarger() {
+        val app = org.robolectric.RuntimeEnvironment.getApplication()
+        VideoPipeline.previewShortForSession(1080)
+        try {
+            VideoPipeline.setRenderFull(app, false)
+            assertEquals(1080, VideoPipeline.renderShortFor(3840, 2160))
+            assertEquals(1080, VideoPipeline.playerShortFor(3840, 2160))
+            VideoPipeline.setRenderFull(app, true)
+            assertEquals("4K timeline: renders and frames at 4K", 0, VideoPipeline.renderShortFor(3840, 2160))
+            assertEquals(0, VideoPipeline.playerShortFor(2160, 3840))
+            assertEquals("1080p timeline: nothing changes (no new keys, nothing rendered again)", 1080, VideoPipeline.renderShortFor(1920, 1080))
+            assertEquals(1080, VideoPipeline.playerShortFor(1920, 1080))
+            VideoPipeline.previewShortForSession(0)
+            assertEquals("preview at full resolution: as before", 0, VideoPipeline.renderShortFor(3840, 2160))
+        } finally {
+            VideoPipeline.setRenderFull(app, false)
+            VideoPipeline.previewShortForSession(1080)
+        }
     }
 }

@@ -27,6 +27,10 @@
     <string name="settings_preview_1080_hint">skarpt på telefonens skärm (standard)</string>
     <string name="settings_preview_other_hint">skarpare, tyngre</string>
     <string name="preview_full_falls_behind">Förhandsvisningen hann inte med i full upplösning. Välj 1080p under Appinställningar → Videokedja → Förhandsvisningens upplösning – det ser likadant ut på telefonens skärm, och exporten görs fortfarande i full upplösning.</string>
+    <string name="settings_render_resolution">Renderingarnas upplösning</string>
+    <string name="settings_render_as_preview">Som förhandsvisningen</string>
+    <string name="settings_render_full">Tidslinjens upplösning</string>
+    <string name="settings_render_full_hint">4K-filer i en 4K-tidslinje (det som inte är renderat spelas fortfarande i förhandsvisningens upplösning) – skarpare när du zoomar in, renderar ungefär 2–3 gånger långsammare, filerna blir ungefär 4 gånger större</string>
     <string name="settings_preview_note">Uppspelningen skalar ner bilden innan noder, film och look räknas – mycket lättare med 4K och tunga grades. Exporten och nodcachen räknar alltid i full upplösning (kornet kan se något grövre ut i förhandsvisningen).</string>
     <string name="settings_ten_bit_display">10 bitar till skärmen</string>
     <string name="settings_ten_bit_display_hint">programfönstret ritas i RGBA_1010102 (för 10-bitarsskärmar). Gäller nästa gång appen startar</string>

@@ -219,6 +219,11 @@ object CompositionBuilder {
         nodeCache: Boolean = false, originalUriOf: (Long) -> Uri? = uriOf, originalLength: (Long) -> Double? = mediaDur,
         /** The frame size in playback (the preview resolution, see [previewSize]); 0 = the timeline's. */
         outW: Int = 0, outH: Int = 0,
+        /**
+         * The size the effects compute at (playback: the preview's, see [previewSize]); 0 = [outW]×[outH]. Smaller than
+         * the frames when pre-rendered parts are full size: a live clip is computed at this size and scaled up last.
+         */
+        workW: Int = 0, workH: Int = 0,
         /** The project frame rate (freeze frames are shown as images at that rate). */
         fps: Double = 25.0,
         /**
@@ -341,7 +346,7 @@ object CompositionBuilder {
             // playback: 4K material is downscaled to the preview size before the nodes and the film (same
             // image on screen, a fraction of the work). The size of the file being played: the original (the node cache
             // has its size) or the proxy (its short side)
-            val scaleDown = if (!previewDownscale) null else {
+            val scaleDown = if (!previewDownscale && workW <= 0) null else {
                 val orig = originalUriOf(src.item)
                 val short = when {
                     holdVideo != null && still != null -> HoldVideos.shortFor(still)
@@ -349,7 +354,7 @@ object CompositionBuilder {
                     cachedPoint >= 0 || itemUri == orig -> SourceSizes.short(orig)
                     else -> orig?.let { Proxies.proxyShort(it) }
                 }
-                previewShortSide(short, fw, fh)?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
+                previewShortSide(short, if (workW > 0) workW else fw, if (workH > 0) workH else fh)?.let { androidx.media3.effect.Presentation.createForShortSide(it) }
             }
             // the timeline's look sits on the whole composition (once, after the clips) – not on every clip,
             // so it is not rebuilt at every clip boundary (it flickered, especially around speed-changed clips)
@@ -518,7 +523,13 @@ object CompositionBuilder {
         visibleFrom: Double? = null,
         /** Playback: the paused player's frame (see PausedPick). */
         pick: PausedPick? = null,
-    ): Built? = buildPlayable(s.playable(), uriOf, look, master, overlays, forceSingle, grades, fx, meters, hdrMode, videoUriOf, liveGrades, output, nodeCache, previewShort, range, planTransform, transitions, visibleFrom, pick)
+        /**
+         * The frame size's short side (0 = the timeline's): [previewShort] unless pre-rendered parts are full size
+         * ([VideoPipeline.playerShortFor]) – then the frames have the timeline's size, the live parts are still computed
+         * at [previewShort] and scaled up last.
+         */
+        outShort: Int = previewShort,
+    ): Built? = buildPlayable(s.playable(), uriOf, look, master, overlays, forceSingle, grades, fx, meters, hdrMode, videoUriOf, liveGrades, output, nodeCache, previewShort, range, planTransform, transitions, visibleFrom, pick, outShort)
 
     /** A source frame's time on the timeline (µs) for a file played at [speed] (0: the file's rate not known). */
     private fun nominalUs(uri: Uri?, speed: Double): Long {
@@ -551,6 +562,7 @@ object CompositionBuilder {
         range: ClosedFloatingPointRange<Double>? = null, planTransform: ((LayerPlan) -> LayerPlan)? = null, transitions: Boolean = true,
         visibleFrom: Double? = null,
         pick: PausedPick? = null,
+        outShort: Int = previewShort,
     ): Built? {
         // the clips' in points on their own frames in the files this build reads (see FrameSnap)
         @Suppress("NAME_SHADOWING") val s = FrameSnap.snapshot(s, videoUriOf)
@@ -578,8 +590,10 @@ object CompositionBuilder {
         val seqs = ArrayList<EditedMediaItemSequence>()
         val times = ArrayList<TimeBase>()
         val clipTime = TimeBase(plan?.length ?: total, plan?.origin ?: 0.0).also { times += it } // time for keyframes on the clips (simple path)
-        val (pw, ph) = if (plan == null || previewShort <= 0) 0 to 0 else previewSize(plan.width, plan.height, previewShort)
-        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, output?.outputFps(s.fps)?.takeIf { it > 0.0 } ?: s.fps, fillSlots = output != null, realStarts = realStarts, oneRenderer = output == null && LiveCuts.oneRenderer)?.let { seqs += it } }
+        val (pw, ph) = if (plan == null || outShort <= 0) 0 to 0 else previewSize(plan.width, plan.height, outShort)
+        // the size the effects compute at (the downscale before them): the preview's, also when the frames are larger
+        val (ew, eh) = if (plan == null || previewShort <= 0) 0 to 0 else previewSize(plan.width, plan.height, previewShort)
+        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, workW = ew, workH = eh, fps =  output?.outputFps(s.fps)?.takeIf { it > 0.0 } ?: s.fps, fillSlots = output != null, realStarts = realStarts, oneRenderer = output == null && LiveCuts.oneRenderer)?.let { seqs += it } }
         val hasVideo = seqs.isNotEmpty()
         // export without audio (and pre-render): no audio sequences
         val audio = if (output?.audio == false || range != null) emptyList() else q.audio.take(3)
@@ -1037,7 +1051,7 @@ class ProgramPlayback(private val context: Context) {
         // which clips read the node cache (and which file): if it changes the player is rebuilt
         cacheUsage = NodeCache.usage(s, grades, uriOf)
         // pre-rendered chunks: played from their files (if which exist changes, the player is rebuilt)
-        val chunks = runCatching { CompositionBuilder.previewPlan(s, uriOf)?.let { RenderCache.chunks(it, { id -> grades[id] }, uriOf, s.fps, VideoPipeline.previewShort) } }
+        val chunks = runCatching { CompositionBuilder.previewPlan(s, uriOf)?.let { RenderCache.chunks(it, { id -> grades[id] }, uriOf, s.fps, VideoPipeline.renderShortFor(it.width, it.height)) } }
             .getOrNull().orEmpty()
         renderChunks = chunks
         // what plays: transitions as cuts, each one pre-rendered in its place once it is ready all over (see playPlan)
@@ -1045,7 +1059,7 @@ class ProgramPlayback(private val context: Context) {
         val playable = RenderCache.playable(chunks, windows)
         edges = CutSeek.edgesOf(s, chunks)
         cuts = runCatching { CompositionBuilder.playPlan(s, uriOf, chunks)?.let { CutSeek.cutsOf(it.layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
-        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision +
+        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "/" + VideoPipeline.renderFull + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision +
             // the film's reference and the preview's downscale follow the sources' sizes: a size that came late rebuilds
             "#sizes" + SourceSizes.revision + (if (CompositionBuilder.testUnscaledFilm) "#unscaled" else "")
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
@@ -1071,6 +1085,7 @@ class ProgramPlayback(private val context: Context) {
         val videoUri: (Long) -> Uri? = { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
         se.gendut.klipp.CrashReport.note("playback building: ${s.sequence?.video?.sumOf { it.clips.size } ?: 0} video clips, hdr=$hdrMode, proxy=${Proxies.enabled}, speed=${s.sequence?.video?.flatMap { it.clips }?.map { it.speed }?.filter { kotlin.math.abs(it - 1.0) > 0.001 }?.distinct()}")
         val built = runCatching { CompositionBuilder.buildFull(s, uriOf, playerLook, master, overlays = false, forceSingle = true, grades = grades, fx = fx, meters = true, hdrMode = hdrMode, videoUriOf = videoUri, liveGrades = true, nodeCache = true, previewShort = VideoPipeline.previewShort,
+            outShort = s.sequence?.let { VideoPipeline.playerShortFor(it.width, it.height) } ?: VideoPipeline.previewShort,
             planTransform = { p -> RenderCache.playPlan(p, chunks, windows, s.fps) }, transitions = false, pick = pick) }.getOrElse {
             keepOld()
             // never an empty error: without text it looked like everything went fine (and then "nothing to play")

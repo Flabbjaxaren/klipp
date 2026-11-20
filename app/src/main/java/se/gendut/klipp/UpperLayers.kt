@@ -122,7 +122,7 @@ fun rememberPreviewPlan(controller: ProjectController, gradeOf: (Long) -> se.gen
     return remember(controller.revision, snap, se.gendut.klipp.engine.Reversals.revision, se.gendut.klipp.engine.RenderCache.revision, se.gendut.klipp.engine.FrameSnap.revision, gradesKey) {
         runCatching {
             se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, controller::uriOf)?.let { p ->
-                val chunks = se.gendut.klipp.engine.RenderCache.chunks(p, gradeOf, controller::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort)
+                val chunks = se.gendut.klipp.engine.RenderCache.chunks(p, gradeOf, controller::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.renderShortFor(p.width, p.height))
                 se.gendut.klipp.engine.CompositionBuilder.playPlan(snap, controller::uriOf, chunks)
             }
         }.getOrNull()

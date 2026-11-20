@@ -369,7 +369,7 @@ object McpBridge {
             }
             val dirOut = java.io.File(ctx.getExternalFilesDir(null), "diag").apply { mkdirs() }
             val chunks = se.gendut.klipp.engine.CompositionBuilder.previewPlan(snap, c::uriOf)
-                ?.let { p -> se.gendut.klipp.engine.RenderCache.chunks(p, { id -> grades[id] }, c::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.previewShort) }.orEmpty()
+                ?.let { p -> se.gendut.klipp.engine.RenderCache.chunks(p, { id -> grades[id] }, c::uriOf, snap.fps, se.gendut.klipp.engine.VideoPipeline.renderShortFor(p.width, p.height)) }.orEmpty()
             when (a.optString("op")) {
                 // the timeline live: nothing rendered and nothing being rendered, until "resume"
                 "live" -> { se.gendut.klipp.engine.RenderCache.hold = true; se.gendut.klipp.engine.RenderCache.clear(); texts("live: renders deleted, rendering held") }
