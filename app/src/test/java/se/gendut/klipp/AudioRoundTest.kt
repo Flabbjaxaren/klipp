@@ -158,6 +158,26 @@ class AudioRoundTest {
         assertEquals(false, FxProcessor(0, fx).apply { configure(AudioProcessor.AudioFormat(1000, 1, C.ENCODING_PCM_16BIT)) }.isActive)
     }
 
+    @Test fun fxProcessorEndsAfterOneTail() {
+        // the pipeline asks for the end of stream again until the processor has ended: one tail, then ended
+        val p = FxProcessor(7, FakeFx(lat = 3))
+        p.configure(AudioProcessor.AudioFormat(1000, 1, C.ENCODING_PCM_16BIT))
+        p.flush(AudioProcessor.StreamMetadata.DEFAULT)
+        p.queueInput(pcm(*ShortArray(6) { ((it + 1) * 1000).toShort() }))
+        shorts(p.output)
+        p.queueEndOfStream()
+        assertEquals("the tail", 3, shorts(p.output).size)
+        p.queueEndOfStream()
+        assertEquals("asked again: nothing more", 0, shorts(p.output).size)
+        assertTrue("ended – the next item can start", p.isEnded)
+        // after a seek a new stream gets its own tail
+        p.flush(AudioProcessor.StreamMetadata.DEFAULT)
+        p.queueInput(pcm(*ShortArray(4) { 500 }))
+        shorts(p.output)
+        p.queueEndOfStream()
+        assertEquals(3, shorts(p.output).size)
+    }
+
     @Test fun registryLiveSyncAndRelease() {
         val fx = FakeFx()
         val r = FxRegistry(fx)

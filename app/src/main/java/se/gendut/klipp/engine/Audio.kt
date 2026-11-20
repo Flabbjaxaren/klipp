@@ -456,6 +456,12 @@ class FxRegistry(private val native: FxNative = EngineFx) {
 class FxProcessor(private val fx: Long, private val native: FxNative = EngineFx) : BaseAudioProcessor() {
     private var latency = 0
     private var skip = 0
+    /**
+     * The tail went out for this stream. The pipeline asks for the end of stream again until the processor has ended,
+     * and every call put out a new tail (replacing the one not yet taken): the processor never ended, the item after it
+     * never started – playback stood still at the end of every piece (a fade splits a clip into pieces).
+     */
+    private var tailDone = false
     private var buf = FloatArray(0)
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
@@ -465,6 +471,7 @@ class FxProcessor(private val fx: Long, private val native: FxNative = EngineFx)
         }
         latency = native.latency(fx, inputAudioFormat.sampleRate).coerceIn(0, inputAudioFormat.sampleRate)
         skip = latency
+        tailDone = false
         return inputAudioFormat
     }
 
@@ -509,6 +516,8 @@ class FxProcessor(private val fx: Long, private val native: FxNative = EngineFx)
     }
 
     override fun onQueueEndOfStream() {
+        if (tailDone) return
+        tailDone = true
         // the tail: as many samples as were skipped at the start (so the length matches)
         val tail = latency - skip
         if (tail <= 0) return
@@ -524,6 +533,7 @@ class FxProcessor(private val fx: Long, private val native: FxNative = EngineFx)
     override fun onFlush(streamMetadata: AudioProcessor.StreamMetadata) {
         native.reset(fx)
         skip = latency
+        tailDone = false
     }
 }
 
