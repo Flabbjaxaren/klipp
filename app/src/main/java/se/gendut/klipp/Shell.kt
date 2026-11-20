@@ -791,7 +791,14 @@ private fun ClipDock(state: EditorState) {
         } else {
             // one row per kind of clip, in the order the actions are used: delete first, then the picture, copy and the
             // rest; each group opens its sheet
-            fun open(group: Int) { state.inspectGroup = group; state.inspecting = true }
+            fun open(group: Int) {
+                // the picture shows the clip being changed: the playhead into it when it stands outside (the handles
+                // were drawn over another clip's frame)
+                state.clips.firstOrNull { it.id == state.selected }?.let { c ->
+                    if (state.playhead < c.start || state.playhead >= c.start + c.length) { state.playing = false; state.playhead = c.start }
+                }
+                state.inspectGroup = group; state.inspecting = true
+            }
             val items = buildList {
                 add(DockItem(Ic.Delete, stringResource(R.string.app_delete), "ctx:delete", tint = K.Error, strong = true, desc = stringResource(R.string.app_delete_leave_gap)) { state.selected?.let { state.requestRemove(it, false) } })
                 val split = DockItem(Ic.Split, stringResource(R.string.app_split), "ctx:split") { state.selected?.let { state.split(it, state.playhead) } }
