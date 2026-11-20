@@ -579,8 +579,12 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             val y = start.y - rulerPx + scrollY
                             val cx = start.x + sx()
                             if (start.y >= rulerBasePx && start.y < rulerPx) {
+                                // several caption tracks: a row each – only the row under the finger counts
+                                val rows = captionRows(state)
+                                val row = if (rows.size < 2) -1 else (((start.y - rulerBasePx) / (rulerPx - rulerBasePx)) * rows.size).toInt().coerceIn(0, rows.size - 1)
+                                val inRow = { c: UiCaption -> row < 0 || rows.indexOf(c.track) == row }
                                 val sc = state.selectedCaption
-                                state.captions.firstOrNull { it.id == sc }?.let { c ->
+                                state.captions.firstOrNull { it.id == sc && inRow(it) }?.let { c ->
                                     val x0 = c.start * pps
                                     val x1 = c.end * pps
                                     // short blocks: the handles take at most a quarter each, the middle moves
@@ -588,7 +592,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     if (cx >= x0 - hz && cx < x0 + hz) return@run Hit.Cap(c.id, -1)
                                     if (cx > x1 - hz && cx <= x1 + hz) return@run Hit.Cap(c.id, 1)
                                 }
-                                val c = state.captions.firstOrNull { cx >= it.start * pps && cx <= it.end * pps } ?: return@run Hit.CapLane
+                                val c = state.captions.firstOrNull { inRow(it) && cx >= it.start * pps && cx <= it.end * pps } ?: return@run Hit.CapLane
                                 return@run Hit.Cap(c.id, 0)
                             }
                             if (y < 0) return@run Hit.Ruler
@@ -1842,10 +1846,16 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 }
                 // caption lane: blocks with the text, selected = bright border and handles at the edges
                 if (rulerPx > rulerBasePx) {
-                    val top = rulerBasePx + 3.dp.toPx()
-                    val h = rulerPx - rulerBasePx - 6.dp.toPx()
-                    val paint = capPaint.apply { textSize = 11.sp.toPx() }
+                    // several caption tracks with captions: a row each (they were drawn on each other)
+                    val rows = captionRows(state)
+                    val laneTop = rulerBasePx + 3.dp.toPx()
+                    val laneH = rulerPx - rulerBasePx - 6.dp.toPx()
+                    val rowH = if (rows.size < 2) laneH else (laneH - (rows.size - 1) * 2.dp.toPx()) / rows.size
+                    val paint = capPaint.apply { textSize = if (rows.size < 2) 11.sp.toPx() else (rowH * 0.62f).coerceAtMost(11.sp.toPx()) }
                     for (c0 in state.captions) {
+                        val ri = if (rows.size < 2) 0 else rows.indexOf(c0.track).coerceAtLeast(0)
+                        val top = laneTop + ri * (rowH + 2.dp.toPx())
+                        val h = rowH
                         val gd = capGroupDt?.takeIf { c0.id in it.first }?.second
                         val dragged = capDrag?.takeIf { it.first == c0.id } ?: gd?.let { Triple(c0.id, c0.start + it, c0.end + it) }
                         val cs = dragged?.second ?: c0.start
@@ -2261,3 +2271,14 @@ private const val MIN_TRIM = 0.5f
  * neighbour) the lower bound wins – the edge stays where it may be.
  */
 internal fun Float.coerceInSafe(lo: Float, hi: Float): Float = coerceIn(lo, maxOf(lo, hi))
+
+/**
+ * The caption lane's rows: the caption tracks that have captions, in the tracks' order (one row – the whole lane – when
+ * only one has). Captions of several tracks at the same time were drawn on each other.
+ */
+internal fun captionRows(state: EditorState): List<Long> {
+    val used = state.captions.map { it.track }.distinct()
+    if (used.size < 2) return used
+    val order = state.props?.captionTracks?.map { it.id }.orEmpty()
+    return used.sortedBy { t -> order.indexOf(t).let { if (it < 0) Int.MAX_VALUE else it } }
+}
