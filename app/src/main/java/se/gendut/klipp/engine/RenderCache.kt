@@ -102,7 +102,7 @@ object RenderCache {
         val longer: List<Pair<String, Double>> = emptyList(),
     )
 
-    private const val VERSION = 21
+    private const val VERSION = 22
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
     /** The longest piece a stretch of the timeline is rendered in (s), see [chunks]. */

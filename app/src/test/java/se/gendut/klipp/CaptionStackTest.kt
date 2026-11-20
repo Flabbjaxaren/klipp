@@ -45,4 +45,16 @@ class CaptionStackTest {
         // one of them hidden: nothing to stack against
         assertEquals(emptyMap<Long, Float>(), CaptionStack.shifts(caps.take(1), listOf(tracks[0], tracks[1].copy(enabled = false)), w, h))
     }
+
+    /** Two captions at the same time are played in separate overlays (one overlay draws one item at a time); a caption's word steps share one. */
+    @Test fun simultaneousCaptionsGetALaneEach() {
+        val a = se.gendut.klipp.engine.Overlay.Caption("Hej")
+        val items = listOf(
+            se.gendut.klipp.engine.OverlayItem(0.0, 1.0, a.copy(word = 0)), se.gendut.klipp.engine.OverlayItem(1.0, 2.0, a.copy(word = 1)),
+            se.gendut.klipp.engine.OverlayItem(0.5, 1.5, se.gendut.klipp.engine.Overlay.Caption("Hello")),
+        )
+        val lanes = se.gendut.klipp.engine.overlayLanes(items)
+        assertEquals(2, lanes.size)
+        assertEquals(listOf(2, 1), lanes.map { it.size })
+    }
 }

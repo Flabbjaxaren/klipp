@@ -610,7 +610,10 @@ object CompositionBuilder {
                 val tb = TimeBase(plan.total).also { times += it }
                 // titles that overlap (a dissolve between two) each in their own overlay
                 val titles = overlayLanes(plan.overlays.filter { it.overlay !is Overlay.Caption }).map { TimedOverlay(it, false, plan.width, plan.height, tb) }
-                fx += androidx.media3.effect.OverlayEffect(titles + TimedOverlay(plan.overlays, true, plan.width, plan.height, tb))
+                // captions of several tracks at the same time: each in its own overlay too (one overlay draws one item at a
+                // time – with a single one, only one of two simultaneous captions was played and exported)
+                val captions = overlayLanes(plan.overlays.filter { it.overlay is Overlay.Caption }).map { TimedOverlay(it, true, plan.width, plan.height, tb) }
+                fx += androidx.media3.effect.OverlayEffect(titles + captions)
             }
             // the timeline's frame rate in the preview too: a slowed 120 fps clip (30 frames a second at 25 %) played every
             // decoded frame – more than the timeline has, and off its grid next to the pre-rendered pieces (a hitch at
