@@ -100,6 +100,8 @@ fun PropSlider(
     anim: AnimUi? = null,
     /** Show the keyframe lane under the slider (position X and Y share a lane – shown under Y). */
     lane: Boolean = true,
+    /** The track's color: on a surface of the track's own color (a menu) another one, or the track can't be seen. */
+    trackColor: Color = K.SurfaceHighest,
     onCommit: (Float) -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -201,7 +203,7 @@ fun PropSlider(
                     if (x - gap > 1f) addRoundRect(RoundRect(Rect(0f, top, x - gap, top + h), topLeft = outer, bottomLeft = outer, topRight = inner, bottomRight = inner))
                     if (x + gap < size.width - 1f) addRoundRect(RoundRect(Rect(x + gap, top, size.width, top + h), topLeft = inner, bottomLeft = inner, topRight = outer, bottomRight = outer))
                 }
-                drawPath(track, K.SurfaceHighest)
+                drawPath(track, trackColor)
                 // filled from the default position to the value
                 val a = kotlin.math.min(x, x0)
                 val b = kotlin.math.max(x, x0)

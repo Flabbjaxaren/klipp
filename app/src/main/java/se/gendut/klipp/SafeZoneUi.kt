@@ -88,6 +88,8 @@ fun SafeZoneButton(state: EditorState, vertical: Boolean, onChanged: () -> Unit,
                             .padding(horizontal = 16.dp, vertical = 10.dp).testTag("safeZone:${k ?: "off"}"))
                 }
                 if (on) PropSlider(stringResource(R.string.safezone_opacity), state.safeZoneAlpha * 100f, 10f, 90f, 45f, { "%.0f %%".format(it) }, "safeZoneAlpha", lane = false,
+                    // (the menu is the track's color: without its own the track wasn't seen, only the handle)
+                    trackColor = K.OutlineVar,
                     onLive = { state.safeZoneAlpha = it / 100f }) { state.safeZoneAlpha = it / 100f; onChanged() }
                 if (on && !vertical) Text(stringResource(R.string.safezone_not_vertical), color = K.Error, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
                 Text(stringResource(R.string.safezone_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
