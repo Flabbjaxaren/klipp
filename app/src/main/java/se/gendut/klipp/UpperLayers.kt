@@ -959,9 +959,10 @@ private fun OverlayText(plan: LayerPlan, state: EditorState) {
         se.gendut.klipp.engine.TitleFollow.revision
         for (captions in OVERLAY_KINDS) {
             // the playhead is a Float: a frame's time can come out a hair before the title's start – the same margin as the clips.
-            // Titles: every one that shows (two during a dissolve), in start order; captions: one
+            // Titles: every one that shows (two during a dissolve), in start order. Captions: one per lane – a caption's
+            // word steps follow on each other (the latest), captions of several tracks at the same time each show
             val shown = plan.overlays.filter { (it.overlay is Overlay.Caption) == captions && it.shows(t, 5e-4) }
-            for (item in if (captions) listOfNotNull(shown.lastOrNull()) else shown) {
+            for (item in if (captions) se.gendut.klipp.engine.overlayLanes(shown).mapNotNull { it.lastOrNull() } else shown) {
                 val half = when (val o = item.overlay) {
                     is Overlay.Title -> Overlay.Title(o.t.copy(size = o.t.size / 2, x = o.t.x?.div(2), y = o.t.y?.div(2)))
                     is Overlay.Caption -> o
