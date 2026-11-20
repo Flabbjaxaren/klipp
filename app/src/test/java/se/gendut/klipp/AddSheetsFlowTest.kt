@@ -54,7 +54,7 @@ class AddSheetsFlowTest {
         val look = rule.onNodeWithTag("mall:namnskylt").getUnclippedBoundsInRoot()
         assertTrue("text above the look", field.bottom <= look.top)
         rule.onRoot().captureRoboImage("build/shots/92_titel_text_forst.png")
-        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("titleField:0"))).performTextInput("Maja Lind")
+        rule.onNode(hasSetTextAction() and (hasTestTag("titleField:0") or hasAnyAncestor(hasTestTag("titleField:0")))).performTextInput("Maja Lind")
         rule.waitForIdle()
         // another look: the name stays
         rule.onNodeWithTag("mall:kapitel").performScrollTo().performClick()

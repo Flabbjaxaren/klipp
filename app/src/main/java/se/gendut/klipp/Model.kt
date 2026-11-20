@@ -1179,8 +1179,9 @@ const val GROUP_PICTURE = 1
 
 /** A title being made in Add › Title. [lines] empty = nothing typed yet (the template's example shows). */
 class TitleDraft {
-    var template by mutableStateOf(se.gendut.klipp.engine.TitleTemplate.LOWER_THIRD)
-    var anim by mutableStateOf(se.gendut.klipp.engine.TitleAnim.BOUNCE)
+    // a new title starts as free text without effects: no animation, plate, outline or shadow (see newTitleLook)
+    var template by mutableStateOf(se.gendut.klipp.engine.TitleTemplate.FREE)
+    var anim by mutableStateOf(se.gendut.klipp.engine.TitleAnim.NONE)
     var lines by mutableStateOf(listOf<String>())
 }
 

@@ -188,6 +188,13 @@ private val TitleTemplate.desc: Int get() = when (this) {
     TitleTemplate.FREE -> R.string.titleui_tpl_desc_free
 }
 
+/**
+ * The look a new title gets: free text has no shadow (stored explicitly – a title saved without one keeps the template's
+ * own shadow, so titles already made don't change). No plate or outline either: free text's own are off.
+ */
+internal fun newTitleLook(t: TitleTemplate, anim: TitleAnim): TitleLook =
+    TitleLook(t, anim, shadow = if (t == TitleTemplate.FREE) se.gendut.klipp.engine.TitleShadow.OFF else null)
+
 /** A template as a tile: a still of it and its name; selected = the accent's container. */
 @Composable
 private fun TemplateRow(t: TitleTemplate, anim: TitleAnim, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
@@ -201,7 +208,7 @@ private fun TemplateRow(t: TitleTemplate, anim: TitleAnim, selected: Boolean, mo
             .testTag("mall:${t.key}"),
     ) {
         // a still – only the big preview above plays
-        TitlePreview(TitleLook(t, anim), "", Modifier.fillMaxWidth(), playing = false)
+        TitlePreview(newTitleLook(t, anim), "", Modifier.fillMaxWidth(), playing = false)
         Text(t.label, color = if (selected) K.PrimarySoft else K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.padding(start = 4.dp, top = 6.dp))
         Text(stringResource(t.desc), color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(start = 4.dp, bottom = 2.dp))
     }
@@ -271,12 +278,13 @@ internal fun TitleNew(state: EditorState) {
     val d = state.titleDraft
     var replay by remember { mutableStateOf(0) }
     Box(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-        TitlePreview(TitleLook(d.template, d.anim), d.shownText(), Modifier.fillMaxWidth(), replayKey = replay)
+        TitlePreview(newTitleLook(d.template, d.anim), d.shownText(), Modifier.fillMaxWidth(), replayKey = replay)
     }
     SectionLabel(stringResource(R.string.titleui_step_text))
     TitleFields(d.template, d.lines, placeholders = sampleText(d.template).split('\n')) { d.lines = it }
     SectionLabel(stringResource(R.string.titleui_step_look))
-    for (pair in TitleTemplate.entries.chunked(2)) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // (free text first: it is what a new title starts as)
+    for (pair in TitleTemplate.entries.sortedBy { it != TitleTemplate.FREE }.chunked(2)) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         for (t in pair) TemplateRow(t, d.anim, d.template == t, Modifier.weight(1f)) {
             // (the text stays: only the look changes)
             haptics.confirm(); d.template = t; replay++
@@ -298,7 +306,7 @@ internal fun TitleAddButton(state: EditorState, backend: PropsBackend, onEdit: (
             val d = state.titleDraft
             // the draft and the sheet stay until the title is on the timeline: without a place for it, the reason shows
             // in the sheet and nothing typed is lost
-            backend.addTitle(d.shownText(), state.playhead, TitleLook(d.template, d.anim).encode()) {
+            backend.addTitle(d.shownText(), state.playhead, newTitleLook(d.template, d.anim).encode()) {
                 d.lines = emptyList()
                 onEdit()
             }

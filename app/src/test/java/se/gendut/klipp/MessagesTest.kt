@@ -84,7 +84,7 @@ class MessagesTest {
         sheetOpen = true
         content()
         settle()
-        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("titleField:0"))).performTextInput("Maja Lind")
+        rule.onNode(hasSetTextAction() and (hasTestTag("titleField:0") or hasAnyAncestor(hasTestTag("titleField:0")))).performTextInput("Maja Lind")
         rule.onNodeWithTag("title:add").performClick()
         settle()
         assertEquals("shown once", 1, shown(why))
@@ -105,7 +105,7 @@ class MessagesTest {
         sheetOpen = true
         content()
         settle()
-        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("titleField:0"))).performTextInput("Rubrik")
+        rule.onNode(hasSetTextAction() and (hasTestTag("titleField:0") or hasAnyAncestor(hasTestTag("titleField:0")))).performTextInput("Rubrik")
         settle(800)
         // as the engine's answer: from outside the tap, a while later
         rule.runOnUiThread { toaster.show("Kunde inte skapa titeln: disk full") }

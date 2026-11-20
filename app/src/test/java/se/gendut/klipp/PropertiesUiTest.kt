@@ -305,7 +305,7 @@ class PropertiesUiTest {
         rule.onNodeWithText("Första raden").performScrollTo().performClick()
         rule.waitForIdle()
         assertTrue(edited)
-        assertEquals(listOf("title Anna Berg\nFiskare, Smögen @3.0 klipp:mall=namnskylt;in=studs", "captions"), fake.log)
+        assertEquals(listOf("title Titel @3.0 klipp:mall=fri;in=ingen;sh=0", "captions"), fake.log)
         assertEquals(0.5f, st.playhead, 0.001f)
         // the line opens the caption editor (the same one as tapping the caption in the timeline)
         assertEquals(1L, st.selectedCaption)
