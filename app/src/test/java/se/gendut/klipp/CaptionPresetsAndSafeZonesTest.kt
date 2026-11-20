@@ -97,6 +97,20 @@ class CaptionPresetsAndSafeZonesTest {
         assertEquals(CaptionFit.Problem.EMPTY, CaptionFit.fit(emptyList(), st, 1080, 1920, tt).problem)
     }
 
+    /** A long word that reaches the sides at any line width (found on the phone): the text is made smaller, and then fits. */
+    @Test fun aLongWordIsFittedByMakingTheTextSmaller() {
+        val st = CaptionStyle(font = "Sans fet", size = 64f, background = false, outline = 6f, wordColor = 0xFFFF5FA8.toInt(), wordZoom = 1.46f, anchor = "middle", centerY = 0.6f)
+        val texts = listOf("På väg mot Västerås, Västmanland", "och för det behöver man alltid något")
+        val z = SafeZones.of(SafeZones.Platform.TIKTOK)
+        val r = CaptionFit.fit(texts, st, 1080, 1920, z)
+        assertNull(r.problem)
+        val size = (r.values!!["size"] as Double).toFloat()
+        assertTrue("smaller: $size", size < 64f && size >= 32f)
+        val fitted = st.copy(size = size, centerY = r.values!!["centerY"] as Float, wrapWidth = (r.values!!["wrapWidth"] as? Float) ?: st.wrapWidth)
+        val after = CaptionFit.blocks(texts, fitted, 1080, 1920)
+        assertTrue("clear of every zone: $after", after.all { SafeZones.hit(z, it) == null })
+    }
+
     @Test fun aBlockTallerThanTheFreeAreaCannotBeFitted() {
         val huge = CaptionStyle(size = 160f, background = false, wrapWidth = 0.35f)
         val r = CaptionFit.fit(listOf((1..40).joinToString(" ") { "ord" }), huge, 1080, 1920, SafeZones.of(SafeZones.Platform.SHORTS))

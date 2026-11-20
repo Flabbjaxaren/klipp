@@ -41,7 +41,7 @@
     <string name="captionstyle_preset_social">Stor social</string>
     <string name="captionstyle_preset_plate">Textplatta</string>
     <string name="captionstyle_preset_own">Egen</string>
-    <string name="captionstyle_presets_hint">Ett förval ändrar bara utseendet – text, tider och placering ligger kvar. Ditt eget utseende sparas när du väljer ett förval, under Egen.</string>
+    <string name="captionstyle_presets_hint">Ett förval ändrar bara utseendet. Ditt eget utseende sparas under Egen.</string>
     <string name="captionstyle_place_top">Uppe</string>
     <string name="captionstyle_place_middle">Mitten</string>
     <string name="captionstyle_place_under">Under mitten</string>
@@ -50,7 +50,7 @@
     <string name="captionstyle_line_width">Radbredd</string>
     <string name="captionstyle_place_scope">Gäller hela spåret %1$s</string>
     <string name="captionstyle_fit">Anpassa till säkert område</string>
-    <string name="captionstyle_fit_hint">Flyttar undertexterna (och gör långa rader smalare) så att varje rad, med kontur och platta, går fri från appens knappar och text.</string>
+    <string name="captionstyle_fit_hint">Flyttar undertexterna – och gör långa rader smalare och vid behov texten mindre – så att varje rad, med kontur och platta, går fri från appens knappar och text.</string>
     <string name="captionstyle_mark_word">Markera aktuellt ord</string>
     <string name="captionstyle_mark_word_hint">Ordet som sägs får färgen</string>
     <string name="captionstyle_words_hint">1 = ett ord i taget</string>
@@ -75,4 +75,5 @@
     <string name="captionfit_too_wide">Raderna når ut i sidan för %1$s – centrera dem eller gör texten mindre.</string>
     <string name="captionfit_already">Undertexterna ryms redan i det säkra området för %1$s.</string>
     <string name="captionfit_done">Placerade inom det säkra området för %1$s.</string>
+    <string name="captionfit_done_smaller">Placerade inom det säkra området för %1$s – texten gjordes mindre för att få plats (%2$d → %3$d).</string>
 </resources>

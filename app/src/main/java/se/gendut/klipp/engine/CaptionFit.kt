@@ -5,8 +5,8 @@ import kotlin.math.abs
 
 /**
  * "Fit to the safe area": the caption track's placement moved – and its lines made narrower when they are wider than
- * the free area – so that every caption on it, as drawn (outline and background plate included, a marked word at its
- * largest), lies in a platform's clear area. Only the placement changes: the text, the times and the look stay.
+ * the free area, the text smaller when it still doesn't fit – so that every caption on it, as drawn (outline and
+ * background plate included, a marked word at its largest), lies in a platform's clear area. The text and the times stay.
  */
 object CaptionFit {
     enum class Problem {
@@ -23,6 +23,8 @@ object CaptionFit {
 
     /** Lines narrower than this aren't tried (a caption of a word or two per line reads badly). */
     private const val MIN_WRAP = 0.35f
+    /** The smallest the text is made to fit, of its size. */
+    private const val MIN_SIZE = 0.5f
 
     fun fit(texts: List<String>, st: CaptionStyle, w: Int, h: Int, z: SafeZones.Zones): Result {
         if (texts.none { it.isNotBlank() } || w <= 0 || h <= 0) return Result(null, Problem.EMPTY)
@@ -35,17 +37,25 @@ object CaptionFit {
             tries += minOf(st.wrapWidth ?: 0.9f, 2f * half - 0.01f)
             for (col in z.covered.drop(4)) if (col.left > 0.5f) (2f * minOf(half, col.left - 0.5f) - 0.01f).takeIf { it >= MIN_WRAP }?.let { tries += it }
         }
+        // at the text's size first; when nothing fits (a long word reaches the sides, the block is taller than the room
+        // above the button column), smaller in steps – down to [MIN_SIZE] of it
         var best: Pair<CaptionStyle, Float>? = null
-        for (ww in tries) {
-            val s = st.copy(wrapWidth = ww)
-            val blocks = blocks(texts, s, w, h)
-            if (!centered && SafeZones.tooWide(z, blocks)) continue
-            val shift = SafeZones.verticalFit(z, blocks) ?: continue
-            if (best == null || abs(shift) < abs(best.second) - 1e-4f) best = s to shift
+        var wide = false
+        var k = 1f
+        while (best == null && k >= MIN_SIZE - 1e-3f) {
+            for (ww in tries) {
+                val s = st.copy(wrapWidth = ww, size = st.size * k)
+                val blocks = blocks(texts, s, w, h)
+                if (SafeZones.tooWide(z, blocks)) { wide = true; continue }
+                val shift = SafeZones.verticalFit(z, blocks) ?: continue
+                if (best == null || abs(shift) < abs(best.second) - 1e-4f) best = s to shift
+            }
+            k -= 0.05f
         }
-        val (s, shift) = best ?: return Result(null, if (!centered && tries.all { ww -> SafeZones.tooWide(z, blocks(texts, st.copy(wrapWidth = ww), w, h)) }) Problem.TOO_WIDE else Problem.TOO_TALL)
+        val (s, shift) = best ?: return Result(null, if (wide) Problem.TOO_WIDE else Problem.TOO_TALL)
         val out = HashMap<String, Any>()
         if (s.wrapWidth != st.wrapWidth) out["wrapWidth"] = s.wrapWidth ?: -1f
+        if (s.size != st.size) out["size"] = s.size.toDouble()
         when {
             st.centerY != null -> out["centerY"] = st.centerY + shift
             st.anchor == "top" -> out["margin"] = (st.margin + shift).toDouble()

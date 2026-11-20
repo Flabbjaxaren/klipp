@@ -2155,7 +2155,10 @@ class ProjectController(
         val q = snapshot.sequence ?: return Str.t(R.string.captionfit_empty)
         val t = q.captionTracks.firstOrNull { it.id == track } ?: return Str.t(R.string.captionfit_empty)
         val p = SafeZones.byKey(platform) ?: return Str.t(R.string.captionfit_empty)
-        val texts = (q.captions + q.hiddenCaptions).filter { it.track == track }.map { it.text }
+        // what is on screen at a time: the whole caption, or its pages when a few words are shown at a time
+        val texts = (q.captions + q.hiddenCaptions).filter { it.track == track }.flatMap { c ->
+            if (t.style.wordColor != null && t.style.wordCount > 0) CaptionWords.steps(c.text, c.start, c.end, q.words, t.style.wordCount).map { it.text }.distinct() else listOf(c.text)
+        }
         val r = CaptionFit.fit(texts, t.style, q.width, q.height, SafeZones.of(p))
         val name = Str.t(p.label)
         return when (r.problem) {
@@ -2173,7 +2176,11 @@ class ProjectController(
                     }
                 }
                 if (!changed) Str.t(R.string.captionfit_already, name)
-                else { setCaptionStyle(track, v); Str.t(R.string.captionfit_done, name) }
+                else {
+                    setCaptionStyle(track, v)
+                    val size = (v["size"] as? Number)?.toFloat()
+                    if (size != null) Str.t(R.string.captionfit_done_smaller, name, Math.round(st.size), Math.round(size)) else Str.t(R.string.captionfit_done, name)
+                }
             }
         }
     }

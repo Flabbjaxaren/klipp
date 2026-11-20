@@ -73,7 +73,13 @@ internal fun CaptionDock(state: EditorState) {
                 val id = c?.id ?: return@DockItem
                 state.selectedCaption = null; state.props?.deleteCaption(id)
             },
-            DockItem(Ic.Edit, stringResource(R.string.captionui_edit), "cap:Redigera") { state.editingCaption = true },
+            DockItem(Ic.Edit, stringResource(R.string.captionui_edit), "cap:Redigera") {
+                // the picture shows what is typed: the playhead into the caption when it stands outside it
+                state.captions.firstOrNull { it.id == state.selectedCaption }?.let { c ->
+                    if (state.playhead < c.start || state.playhead >= c.end) { state.playing = false; state.playhead = c.start }
+                }
+                state.editingCaption = true
+            },
             DockItem(Ic.Split, stringResource(R.string.captionui_split), "cap:Dela") {
                 val cap = c ?: return@DockItem
                 if (state.playhead <= cap.start + 0.04f || state.playhead >= cap.end - 0.04f) { state.onNotice?.invoke(Str.t(R.string.captionui_playhead_inside)); return@DockItem }
@@ -295,8 +301,8 @@ fun CaptionStyleContent(backend: PropsBackend, track: Long, tab: CaptionStyleTab
 private fun CaptionPresetCards(st: CaptionStyle, onPick: (se.gendut.klipp.engine.CaptionPresets.Kind?) -> Unit) {
     val now = se.gendut.klipp.engine.CaptionPresets.of(st)
     Text(stringResource(R.string.captionstyle_presets_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    // (side by side in one row: all four in view in a low sheet)
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         PresetCard(stringResource(R.string.captionstyle_preset_standard), now == se.gendut.klipp.engine.CaptionPresets.Kind.STANDARD, "capPreset:standard",
             { onPick(se.gendut.klipp.engine.CaptionPresets.Kind.STANDARD) }) {
             Text("Aa", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
@@ -323,17 +329,17 @@ private fun CaptionPresetCards(st: CaptionStyle, onPick: (se.gendut.klipp.engine
 }
 
 @Composable
-private fun PresetCard(label: String, on: Boolean, tag: String, onClick: () -> Unit, sample: @Composable () -> Unit) {
+private fun androidx.compose.foundation.layout.RowScope.PresetCard(label: String, on: Boolean, tag: String, onClick: () -> Unit, sample: @Composable () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Column(
-        Modifier.width(96.dp).clip(shape).background(if (on) K.PrimaryContainer else K.SurfaceHigh)
+        Modifier.weight(1f).clip(shape).background(if (on) K.PrimaryContainer else K.SurfaceHigh)
             .border(if (on) 2.dp else 1.dp, if (on) K.Primary else K.OutlineVar, shape)
             .clickable(onClickLabel = label, onClick = onClick).padding(vertical = 10.dp).testTag(tag)
             .semantics { this.selected = on },
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.height(40.dp).fillMaxWidth().padding(horizontal = 6.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF5A6470)), contentAlignment = Alignment.Center) { sample() }
-        Text(label, color = if (on) K.PrimarySoft else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+        Text(label, color = if (on) K.PrimarySoft else K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp, start = 4.dp, end = 4.dp))
     }
 }
