@@ -708,6 +708,131 @@ fun CropOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
 
 private fun scope0(gs: GradeState) { kotlinx.coroutines.MainScope().launch { gs.endLive() } }
 
+/** A mask's outline in the clip's own frame (fractions, y down): the rectangle's corners, or points around the ellipse. */
+internal fun maskOutline(m: se.gendut.klipp.engine.LayerMask, steps: Int = 72): List<Pair<Float, Float>> {
+    val hw = m.w / 2f; val hh = m.h / 2f
+    return if (m.shape == se.gendut.klipp.engine.LayerMask.ELLIPSE) List(steps) { i ->
+        val a = 2.0 * Math.PI * i / steps
+        (m.cx + hw * kotlin.math.cos(a).toFloat()) to (m.cy + hh * kotlin.math.sin(a).toFloat())
+    } else listOf(m.cx - hw to m.cy - hh, m.cx + hw to m.cy - hh, m.cx + hw to m.cy + hh, m.cx - hw to m.cy + hh)
+}
+
+/**
+ * A mask moved by its handles: [ex], [ey] which edges a handle moves (−1 left/top, 1 right/bottom, 0 none) to the point
+ * [u], [v] (clip frame); without a handle ([ex] = [ey] = 0) the whole shape moves by [du], [dv]. The opposite edge stays;
+ * never smaller than 2 % of the frame.
+ */
+internal fun maskDragged(m: se.gendut.klipp.engine.LayerMask, ex: Int, ey: Int, u: Float, v: Float, du: Float, dv: Float): se.gendut.klipp.engine.LayerMask {
+    if (ex == 0 && ey == 0) return m.copy(cx = m.cx + du, cy = m.cy + dv)
+    var l = m.cx - m.w / 2f; var r = m.cx + m.w / 2f; var t = m.cy - m.h / 2f; var b = m.cy + m.h / 2f
+    val min = 0.02f
+    if (ex < 0) l = minOf(u, r - min); if (ex > 0) r = maxOf(u, l + min)
+    if (ey < 0) t = minOf(v, b - min); if (ey > 0) b = maxOf(v, t + min)
+    return m.copy(cx = (l + r) / 2f, cy = (t + b) / 2f, w = r - l, h = b - t)
+}
+
+/**
+ * The mask on the picture while it is edited (Properties › Mask): its outline (and the feather's, dashed) and handles at
+ * the corners and edges of its box. A handle resizes, a drag inside moves it – the clip itself never moves here (a drag
+ * outside the mask does nothing). Keyframed or tracked: the change is a keyframe at the playhead, the rest stay; one
+ * undo step per drag.
+ */
+@Composable
+fun MaskOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifier) {
+    val id = state.maskEdit ?: return
+    val controller = state.props as? se.gendut.klipp.engine.ProjectController ?: return
+    controller.revision
+    val snap = controller.snapshot.sequence?.video?.firstNotNullOfOrNull { t -> t.clips.firstOrNull { it.id == id } } ?: return
+    val seqW = controller.snapshot.sequence?.width ?: return
+    val seqH = controller.snapshot.sequence?.height ?: return
+    val haptics = rememberHaptics()
+    val info = remember(id, gs.clipInfo, state.clips.firstOrNull { it.id == id }) { gs.clipInfo?.invoke(id) }
+    fun shown(): se.gendut.klipp.engine.LayerMask? {
+        val m = gs.shown(id)?.layer?.mask ?: return null
+        return if (m.animated) m.at(info?.srcAt(state.playhead)) else m
+    }
+    val placed = { snap.at(state.playhead.toDouble()) }
+    val tracking = MaskTrackService.target == id
+    Box(modifier.fillMaxSize().testTag("maskOverlay").pointerInput(id, tracking) {
+        if (tracking) return@pointerInput
+        awaitEachGesture {
+            val down = awaitFirstDown()
+            // (every touch is the mask's while it is edited: the clip doesn't move under it)
+            down.consume()
+            val start = shown() ?: return@awaitEachGesture
+            val w = size.width.toFloat(); val h = size.height.toFloat()
+            val c0 = placed()
+            val l = start.cx - start.w / 2f; val r = start.cx + start.w / 2f; val t = start.cy - start.h / 2f; val b = start.cy + start.h / 2f
+            val handles = listOf(Triple(l, t, -1 to -1), Triple(r, t, 1 to -1), Triple(r, b, 1 to 1), Triple(l, b, -1 to 1),
+                Triple(l, start.cy, -1 to 0), Triple(r, start.cy, 1 to 0), Triple(start.cx, t, 0 to -1), Triple(start.cx, b, 0 to 1))
+            fun screen(u: Float, v: Float) = c0.toFrame(u, v, seqW, seqH).let { Offset(it[0] * w, it[1] * h) }
+            // the nearest handle within reach – unless the shape's center is nearer (a small mask on a small picture:
+            // its middle lies within reach of the handles, and a drag there is meant to move it)
+            val toCenter = (screen(start.cx, start.cy) - down.position).getDistance()
+            val hit = handles.minByOrNull { (screen(it.first, it.second) - down.position).getDistance() }
+                ?.takeIf { (screen(it.first, it.second) - down.position).getDistance().let { d -> d < 36.dp.toPx() && d < toCenter } }
+            val p0 = c0.fromFrame(down.position.x / w, down.position.y / h, seqW, seqH)
+            val inside = if (start.shape == se.gendut.klipp.engine.LayerMask.ELLIPSE) {
+                val dx = (p0[0] - start.cx) / (start.w / 2f).coerceAtLeast(1e-4f); val dy = (p0[1] - start.cy) / (start.h / 2f).coerceAtLeast(1e-4f)
+                dx * dx + dy * dy <= 1f
+            } else p0[0] in l..r && p0[1] in t..b
+            if (hit == null && !inside) return@awaitEachGesture
+            haptics.tick()
+            val g0 = gs.of(id)
+            val fx0 = g0.layer ?: se.gendut.klipp.engine.LayerFx()
+            val all = fx0.mask ?: return@awaitEachGesture
+            val tol = (FRAME / 2.0) * abs(info?.speed ?: 1.0).coerceAtLeast(1e-3)
+            val key = info?.srcAt(state.playhead)
+            var result = all
+            var moved = false
+            while (true) {
+                val ev = awaitPointerEvent()
+                val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                if (!c.pressed) break
+                val q = c0.fromFrame(c.position.x / w, c.position.y / h, seqW, seqH)
+                val (ex, ey) = hit?.third ?: (0 to 0)
+                result = all.withValues(maskDragged(start, ex, ey, q[0], q[1], q[0] - p0[0], q[1] - p0[1]), key, tol)
+                gs.setLive(id, g0.copy(layer = fx0.copy(mask = result)))
+                moved = true
+                c.consume()
+            }
+            if (!moved) return@awaitEachGesture
+            haptics.confirm()
+            gs.set(id, g0.copy(layer = fx0.copy(mask = result)))
+            scope0(gs)
+        }
+    }) {
+        Canvas(Modifier.fillMaxSize()) {
+            val m = shown() ?: return@Canvas
+            val pl = placed()
+            fun pt(u: Float, v: Float) = pl.toFrame(u, v, seqW, seqH).let { Offset(it[0] * size.width, it[1] * size.height) }
+            fun path(mm: se.gendut.klipp.engine.LayerMask) = androidx.compose.ui.graphics.Path().apply {
+                maskOutline(mm).forEachIndexed { i, (u, v) -> pt(u, v).let { if (i == 0) moveTo(it.x, it.y) else lineTo(it.x, it.y) } }
+                close()
+            }
+            // the feather's reach, dashed (fraction of the frame height around the shape)
+            if (m.feather > 0.005f) {
+                val f = m.feather * 2f
+                val outer = m.copy(w = m.w + f * seqH / seqW.toFloat(), h = m.h + f)
+                drawPath(path(outer), Color.White.copy(alpha = 0.55f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx(),
+                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f))))
+            }
+            val outline = path(m)
+            drawPath(outline, Color.Black.copy(alpha = 0.5f), style = androidx.compose.ui.graphics.drawscope.Stroke(3.5.dp.toPx()))
+            drawPath(outline, K.Primary, style = androidx.compose.ui.graphics.drawscope.Stroke(2.dp.toPx()))
+            if (!tracking) {
+                val l = m.cx - m.w / 2f; val r = m.cx + m.w / 2f; val t = m.cy - m.h / 2f; val b = m.cy + m.h / 2f
+                for ((u, v) in listOf(l to t, r to t, r to b, l to b, l to m.cy, r to m.cy, m.cx to t, m.cx to b)) {
+                    drawCircle(Color.Black.copy(alpha = 0.5f), 8.dp.toPx(), pt(u, v))
+                    drawCircle(K.PrimarySoft, 6.5.dp.toPx(), pt(u, v))
+                }
+                drawCircle(Color.Black.copy(alpha = 0.5f), 4.dp.toPx(), pt(m.cx, m.cy))
+                drawCircle(Color.White, 3.dp.toPx(), pt(m.cx, m.cy))
+            }
+        }
+    }
+}
+
 /**
  * The mask's position and size, with keyframes (stopwatch, lane, ◀ ◆ ▶ – in source time, so they follow the clip) and
  * tracking: the mask follows an object and the track becomes keyframes. Animated: the sliders show and change the
@@ -720,6 +845,8 @@ private fun MaskControls(
 ) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val haptics = rememberHaptics()
+    // its outline and handles on the picture while the mask is shown here (see MaskOverlay)
+    androidx.compose.runtime.DisposableEffect(clip) { state.maskEdit = clip; onDispose { state.maskEdit = null } }
     // the clip's placement (timeline ↔ source time); re-read when the timeline changes (trim, move)
     val info = remember(clip, gs.clipInfo, state.clips.firstOrNull { it.id == clip }) { gs.clipInfo?.invoke(clip) }
     fun srcOf(t: Float): Double? = info?.srcAt(t)
