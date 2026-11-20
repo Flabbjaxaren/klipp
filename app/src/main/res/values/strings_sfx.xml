@@ -23,7 +23,7 @@
     <string name="sfx_pack_digital">digital beeps, power-ups, zaps</string>
     <string name="sfx_pack_jingles">short music stings and jingles</string>
     <string name="projectcontroller_undo_sound">Sound effect</string>
-    <string name="projectcontroller_sound_placed">Sound effect added on A%1$d</string>
+    <string name="projectcontroller_sound_placed">Sound added on A%1$d</string>
     <string name="projectcontroller_sound_failed">The sound effect could not be added: %1$s</string>
     <string name="sfx_pack_whoosh">whooshes, swishes and swipes for cuts and transitions</string>
     <string name="sfx_pack_social">notifications, pops, camera shutters, clicks, dings</string>
