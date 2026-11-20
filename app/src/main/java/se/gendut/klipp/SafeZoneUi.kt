@@ -84,7 +84,11 @@ fun SafeZoneButton(state: EditorState, vertical: Boolean, onChanged: () -> Unit,
                 for ((k, l) in opts) {
                     val sel = state.safeZone == k
                     Text(l, color = if (sel) K.PrimarySoft else K.OnSurface, fontSize = 14.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
-                        modifier = Modifier.fillMaxWidth().clickable { haptics.tick(); state.safeZone = k; onChanged() }
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            // applied and closed at once (also "Off"): the choice is the whole errand – the visibility is
+                            // set by opening the menu again (the playhead and the selection are not touched)
+                            haptics.tick(); state.safeZone = k; onChanged(); open = false
+                        }
                             .padding(horizontal = 16.dp, vertical = 10.dp).testTag("safeZone:${k ?: "off"}"))
                 }
                 if (on) PropSlider(stringResource(R.string.safezone_opacity), state.safeZoneAlpha * 100f, 10f, 90f, 45f, { "%.0f %%".format(it) }, "safeZoneAlpha", lane = false,

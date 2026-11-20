@@ -60,7 +60,7 @@
     <string name="safezone_button">Safe zones</string>
     <string name="dock_raise">Raise the sheet</string>
     <string name="dock_lower">Lower the sheet</string>
-    <string name="safezone_off">Off</string>
+    <string name="safezone_off">No overlay</string>
     <string name="safezone_opacity">Visibility</string>
     <string name="safezone_hint">Only in the preview – never in the export. A guide after the platforms\' own guidance; the apps change.</string>
     <string name="safezone_not_vertical">Made for vertical 9:16 video</string>

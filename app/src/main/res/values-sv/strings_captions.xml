@@ -60,7 +60,7 @@
     <string name="safezone_button">Säkra zoner</string>
     <string name="dock_raise">Höj arket</string>
     <string name="dock_lower">Sänk arket</string>
-    <string name="safezone_off">Av</string>
+    <string name="safezone_off">Ingen overlay</string>
     <string name="safezone_opacity">Synlighet</string>
     <string name="safezone_hint">Bara i förhandsvisningen – aldrig i exporten. En riktlinje efter plattformarnas egna anvisningar; apparna ändras.</string>
     <string name="safezone_not_vertical">Gjord för stående 9:16-video</string>
