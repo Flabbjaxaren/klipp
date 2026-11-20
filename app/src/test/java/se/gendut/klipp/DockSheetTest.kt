@@ -23,13 +23,13 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** A docked sheet leaves what lies above it usable (the timeline's tracks), and its handle raises it. */
+/** A docked sheet opens expanded, its handle lowers it to a smaller state (what lies above it is usable), and a release settles on one of the two. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], qualifiers = "sv-w411dp-h891dp-xxhdpi")
 class DockSheetTest {
     @get:Rule val rule = createComposeRule()
 
-    @Test fun theEditorAboveTheSheetStillTakesTaps() {
+    @Test fun itOpensExpandedAndTheHandleLowersIt() {
         var behind = 0
         var dismissed = 0
         rule.setContent {
@@ -42,20 +42,37 @@ class DockSheetTest {
             }
         }
         rule.waitForIdle()
-        // a tap high on the screen (the picture, the timeline's top) reaches the editor
-        rule.onNodeWithTag("editor").performTouchInput { click(Offset(width / 2f, height * 0.2f)) }
-        rule.waitForIdle()
-        assertEquals(1, behind)
-        // a tap on the sheet doesn't
+        val root = rule.onNodeWithTag("editor").fetchSemanticsNode().boundsInRoot.height
+        val high = rule.onNodeWithTag("sheet").fetchSemanticsNode().boundsInRoot.height
+        assertEquals("opens expanded", DOCK_HIGH, high / root, 0.02f)
+        // the top bar above it still takes taps; a tap on the sheet doesn't reach the editor
+        rule.onNodeWithTag("editor").performTouchInput { click(Offset(width / 2f, height * 0.05f)) }
         rule.onNodeWithTag("inside").performClick()
         rule.waitForIdle()
         assertEquals(1, behind)
-        // the handle raises it: then the same high tap lands on the editor only if above 90 %
-        val low = rule.onNodeWithTag("sheet").fetchSemanticsNode().boundsInRoot.height
+        // the handle lowers it to the smaller state: then the picture's height is the editor's again
         rule.onNodeWithTag("dockHandle").performClick()
         rule.waitForIdle()
-        val high = rule.onNodeWithTag("sheet").fetchSemanticsNode().boundsInRoot.height
-        assertTrue("raised: $low → $high", high > low * 1.4f)
+        val low = rule.onNodeWithTag("sheet").fetchSemanticsNode().boundsInRoot.height
+        assertEquals("the smaller state", DOCK_LOW, low / root, 0.02f)
+        rule.onNodeWithTag("editor").performTouchInput { click(Offset(width / 2f, height * 0.3f)) }
+        rule.waitForIdle()
+        assertEquals(2, behind)
+        // and raises it again
+        rule.onNodeWithTag("dockHandle").performClick()
+        rule.waitForIdle()
+        assertEquals(DOCK_HIGH, rule.onNodeWithTag("sheet").fetchSemanticsNode().boundsInRoot.height / root, 0.02f)
         assertEquals(0, dismissed)
+    }
+
+    @Test fun aReleaseSettlesOnOneOfTheTwoStates() {
+        assertEquals(DOCK_HIGH, dockRestingPlace(0.8f, 0f), 0f)
+        assertEquals(DOCK_LOW, dockRestingPlace(0.6f, 0f), 0f)
+        // a quick pull down from high up goes all the way, a push up from low down too
+        assertEquals(DOCK_LOW, dockRestingPlace(0.85f, -2f), 0f)
+        assertEquals(DOCK_HIGH, dockRestingPlace(0.5f, 2f), 0f)
+        // past a state (the resisted overshoot): back to it
+        assertEquals(DOCK_LOW, dockRestingPlace(0.41f, 0f), 0f)
+        assertEquals(DOCK_HIGH, dockRestingPlace(0.92f, 0f), 0f)
     }
 }
