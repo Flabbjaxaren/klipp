@@ -145,6 +145,7 @@
     <string name="colortools_smoothing">Smoothing</string>
     <string name="colortools_still">Still</string>
     <string name="colortools_now">Now</string>
+    <string name="colortools_original">Original</string>
     <string name="colortools_grab_still">Grab still</string>
     <string name="colortools_compare">Compare</string>
     <string name="colortools_stabilized">Stabilized %1$.1f s in %2$.1f s · zoomed %3$.0f%%</string>

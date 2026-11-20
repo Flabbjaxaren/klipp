@@ -145,6 +145,7 @@
     <string name="colortools_smoothing">Utjämning</string>
     <string name="colortools_still">Stillbild</string>
     <string name="colortools_now">Nu</string>
+    <string name="colortools_original">Original</string>
     <string name="colortools_grab_still">Ta stillbild</string>
     <string name="colortools_compare">Jämför</string>
     <string name="colortools_stabilized">Stabiliserat %1$.1f s på %2$.1f s · förstoras %3$.0f %%</string>
