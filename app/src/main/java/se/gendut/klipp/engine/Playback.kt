@@ -1536,7 +1536,7 @@ object Exporter {
                             boost.close()
                             // what the file actually became (the encoder's choice when it cannot do exactly what was requested)
                             val r = exportResult
-                            if (note) lastResult = "${r.width}×${r.height}" + (if (r.averageVideoBitrate > 0) " · ${"%.0f".format(r.averageVideoBitrate / 1e6)} Mbit/s" else "") +
+                            if (note) lastResult = shownSize(expect, r.width, r.height).let { (w, h) -> "${w}×$h" } + (if (r.averageVideoBitrate > 0) " · ${"%.0f".format(r.averageVideoBitrate / 1e6)} Mbit/s" else "") +
                                 (sizeMismatch(expect, r.width, r.height)?.let { " · $it" } ?: "")
                             if (note) se.gendut.klipp.CrashReport.note("export done: ${r.width}×${r.height}, requested ${"%.1f".format(st.bitrateMbps)} Mbit/s, got ${"%.1f".format(r.averageVideoBitrate / 1e6)} Mbit/s, ${r.videoEncoderName} ${st.codec.substringAfter('/')}${if (tenBit) " 10-bit" else ""}")
                             if (cont.isActive) cont.resume(Result.success(Unit))
@@ -1574,6 +1574,13 @@ object Exporter {
     }
 
     /** The message when the file's size isn't the one asked for (a few pixels of encoder alignment don't count). */
+    /** The file's size as it plays: a portrait export is written as landscape with a rotation – shown the way the project stands. */
+    internal fun shownSize(expect: Pair<Int, Int>?, w: Int, h: Int): Pair<Int, Int> {
+        if (expect == null) return w to h
+        val portrait = expect.second > expect.first
+        return if (portrait == (h > w) || w == h) w to h else h to w
+    }
+
     internal fun sizeMismatch(expect: Pair<Int, Int>?, w: Int, h: Int): String? {
         if (expect == null || w <= 0 || h <= 0) return null
         val (ew, eh) = expect
