@@ -102,7 +102,7 @@ object RenderCache {
         val longer: List<Pair<String, Double>> = emptyList(),
     )
 
-    private const val VERSION = 22
+    private const val VERSION = 23
     /** Chunks shorter than this merge with the neighbor (a frame on its own would just mean more clip switches). */
     private const val MIN_CHUNK = 0.25
     /** The longest piece a stretch of the timeline is rendered in (s), see [chunks]. */
@@ -421,7 +421,7 @@ object RenderCache {
             fun csd(k: String) = m.getByteBuffer(k)?.let { b -> val a = ByteArray(b.remaining()); b.duplicate().get(a); a.joinToString("") { "%02x".format(it) } }.orEmpty()
             return listOf(m.getString(android.media.MediaFormat.KEY_MIME), int(android.media.MediaFormat.KEY_WIDTH), int(android.media.MediaFormat.KEY_HEIGHT),
                 int(android.media.MediaFormat.KEY_COLOR_RANGE), int(android.media.MediaFormat.KEY_COLOR_STANDARD), int(android.media.MediaFormat.KEY_COLOR_TRANSFER),
-                csd("csd-0"), csd("csd-1")).joinToString("|")
+                csd("csd-0"), csd("csd-1"), int(android.media.MediaFormat.KEY_ROTATION)).joinToString("|")
         } finally {
             ex.release()
         }
@@ -569,7 +569,14 @@ object RenderCache {
                     ex.selectTrack(t)
                     if (muxer == null) {
                         muxer = android.media.MediaMuxer(out.path, android.media.MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-                        track = muxer.addTrack(ex.getTrackFormat(t))
+                        val fmt = ex.getTrackFormat(t)
+                        track = muxer.addTrack(fmt)
+                        // the pieces' rotation: a portrait sequence's pieces are stored landscape with a rotation (as the
+                        // encoders prefer) – the muxer doesn't take it from the format, and without it the joined file played
+                        // a landscape band with the picture turned (two-clip transitions in a vertical project)
+                        if (fmt.containsKey(android.media.MediaFormat.KEY_ROTATION)) fmt.getInteger(android.media.MediaFormat.KEY_ROTATION).let { r ->
+                            if (r != 0) muxer.setOrientationHint(((r % 360) + 360) % 360)
+                        }
                         muxer.start()
                     }
                     val off = Math.round(offset * 1e6)
