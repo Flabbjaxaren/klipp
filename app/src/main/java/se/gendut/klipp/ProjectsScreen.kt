@@ -175,9 +175,13 @@ private fun durLabel(sec: Double): String {
 }
 
 /** "today 12:07", "yesterday 12:07" or "21 Oct" ([withTime]: "21 Oct 12:07") – in the app's locale. */
-private fun dateLabel(ms: Long, withTime: Boolean = false): String {
-    val now = System.currentTimeMillis()
-    val days = (now - ms) / 86_400_000
+private fun dateLabel(ms: Long, withTime: Boolean = false): String = dateLabel(ms, System.currentTimeMillis(), withTime)
+
+/** (Calendar days in the phone's time zone: 22:35 the evening before is "yesterday" at 09:40, not "today".) */
+internal fun dateLabel(ms: Long, now: Long, withTime: Boolean = false): String {
+    val zone = java.time.ZoneId.systemDefault()
+    fun day(t: Long) = java.time.Instant.ofEpochMilli(t).atZone(zone).toLocalDate()
+    val days = java.time.temporal.ChronoUnit.DAYS.between(day(ms), day(now))
     val locale = java.util.Locale.getDefault()
     val date = java.util.Date(ms)
     fun fmt(skeleton: String) = java.text.SimpleDateFormat(android.text.format.DateFormat.getBestDateTimePattern(locale, skeleton), locale).format(date)
