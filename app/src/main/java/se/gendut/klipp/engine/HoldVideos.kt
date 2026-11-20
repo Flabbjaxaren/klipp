@@ -57,8 +57,17 @@ object HoldVideos {
     private fun outFor(still: File, length: Double, short: Int): File =
         File(still.parentFile, "${still.nameWithoutExtension}_v${length.toInt()}s_$short.mp4")
 
-    /** The size the video is made at: the preview's short side, never above the image's. */
-    fun shortFor(still: File): Int = minOf(VideoPipeline.previewShort, FrameHolds.shortSide(still) ?: VideoPipeline.previewShort)
+    /**
+     * The size the video is made at: the preview's short side, never above the image's. The preview at full resolution
+     * (short side 0): the image's own size (it crashed the app – a short side of 0 isn't a size).
+     */
+    fun shortFor(still: File): Int = shortFor(VideoPipeline.previewShort, FrameHolds.shortSide(still))
+
+    internal fun shortFor(preview: Int, image: Int?): Int = when {
+        preview <= 0 -> image ?: 1080
+        image == null -> preview
+        else -> minOf(preview, image)
+    }.coerceAtLeast(2)
 
     /** The video for a freeze frame of [sec] from [still], if it is ready. */
     fun file(still: File, sec: Double): File? {
@@ -84,6 +93,15 @@ object HoldVideos {
 
     private fun next(c: Context) {
         val job = queue.removeFirstOrNull() ?: return
+        // whatever goes wrong making one, the app goes on (the freeze frame then plays as an image)
+        runCatching { start(c, job) }.onFailure {
+            se.gendut.klipp.CrashReport.note("freeze frame video: ${it.message}")
+            running = null; pending -= job.out.path; busy = pending.size; failed += job.out.path
+            next(c)
+        }
+    }
+
+    private fun start(c: Context, job: Job) {
         val tmp = File(job.out.path + ".tmp")
         tmp.delete()
         // a still: the bitrate only buys the keyframes' quality, the frames between cost nothing
