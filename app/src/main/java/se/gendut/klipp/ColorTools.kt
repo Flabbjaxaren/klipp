@@ -72,6 +72,7 @@ import se.gendut.klipp.engine.GradeNode
 import se.gendut.klipp.engine.LutStore
 import se.gendut.klipp.engine.Qualifier
 import se.gendut.klipp.engine.Window
+import se.gendut.klipp.engine.Affine
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.max
@@ -756,9 +757,38 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
     Box(
         modifier.fillMaxSize().testTag("windowOverlay").pointerInput(we) {
             awaitEachGesture {
-                awaitFirstDown(requireUnconsumed = false)
+                val down = awaitFirstDown(requireUnconsumed = false)
                 var cur = gs.shown(we.first)?.nodes?.firstOrNull { it.id == we.second } ?: return@awaitEachGesture
                 var changed = false
+                // a handle: the width, the height or the rotation (the window as shown – its tracking included – mapped
+                // back from the stabilized picture); otherwise the whole window as before
+                val w = size.width.toFloat(); val h = size.height.toFloat()
+                val srcT = srcOf(we.first)
+                val stabA = srcT?.let { t -> gs.grades[we.first]?.stab?.let { st -> runCatching { st.transform(t, w, h) }.getOrNull() } }
+                    ?.takeIf { it.a.isFinite() && it.d.isFinite() && kotlin.math.abs(it.a * it.d - it.b * it.c) > 1e-6f }
+                fun unstab(p: Offset): Offset {
+                    val a = stabA ?: return p
+                    val inv = Affine(a.a, a.b, a.c, a.d, 0f, 0f).inverse()
+                    val x = p.x - w / 2 - a.tx; val y = p.y - h / 2 - a.ty
+                    return Offset(inv.a * x + inv.b * y + w / 2, inv.c * x + inv.d * y + h / 2)
+                }
+                val shownWin = cur.win.at(srcT)
+                val handle = windowHandleAt(shownWin, unstab(down.position), w, h, 36.dp.toPx(), WINDOW_TURN_REACH.dp.toPx())
+                if (handle != null) {
+                    down.consume()
+                    val base = cur.win
+                    while (true) {
+                        val ev = awaitPointerEvent()
+                        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!ch.pressed) break
+                        cur = cur.copy(win = windowByHandle(base, shownWin, handle, unstab(ch.position), w, h))
+                        gs.liveNode(we.first, cur)
+                        changed = true
+                        ch.consume()
+                    }
+                    if (changed) { gs.commitNode(we.first, cur); scope.launch { gs.endLive() } }
+                    return@awaitEachGesture
+                }
                 while (true) {
                     val ev = awaitPointerEvent()
                     if (ev.changes.none { it.pressed }) break
@@ -825,6 +855,13 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
             drawCircle(Color.White, 5.dp.toPx(), c)
             // direction marker: shows the rotation
             if (win.angle != 0f) drawLine(Color.White, c, Offset(c.x, c.y - sz.height / 2), 1.5.dp.toPx())
+            // handles: width (left, right), height (top, bottom) and the rotation above the window
+            val turn = Offset(c.x, c.y - sz.height / 2 - WINDOW_TURN_REACH.dp.toPx())
+            drawLine(Color(0xAAFFFFFF), Offset(c.x, c.y - sz.height / 2), turn, 1.5.dp.toPx())
+            for (hp in listOf(Offset(c.x - sz.width / 2, c.y), Offset(c.x + sz.width / 2, c.y), Offset(c.x, c.y - sz.height / 2), Offset(c.x, c.y + sz.height / 2), turn)) {
+                drawCircle(Color.Black.copy(alpha = 0.5f), 8.dp.toPx(), hp)
+                drawCircle(if (hp == turn) K.PrimarySoft else Color.White, 6.5.dp.toPx(), hp)
+            }
           }
             // point cloud: a small plus sign per point (yellow when tracking is uncertain), with a dark outline
             cloud?.pts?.let { p ->
@@ -839,6 +876,50 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
                     drawLine(col, Offset(x, y - a), Offset(x, y + a), w1)
                 }
             }
+        }
+    }
+}
+
+/** How far above a color window its rotation handle sits (dp). */
+internal const val WINDOW_TURN_REACH = 30f
+
+/** A color window's handle: its width (left/right edge), its height (top/bottom edge) or its rotation. */
+internal enum class WindowHandle { WIDTH, HEIGHT, TURN }
+
+/**
+ * The handle of window [win] (as shown, in a picture [w] × [h] px) under [p], within [reach] px; the rotation handle
+ * lies [turnReach] px above the window's top edge, all turned with the window.
+ */
+internal fun windowHandleAt(win: Window, p: Offset, w: Float, h: Float, reach: Float, turnReach: Float): WindowHandle? {
+    val c = Offset(win.cx * w, win.cy * h)
+    val a = Math.toRadians(win.angle.toDouble()); val cs = kotlin.math.cos(a).toFloat(); val sn = kotlin.math.sin(a).toFloat()
+    fun at(lx: Float, ly: Float) = Offset(c.x + lx * cs - ly * sn, c.y + lx * sn + ly * cs)
+    val rx = win.rx * w; val ry = win.ry * h
+    val all = listOf(at(-rx, 0f) to WindowHandle.WIDTH, at(rx, 0f) to WindowHandle.WIDTH, at(0f, -ry) to WindowHandle.HEIGHT,
+        at(0f, ry) to WindowHandle.HEIGHT, at(0f, -ry - turnReach) to WindowHandle.TURN)
+    // (the window's center nearer than any handle: the whole window, as before – a small window's middle lies within reach)
+    val toCenter = (c - p).getDistance()
+    return all.minByOrNull { (it.first - p).getDistance() }?.takeIf { (it.first - p).getDistance().let { d -> d <= reach && d < toCenter } }?.second
+}
+
+/**
+ * Window [base] (its own values; [shown] = as drawn at the playhead, its tracking applied) with [handle] dragged to [p]:
+ * the size or angle shown follows the finger, stored as the base value (the tracking's scale and rotation stay on top).
+ */
+internal fun windowByHandle(base: Window, shown: Window, handle: WindowHandle, p: Offset, w: Float, h: Float): Window {
+    val c = Offset(shown.cx * w, shown.cy * h)
+    val a = Math.toRadians(shown.angle.toDouble()); val cs = kotlin.math.cos(a).toFloat(); val sn = kotlin.math.sin(a).toFloat()
+    val dx = p.x - c.x; val dy = p.y - c.y
+    // in the window's own axes
+    val lx = dx * cs + dy * sn; val ly = -dx * sn + dy * cs
+    val scale = if (base.rx > 1e-6f) shown.rx / base.rx else 1f
+    return when (handle) {
+        WindowHandle.WIDTH -> base.copy(rx = (kotlin.math.abs(lx) / w / scale.coerceAtLeast(1e-3f)).coerceIn(0.01f, 1.5f))
+        WindowHandle.HEIGHT -> base.copy(ry = (kotlin.math.abs(ly) / h / scale.coerceAtLeast(1e-3f)).coerceIn(0.01f, 1.5f))
+        WindowHandle.TURN -> {
+            // clockwise from straight up, as the window's angle
+            val shownAngle = Math.toDegrees(kotlin.math.atan2(dx.toDouble(), -dy.toDouble())).toFloat()
+            base.copy(angle = normAngle(base.angle + (shownAngle - shown.angle)))
         }
     }
 }
