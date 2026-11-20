@@ -76,13 +76,15 @@ internal object LicenseInventory {
     /**
      * A notice for a narrow screen: the lines of a paragraph that a plain-text file wrapped at ~80 columns are joined, so
      * the phone wraps them once. Only whitespace changes – the words, blank lines, indented lines (lists, code, the GPL's
-     * sample notices) and short lines (headings, signatures) stay as they are.
+     * sample notices) and short lines (headings, signatures) stay as they are. A heading centred with spaces (ten or more
+     * before a short line, the GPL's title) loses them: on a phone they pushed it past the edge and it broke in two.
      */
     fun reflow(text: String): String {
         val lines = text.replace("\r\n", "\n").split('\n')
         val out = StringBuilder()
         for ((i, line) in lines.withIndex()) {
-            out.append(line)
+            val lead = line.length - line.trimStart().length
+            out.append(if (lead >= 10 && line.trim().length < 50) line.trim() else line)
             if (i == lines.lastIndex) break
             val next = lines[i + 1]
             val join = line.isNotBlank() && next.isNotBlank() && line.length >= 50 && !line.startsWith("   ") &&

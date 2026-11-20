@@ -105,4 +105,12 @@ class LicenseReflowTest {
         assertTrue(r.contains("and/or modify\n    it under"))
         assertTrue(r.contains("short line\nnext"))
     }
+
+    @Test fun aHeadingCentredWithSpacesLosesThem() {
+        val text = "                    GNU GENERAL PUBLIC LICENSE\n                       Version 3, 29 June 2007\n\n" +
+            "    <one line to give the program's name and a brief idea of what it does.>\n"
+        val r = LicenseInventory.reflow(text)
+        assertTrue(r, r.startsWith("GNU GENERAL PUBLIC LICENSE\nVersion 3, 29 June 2007\n\n"))
+        assertTrue("a sample notice keeps its indent", r.contains("\n    <one line"))
+    }
 }
