@@ -19,3 +19,17 @@ class HoldVideosTest {
         assertEquals(1080, HoldVideos.shortFor(1080, null))
     }
 }
+
+/** A node's film turned off keeps its settings, and they come back with it (found on the phone: on gave the default film). */
+@org.junit.runner.RunWith(org.robolectric.RobolectricTestRunner::class)
+@org.robolectric.annotation.Config(sdk = [35])
+class FilmOffTest {
+    @org.junit.Test fun offKeepsTheFilmAndItSurvivesSaving() {
+        val f = se.gendut.klipp.engine.Film(film = "kodak_vision3_500t", print = "kodak_2383")
+        val off = se.gendut.klipp.engine.GradeNode(id = 1).copy(film = null, filmOff = f)
+        val back = se.gendut.klipp.engine.GradeNode.fromJson(off.toJson())
+        org.junit.Assert.assertNull(back.film)
+        org.junit.Assert.assertEquals("kodak_vision3_500t", back.filmOff?.film)
+        org.junit.Assert.assertTrue("off is neutral", back.isNeutral)
+    }
+}

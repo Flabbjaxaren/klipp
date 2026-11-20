@@ -169,7 +169,8 @@ class GradeState {
 
     private fun put(id: Long, g: ClipGrade?) {
         // empty = a node that neither grades nor has a window/qualifier (those must stay while being set up)
-        if (g == null || (g.isNeutral && g.layer == null && g.nodes.size == 1 && g.nodes.none { it.hasKey })) grades.remove(id) else grades[id] = g
+        // (a film turned off is kept for when it is turned on again)
+        if (g == null || (g.isNeutral && g.layer == null && g.nodes.size == 1 && g.nodes.none { it.hasKey || it.filmOff != null })) grades.remove(id) else grades[id] = g
         // a lingering drag state for the clip would otherwise show the old grade for a while (e.g. after "Reset" or undo)
         if (live?.first == id) live = id to (g ?: ClipGrade())
         revision++

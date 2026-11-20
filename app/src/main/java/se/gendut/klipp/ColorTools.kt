@@ -197,8 +197,9 @@ fun FilmEditor(n: GradeNode, onCommit: (GradeNode) -> Unit, onLive: ((GradeNode)
             color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
         )
         Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            ToggleChip(stringResource(R.string.colortools_off), f == null, { commit(n.copy(film = null)) }, Modifier.testTag("film:off"))
-            ToggleChip(stringResource(R.string.colortools_on), f != null, { if (f == null) commit(n.copy(film = se.gendut.klipp.engine.Film())) }, Modifier.testTag("film:on"))
+            // off keeps the film's settings in the node; on brings them back (it began from the default film again)
+            ToggleChip(stringResource(R.string.colortools_off), f == null, { if (f != null) commit(n.copy(film = null, filmOff = f)) }, Modifier.testTag("film:off"))
+            ToggleChip(stringResource(R.string.colortools_on), f != null, { if (f == null) commit(n.copy(film = n.filmOff ?: se.gendut.klipp.engine.Film(), filmOff = null)) }, Modifier.testTag("film:on"))
             if (baking) Text(stringResource(R.string.colortools_computing), color = K.Outline, fontSize = 12.sp, modifier = Modifier.testTag("film:baking"))
         }
         if (f != null) {
@@ -719,7 +720,7 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
                 drawLine(Color.White, Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
                 drawCircle(Color.White, 10.dp.toPx(), Offset(x, size.height / 2))
             }
-            Text(stringResource(if (original) R.string.colorpage_original else R.string.colortools_still), color = Color.White, fontSize = 10.sp, modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp))
+            Text(stringResource(if (original) R.string.colortools_original else R.string.colortools_still), color = Color.White, fontSize = 10.sp, modifier = Modifier.align(Alignment.TopStart).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp))
             Text(stringResource(R.string.colortools_now), color = Color.White, fontSize = 10.sp, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(6.dp)).background(Color(0x99000000)).padding(horizontal = 6.dp, vertical = 2.dp))
         }
     }

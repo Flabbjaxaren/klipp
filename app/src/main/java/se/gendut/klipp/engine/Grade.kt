@@ -385,6 +385,8 @@ data class GradeNode(
     val logHi: Wheel = Wheel(),
     val logLow: Float = 0.333f,
     val logHigh: Float = 0.55f,
+    /** The film as it was when it was turned off – it comes back when turned on again (not drawn). */
+    val filmOff: Film? = null,
 ) {
     val hasLog get() = !(logShadow.isNeutral && logMid.isNeutral && logHi.isNeutral)
     val hasCurves get() = !(curveY.isIdentity && curveR.isIdentity && curveG.isIdentity && curveB.isIdentity)
@@ -483,7 +485,7 @@ data class GradeNode(
         .apply { if (hasHsl) put("hsl", hsl.toJson()) }
         .apply { if (hasLog) { put("logS", logShadow.toJson()); put("logM", logMid.toJson()); put("logH", logHi.toJson()) }; if (logLow != 0.333f) put("logL", logLow.toDouble()); if (logHigh != 0.55f) put("logR", logHigh.toDouble()) }
         .put("lut", lut ?: JSONObject.NULL).put("lutMix", lutMix.toDouble()).put("qual", qual.toJson()).put("win", win.toJson())
-        .apply { if (blur > 0f) put("blur", blur.toDouble()); if (pixelate > 0f) put("pix", pixelate.toDouble()); drt?.let { put("drt", it.toJson()) }; film?.let { put("film", it.toJson()) }; if (cache) put("cache", true); if (denoise > 0f) put("dn", denoise.toDouble()); if (density > 0f) put("den", density.toDouble()) }
+        .apply { if (blur > 0f) put("blur", blur.toDouble()); if (pixelate > 0f) put("pix", pixelate.toDouble()); drt?.let { put("drt", it.toJson()) }; film?.let { put("film", it.toJson()) }; filmOff?.let { put("filmOff", it.toJson()) }; if (cache) put("cache", true); if (denoise > 0f) put("dn", denoise.toDouble()); if (density > 0f) put("den", density.toDouble()) }
 
     companion object {
         fun fromJson(o: JSONObject) = GradeNode(
@@ -504,6 +506,7 @@ data class GradeNode(
             o.optDouble("den", 0.0).toFloat(),
             Wheel.fromJson(o.optJSONArray("logS")), Wheel.fromJson(o.optJSONArray("logM")), Wheel.fromJson(o.optJSONArray("logH")),
             o.optDouble("logL", 0.333).toFloat(), o.optDouble("logR", 0.55).toFloat(),
+            Film.fromJson(o.optJSONObject("filmOff")),
         )
 
         /**
