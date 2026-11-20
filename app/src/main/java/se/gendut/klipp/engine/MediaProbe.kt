@@ -91,17 +91,36 @@ object MediaProbe {
             val track = (0 until ex.trackCount).firstOrNull { ex.getTrackFormat(it).getString(MediaFormat.KEY_MIME)?.startsWith("video/") == true } ?: return@runCatching null
             ex.selectTrack(track)
             val times = ArrayList<Long>()
-            while (times.size < MEASURE_FRAMES) {
+            // (in decoding order: with B-frames a later frame comes before earlier ones – a few more are read past the
+            // two seconds so the frames up to there are all in, see rateInDecodingOrder)
+            var extra = -1
+            while (times.size < MEASURE_FRAMES + REORDER) {
                 val t = ex.sampleTime.takeIf { it >= 0 } ?: break
                 times += t
-                if (t - times.first() > 2_000_000L || !ex.advance()) break
+                if (extra < 0 && t - times.first() > 2_000_000L) extra = 0
+                if (extra >= 0 && ++extra > REORDER) break
+                if (!ex.advance()) break
             }
-            rateOf(times)
+            rateInDecodingOrder(times)
         } finally {
             ex.release()
         }
     }.getOrNull()
     private val STANDARD = doubleArrayOf(23.976, 24.0, 25.0, 29.97, 30.0, 48.0, 50.0, 59.94, 60.0, 90.0, 100.0, 119.88, 120.0, 240.0)
+
+    /** Frames read past the measured stretch: deeper than any B-frame reordering. */
+    private const val REORDER = 16
+
+    /**
+     * [rateOf] for frame times in decoding order that end anywhere: only the frames up to the earliest time among the
+     * last [REORDER] read count – all earlier frames are in by then. Cut off in decoding order, a file with B-frames
+     * (x264's) ended on a frame ahead of the ones not read yet: 25 fps measured as 24.
+     */
+    fun rateInDecodingOrder(times: List<Long>): Double? {
+        if (times.size <= REORDER + 8) return rateOf(times)
+        val cut = times.takeLast(REORDER).min()
+        return rateOf(times.filter { it <= cut })
+    }
 
     /**
      * A video's frame rate from its frames' times (in decoding order, any order): frames over the time they span, read as

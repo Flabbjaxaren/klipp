@@ -20,6 +20,19 @@ class MediaRateTest {
         assertEquals(119.88, MediaProbe.rateOf(times(240) { if (it % 3 == 0) 8_342L else 8_341L })!!, 1e-9)
     }
 
+    @Test fun aStretchCutOffInDecodingOrder() {
+        // B-frames: a frame is decoded before the one shown ahead of it (0, 80, 40, 160, 120, … ms at 25 fps) – a stretch
+        // read until 2 s ended on a frame ahead of one not yet read (x264's file measured 24)
+        val decoding = listOf(0L) + (0 until 60).flatMap { k -> listOf(2L * k + 2, 2L * k + 1) }.map { it * 40_000L }
+        val cut = ArrayList<Long>()
+        for (t in decoding) { cut += t; if (t - cut.first() > 2_000_000L) break }
+        org.junit.Assert.assertNotEquals("cut where the reading stopped: wrong", 25.0, MediaProbe.rateOf(cut)!!, 1e-6)
+        val more = ArrayList<Long>(); var extra = -1
+        for (t in decoding) { more += t; if (extra < 0 && t - more.first() > 2_000_000L) extra = 0; if (extra >= 0 && ++extra > 16) break }
+        assertEquals(25.0, MediaProbe.rateInDecodingOrder(more)!!, 1e-9)
+        assertEquals("in order: as before", 25.0, MediaProbe.rateInDecodingOrder(times(80) { 40_000L })!!, 1e-9)
+    }
+
     @Test fun decodingOrderAndOddRates() {
         // B-frames: times out of order – sorted first
         val t = times(30) { 33_333L }.toMutableList().also { java.util.Collections.swap(it, 3, 5) }
