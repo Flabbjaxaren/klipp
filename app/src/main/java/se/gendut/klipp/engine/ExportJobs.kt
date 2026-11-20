@@ -168,6 +168,10 @@ object ExportJobs {
         if (end.phase == Phase.FAILED) {
             val x = error as? androidx.media3.transformer.ExportException
             CrashReport.note("export failed: ${x?.errorCodeName ?: error?.javaClass?.simpleName} ${error?.message} ${error?.cause?.let { "(${it.javaClass.simpleName}: ${it.message})" } ?: ""}")
+            // the whole chain of causes with where each was thrown (the first cause alone often says nothing)
+            generateSequence(error?.cause) { it.cause }.take(5).forEach { c ->
+                CrashReport.note("  cause ${c.javaClass.name}: ${c.message} @ " + c.stackTrace.take(5).joinToString(" < ") { "${it.className}.${it.methodName}:${it.lineNumber}" })
+            }
         }
         CrashReport.note("export job ${p.id} ${end.phase.name.lowercase()}${end.reason?.let { " (${it.name.lowercase()})" } ?: ""}${if (watching) "" else " – unseen"}")
         job = null
