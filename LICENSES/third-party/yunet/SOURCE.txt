@@ -1,0 +1,7 @@
+rust/models/face_detection_yunet_2023mar.onnx (compiled into libklipp_bridge.so; face following for windows and titles)
+YuNet 2023mar – © 2020 Shiqi Yu, https://github.com/ShiqiYu/libfacedetection.train, from the OpenCV model zoo
+(https://huggingface.co/opencv/face_detection_yunet at commit 3cc26e7f1014a5ee5d74a42acee58bafc9d0a310,
+face_detection_yunet_2023mar.onnx, sha256 8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4), MIT
+(LICENSE in this folder). Modified by Klipp: the graph's fixed 640×640 input size and stored intermediate shapes were
+removed (onnx: value_info cleared, input height/width and output dims made symbolic) so it runs at the frame's own
+size; the weights are unchanged. Result sha256 41807e586a0fa5082726090adf53aa90f8842fff0beea5ad20d0757cdf732fed.

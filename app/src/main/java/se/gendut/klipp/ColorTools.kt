@@ -1190,10 +1190,17 @@ fun StabilizeCard(gs: GradeState, clip: ColorClip, blurOnly: Boolean = false, st
 @Composable
 fun TrackDensityRow() {
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    // what to follow: points on any object, or a face (found anew in every frame – keeps up with a turning head)
+    var faces by remember { mutableStateOf(se.gendut.klipp.engine.WindowTracker.faces) }
+    Text(stringResource(R.string.colortools_track_follow), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+    ConnectedToggleGroup(listOf(stringResource(R.string.colortools_follow_object), stringResource(R.string.colortools_follow_face)),
+        if (faces) 1 else 0, { i -> faces = i == 1; AppPrefs.setTrackFaces(ctx, i == 1) },
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "trackFollow:$it" })
+    if (faces) Text(stringResource(R.string.colortools_follow_face_hint), color = K.Outline, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp))
     var d by remember { mutableStateOf(se.gendut.klipp.engine.WindowTracker.density) }
     val ds = se.gendut.klipp.engine.WindowTracker.DENSITIES
-    Text(stringResource(R.string.colortools_track_points), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
-    ConnectedToggleGroup(listOf(stringResource(R.string.colortools_points_normal), stringResource(R.string.colortools_points_dense), stringResource(R.string.colortools_points_very_dense)),
+    if (!faces) Text(stringResource(R.string.colortools_track_points), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+    if (!faces) ConnectedToggleGroup(listOf(stringResource(R.string.colortools_points_normal), stringResource(R.string.colortools_points_dense), stringResource(R.string.colortools_points_very_dense)),
         ds.indexOfFirst { kotlin.math.abs(it - d) < 0.01f }.coerceAtLeast(0), { i -> d = ds[i]; AppPrefs.setTrackDensity(ctx, ds[i]) },
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "trackPts:$it" })
     // size: follow the object's size, or keep it (a turning head reads as shrinking to a point tracker)

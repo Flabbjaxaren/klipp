@@ -132,6 +132,9 @@ class Engine {
         @JvmStatic external fun nativeTrackDensity(h: Long, d: Float)
         @JvmStatic external fun nativeTrackFrame(h: Long, buf: java.nio.ByteBuffer, offset: Int, rowStride: Int, pixelStride: Int, srcW: Int, srcH: Int, reset: Boolean, cx: Float, cy: Float, rx: Float, ry: Float, shape: Int): FloatArray?
         @JvmStatic external fun nativeMotionFrame(h: Long, buf: java.nio.ByteBuffer, offset: Int, rowStride: Int, pixelStride: Int, srcW: Int, srcH: Int): FloatArray?
+        @JvmStatic external fun nativeFaceNew(w: Int, h: Int, rotation: Int): Long
+        @JvmStatic external fun nativeFaceFree(h: Long)
+        @JvmStatic external fun nativeFaceFrame(h: Long, buf: java.nio.ByteBuffer, offset: Int, rowStride: Int, pixelStride: Int, srcW: Int, srcH: Int, reset: Boolean, cx: Float, cy: Float, rx: Float, ry: Float): FloatArray?
     }
 
     private external fun nativeNew(): Long

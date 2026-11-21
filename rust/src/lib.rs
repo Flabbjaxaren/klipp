@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use std::sync::Arc;
 
 pub mod audio;
+pub mod face;
 pub mod fds;
 pub mod offline;
 pub mod render;
@@ -956,6 +957,61 @@ mod jni_track {
                 t.points_norm(&mut v);
             }
             v
+        }));
+        let Ok(out) = out else { return null };
+        let Ok(arr) = env.new_float_array(out.len() as i32) else { return null };
+        if env.set_float_array_region(&arr, 0, &out).is_err() {
+            return null;
+        }
+        arr.into_raw()
+    }
+
+    /// Face following (see face.rs): a tracker for a `w`×`h` work image of frames stored turned `rotation` degrees.
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_se_gendut_klipp_engine_Engine_nativeFaceNew(_env: JNIEnv, _c: JClass, w: jint, h: jint, rotation: jint) -> jlong {
+        super::jni_api::install_panic_hook();
+        if !(16..=4096).contains(&w) || !(16..=4096).contains(&h) {
+            return 0;
+        }
+        catch_unwind(|| Box::into_raw(Box::new(super::face::FaceTracker::new(w as usize, h as usize, rotation))) as jlong).unwrap_or(0)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_se_gendut_klipp_engine_Engine_nativeFaceFree(_env: JNIEnv, _c: JClass, h: jlong) {
+        if h == 0 {
+            return;
+        }
+        // SAFETY: h comes from nativeFaceNew and is freed only once (Kotlin zeroes the handle).
+        let _ = catch_unwind(AssertUnwindSafe(|| drop(unsafe { Box::from_raw(h as *mut super::face::FaceTracker) })));
+    }
+
+    /// As nativeTrackFrame, for faces: `reset` picks the face under the window (cx, cy, rx, ry in buffer orientation).
+    /// Response `[dx, dy, scale, rotation, quality, 5, landmarks…]` in DISPLAY orientation; quality 0 = face not found.
+    #[unsafe(no_mangle)]
+    #[allow(clippy::too_many_arguments)]
+    pub extern "system" fn Java_se_gendut_klipp_engine_Engine_nativeFaceFrame<'a>(
+        env: JNIEnv<'a>, _c: JClass<'a>, h: jlong, buf: JByteBuffer<'a>, offset: jint, row_stride: jint, pixel_stride: jint, src_w: jint, src_h: jint,
+        reset: jboolean, cx: jfloat, cy: jfloat, rx: jfloat, ry: jfloat,
+    ) -> jfloatArray {
+        let null = std::ptr::null_mut();
+        if h == 0 || offset < 0 || row_stride <= 0 || pixel_stride <= 0 || src_w <= 0 || src_h <= 0 {
+            return null;
+        }
+        let Ok(ptr) = env.get_direct_buffer_address(&buf) else { return null };
+        let Ok(cap) = env.get_direct_buffer_capacity(&buf) else { return null };
+        if ptr.is_null() {
+            return null;
+        }
+        let (off, rs, ps, sw, sh) = (offset as usize, row_stride as usize, pixel_stride as usize, src_w as usize, src_h as usize);
+        let last = (sh - 1).checked_mul(rs).and_then(|a| (sw - 1).checked_mul(ps).and_then(|b| a.checked_add(b))).and_then(|a| a.checked_add(off));
+        let Some(last) = last.filter(|&l| l < cap) else { return null };
+        // SAFETY: as in nativeTrackFrame – the region lies within the buffer and is not written during the call.
+        let bytes = unsafe { std::slice::from_raw_parts(ptr.add(off) as *const u8, last + 1 - off) };
+        let out = catch_unwind(AssertUnwindSafe(|| {
+            // SAFETY: the handle lives as long as the tracker in Kotlin; calls come from one thread at a time.
+            let t = unsafe { &mut *(h as *mut super::face::FaceTracker) };
+            t.load(bytes, rs, ps, sw, sh);
+            if reset != 0 { t.reset(cx, cy, rx, ry) } else { t.step() }
         }));
         let Ok(out) = out else { return null };
         let Ok(arr) = env.new_float_array(out.len() as i32) else { return null };

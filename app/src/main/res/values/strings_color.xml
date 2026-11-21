@@ -242,4 +242,8 @@
     <string name="colorpage_hsl_lum">Luminance %1$s</string>
     <string name="colorpage_hsl_pick">Pick</string>
     <string name="colorpage_pick_hint_curve">Tap the color to change on the curve</string>
+    <string name="colortools_track_follow">Follow</string>
+    <string name="colortools_follow_object">Object</string>
+    <string name="colortools_follow_face">Face</string>
+    <string name="colortools_follow_face_hint">Place the window on a face: it is found again in every frame, so it keeps up when the head turns or nods.</string>
 </resources>

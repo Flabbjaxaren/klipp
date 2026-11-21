@@ -182,6 +182,23 @@
    "notes": "Byte-identical to ggml-silero-v6.2.0.bin (sha256 2aa269b7…6987). Its MIT notice was not shipped before 2026-11-18."
   },
   {
+   "id": "yunet",
+   "component": "YuNet face detector (2023mar)",
+   "version": "2023mar (opencv/face_detection_yunet 3cc26e7)",
+   "kind": "model",
+   "category": "rust",
+   "origin": "https://github.com/ShiqiYu/libfacedetection.train · https://huggingface.co/opencv/face_detection_yunet",
+   "license": "MIT",
+   "copyright": "© 2020 Shiqi Yu",
+   "notices": [
+    "LICENSES/third-party/yunet/LICENSE",
+    "LICENSES/third-party/yunet/SOURCE.txt"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so (rust/models/face_detection_yunet_2023mar.onnx, compiled in)",
+   "status": "verified",
+   "notes": "Input size made dynamic (shape metadata only); weights unchanged – see SOURCE.txt."
+  },
+  {
    "id": "ui-icons",
    "component": "Klipp's line icons",
    "version": "-",

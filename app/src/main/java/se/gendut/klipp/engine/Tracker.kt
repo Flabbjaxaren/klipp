@@ -52,6 +52,7 @@ object WindowTracker {
         /** Only forward from [ref] (continue tracking after a correction). */
         forwardOnly: Boolean = false,
     ): WindowTrack = coroutineScope {
+        val face = faces
         val file = Proxies.videoUri(uri)
         val total = (if (forwardOnly) hi - ref else hi - lo).coerceAtLeast(1e-3)
         val done = DoubleArray(2)
@@ -64,7 +65,7 @@ object WindowTracker {
             val f = fwd.await()
             val b = bwd.await()
             onProgress(1f)
-            withContext(Dispatchers.Default) { merge(b.asReversed() + f) }
+            withContext(Dispatchers.Default) { merge(if (face) FaceSmooth.apply(b.asReversed() + f) else b.asReversed() + f) }
         } finally {
             fwdPool.close(); bwdPool.close()
         }
@@ -192,10 +193,36 @@ object WindowTracker {
     @Volatile var followSize = true
     val DENSITIES = floatArrayOf(1f, 2f, 4f)
 
-    /** A tracker in Rust (always closed). */
-    private class Native(w: Int, h: Int) : AutoCloseable {
-        val h = Engine.nativeTrackNew(w, h).also { if (it == 0L) error("the tracker could not be started"); Engine.nativeTrackDensity(it, density) }
-        override fun close() = Engine.nativeTrackFree(h)
+    /**
+     * What the window follows: points on the object (any object; the default), or a face found anew in every frame
+     * (rust/src/face.rs) – which keeps up with a head that turns, nods or looks away, where points slide off it.
+     * Saved in the settings.
+     */
+    @Volatile var faces = false
+    /** Face work size (long side): faces are large enough at this size, and detection costs follow the pixel count. */
+    private const val FACE_WORK = 320
+
+    /** A tracker in Rust (always closed): points, or faces ([face], for frames stored turned [rotation]). */
+    private class Native(w: Int, h: Int, val face: Boolean = false, rotation: Int = 0) : AutoCloseable {
+        val h = (if (face) Engine.nativeFaceNew(w, h, rotation) else Engine.nativeTrackNew(w, h).also { if (it != 0L) Engine.nativeTrackDensity(it, density) })
+            .also { if (it == 0L) error("the tracker could not be started") }
+        override fun close() = if (face) Engine.nativeFaceFree(h) else Engine.nativeTrackFree(h)
+        fun frame(buf: ByteBuffer, off: Int, rs: Int, ps: Int, w: Int, h: Int, reset: Boolean, roi: FloatArray, shape: Int): FloatArray? =
+            if (face) Engine.nativeFaceFrame(this.h, buf, off, rs, ps, w, h, reset, roi[0], roi[1], roi[2], roi[3])
+            else Engine.nativeTrackFrame(this.h, buf, off, rs, ps, w, h, reset, roi[0], roi[1], roi[2], roi[3], shape)
+    }
+
+    /** Work size for this tracker kind. */
+    private fun sizeFor(face: Boolean, w: Int, h: Int): Pair<Int, Int> =
+        if (!face) workSize(w, h)
+        else if (w >= h) FACE_WORK to (FACE_WORK.toDouble() * h / w).roundToInt().coerceAtLeast(16)
+        else (FACE_WORK.toDouble() * w / h).roundToInt().coerceAtLeast(16) to FACE_WORK
+
+    /** A face result (already in display orientation, the landmarks as points). */
+    private fun faceSample(t: Double, r: FloatArray?): Sample {
+        if (r == null || r.size < 5) return Sample(t, 0f, 0f, 1f, 0f)
+        val pts = if (r.size >= 16) r.copyOfRange(6, 16) else null
+        return Sample(t, r[0], r[1], r[2], r[4], pts, r[3])
     }
 
     private fun sample(t: Double, r: FloatArray?, rot: Int): Sample {
@@ -220,17 +247,15 @@ object WindowTracker {
             val out = ArrayList<Sample>()
             val hint = Perf.Hint(context, 6)
             val roi = toBuffer(win, v.rotation)
+            val face = faces
             var tracker: Native? = null
             try {
                 decode(v, ref, hi) { t, img ->
                     val p = img.planes[0]
-                    val tr = tracker ?: workSize(img.width, img.height).let { (w, h) -> Native(w, h) }.also { tracker = it }
+                    val tr = tracker ?: sizeFor(face, img.width, img.height).let { (w, h) -> Native(w, h, face, v.rotation) }.also { tracker = it }
                     val first = out.isEmpty()
-                    val r = hint.run {
-                        Engine.nativeTrackFrame(tr.h, p.buffer, p.buffer.position(), p.rowStride, p.pixelStride, img.width, img.height,
-                            first, roi[0], roi[1], roi[2], roi[3], win.shape)
-                    }
-                    out += sample(t, r, v.rotation).also(onSample)
+                    val r = hint.run { tr.frame(p.buffer, p.buffer.position(), p.rowStride, p.pixelStride, img.width, img.height, first, roi, win.shape) }
+                    out += (if (face) faceSample(t, r) else sample(t, r, v.rotation)).also(onSample)
                     progress(t)
                 }
             } finally {
@@ -252,6 +277,7 @@ object WindowTracker {
             val out = ArrayList<Sample>()
             val hint = Perf.Hint(context, 6)
             val roi = toBuffer(win, v.rotation)
+            val face = faces
             var tracker: Native? = null
             var direct: ByteBuffer? = null
             var size: Pair<Int, Int>? = null
@@ -265,19 +291,19 @@ object WindowTracker {
                     decode(v, start, end) { t, img ->
                         // the boundary frame already exists (previous chunk) – except the reference frame in the first chunk
                         if (t > end + 1e-3 || (!firstChunk && t >= end - 1e-3)) return@decode
-                        val (w, h) = size ?: workSize(img.width, img.height).also { size = it }
+                        val (w, h) = size ?: sizeFor(face, img.width, img.height).also { size = it }
                         frames += t to downscale(img, w, h)
                     }
                     if (frames.isEmpty()) break
                     val (w, h) = size!!
-                    val tr = tracker ?: Native(w, h).also { tracker = it }
+                    val tr = tracker ?: Native(w, h, face, v.rotation).also { tracker = it }
                     val buf = direct ?: ByteBuffer.allocateDirect(w * h).order(ByteOrder.nativeOrder()).also { direct = it }
                     for ((t, px) in frames.asReversed()) {
                         currentCoroutineContext().ensureActive()
                         buf.clear(); buf.put(px); buf.flip()
                         val first = out.isEmpty()
-                        val r = hint.run { Engine.nativeTrackFrame(tr.h, buf, 0, w, 1, w, h, first, roi[0], roi[1], roi[2], roi[3], win.shape) }
-                        out += sample(t, r, v.rotation).also(onSample)
+                        val r = hint.run { tr.frame(buf, 0, w, 1, w, h, first, roi, win.shape) }
+                        out += (if (face) faceSample(t, r) else sample(t, r, v.rotation)).also(onSample)
                         progress(t)
                     }
                     firstChunk = false
@@ -427,3 +453,33 @@ class TrackCloud(samples: List<WindowTracker.Sample>) {
     }
 }
 
+/**
+ * Face samples before they become a track (pure, testable): frames where the face wasn't found are left out (the
+ * track interpolates over them), and the detector's frame-to-frame jitter is smoothed – position and turn lightly,
+ * size more (a face box's size wobbles a few per cent from frame to frame).
+ */
+object FaceSmooth {
+    const val SIGMA_POS = 1.5f
+    const val SIGMA_SIZE = 4f
+
+    fun apply(samples: List<WindowTracker.Sample>): List<WindowTracker.Sample> {
+        val s = samples.sortedBy { it.t }.filter { it.q > 0f }
+        if (s.size < 3) return if (s.isEmpty()) samples else s
+        val dx = gauss(FloatArray(s.size) { s[it].dx }, SIGMA_POS)
+        val dy = gauss(FloatArray(s.size) { s[it].dy }, SIGMA_POS)
+        val sc = gauss(FloatArray(s.size) { s[it].s }, SIGMA_SIZE)
+        val r = gauss(FloatArray(s.size) { s[it].rot }, SIGMA_POS)
+        return s.mapIndexed { i, x -> WindowTracker.Sample(x.t, dx[i], dy[i], sc[i], x.q, x.pts, r[i]) }
+    }
+
+    /** Gaussian over the sample index, renormalized at the ends. */
+    fun gauss(v: FloatArray, sigma: Float): FloatArray {
+        val k = (sigma * 3).toInt().coerceAtLeast(1)
+        val w = FloatArray(2 * k + 1) { val d = (it - k).toFloat(); kotlin.math.exp(-d * d / (2 * sigma * sigma)) }
+        return FloatArray(v.size) { i ->
+            var a = 0f; var n = 0f
+            for (j in -k..k) { val x = i + j; if (x in v.indices) { a += v[x] * w[j + k]; n += w[j + k] } }
+            a / n
+        }
+    }
+}
