@@ -53,8 +53,9 @@ object WindowTracker {
         onSample: (Sample) -> Unit = {},
         /** Only forward from [ref] (continue tracking after a correction). */
         forwardOnly: Boolean = false,
+        /** Follow a face ([faces], the setting, by default); corner pins follow surfaces, so always points. */
+        face: Boolean = faces,
     ): WindowTrack = coroutineScope {
-        val face = faces
         val file = Proxies.videoUri(uri)
         val total = (if (forwardOnly) hi - ref else hi - lo).coerceAtLeast(1e-3)
         val done = DoubleArray(2)
@@ -62,8 +63,8 @@ object WindowTracker {
         val fwdPool = Executors.newSingleThreadExecutor { r -> Thread(r, "track-forward").apply { isDaemon = true } }.asCoroutineDispatcher()
         val bwdPool = Executors.newSingleThreadExecutor { r -> Thread(r, "track-backward").apply { isDaemon = true } }.asCoroutineDispatcher()
         try {
-            val fwd = async(fwdPool) { forward(context, file, ref, hi, win, onSample) { t -> done[0] = t - ref; report() } }
-            val bwd = async(bwdPool) { if (!forwardOnly && ref - lo > 0.02) backward(context, file, ref, lo, win, onSample) { t -> done[1] = ref - t; report() } else emptyList() }
+            val fwd = async(fwdPool) { forward(context, file, ref, hi, win, face, onSample) { t -> done[0] = t - ref; report() } }
+            val bwd = async(bwdPool) { if (!forwardOnly && ref - lo > 0.02) backward(context, file, ref, lo, win, face, onSample) { t -> done[1] = ref - t; report() } else emptyList() }
             val f = fwd.await()
             val b = bwd.await()
             onProgress(1f)
@@ -243,13 +244,12 @@ object WindowTracker {
         return Sample(t, dx, dy, r[2], r[4], pts, r[3])
     }
 
-    private suspend fun forward(context: Context, uri: Uri, ref: Double, hi: Double, win: Window, onSample: (Sample) -> Unit, progress: (Double) -> Unit): List<Sample> {
+    private suspend fun forward(context: Context, uri: Uri, ref: Double, hi: Double, win: Window, face: Boolean, onSample: (Sample) -> Unit, progress: (Double) -> Unit): List<Sample> {
         val v = open(context, uri)
         try {
             val out = ArrayList<Sample>()
             val hint = Perf.Hint(context, 6)
             val roi = toBuffer(win, v.rotation)
-            val face = faces
             var tracker: Native? = null
             try {
                 decode(v, ref, hi) { t, img ->
@@ -273,13 +273,12 @@ object WindowTracker {
      * Backward: chunks of [CHUNK_SEC] are decoded forward, stored downscaled (luma only, ~130 kB per frame) and
      * tracked in reverse – the tracker sees the frames in reverse order, from the reference frame towards [lo].
      */
-    private suspend fun backward(context: Context, uri: Uri, ref: Double, lo: Double, win: Window, onSample: (Sample) -> Unit, progress: (Double) -> Unit): List<Sample> {
+    private suspend fun backward(context: Context, uri: Uri, ref: Double, lo: Double, win: Window, face: Boolean, onSample: (Sample) -> Unit, progress: (Double) -> Unit): List<Sample> {
         val v = open(context, uri)
         try {
             val out = ArrayList<Sample>()
             val hint = Perf.Hint(context, 6)
             val roi = toBuffer(win, v.rotation)
-            val face = faces
             var tracker: Native? = null
             var direct: ByteBuffer? = null
             var size: Pair<Int, Int>? = null

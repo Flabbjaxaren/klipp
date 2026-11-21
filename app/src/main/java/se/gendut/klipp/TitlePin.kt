@@ -82,7 +82,7 @@ object PinTrackService {
             try {
                 val t0 = System.nanoTime()
                 val tracked = wins.mapIndexed { i, w ->
-                    val tr = WindowTracker.track(ctx, uri, ref, lo, hi, w, { p -> scope.launch { progress = (i + p) / 4f } })
+                    val tr = WindowTracker.track(ctx, uri, ref, lo, hi, w, { p -> scope.launch { progress = (i + p) / 4f } }, face = false)
                     w.copy(track = tr)
                 }
                 val weak = tracked.sumOf { it.track?.weak ?: 0 }
@@ -146,7 +146,7 @@ fun PinSection(state: EditorState, p: ClipProps, gs: GradeState) {
             PillButton(stringResource(R.string.titlepin_remove), { haptics.tick(); state.pinEdit = null; gs.setPin(p.id, null) }, Modifier.testTag("pin:remove"), icon = Ic.Delete, filled = false)
         }
     }
-    if (pin != null && !busy) TrackDensityRow()
+    if (pin != null && !busy) TrackDensityRow(follow = false)
     PinTrackService.progress?.takeIf { busy }?.let { pr ->
         androidx.compose.material3.LinearProgressIndicator(progress = { pr }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), color = K.Primary)
     }

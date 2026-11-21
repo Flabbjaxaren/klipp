@@ -1188,12 +1188,12 @@ fun StabilizeCard(gs: GradeState, clip: ColorClip, blurOnly: Boolean = false, st
 
 /** How many points the tracker follows: normal, dense, very dense (saved; used by every tracking in the app). */
 @Composable
-fun TrackDensityRow() {
+fun TrackDensityRow(/** Offer Follow: Object / Face (corner pins follow surfaces: points only). */ follow: Boolean = true) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     // what to follow: points on any object, or a face (found anew in every frame – keeps up with a turning head)
-    val faces = se.gendut.klipp.engine.WindowTracker.faces
-    Text(stringResource(R.string.colortools_track_follow), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
-    ConnectedToggleGroup(listOf(stringResource(R.string.colortools_follow_object), stringResource(R.string.colortools_follow_face)),
+    val faces = follow && se.gendut.klipp.engine.WindowTracker.faces
+    if (follow) Text(stringResource(R.string.colortools_track_follow), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
+    if (follow) ConnectedToggleGroup(listOf(stringResource(R.string.colortools_follow_object), stringResource(R.string.colortools_follow_face)),
         if (faces) 1 else 0, { i -> AppPrefs.setTrackFaces(ctx, i == 1) },
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "trackFollow:$it" }, icons = listOf(Ic.Target, Ic.Face))
     if (faces) Text(stringResource(R.string.colortools_follow_face_hint), color = K.Outline, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp))
