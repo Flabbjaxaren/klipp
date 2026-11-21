@@ -78,6 +78,13 @@ jobs:
               -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest "klipp_$n.mp4"
           done
           ffmpeg -loglevel error -f lavfi -i "sine=frequency=300:duration=8,volume='if(lt(mod(t,4),2),1,0)':eval=frame" -c:a aac tal.m4a
+          # real speech and real noise for the rendered noise reduction (DeepFilterNet's own sample clips, pinned commit)
+          DF=https://raw.githubusercontent.com/Rikorose/DeepFilterNet/7b14b895fe7fc42cab72b4a4c1e49c982bd6404b/assets
+          curl -sSfL "$DF/clean_freesound_33711.wav" -o df_clean.wav
+          curl -sSfL "$DF/noise_freesound_2530.wav" -o df_noise_stereo.wav
+          echo "2d885e9f45c0f9381aee09a397ecd160aff1875ffb75ebe2217d21c3511b0d5d  df_clean.wav" | sha256sum -c -
+          echo "cc774d58170fc5b8f143345ef8ff31583feef71f23f447336fdd56c8478d8a8a  df_noise_stereo.wav" | sha256sum -c -
+          ffmpeg -loglevel error -i df_noise_stereo.wav -ac 1 -c:a pcm_s16le df_noise.wav
       - name: Tests
         working-directory: rust
         run: KLIPP_TEST_MEDIA="$RUNNER_TEMP/media" cargo test --release
