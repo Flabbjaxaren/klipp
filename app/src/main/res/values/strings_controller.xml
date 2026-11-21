@@ -151,9 +151,11 @@
     <string name="audiofxcatalog_mix">Mix</string>
     <string name="audiofxcatalog_eq">EQ</string>
     <string name="audiofxcatalog_eq_hint">Drag the points on the curve: sideways = frequency, up/down = level. Double-tap resets a band.</string>
+    <string name="audiofxcatalog_eq_blurb">Shapes the tone: bass, mids and treble.</string>
     <string name="audiofxcatalog_output_level">Output</string>
     <string name="audiofxcatalog_compressor">Compressor</string>
     <string name="audiofxcatalog_compressor_hint">Drag the knee (threshold) and the handle on the right (ratio). Above the knee the audio is turned down.</string>
+    <string name="audiofxcatalog_compressor_blurb">Evens out loud and quiet parts.</string>
     <string name="audiofxcatalog_threshold">Threshold</string>
     <string name="audiofxcatalog_ratio">Ratio</string>
     <string name="audiofxcatalog_attack">Attack</string>

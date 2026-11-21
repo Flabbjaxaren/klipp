@@ -151,9 +151,11 @@
     <string name="audiofxcatalog_mix">Mängd</string>
     <string name="audiofxcatalog_eq">EQ</string>
     <string name="audiofxcatalog_eq_hint">Dra punkterna i kurvan: åt sidan = frekvens, upp/ned = nivå. Dubbeltryck nollställer ett band.</string>
+    <string name="audiofxcatalog_eq_blurb">Formar klangen: bas, mellanregister och diskant.</string>
     <string name="audiofxcatalog_output_level">Utnivå</string>
     <string name="audiofxcatalog_compressor">Kompressor</string>
     <string name="audiofxcatalog_compressor_hint">Dra knät (tröskeln) och handtaget till höger (förhållandet). Ovanför knät dämpas ljudet.</string>
+    <string name="audiofxcatalog_compressor_blurb">Jämnar ut starka och svaga partier.</string>
     <string name="audiofxcatalog_threshold">Tröskel</string>
     <string name="audiofxcatalog_ratio">Förhållande</string>
     <string name="audiofxcatalog_attack">Attack</string>

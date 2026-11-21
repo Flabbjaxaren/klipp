@@ -19,9 +19,14 @@ object AudioFxCatalog {
     }
 
     /** [graph]: "eq" or "comp" = graphical editor above the sliders; [addable] = listed among the add buttons. */
-    data class Fx(val id: String, @StringRes val labelRes: Int, @StringRes val hintRes: Int, val params: List<Param>, val graph: String? = null, val addable: Boolean = true) {
+    data class Fx(
+        val id: String, @StringRes val labelRes: Int, @StringRes val hintRes: Int, val params: List<Param>, val graph: String? = null, val addable: Boolean = true,
+        /** What the effect does, for the picker (when the hint is about how to use its controls). */
+        @StringRes val blurbRes: Int = hintRes,
+    ) {
         val label: String get() = Str.t(labelRes)
         val hint: String get() = Str.t(hintRes)
+        val blurb: String get() = Str.t(blurbRes)
     }
 
     private fun db(v: Float) = "%+.1f dB".format(v).replace('-', '−')
@@ -37,7 +42,7 @@ object AudioFxCatalog {
         )),
         Fx("parametric_eq", R.string.audiofxcatalog_eq, R.string.audiofxcatalog_eq_hint, listOf(
             Param("master_gain", R.string.audiofxcatalog_output_level, -15f, 15f, 0f, ::db),
-        ), graph = "eq"),
+        ), graph = "eq", blurbRes = R.string.audiofxcatalog_eq_blurb),
         Fx("dynamics_rack", R.string.audiofxcatalog_compressor, R.string.audiofxcatalog_compressor_hint, listOf(
             Param("comp_threshold", R.string.audiofxcatalog_threshold, -60f, 0f, -20f, ::db),
             Param("comp_ratio", R.string.audiofxcatalog_ratio, 1f, 30f, 2f, { "%.1f:1".format(it) }),
@@ -46,7 +51,7 @@ object AudioFxCatalog {
             Param("comp_makeup", R.string.audiofxcatalog_makeup, 0f, 30f, 0f, ::db),
             Param("lim_on", R.string.audiofxcatalog_limiter_after, 0f, 1f, 0f, { Str.t(if (it > 0.5f) R.string.audiofxcatalog_on else R.string.audiofxcatalog_off) }, toggle = true),
             Param("lim_threshold", R.string.audiofxcatalog_limiter_ceiling, -30f, 0f, -1f, ::db, onlyIf = "lim_on"),
-        ), graph = "comp"),
+        ), graph = "comp", blurbRes = R.string.audiofxcatalog_compressor_blurb),
         Fx("hard_limiter", R.string.audiofxcatalog_limiter, R.string.audiofxcatalog_limiter_hint, listOf(
             Param("max", R.string.audiofxcatalog_ceiling, -12f, 0f, -0.1f, ::db),
             Param("boost", R.string.audiofxcatalog_boost, 0f, 20f, 0f, ::db),

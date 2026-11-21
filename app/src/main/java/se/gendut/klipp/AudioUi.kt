@@ -124,8 +124,11 @@ fun AudioFxRack(effects: List<AfxSnap>, ops: AfxRackOps, title: String, hint: St
 @Composable
 private fun FxPicker(effects: List<AfxSnap>, full: Boolean, onPick: (String) -> Unit) {
     val all = AudioFxCatalog.all.filter { it.addable }
+    // two columns where the names fit, one on a narrow page (beside the properties' rail)
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val cols = if (maxWidth < 340.dp) 1 else 2
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        for (row in all.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (row in all.chunked(cols)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             for (fx in row) {
                 val has = effects.any { it.id == fx.id }
                 val src = remember { MutableInteractionSource() }
@@ -133,17 +136,18 @@ private fun FxPicker(effects: List<AfxSnap>, full: Boolean, onPick: (String) -> 
                     Modifier.weight(1f).pressPop(src, 0.95f).clip(RoundedCornerShape(16.dp)).background(K.SurfaceHigh)
                         .border(1.dp, if (has) K.Primary.copy(alpha = 0.6f) else K.OutlineVar, RoundedCornerShape(16.dp))
                         .clickable(interactionSource = src, indication = null, enabled = !full) { onPick(fx.id) }
-                        .padding(horizontal = 12.dp, vertical = 10.dp).heightIn(min = 64.dp).testTag("addFx:${fx.id}"),
+                        .padding(horizontal = 12.dp, vertical = 10.dp).heightIn(min = if (cols == 1) 52.dp else 64.dp).testTag("addFx:${fx.id}"),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(fx.label, color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                         if (has) Icon(Ic.Check, null, tint = K.Primary, modifier = Modifier.padding(start = 4.dp).size(14.dp))
                     }
-                    Text(fx.hint, color = K.OnSurfaceVar, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(fx.blurb, color = K.OnSurfaceVar, fontSize = 11.sp, lineHeight = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (row.size == 1) Spacer(Modifier.weight(1f))
+            if (row.size < cols) Spacer(Modifier.weight(1f))
         }
+    }
     }
 }
 
