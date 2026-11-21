@@ -70,7 +70,7 @@ fun TranscriptView(controller: ProjectController, state: EditorState, modifier: 
             // (scrolls, and ends clear of the dock that lies over the page's bottom)
             val pick = rememberSpeechPick()
             Text(stringResource(if (redo) R.string.transcript_redo_hint else R.string.transcript_empty), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-            SpeechPicker(pick, "tx")
+            SpeechPicker(pick, "tx", words = true)
             val model = pick.model
             val ready = remember(model, ac.modelRevision, ac.running) { SpeechModels.ready(ctx, model) }
             if (!ready) PillButton(stringResource(R.string.titleui_download_model, model.bytes / 1_000_000), { haptics.confirm(); ac.download(ctx, model) },

@@ -2786,6 +2786,20 @@
    "status": "verified"
   },
   {
+   "id": "maven:com.microsoft.onnxruntime:onnxruntime-android",
+   "component": "com.microsoft.onnxruntime:onnxruntime-android",
+   "version": "1.32.0",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/microsoft/onnxruntime",
+   "license": "MIT",
+   "evidence": "POM <licenses>; native library notices in ThirdPartyNotices.txt of the ONNX Runtime repository",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [],
+   "status": "verified"
+  },
+  {
    "id": "maven:org.checkerframework:checker-qual",
    "component": "org.checkerframework:checker-qual",
    "version": "3.43.0",

@@ -625,6 +625,12 @@
   "evidence": "POM <licenses>",
   "homepage": "https://github.com/google/j2objc/"
  },
+ "com.microsoft.onnxruntime:onnxruntime-android": {
+  "version": "1.32.0",
+  "license": "MIT",
+  "evidence": "POM <licenses>; native library notices in ThirdPartyNotices.txt of the ONNX Runtime repository",
+  "homepage": "https://github.com/microsoft/onnxruntime"
+ },
  "org.checkerframework:checker-qual": {
   "version": "3.43.0",
   "license": "MIT",

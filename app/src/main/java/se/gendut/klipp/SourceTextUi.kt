@@ -128,7 +128,7 @@ fun SourceTextView(
                 // the last run's result ("No speech found" …) right under the hint, where it is seen
                 ac.message?.let { Text(it, color = K.OnSurface, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("src:message")) }
                 val pick = rememberSpeechPick()
-                SpeechPicker(pick, "src")
+                SpeechPicker(pick, "src", words = true)
                 val model = pick.model
                 val ready = remember(model, ac.modelRevision, ac.running) { SpeechModels.ready(ctx, model) }
                 when {

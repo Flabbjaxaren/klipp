@@ -153,6 +153,8 @@ dependencies {
     implementation("androidx.media3:media3-ui-compose:$media3")
     // MediaExtractorCompat: the tracker reads the file with the same extractors (and timestamps) as playback
     implementation("androidx.media3:media3-inspector:$media3")
+    // on-device models (exact word edges): ONNX Runtime, MIT
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.32.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
     testImplementation(bom)

@@ -33,6 +33,7 @@ notices are in **`LICENSES/`** and ship inside the app (Settings → About → L
 |---|---|---|---|
 | **spektrafilm film profiles** → Klipp's film tables – spektrafilm by Andrea Volpato | `assets/spektrafilm` | **CC BY-SA 4.0** (`SPEKTRAFILM_LICENSE.txt`, unchanged) | Converted for Klipp by the Klipp contributors – `CHANGELOG.txt`. Some values come from data whose license is not stated (open questions A2) |
 | **Title fonts**, 33 families from Google Fonts (google/fonts commit e7db6ca) – © their authors | `assets/fonts/<family>` | OFL-1.1 (`OFL.txt`); Roboto Slab and Permanent Marker Apache-2.0 (`LICENSE.txt`, `CHANGES.txt`) | 25 families subset to Latin (Inter, DM Sans and Archivo also pinned to one optical size/width). The 8 families with a Reserved Font Name (Abril Fatface, Dancing Script, Libre Baskerville, Lora, Merriweather, Playfair Display, Raleway, Righteous) are the unmodified original files – `docs/licensing-fonts.md` |
+| **ONNX Runtime** 1.32.0 (`com.microsoft.onnxruntime:onnxruntime-android`) – © Microsoft Corporation | `libonnxruntime.so`, classes.dex – exact word edges | MIT (third-party notices in the ONNX Runtime repository's `ThirdPartyNotices.txt`) | None |
 | **Silero VAD** v6.2 (ggml conversion, ggml-org/whisper-vad 9ffd54a) – © Silero Team | `assets/silero-vad-v6.2.0.bin` | MIT (`LICENSES/third-party/silero-vad/`) | None |
 
 ## Downloaded by the app when the user asks (not in the APK)
@@ -40,6 +41,7 @@ notices are in **`LICENSES/`** and ship inside the app (Settings → About → L
 | Content | Source | License |
 |---|---|---|
 | Speech models **KB-Whisper** base/small/medium (ggml) | KBLab, National Library of Sweden – huggingface.co/KBLab, pinned revision + SHA-256 | Apache-2.0 (fine-tuned from OpenAI Whisper, MIT) |
+| Word-edge model **wav2vec2 large VoxRex Swedish** (ONNX export by OpenVoiceOS) | KBLab, National Library of Sweden – huggingface.co/OpenVoiceOS/wav2vec2-large-voxrex-swedish-onnx, pinned revision + SHA-256 | CC0-1.0 |
 | Speech models **Whisper** base/small/large-v3-turbo, base.en/small.en (ggml) | OpenAI, converted by ggml – huggingface.co/ggerganov/whisper.cpp, pinned revision + SHA-256 | MIT (© 2022 OpenAI) |
 | Sound packs | Kenney (kenney.nl) – to be served as versioned, SHA-256-pinned files from Klipp's release `sounds-1` (`tools/sounds`); the old links stopped working | CC0 |
 | Sounds | BigSoundBank (bigsoundbank.com), 75 fixed sounds – the same, prepared for `sounds-1` | CC0 |

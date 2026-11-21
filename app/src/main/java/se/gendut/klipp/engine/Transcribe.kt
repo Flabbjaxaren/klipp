@@ -526,6 +526,31 @@ object AutoCaptions {
         }
     }
 
+    /** Downloads the word-edge model ([WordAligner], Swedish). */
+    fun downloadAligner(context: Context) {
+        if (running) return
+        message = null
+        progress = 0f
+        phase = Str.t(R.string.transcribe_downloading, WordAligner.BYTES / 1_000_000)
+        running = true
+        job = scope.launch {
+            try {
+                WordAligner.download(context) { p -> scope.launch { progress = p } }
+                message = Str.t(R.string.transcribe_downloaded)
+                modelRevision++
+            } catch (e: CancellationException) {
+                message = Str.t(R.string.transcribe_canceled)
+                throw e
+            } catch (e: Throwable) {
+                message = Str.t(R.string.transcribe_download_failed, Str.netError(e))
+            } finally {
+                progress = null
+                phase = ""
+                running = false
+            }
+        }
+    }
+
     /** Increments when a model has been downloaded or deleted (the UI re-reads which ones exist). */
     var modelRevision by mutableStateOf(0)
         private set
@@ -603,6 +628,11 @@ object AutoCaptions {
         val total = durations.values.sum().coerceAtLeast(1e-3)
         var done = 0.0
         var count = 0
+        // exact word edges (Swedish): the CTC model is loaded once for the job, on first use
+        val lang = SpeechChoice.whisperLanguage(model, language)
+        val align = lang == WordAligner.LANGUAGE && WordAligner.enabled(context) && WordAligner.ready(context)
+        var aligner: WordAligner.Session? = null
+        try {
         for ((i, item) in items.withIndex()) {
             val uri = controller.uriOf(item) ?: continue
             val len = durations[item] ?: 0.0
@@ -618,7 +648,17 @@ object AutoCaptions {
                     val part = b - a
                     // one word per segment (max_len 1 with word splitting), with token timestamps
                     val json = recognize(pcm, 1) { pct -> progress = ((base + part * pct / 100.0) / total).toFloat().coerceIn(0f, 1f) }
-                    words += SpeechText.words(json, a)
+                    val heard = SpeechText.words(json, a)
+                    if (align && heard.isNotEmpty()) {
+                        phase = Str.t(R.string.transcribe_aligning, i + 1, items.size)
+                        val s = aligner ?: withContext(Dispatchers.IO) { WordAligner.Session(context) }.also { aligner = it }
+                        val t0 = System.nanoTime()
+                        // (times relative to the decoded piece, then back to media seconds)
+                        val exact = runCatching { WordAligner.align(s, pcm, heard.map { it.copy(start = it.start - a, end = it.end - a) }) }
+                            .onFailure { if (it is CancellationException) throw it; se.gendut.klipp.CrashReport.note("align: ${it.message}") }.getOrNull()
+                        se.gendut.klipp.CrashReport.note("align: %.1f s for %.1f s of audio".format(java.util.Locale.ROOT, (System.nanoTime() - t0) / 1e9, part))
+                        words += exact?.map { it.copy(start = it.start + a, end = it.end + a) } ?: heard
+                    } else words += heard
                 }
                 done += b - a
                 progress = (done / total).toFloat().coerceIn(0f, 1f)
@@ -628,6 +668,9 @@ object AutoCaptions {
             if (words.isNotEmpty()) controller.setTranscript(item, SpeechChoice.whisperLanguage(model, language).takeIf { it != "auto" } ?: "", words)
             else controller.deleteTranscript(item)
             count += words.size
+        }
+        } finally {
+            aligner?.let { withContext(NonCancellable + Dispatchers.IO) { it.close() } }
         }
         return count
     }

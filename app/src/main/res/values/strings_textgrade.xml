@@ -167,6 +167,7 @@
     <string name="transcribe_unavailable">Speech recognition couldn\'t start on this phone</string>
     <string name="transcribe_starting">Starting speech recognition</string>
     <string name="transcribe_listening">Listening to clip %1$d of %2$d</string>
+    <string name="transcribe_aligning">Finding exact word edges in clip %1$d of %2$d</string>
     <string name="transcribe_no_speech">No speech found</string>
     <string name="transcribe_track_name">Auto captions</string>
     <plurals name="transcribe_done">
@@ -230,4 +231,8 @@
     <string name="titleui_caps_write_slot">Goes in %1$s – %2$s</string>
     <string name="titleui_caps_write_inside">The playhead is in a caption on this track – move it to an empty spot.</string>
     <string name="titleui_caps_write_no_room">No room before the next caption on this track – move the playhead.</string>
+    <string name="speech_word_edges">Exact word edges</string>
+    <string name="speech_word_edges_off">Off: cuts use Whisper\'s word times (about ±40 ms).</string>
+    <string name="speech_word_edges_ready">A Swedish speech model finds where each word starts and ends, to within a few ms. Adds a little time after listening.</string>
+    <string name="speech_word_edges_needs">Needs a Swedish speech model (KBLab, 1.3 GB) once. Runs on the phone.</string>
 </resources>

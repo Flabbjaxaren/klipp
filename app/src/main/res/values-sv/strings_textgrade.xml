@@ -167,6 +167,7 @@
     <string name="transcribe_unavailable">Taligenkänningen kunde inte startas på den här telefonen</string>
     <string name="transcribe_starting">Startar taligenkänningen</string>
     <string name="transcribe_listening">Lyssnar på klipp %1$d av %2$d</string>
+    <string name="transcribe_aligning">Hittar exakta ordgränser i klipp %1$d av %2$d</string>
     <string name="transcribe_no_speech">Inget tal hittades</string>
     <string name="transcribe_track_name">Automatiska undertexter</string>
     <plurals name="transcribe_done">
@@ -230,4 +231,8 @@
     <string name="titleui_caps_write_slot">Läggs in %1$s – %2$s</string>
     <string name="titleui_caps_write_inside">Spelhuvudet står i en undertext på spåret – flytta det till en tom plats.</string>
     <string name="titleui_caps_write_no_room">Ingen plats före nästa undertext på spåret – flytta spelhuvudet.</string>
+    <string name="speech_word_edges">Exakta ordgränser</string>
+    <string name="speech_word_edges_off">Av: klipp använder Whispers ordtider (ungefär ±40 ms).</string>
+    <string name="speech_word_edges_ready">En svensk talmodell hittar var varje ord börjar och slutar, på några ms när. Tar lite extra tid efter lyssningen.</string>
+    <string name="speech_word_edges_needs">Behöver en svensk talmodell (KBLab, 1,3 GB) en gång. Körs på telefonen.</string>
 </resources>
