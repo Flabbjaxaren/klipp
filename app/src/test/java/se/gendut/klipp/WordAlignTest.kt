@@ -77,5 +77,8 @@ class WordAlignTest {
         println("align: start |err| median %.0f ms, p90 %.0f; end median %.0f, p90 %.0f".format(ds[ds.size / 2] * 1e3, ds[ds.size * 9 / 10] * 1e3, de[de.size / 2] * 1e3, de[de.size * 9 / 10] * 1e3))
         assertTrue(ds[ds.size / 2] < 0.015)
         assertTrue(de[de.size / 2] < 0.015)
+        // the worst tenth: the treble band catches quiet s and t sounds next to pauses
+        assertTrue(ds[ds.size * 9 / 10] < 0.045)
+        assertTrue(de[de.size * 9 / 10] < 0.07)
     }
 }
