@@ -16,7 +16,24 @@ pub struct FxChain {
     dsp: Vec<Option<Box<dyn AudioEffect>>>,
     rate: u32,
     planar: [Vec<f32>; 2],
+    /// Per slot: the effect learns from the signal and hasn't heard any yet (after a build, rate change or reset).
+    cold: Vec<bool>,
+    warm_buf: [Vec<f32>; 2],
 }
+
+/// Effects that learn the signal before they act. The noise reduction tracks each band's noise floor by minimum
+/// statistics over 1.5 s and a cold one passes everything for the first 1.7 s: playback starts every piece and every
+/// seek cold (an export feeds the audio before the clip first), so a short play heard nothing. Such an effect is
+/// warmed with its first block of input, repeated for [`WARM_S`], before that block is processed – the warm-up's
+/// output is thrown away, and what it leaves in the effect's window falls in the latency that playback skips. A noisy
+/// first block gives the true floor at once; a loud one (speech from the first sample) gives a floor that is too high,
+/// which minimum statistics lowers as soon as a quieter frame comes.
+fn learns(effect: &str) -> bool {
+    effect == "denoise"
+}
+
+/// Seconds of warm-up for an effect that [`learns`].
+const WARM_S: f32 = 1.8;
 
 /// The clip's active audio effects that have a DSP (not the built-in ones: volume, channel volume, panning).
 pub fn active_effects(effects: &[EffectInstance]) -> Vec<(usize, EffectInstance)> {
@@ -76,7 +93,7 @@ impl FxChain {
         if insts.is_empty() {
             return None;
         }
-        Some(FxChain { insts, dsp: Vec::new(), rate: 0, planar: [Vec::new(), Vec::new()] })
+        Some(FxChain { insts, dsp: Vec::new(), rate: 0, planar: [Vec::new(), Vec::new()], cold: Vec::new(), warm_buf: [Vec::new(), Vec::new()] })
     }
 
     fn configure(&mut self, rate: u32) {
@@ -85,6 +102,7 @@ impl FxChain {
         }
         self.rate = rate;
         self.dsp = self.insts.iter().map(|(_, e)| audio_fx::configured(e, Tick::ZERO, rate)).collect();
+        self.cold = self.insts.iter().map(|(_, e)| learns(&e.effect)).collect();
     }
 
     /// Changes a parameter while dragging (the effect with rack index `index`). The state (filters, noise profile)
@@ -150,6 +168,9 @@ impl FxChain {
         for d in self.dsp.iter_mut().flatten() {
             d.reset();
         }
+        for (c, (_, e)) in self.cold.iter_mut().zip(&self.insts) {
+            *c = learns(&e.effect);
+        }
     }
 
     pub fn latency(&self) -> usize {
@@ -182,7 +203,21 @@ impl FxChain {
         {
             let [a, b] = &mut self.planar;
             let mut chans: [&mut [f32]; 2] = [&mut a[..n], &mut b[..n]];
-            for d in self.dsp.iter_mut().flatten() {
+            for (i, d) in self.dsp.iter_mut().enumerate() {
+                let Some(d) = d else { continue };
+                if self.cold.get(i).copied().unwrap_or(false) {
+                    self.cold[i] = false;
+                    let [wa, wb] = &mut self.warm_buf;
+                    let mut fed = 0usize;
+                    while (fed as f32) < WARM_S * rate as f32 {
+                        wa.clear();
+                        wa.extend_from_slice(chans[0]);
+                        wb.clear();
+                        wb.extend_from_slice(chans[1]);
+                        d.process(&mut [&mut wa[..], &mut wb[..]]);
+                        fed += n;
+                    }
+                }
                 d.process(&mut chans);
             }
         }

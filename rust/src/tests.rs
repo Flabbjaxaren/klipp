@@ -1302,3 +1302,55 @@ fn clip_labels() {
     let r: Value = serde_json::from_str(&b.execute("klipp.setLabel", &json!({"clips": [id], "label": "Nope"}).to_string())).unwrap();
     assert_eq!(r["ok"], false);
 }
+
+/// White-ish noise from a fixed seed (xorshift), interleaved stereo.
+fn hiss(frames: usize, amp: f32, seed: u32) -> Vec<f32> {
+    let mut x = seed.max(1);
+    (0..frames * 2)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            (x as f32 / u32::MAX as f32 - 0.5) * 2.0 * amp
+        })
+        .collect()
+}
+
+fn rms_db(s: &[f32]) -> f32 {
+    20.0 * ((s.iter().map(|v| v * v).sum::<f32>() / s.len().max(1) as f32).sqrt() + 1e-12).log10()
+}
+
+#[test]
+fn noise_reduction_acts_from_the_first_block() {
+    // playback starts the chain cold at every piece and seek; the noise must go down at once, not after 1.7 s
+    let json = json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 40.0}}]);
+    let mut chain = audio::FxChain::from_json(&json).unwrap();
+    let rate = 48_000;
+    let lat = chain.latency_at(rate);
+    for round in 0..2 {
+        let mut s = hiss(rate as usize, 0.05, 7 + round);
+        let before = rms_db(&s);
+        for blk in s.chunks_mut(1024 * 2) {
+            chain.process(blk, 2, rate);
+        }
+        // the first half second after the latency that playback skips
+        let after = rms_db(&s[lat * 2..(lat + rate as usize / 2) * 2]);
+        assert!(after < before - 10.0, "round {round}: {before:.1} dB → {after:.1} dB");
+        chain.reset();
+    }
+    // a tone that comes in over the noise (a voice after a pause) stays
+    let mut chain = audio::FxChain::from_json(&json).unwrap();
+    let mut s = hiss(rate as usize, 0.05, 3);
+    let half = rate as usize / 2;
+    for i in half..rate as usize {
+        let v = (i as f32 * 2.0 * std::f32::consts::PI * 440.0 / 48_000.0).sin() * 0.3;
+        s[i * 2] += v;
+        s[i * 2 + 1] += v;
+    }
+    let before = rms_db(&s[half * 2..]);
+    for blk in s.chunks_mut(1024 * 2) {
+        chain.process(blk, 2, rate);
+    }
+    let after = rms_db(&s[(half + lat) * 2..]);
+    assert!((after - before).abs() < 1.0, "tone {before:.1} dB → {after:.1} dB");
+}
