@@ -24,6 +24,9 @@ object MaskTrackService {
     /** The clip that [message] refers to. */
     var lastClip by mutableStateOf<Long?>(null)
         private set
+    /** [message] reports a finished track (its keyframes): hidden again once they are gone (undo, cleared). */
+    var done by mutableStateOf(false)
+        private set
     private val scope = kotlinx.coroutines.MainScope()
     private var job: kotlinx.coroutines.Job? = null
 
@@ -49,6 +52,7 @@ object MaskTrackService {
         lastClip = c.id
         progress = 0f
         message = null
+        done = false
         val samples = java.util.concurrent.ConcurrentLinkedQueue<WindowTracker.Sample>()
         val fwd = java.util.concurrent.atomic.AtomicReference<Double?>(null)
         val bwd = java.util.concurrent.atomic.AtomicReference<Double?>(null)
@@ -90,6 +94,7 @@ object MaskTrackService {
                 follow?.invoke(playhead)
                 val secs = (System.nanoTime() - t0) / 1e9
                 val n = m.keys.count { it.t >= lo - 1e-6 && it.t <= hi + 1e-6 }
+                done = true
                 message = Str.p(R.plurals.masktrack_done, n, track.end - track.t0, secs, n) +
                     (if (track.weak > 0) " · " + Str.p(R.plurals.masktrack_weak_frames, track.weak, track.weak) else "")
             } catch (e: kotlinx.coroutines.CancellationException) {

@@ -913,7 +913,7 @@ private fun MaskControls(
             androidx.compose.material3.LinearProgressIndicator(progress = { progress }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), color = K.Primary)
             Text(stringResource(R.string.properties_tracking_progress, progress * 100), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp))
         }
-        val msg = MaskTrackService.message?.takeIf { !busy && MaskTrackService.lastClip == clip }
+        val msg = MaskTrackService.message?.takeIf { !busy && MaskTrackService.lastClip == clip && (mask.animated || !MaskTrackService.done) }
         Text(
             msg ?: stringResource(R.string.properties_track_hint),
             color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("mask:trackMsg"),
