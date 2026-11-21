@@ -186,6 +186,11 @@ pub struct Tracker {
     age: Vec<u16>,
     dev: Vec<[f32; 2]>,
     fdev: Vec<[f32; 2]>,
+    /// Per point in `pts`: where it lies in the reference frame (the transform at the time it was found, inverted). The
+    /// whole transform is fitted against these each frame instead of chaining frame-to-frame estimates, whose small
+    /// errors add up (a window that slowly grows or slides off a face that stands still).
+    anc: Vec<[f32; 2]>,
+    asrc: Vec<[f32; 2]>,
     idx: Vec<u32>,
     idx2: Vec<u32>,
     // the background
@@ -263,6 +268,8 @@ impl Tracker {
             age: Vec::with_capacity(MAX_PTS),
             dev: Vec::with_capacity(MAX_PTS),
             fdev: Vec::with_capacity(MAX_PTS),
+            anc: Vec::with_capacity(MAX_PTS),
+            asrc: Vec::with_capacity(MAX_PTS),
             idx: Vec::with_capacity(MAX_PTS),
             idx2: Vec::with_capacity(MAX_PTS),
             bg: Vec::with_capacity(BG_MAX),
@@ -700,7 +707,7 @@ impl Tracker {
         let mut inliers = 0;
         match est {
             Some((f, c)) if !lost => {
-                self.total = self.total.then(&f);
+                self.total = self.anchored(&f).unwrap_or_else(|| self.total.then(&f));
                 self.last = f;
                 self.last_ok = true;
                 // kept: the object's inliers, and window points that follow the background (they hold the spot – otherwise
@@ -709,6 +716,7 @@ impl Tracker {
                 self.isbg.clear();
                 self.age.clear();
                 let old_fdev = std::mem::take(&mut self.fdev);
+                let old_anc = std::mem::take(&mut self.anc);
                 self.dev.clear();
                 let bgt2 = INLIER_PX * INLIER_PX;
                 for k in 0..n {
@@ -730,6 +738,7 @@ impl Tracker {
                         self.age.push(nage[k]);
                         self.dev.push(ndev[k]);
                         self.fdev.push(fd);
+                        self.anc.push(old_anc.get(self.idx[k] as usize).copied().unwrap_or_else(|| self.total.inv().apply(self.dst[k])));
                     }
                 }
                 // points that slowly slide off the object are dropped (if enough others remain)
@@ -740,6 +749,7 @@ impl Tracker {
                     retain_by(&mut self.age, &slip);
                     retain_by(&mut self.dev, &slip);
                     retain_by(&mut self.fdev, &slip);
+                    retain_by(&mut self.anc, &slip);
                 }
                 // points that have slid out of the window no longer follow the object
                 let keep: Vec<bool> = self.pts.iter().map(|p| self.inside(*p, KEEP_K)).collect();
@@ -748,6 +758,7 @@ impl Tracker {
                 retain_by(&mut self.age, &keep);
                 retain_by(&mut self.dev, &keep);
                 retain_by(&mut self.fdev, &keep);
+                retain_by(&mut self.anc, &keep);
                 inliers = c;
                 let fg = self.isbg.iter().filter(|b| !**b).count();
                 if fg < 30.max(self.init_count / 2) {
@@ -776,6 +787,31 @@ impl Tracker {
         self.last_res
     }
 
+    /// The whole transform (reference frame → this frame) fitted directly from the inliers' reference positions: the
+    /// median of pairwise distance ratios for the scale, least squares for the angle and position. None with too few
+    /// inliers (then the frame's estimate is chained as before).
+    fn anchored(&mut self, f: &Sim) -> Option<Sim> {
+        self.asrc.clear();
+        let chained = self.total.then(f);
+        let inv = self.total.inv();
+        for k in 0..self.src.len() {
+            let i = self.idx[k] as usize;
+            self.asrc.push(self.anc.get(i).copied().unwrap_or_else(|| inv.apply(self.src[k])));
+        }
+        if self.inl.iter().filter(|b| **b).count() < 8 {
+            return None;
+        }
+        let m = fit_lim(&self.asrc, &self.dst, &self.wts, &self.inl, None)?;
+        let s = median_scale_lim(&self.asrc, &self.dst, &self.inl, &mut self.rng, None).unwrap_or(m.scale());
+        let a = with_scale(&m, s, &self.asrc, &self.dst, &self.wts, &self.inl);
+        // a sanity check against the chained estimate (a broken fit must not throw the window away)
+        let (sc, sa) = (chained.scale(), a.scale());
+        if !(sa.is_finite() && sa > 0.02 && (sa / sc - 1.0).abs() < 0.25) {
+            return None;
+        }
+        Some(a)
+    }
+
     /// Keeps `isbg`/`age`/`dev` the same length as `pts` (new points: object, no history); `clear` = empty them.
     fn sync_state(&mut self, clear: bool) {
         if clear {
@@ -783,8 +819,14 @@ impl Tracker {
             self.age.clear();
             self.dev.clear();
             self.fdev.clear();
+            self.anc.clear();
         }
         let n = self.pts.len();
+        let inv = self.total.inv();
+        for i in self.anc.len()..n {
+            self.anc.push(inv.apply(self.pts[i]));
+        }
+        self.anc.truncate(n);
         self.isbg.resize(n, false);
         self.age.resize(n, 0);
         self.dev.resize(n, [0.0; 2]);
@@ -1196,6 +1238,11 @@ fn track_points(prev: &[Level], cur: &[Level], pts: &[[f32; 2]], base: u32, pred
 
 /// Median of |q_i − q_j| / |p_i − p_j| over (at most 400 random) pairs of inliers at least 8 px apart.
 fn median_scale(src: &[[f32; 2]], dst: &[[f32; 2]], inl: &[bool], rng: &mut u32) -> Option<f32> {
+    median_scale_lim(src, dst, inl, rng, Some((0.8, 1.25)))
+}
+
+/// [`median_scale`] with the result limited to `lim` (None = not limited).
+fn median_scale_lim(src: &[[f32; 2]], dst: &[[f32; 2]], inl: &[bool], rng: &mut u32, lim: Option<(f32, f32)>) -> Option<f32> {
     let ids: Vec<usize> = (0..src.len()).filter(|&i| inl[i]).collect();
     let n = ids.len();
     if n < 4 {
@@ -1227,7 +1274,10 @@ fn median_scale(src: &[[f32; 2]], dst: &[[f32; 2]], inl: &[bool], rng: &mut u32)
     }
     let m = r.len() / 2;
     let (_, med, _) = r.select_nth_unstable_by(m, |a, b| a.total_cmp(b));
-    Some(med.clamp(0.8, 1.25))
+    Some(match lim {
+        Some((lo, hi)) => med.clamp(lo, hi),
+        None => *med,
+    })
 }
 
 /// `f` with the scale `s` (the angle is kept) and the translation that keeps the weighted centroid in place.
@@ -1268,6 +1318,11 @@ fn xorshift(s: &mut u32) -> u32 {
 
 /// Weighted least-squares similarity (closed form, 2D Umeyama without reflection) over the marked pairs.
 fn fit(src: &[[f32; 2]], dst: &[[f32; 2]], w: &[f32], mask: &[bool]) -> Option<Sim> {
+    fit_lim(src, dst, w, mask, Some((0.8, 1.25)))
+}
+
+/// [`fit`] with the scale limited to `lim` (None = not limited).
+fn fit_lim(src: &[[f32; 2]], dst: &[[f32; 2]], w: &[f32], mask: &[bool], lim: Option<(f32, f32)>) -> Option<Sim> {
     let (mut n, mut ws, mut mp, mut mq) = (0usize, 0f32, [0f32; 2], [0f32; 2]);
     for (((p, q), wi), _) in src.iter().zip(dst).zip(w).zip(mask).filter(|(_, m)| **m) {
         n += 1;
@@ -1296,7 +1351,10 @@ fn fit(src: &[[f32; 2]], dst: &[[f32; 2]], w: &[f32], mask: &[bool]) -> Option<S
     if !(s.is_finite() && s > 1e-6) {
         return None;
     }
-    let k = s.clamp(0.8, 1.25) / s;
+    let k = match lim {
+        Some((lo, hi)) => s.clamp(lo, hi) / s,
+        None => 1.0,
+    };
     a *= k;
     b *= k;
     Some(Sim { a, b, tx: mq[0] - (a * mp[0] - b * mp[1]), ty: mq[1] - (b * mp[0] + a * mp[1]) })
@@ -1697,6 +1755,80 @@ mod tests {
     }
 
     /// A denser cloud: more points in the same window, and the moving, scaling, turning patch is still followed as well.
+    /// A long clip (360 frames, as 3–6 s of phone video) of an object that keeps its size, with sensor noise in every frame:
+    /// the window must not slowly grow (a small bias per frame in the frame-to-frame scale adds up).
+    #[test]
+    fn track_no_scale_drift_with_noise() {
+        let bg = Tex::new(1600, 900, 31, 500);
+        let fg = Tex::new(256, 256, 555, 120);
+        for (k, label) in [(1.0f32, "tight"), (1.4, "loose")] {
+            let mut tr = Tracker::new(WW, WH);
+            let path = |t: usize| {
+                let tf = t as f32;
+                Patch { cx: 420.0 + 40.0 * (tf * 0.02).sin(), cy: 280.0 + 15.0 * (tf * 0.03).sin(), s: 1.0, th: 0.0, r: 70.0 }
+            };
+            let p0 = path(0);
+            let roi = Roi { cx: p0.cx / SW as f32, cy: p0.cy / SH as f32, rx: k * p0.r / SW as f32, ry: k * p0.r / SH as f32, shape: 1 };
+            let mut rng = 77u32;
+            let mut smax = 0f32;
+            let mut last = 1f32;
+            for t in 0..360 {
+                let mut img = render(&Scene { bg: &bg, fg: Some((&fg, path(t))), pan: (0.0, 0.0), occ: None });
+                for v in img.iter_mut() {
+                    // ±~5 levels of noise (sum of two uniforms)
+                    let n = (xorshift(&mut rng) % 7) as i32 + (xorshift(&mut rng) % 7) as i32 - 6;
+                    *v = (*v as i32 + n).clamp(0, 255) as u8;
+                }
+                tr.load(&img, STRIDE, 1, SW, SH);
+                let r = if t == 0 { tr.reset(roi) } else { tr.step() };
+                smax = smax.max((r.scale - 1.0).abs());
+                last = r.scale;
+                if t % 60 == 0 {
+                    println!("{label} t={t} scale={:.4} q={:.2} pts={}", r.scale, r.quality, r.points);
+                }
+            }
+            println!("{label}: scale at the end {last:.4}, largest deviation {:.2}%", smax * 100.0);
+            assert!(smax < 0.03, "{label}: the window drifted in size by {:.1}%", smax * 100.0);
+        }
+    }
+
+    /// A real clip (raw 8-bit YUV4MPEG2, luma used): KLIPP_TRACK_Y4M=path, KLIPP_TRACK_ROI="cx,cy,rx,ry" (fractions),
+    /// KLIPP_TRACK_FRAMES=n. Prints the scale and center over time (run with --ignored --nocapture).
+    #[test]
+    #[ignore]
+    fn track_y4m_clip() {
+        let Ok(path) = std::env::var("KLIPP_TRACK_Y4M") else { return };
+        let roi: Vec<f32> = std::env::var("KLIPP_TRACK_ROI").unwrap().split(',').map(|x| x.trim().parse().unwrap()).collect();
+        let max: usize = std::env::var("KLIPP_TRACK_FRAMES").ok().and_then(|v| v.parse().ok()).unwrap_or(usize::MAX);
+        let data = std::fs::read(&path).unwrap();
+        let head_end = data.iter().position(|&b| b == b'\n').unwrap();
+        let head = std::str::from_utf8(&data[..head_end]).unwrap();
+        let num = |tag: char| head.split(' ').find(|t| t.starts_with(tag)).unwrap()[1..].parse::<usize>().unwrap();
+        let (w, h) = (num('W'), num('H'));
+        let frame = w * h * 3 / 2;
+        let ww = 480usize.min(w);
+        let wh = (ww as f32 * h as f32 / w as f32).round() as usize;
+        let mut tr = Tracker::new(ww, wh);
+        let mut pos = head_end + 1;
+        let mut t = 0;
+        while pos < data.len() && t < max {
+            let fe = pos + data[pos..].iter().position(|&b| b == b'\n').unwrap() + 1;
+            if fe + frame > data.len() {
+                break;
+            }
+            tr.load(&data[fe..fe + w * h], w, 1, w, h);
+            let r = if t == 0 { tr.reset(Roi { cx: roi[0], cy: roi[1], rx: roi[2], ry: roi[3], shape: 1 }) } else { tr.step() };
+            if std::env::var("KLIPP_TRACK_ALL").is_ok() {
+                println!("F {t} {} {} {} {}", roi[0] + r.dx, roi[1] + r.dy, r.scale, r.rotation);
+            }
+            if t % 10 == 0 {
+                println!("t={t:3} scale={:.4} rot={:+.3} dx={:+.3} dy={:+.3} q={:.2} pts={}", r.scale, r.rotation, r.dx, r.dy, r.quality, r.points);
+            }
+            pos = fe + frame;
+            t += 1;
+        }
+    }
+
     #[test]
     fn track_dense_cloud() {
         let bg = Tex::new(1200, 800, 99, 400);
