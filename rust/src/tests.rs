@@ -1356,7 +1356,12 @@ fn noise_reduction_acts_from_the_first_block() {
 }
 
 fn offline_run(chain: Value, x: &[f32]) -> Vec<f32> {
-    let mut fx = offline::Offline::new(&chain, 48_000, 2).unwrap();
+    offline_run_at(chain, x, 48_000)
+}
+
+/// At another rate than the model's (44.1 kHz) the rendered noise reduction uses Klipp's own cleaning.
+fn offline_run_at(chain: Value, x: &[f32], rate: u32) -> Vec<f32> {
+    let mut fx = offline::Offline::new(&chain, rate, 2).unwrap();
     for b in x.chunks(5000 * 2) {
         fx.learn(b);
     }
@@ -1382,8 +1387,8 @@ fn rendered_effects_keep_length_and_time() {
 }
 
 #[test]
-fn rendered_noise_reduction_is_strong_from_the_start() {
-    // noise, then a tone over it from 1 s: the noise goes down at once and the tone stays
+fn own_rendered_noise_reduction_is_strong_from_the_start() {
+    // (not 48 kHz: Klipp's own cleaning) noise, then a tone over it from 1 s: the noise goes down at once, the tone stays
     let r = 48_000usize;
     let mut x = hiss(r * 3, 0.05, 5);
     for i in r..r * 3 {
@@ -1391,13 +1396,13 @@ fn rendered_noise_reduction_is_strong_from_the_start() {
         x[i * 2] += v;
         x[i * 2 + 1] += v;
     }
-    let y = offline_run(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 40.0}}]), &x);
+    let y = offline_run_at(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 40.0}}]), &x, 44_100);
     let (n0, n1) = (rms_db(&x[..r * 2 / 2]), rms_db(&y[..r * 2 / 2]));
     assert!(n1 < n0 - 14.0, "noise {n0:.1} → {n1:.1} dB in the first half second");
     let (t0, t1) = (rms_db(&x[r * 2 + r..]), rms_db(&y[r * 2 + r..]));
     assert!((t0 - t1).abs() < 1.0, "tone {t0:.1} → {t1:.1} dB");
     // stronger with more
-    let z = offline_run(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 100.0}}]), &x);
+    let z = offline_run_at(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 100.0}}]), &x, 44_100);
     assert!(rms_db(&z[..r]) < n1 - 5.0);
 }
 
@@ -1416,4 +1421,38 @@ fn rendered_file_is_a_wav_of_the_same_length() {
     assert_eq!(w.len() - 44, x.len() * 2);
     assert_eq!(offline::progress_of(7), 1.0);
     std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Scale-invariant SDR (dB) of the first channel of `est` against `clean`.
+fn si_sdr(est: &[f32], clean: &[f32]) -> f64 {
+    let (e, s): (Vec<f64>, Vec<f64>) = est.iter().step_by(2).zip(clean.iter().step_by(2)).map(|(a, b)| (*a as f64, *b as f64)).unzip();
+    let a = e.iter().zip(&s).map(|(x, y)| x * y).sum::<f64>() / s.iter().map(|y| y * y).sum::<f64>();
+    let num: f64 = s.iter().map(|y| (a * y).powi(2)).sum();
+    let den: f64 = e.iter().zip(&s).map(|(x, y)| (x - a * y).powi(2)).sum();
+    10.0 * (num / den).log10()
+}
+
+/// Real speech under real noise (DeepFilterNet's own sample clips, in KLIPP_TEST_MEDIA as df_clean.wav and df_noise.wav,
+/// 48 kHz): the rendered noise reduction (the model) brings the speech out – noise at 5 dB under the speech becomes
+/// 14 dB under it (upstream's own tool gives the same).
+#[test]
+fn rendered_noise_reduction_brings_real_speech_out() {
+    let dir = std::env::var("KLIPP_TEST_MEDIA").expect("set KLIPP_TEST_MEDIA to the folder with the test clips");
+    let read = |n: &str| -> Vec<f32> {
+        let b = std::fs::read(format!("{dir}/{n}")).unwrap_or_else(|_| panic!("{n} missing in KLIPP_TEST_MEDIA"));
+        // 16-bit PCM WAV, any channels → stereo (first channel twice)
+        let ch = u16::from_le_bytes([b[22], b[23]]) as usize;
+        let start = b.windows(4).position(|w| w == b"data").unwrap() + 8;
+        b[start..].chunks_exact(2 * ch).flat_map(|f| { let v = i16::from_le_bytes([f[0], f[1]]) as f32 / 32768.0; [v, v] }).collect()
+    };
+    let clean = read("df_clean.wav");
+    let noise = read("df_noise.wav");
+    let n = clean.len().min(noise.len());
+    let (cs, ns) = (rms_db(&clean[..n]), rms_db(&noise[..n]));
+    let g = 10f32.powf((cs - ns - 5.0) / 20.0);
+    let noisy: Vec<f32> = (0..n).map(|i| clean[i] + g * noise[i]).collect();
+    let before = si_sdr(&noisy, &clean[..n]);
+    let y = offline_run(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 40.0}}]), &noisy);
+    let after = si_sdr(&y, &clean[..n]);
+    assert!(after > before + 7.0, "SI-SDR {before:.1} → {after:.1} dB");
 }

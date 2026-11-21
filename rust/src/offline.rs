@@ -3,9 +3,11 @@
 //! Played live these effects only know the sound that has passed, so the noise reduction spends its first seconds
 //! learning the noise and can only shut pauses. Rendered, they hear the whole range first (pass 1, [`Offline::learn`])
 //! and then process it (pass 2, [`Offline::process`]):
-//! - noise reduction: each band's noise level is the quiet end of what that band holds over the range; the sound is
-//!   then cleaned frame by frame with a Wiener gain (decision-directed), so noise also goes down under speech
-//! - speech enhance: the same cleaning (fixed, moderate), a voice EQ (low cut, less mud, presence, air), the level
+//! - noise reduction: DeepFilterNet 3 (a small neural network that tells speech from noise, MIT OR Apache-2.0) takes
+//!   the noise away, also under the speech; Amount limits how far down it may take it. Sound that isn't 48 kHz (the
+//!   model's rate) uses Klipp's own cleaning instead: each band's noise level is the quiet end of what that band holds
+//!   over the range, then a Wiener gain (decision-directed) frame by frame
+//! - speech enhance: the same cleaning (fixed, strong), a voice EQ (low cut, less mud, presence, air), the level
 //!   set from the loud parts of the speech (heard over the whole range), a compressor and a peak limiter
 //!
 //! Other effects in the rack before them run in the engine's DSP, in order. Output = input length, aligned (each
@@ -20,7 +22,7 @@ use std::f32::consts::PI;
 pub const RENDERED: [&str; 2] = ["denoise", "speech_enhance"];
 
 /// Bumped when rendered files come out differently (Kotlin keys its files with it).
-pub const VERSION: u32 = 1;
+pub const VERSION: u32 = 2;
 
 // ------------------------------------------------------------------ FFT
 
@@ -312,11 +314,115 @@ impl Denoise {
     }
 }
 
+// ------------------------------------------------------------------ DeepFilterNet
+
+/// DeepFilterNet 3 over both channels, a hop (10 ms) at a time. Every sample in gives one sample out, [`Dfn::latency`] later.
+struct Dfn {
+    m: df::tract::DfTract,
+    hop: usize,
+    lat: usize,
+    inq: [VecDeque<f32>; 2],
+    out: [VecDeque<f32>; 2],
+    x: ndarray::Array2<f32>,
+    y: ndarray::Array2<f32>,
+}
+
+impl Dfn {
+    /// None = the model can't run here (another rate than its own, or it couldn't be loaded).
+    fn new(rate: u32, atten_db: f32) -> Option<Self> {
+        // the thresholds and mask reduction of upstream's own enhance tool (the library's defaults skip the fine (DF)
+        // stage in clean speech frames: on a speech + noise test at 15 dB SNR 7.6 dB SI-SDR instead of 20.5)
+        let red = df::tract::ReduceMask::try_from(1).unwrap_or_default();
+        let rp = df::tract::RuntimeParams::default_with_ch(2).with_atten_lim(atten_db).with_thresholds(-15.0, 35.0, 35.0).with_mask_reduce(red);
+        let m = df::tract::DfTract::new(df::tract::DfParams::default(), &rp).ok()?;
+        if m.sr != rate as usize {
+            return None;
+        }
+        let hop = m.hop_size;
+        // the STFT's delay and the model's lookahead, and a hop held ahead so output never waits for a frame
+        let lat = m.fft_size - hop + m.lookahead * hop + hop;
+        Some(Dfn {
+            hop,
+            lat,
+            inq: [VecDeque::new(), VecDeque::new()],
+            out: [VecDeque::from(vec![0f32; hop]), VecDeque::from(vec![0f32; hop])],
+            x: ndarray::Array2::zeros((2, hop)),
+            y: ndarray::Array2::zeros((2, hop)),
+            m,
+        })
+    }
+
+    fn process(&mut self, x: [&mut [f32]; 2]) {
+        let [a, b] = x;
+        self.inq[0].extend(a.iter().copied());
+        self.inq[1].extend(b.iter().copied());
+        while self.inq[0].len() >= self.hop {
+            for c in 0..2 {
+                for j in 0..self.hop {
+                    self.x[[c, j]] = self.inq[c].pop_front().unwrap_or(0.0);
+                }
+            }
+            if self.m.process(self.x.view(), self.y.view_mut()).is_err() {
+                // a frame the model refuses passes unchanged
+                self.y.assign(&self.x);
+            }
+            for c in 0..2 {
+                self.out[c].extend(self.y.row(c).iter().copied());
+            }
+        }
+        for (c, ch) in [a, b].into_iter().enumerate() {
+            for v in ch.iter_mut() {
+                *v = self.out[c].pop_front().unwrap_or(0.0);
+            }
+        }
+    }
+}
+
+/// The cleaning: the model when it can run, otherwise Klipp's own spectral one.
+enum Cleaner {
+    Net(Box<Dfn>),
+    Own(Denoise),
+}
+
+impl Cleaner {
+    /// `amount` 0…1 → how far the noise may go down: 0 = not at all, 0.4 → 24 dB, 1 = all the way.
+    fn new(rate: u32, amount: f32) -> Self {
+        let a = amount.clamp(0.0, 1.0);
+        let atten = if a >= 0.99 { 100.0 } else { 60.0 * a };
+        if a > 0.0 {
+            if let Some(d) = Dfn::new(rate, atten) {
+                return Cleaner::Net(Box::new(d));
+            }
+        }
+        Cleaner::Own(Denoise::new(rate, a))
+    }
+
+    fn latency(&self) -> usize {
+        match self {
+            Cleaner::Net(d) => d.lat,
+            Cleaner::Own(d) => d.latency(),
+        }
+    }
+
+    fn learn(&mut self, x: [&[f32]; 2]) {
+        if let Cleaner::Own(d) = self {
+            d.learn(x);
+        }
+    }
+
+    fn process(&mut self, x: [&mut [f32]; 2]) {
+        match self {
+            Cleaner::Net(d) => d.process(x),
+            Cleaner::Own(d) => d.process(x),
+        }
+    }
+}
+
 // ------------------------------------------------------------------ speech enhance
 
 /// Speech enhance: moderate cleaning, voice EQ, level from the speech's loud parts, compressor, peak limiter.
 struct Voice {
-    dn: Denoise,
+    dn: Cleaner,
     coeffs: [Coeffs; 4],
     eq: [[Biquad; 4]; 2],
     mix: f32,
@@ -347,7 +453,7 @@ impl Voice {
     fn new(rate: u32, mix: f32, high: bool) -> Self {
         let sr = rate as f64;
         let (mud, presence) = if high { (350.0, 4000.0) } else { (250.0, 3000.0) };
-        let dn = Denoise::new(rate, 0.5);
+        let dn = Cleaner::new(rate, 0.6);
         let lat = dn.latency();
         let coef = |ms: f32| (-1.0 / (ms * 0.001 * rate as f32)).exp();
         Voice {
@@ -467,7 +573,7 @@ impl Voice {
 
 enum Stage {
     Engine(Box<dyn AudioEffect>),
-    Denoise(Denoise),
+    Denoise(Cleaner),
     Voice(Voice),
 }
 
@@ -505,7 +611,7 @@ impl Offline {
                 continue;
             }
             match e["id"].as_str()? {
-                "denoise" => stages.push(Stage::Denoise(Denoise::new(rate, (num(e, "amount", 40.0) / 100.0) as f32))),
+                "denoise" => stages.push(Stage::Denoise(Cleaner::new(rate, (num(e, "amount", 40.0) / 100.0) as f32))),
                 "speech_enhance" => stages.push(Stage::Voice(Voice::new(rate, (num(e, "mix", 100.0) / 100.0) as f32, num(e, "tone", 0.0) > 0.5))),
                 _ => {
                     let one = crate::audio::FxChain::from_json(&serde_json::Value::Array(vec![e.clone()]));

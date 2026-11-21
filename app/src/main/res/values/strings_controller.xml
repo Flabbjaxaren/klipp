@@ -144,7 +144,7 @@
 
     <!-- AudioFxCatalog -->
     <string name="audiofxcatalog_denoise">Noise reduction</string>
-    <string name="audiofxcatalog_denoise_hint">Removes steady noise (fans, hiss, wind) – also under the speech. Worked out over the whole clip.</string>
+    <string name="audiofxcatalog_denoise_hint">Removes background noise (fans, traffic, wind, hiss) – also under the speech. Worked out over the whole clip.</string>
     <string name="audiofxcatalog_amount">Amount</string>
     <string name="audiofxcatalog_speech_enhance">Speech enhance</string>
     <string name="audiofxcatalog_speech_enhance_hint">Clearer speech: removes the noise, lifts the voice and evens out the level. Worked out over the whole clip.</string>

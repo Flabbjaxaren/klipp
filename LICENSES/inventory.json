@@ -1122,1862 +1122,6 @@
    "notes": ""
   },
   {
-   "id": "maven:androidx.activity:activity",
-   "component": "androidx.activity:activity",
-   "version": "1.13.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/activity#1.13.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.activity:activity-compose",
-   "component": "androidx.activity:activity-compose",
-   "version": "1.13.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/activity#1.13.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.activity:activity-ktx",
-   "component": "androidx.activity:activity-ktx",
-   "version": "1.13.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/activity#1.13.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.annotation:annotation",
-   "component": "androidx.annotation:annotation",
-   "version": "1.9.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/annotation#1.9.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.annotation:annotation-experimental",
-   "component": "androidx.annotation:annotation-experimental",
-   "version": "1.4.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/annotation#1.4.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.annotation:annotation-jvm",
-   "component": "androidx.annotation:annotation-jvm",
-   "version": "1.9.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/annotation#1.9.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.arch.core:core-common",
-   "component": "androidx.arch.core:core-common",
-   "version": "2.2.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/arch-core#2.2.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.arch.core:core-runtime",
-   "component": "androidx.arch.core:core-runtime",
-   "version": "2.2.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/arch-core#2.2.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.autofill:autofill",
-   "component": "androidx.autofill:autofill",
-   "version": "1.0.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.collection:collection",
-   "component": "androidx.collection:collection",
-   "version": "1.5.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/collection#1.5.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.collection:collection-jvm",
-   "component": "androidx.collection:collection-jvm",
-   "version": "1.5.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/collection#1.5.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.collection:collection-ktx",
-   "component": "androidx.collection:collection-ktx",
-   "version": "1.5.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/collection#1.5.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.animation:animation",
-   "component": "androidx.compose.animation:animation",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-animation#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.animation:animation-android",
-   "component": "androidx.compose.animation:animation-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-animation#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.animation:animation-core",
-   "component": "androidx.compose.animation:animation-core",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-animation#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.animation:animation-core-android",
-   "component": "androidx.compose.animation:animation-core-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-animation#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.foundation:foundation",
-   "component": "androidx.compose.foundation:foundation",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-foundation#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.foundation:foundation-android",
-   "component": "androidx.compose.foundation:foundation-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-foundation#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.foundation:foundation-layout",
-   "component": "androidx.compose.foundation:foundation-layout",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-foundation#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.foundation:foundation-layout-android",
-   "component": "androidx.compose.foundation:foundation-layout-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-foundation#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.material3:material3",
-   "component": "androidx.compose.material3:material3",
-   "version": "1.4.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-material3#1.4.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.material3:material3-android",
-   "component": "androidx.compose.material3:material3-android",
-   "version": "1.4.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-material3#1.4.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.material:material-ripple",
-   "component": "androidx.compose.material:material-ripple",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-material#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.material:material-ripple-android",
-   "component": "androidx.compose.material:material-ripple-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-material#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.runtime:runtime",
-   "component": "androidx.compose.runtime:runtime",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.runtime:runtime-android",
-   "component": "androidx.compose.runtime:runtime-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.runtime:runtime-annotation",
-   "component": "androidx.compose.runtime:runtime-annotation",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.runtime:runtime-annotation-android",
-   "component": "androidx.compose.runtime:runtime-annotation-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.runtime:runtime-retain",
-   "component": "androidx.compose.runtime:runtime-retain",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.runtime:runtime-retain-android",
-   "component": "androidx.compose.runtime:runtime-retain-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.runtime:runtime-saveable",
-   "component": "androidx.compose.runtime:runtime-saveable",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.runtime:runtime-saveable-android",
-   "component": "androidx.compose.runtime:runtime-saveable-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui",
-   "component": "androidx.compose.ui:ui",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-android",
-   "component": "androidx.compose.ui:ui-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-geometry",
-   "component": "androidx.compose.ui:ui-geometry",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-geometry-android",
-   "component": "androidx.compose.ui:ui-geometry-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-graphics",
-   "component": "androidx.compose.ui:ui-graphics",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-graphics-android",
-   "component": "androidx.compose.ui:ui-graphics-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-text",
-   "component": "androidx.compose.ui:ui-text",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-text-android",
-   "component": "androidx.compose.ui:ui-text-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-tooling-preview",
-   "component": "androidx.compose.ui:ui-tooling-preview",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-tooling-preview-android",
-   "component": "androidx.compose.ui:ui-tooling-preview-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-unit",
-   "component": "androidx.compose.ui:ui-unit",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-unit-android",
-   "component": "androidx.compose.ui:ui-unit-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-util",
-   "component": "androidx.compose.ui:ui-util",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose.ui:ui-util-android",
-   "component": "androidx.compose.ui:ui-util-android",
-   "version": "1.12.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.compose:compose-bom",
-   "component": "androidx.compose:compose-bom",
-   "version": "2026.09.00",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK, so there is no source to publish.",
-   "included_in": "not distributed – Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK, so there is no source to publish.",
-   "distributed": false,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.concurrent:concurrent-futures",
-   "component": "androidx.concurrent:concurrent-futures",
-   "version": "1.2.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/concurrent#1.2.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.core:core",
-   "component": "androidx.core:core",
-   "version": "1.18.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/core#1.18.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.core:core-ktx",
-   "component": "androidx.core:core-ktx",
-   "version": "1.18.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/core#1.18.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.core:core-viewtree",
-   "component": "androidx.core:core-viewtree",
-   "version": "1.0.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/core#1.0.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.customview:customview-poolingcontainer",
-   "component": "androidx.customview:customview-poolingcontainer",
-   "version": "1.0.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/customview#1.0.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.emoji2:emoji2",
-   "component": "androidx.emoji2:emoji2",
-   "version": "1.4.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/emoji2#1.4.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.exifinterface:exifinterface",
-   "component": "androidx.exifinterface:exifinterface",
-   "version": "1.3.6",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/exifinterface#1.3.6",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.graphics:graphics-path",
-   "component": "androidx.graphics:graphics-path",
-   "version": "1.0.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/graphics#1.0.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.interpolator:interpolator",
-   "component": "androidx.interpolator:interpolator",
-   "version": "1.0.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "http://developer.android.com/tools/extras/support-library.html",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-common",
-   "component": "androidx.lifecycle:lifecycle-common",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-common-java8",
-   "component": "androidx.lifecycle:lifecycle-common-java8",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-common-jvm",
-   "component": "androidx.lifecycle:lifecycle-common-jvm",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-livedata-core",
-   "component": "androidx.lifecycle:lifecycle-livedata-core",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-process",
-   "component": "androidx.lifecycle:lifecycle-process",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-runtime",
-   "component": "androidx.lifecycle:lifecycle-runtime",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-runtime-android",
-   "component": "androidx.lifecycle:lifecycle-runtime-android",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-runtime-compose",
-   "component": "androidx.lifecycle:lifecycle-runtime-compose",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-runtime-compose-android",
-   "component": "androidx.lifecycle:lifecycle-runtime-compose-android",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-runtime-ktx",
-   "component": "androidx.lifecycle:lifecycle-runtime-ktx",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-runtime-ktx-android",
-   "component": "androidx.lifecycle:lifecycle-runtime-ktx-android",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-viewmodel",
-   "component": "androidx.lifecycle:lifecycle-viewmodel",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-viewmodel-android",
-   "component": "androidx.lifecycle:lifecycle-viewmodel-android",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-viewmodel-ktx",
-   "component": "androidx.lifecycle:lifecycle-viewmodel-ktx",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-viewmodel-savedstate",
-   "component": "androidx.lifecycle:lifecycle-viewmodel-savedstate",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.lifecycle:lifecycle-viewmodel-savedstate-android",
-   "component": "androidx.lifecycle:lifecycle-viewmodel-savedstate-android",
-   "version": "2.9.4",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-common",
-   "component": "androidx.media3:media3-common",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-common-ktx",
-   "component": "androidx.media3:media3-common-ktx",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-container",
-   "component": "androidx.media3:media3-container",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-database",
-   "component": "androidx.media3:media3-database",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-datasource",
-   "component": "androidx.media3:media3-datasource",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-decoder",
-   "component": "androidx.media3:media3-decoder",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-extractor",
-   "component": "androidx.media3:media3-extractor",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-inspector",
-   "component": "androidx.media3:media3-inspector",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-muxer",
-   "component": "androidx.media3:media3-muxer",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.media3:media3-ui-compose",
-   "component": "androidx.media3:media3-ui-compose",
-   "version": "1.11.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.navigationevent:navigationevent",
-   "component": "androidx.navigationevent:navigationevent",
-   "version": "1.0.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/navigationevent#1.0.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.navigationevent:navigationevent-android",
-   "component": "androidx.navigationevent:navigationevent-android",
-   "version": "1.0.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/navigationevent#1.0.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.navigationevent:navigationevent-compose",
-   "component": "androidx.navigationevent:navigationevent-compose",
-   "version": "1.0.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/navigationevent#1.0.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.navigationevent:navigationevent-compose-android",
-   "component": "androidx.navigationevent:navigationevent-compose-android",
-   "version": "1.0.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/navigationevent#1.0.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.profileinstaller:profileinstaller",
-   "component": "androidx.profileinstaller:profileinstaller",
-   "version": "1.4.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/profileinstaller#1.4.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.savedstate:savedstate",
-   "component": "androidx.savedstate:savedstate",
-   "version": "1.3.2",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.savedstate:savedstate-android",
-   "component": "androidx.savedstate:savedstate-android",
-   "version": "1.3.2",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.savedstate:savedstate-compose",
-   "component": "androidx.savedstate:savedstate-compose",
-   "version": "1.3.2",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.savedstate:savedstate-compose-android",
-   "component": "androidx.savedstate:savedstate-compose-android",
-   "version": "1.3.2",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.savedstate:savedstate-ktx",
-   "component": "androidx.savedstate:savedstate-ktx",
-   "version": "1.3.2",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.startup:startup-runtime",
-   "component": "androidx.startup:startup-runtime",
-   "version": "1.1.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/startup#1.1.1",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.tracing:tracing",
-   "component": "androidx.tracing:tracing",
-   "version": "1.2.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/tracing#1.2.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.versionedparcelable:versionedparcelable",
-   "component": "androidx.versionedparcelable:versionedparcelable",
-   "version": "1.1.1",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "http://developer.android.com/tools/extras/support-library.html",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.window:window",
-   "component": "androidx.window:window",
-   "version": "1.5.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/window#1.5.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.window:window-core",
-   "component": "androidx.window:window-core",
-   "version": "1.5.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/window#1.5.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:androidx.window:window-core-android",
-   "component": "androidx.window:window-core-android",
-   "version": "1.5.0",
-   "kind": "maven",
-   "origin": "Google Maven",
-   "homepage": "https://developer.android.com/jetpack/androidx/releases/window#1.5.0",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:com.google.code.findbugs:jsr305",
-   "component": "com.google.code.findbugs:jsr305",
-   "version": "3.0.2",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "http://findbugs.sourceforge.net/",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:com.google.errorprone:error_prone_annotations",
-   "component": "com.google.errorprone:error_prone_annotations",
-   "version": "2.28.0",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:com.google.guava:failureaccess",
-   "component": "com.google.guava:failureaccess",
-   "version": "1.0.2",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses> (parent POM)",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:com.google.guava:guava",
-   "component": "com.google.guava:guava",
-   "version": "33.3.1-android",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/google/guava",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses> (parent POM)",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:com.google.guava:listenablefuture",
-   "component": "com.google.guava:listenablefuture",
-   "version": "9999.0-empty-to-avoid-conflict-with-guava",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": null,
-   "license": "Apache-2.0",
-   "evidence": "The 'empty to avoid conflict with Guava' artifact: its jar holds only META-INF (manifest and POM), no classes – nothing of it is in the APK (ListenableFuture comes from guava itself).",
-   "included_in": "not distributed – The 'empty to avoid conflict with Guava' artifact: its jar holds only META-INF (manifest and POM), no classes – nothing of it is in the APK (ListenableFuture comes from guava itself).",
-   "distributed": false,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:com.google.j2objc:j2objc-annotations",
-   "component": "com.google.j2objc:j2objc-annotations",
-   "version": "3.0.0",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/google/j2objc/",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.checkerframework:checker-qual",
-   "component": "org.checkerframework:checker-qual",
-   "version": "3.43.0",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://checkerframework.org/",
-   "license": "MIT",
-   "evidence": "POM <licenses>; LICENSE.txt in the jar",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/third-party/maven/checker-qual-LICENSE.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains.kotlin:kotlin-stdlib",
-   "component": "org.jetbrains.kotlin:kotlin-stdlib",
-   "version": "2.4.21",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://kotlinlang.org/",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-android",
-   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-android",
-   "version": "1.10.2",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-bom",
-   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-bom",
-   "version": "1.10.2",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
-   "license": "Apache-2.0",
-   "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
-   "included_in": "not distributed – Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
-   "distributed": false,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-core",
-   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-core",
-   "version": "1.10.2",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm",
-   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm",
-   "version": "1.10.2",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-guava",
-   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-guava",
-   "version": "1.10.2",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses> (parent POM)",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains.kotlinx:kotlinx-serialization-bom",
-   "component": "org.jetbrains.kotlinx:kotlinx-serialization-bom",
-   "version": "1.7.3",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/Kotlin/kotlinx.serialization",
-   "license": "Apache-2.0",
-   "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
-   "included_in": "not distributed – Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
-   "distributed": false,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains.kotlinx:kotlinx-serialization-core",
-   "component": "org.jetbrains.kotlinx:kotlinx-serialization-core",
-   "version": "1.7.3",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/Kotlin/kotlinx.serialization",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains.kotlinx:kotlinx-serialization-core-jvm",
-   "component": "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm",
-   "version": "1.7.3",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/Kotlin/kotlinx.serialization",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jetbrains:annotations",
-   "component": "org.jetbrains:annotations",
-   "version": "23.0.0",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "https://github.com/JetBrains/java-annotations",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
-   "id": "maven:org.jspecify:jspecify",
-   "component": "org.jspecify:jspecify",
-   "version": "1.0.0",
-   "kind": "maven",
-   "origin": "Maven Central",
-   "homepage": "http://jspecify.org/",
-   "license": "Apache-2.0",
-   "evidence": "POM <licenses>",
-   "included_in": "classes*.dex / resources",
-   "distributed": true,
-   "notices": [
-    "LICENSES/texts/Apache-2.0.txt"
-   ],
-   "status": "verified"
-  },
-  {
    "id": "rust:adler2",
    "component": "adler2",
    "version": "2.0.1",
@@ -2995,6 +1139,83 @@
     "LICENSES/third-party/rust/adler2-2.0.1/LICENSE-APACHE",
     "LICENSES/third-party/rust/adler2-2.0.1/LICENSE-MIT"
    ]
+  },
+  {
+   "id": "rust:ahash",
+   "component": "ahash",
+   "version": "0.8.12",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/ahash/0.8.12",
+   "repository": "https://github.com/tkaitchuck/ahash",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/ahash-0.8.12/LICENSE-APACHE",
+    "LICENSES/third-party/rust/ahash-0.8.12/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:aho-corasick",
+   "component": "aho-corasick",
+   "version": "1.1.5",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/aho-corasick/1.1.5",
+   "repository": "https://github.com/BurntSushi/aho-corasick",
+   "license": "Unlicense OR MIT",
+   "features": [
+    "perf-literal",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/aho-corasick-1.1.5/COPYING",
+    "LICENSES/third-party/rust/aho-corasick-1.1.5/LICENSE-MIT",
+    "LICENSES/third-party/rust/aho-corasick-1.1.5/UNLICENSE"
+   ]
+  },
+  {
+   "id": "rust:anyhow",
+   "component": "anyhow",
+   "version": "1.0.104",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/anyhow/1.0.104",
+   "repository": "https://github.com/dtolnay/anyhow",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "backtrace",
+    "default",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/anyhow-1.0.104/LICENSE-APACHE",
+    "LICENSES/third-party/rust/anyhow-1.0.104/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:anymap2",
+   "component": "anymap2",
+   "version": "0.13.0",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/anymap2/0.13.0",
+   "repository": "https://github.com/azriel91/anymap2",
+   "license": "MIT/Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
   },
   {
    "id": "rust:arrayvec",
@@ -3031,6 +1252,47 @@
    "status": "verified",
    "notes": "Build-time only: not part of the APK.",
    "notices": []
+  },
+  {
+   "id": "rust:bit-set",
+   "component": "bit-set",
+   "version": "0.5.3",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/bit-set/0.5.3",
+   "repository": "https://github.com/contain-rs/bit-set",
+   "license": "MIT/Apache-2.0",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/bit-set-0.5.3/LICENSE-APACHE",
+    "LICENSES/third-party/rust/bit-set-0.5.3/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:bit-vec",
+   "component": "bit-vec",
+   "version": "0.6.3",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/bit-vec/0.6.3",
+   "repository": "https://github.com/contain-rs/bit-vec",
+   "license": "MIT/Apache-2.0",
+   "features": [
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/bit-vec-0.6.3/LICENSE-APACHE",
+    "LICENSES/third-party/rust/bit-vec-0.6.3/LICENSE-MIT"
+   ]
   },
   {
    "id": "rust:bitflags",
@@ -3130,6 +1392,28 @@
    "notices": []
   },
   {
+   "id": "rust:byteorder",
+   "component": "byteorder",
+   "version": "1.5.0",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/byteorder/1.5.0",
+   "repository": "https://github.com/BurntSushi/byteorder",
+   "license": "Unlicense OR MIT",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/byteorder-1.5.0/COPYING",
+    "LICENSES/third-party/rust/byteorder-1.5.0/LICENSE-MIT",
+    "LICENSES/third-party/rust/byteorder-1.5.0/UNLICENSE"
+   ]
+  },
+  {
    "id": "rust:byteorder-lite",
    "component": "byteorder-lite",
    "version": "0.1.0",
@@ -3169,6 +1453,21 @@
    "notices": [
     "LICENSES/third-party/rust/bytes-1.12.1/LICENSE"
    ]
+  },
+  {
+   "id": "rust:cc",
+   "component": "cc",
+   "version": "1.11.3",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/cc/1.11.3",
+   "repository": "https://github.com/rust-lang/cc-rs",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
   },
   {
    "id": "rust:cesu8",
@@ -3265,6 +1564,39 @@
    ]
   },
   {
+   "id": "rust:const-random",
+   "component": "const-random",
+   "version": "0.1.18",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/const-random/0.1.18",
+   "repository": "https://github.com/tkaitchuck/constrandom",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/const-random-0.1.18/LICENSE-APACHE",
+    "LICENSES/third-party/rust/const-random-0.1.18/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:const-random-macro",
+   "component": "const-random-macro",
+   "version": "0.1.16",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/const-random-macro/0.1.16",
+   "repository": "https://github.com/tkaitchuck/constrandom",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
    "id": "rust:cpufeatures",
    "component": "cpufeatures",
    "version": "0.2.17",
@@ -3346,6 +1678,28 @@
    ]
   },
   {
+   "id": "rust:crossbeam-channel",
+   "component": "crossbeam-channel",
+   "version": "0.5.17",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/crossbeam-channel/0.5.17",
+   "repository": "https://github.com/crossbeam-rs/crossbeam",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/crossbeam-channel-0.5.17/LICENSE-APACHE",
+    "LICENSES/third-party/rust/crossbeam-channel-0.5.17/LICENSE-MIT",
+    "LICENSES/third-party/rust/crossbeam-channel-0.5.17/LICENSE-THIRD-PARTY"
+   ]
+  },
+  {
    "id": "rust:crossbeam-deque",
    "component": "crossbeam-deque",
    "version": "0.8.8",
@@ -3409,6 +1763,24 @@
    ]
   },
   {
+   "id": "rust:crunchy",
+   "component": "crunchy",
+   "version": "0.2.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/crunchy/0.2.4",
+   "repository": "https://github.com/eira-fransham/crunchy",
+   "license": "MIT",
+   "features": [
+    "default",
+    "limit_128"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
    "id": "rust:crypto-common",
    "component": "crypto-common",
    "version": "0.1.7",
@@ -3427,6 +1799,65 @@
     "LICENSES/third-party/rust/crypto-common-0.1.7/LICENSE-APACHE",
     "LICENSES/third-party/rust/crypto-common-0.1.7/LICENSE-MIT"
    ]
+  },
+  {
+   "id": "rust:deep_filter",
+   "component": "deep_filter",
+   "version": "0.5.7-pre",
+   "kind": "rust-crate",
+   "origin": "https://github.com/Rikorose/DeepFilterNet?rev=7b14b895fe7fc42cab72b4a4c1e49c982bd6404b#7b14b895fe7fc42cab72b4a4c1e49c982bd6404b",
+   "repository": "https://github.com/Rikorose/DeepFilterNet",
+   "license": "MIT/Apache-2.0",
+   "features": [
+    "default-model",
+    "logging",
+    "tract",
+    "transforms"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "DeepFilterNet (libDF), MIT OR Apache-2.0 for the code and the DeepFilterNet3 model it compiles in (models/DeepFilterNet3_onnx.tar.gz, feature default-model) – the repository's LICENSE, LICENSE-APACHE and LICENSE-MIT state this and are shipped. Unmodified, pinned commit 7b14b895; inference via tract 0.21.4 (MIT OR Apache-2.0).",
+   "notices": [
+    "LICENSES/third-party/rust/deep_filter-0.5.7-pre/LICENSE",
+    "LICENSES/third-party/rust/deep_filter-0.5.7-pre/LICENSE-APACHE",
+    "LICENSES/third-party/rust/deep_filter-0.5.7-pre/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:deranged",
+   "component": "deranged",
+   "version": "0.5.9",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/deranged/0.5.9",
+   "repository": "https://github.com/jhpratt/deranged",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:derive-new",
+   "component": "derive-new",
+   "version": "0.5.9",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/derive-new/0.5.9",
+   "repository": "https://github.com/nrc/derive-new",
+   "license": "MIT",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
   },
   {
    "id": "rust:digest",
@@ -3468,6 +1899,80 @@
    "notices": []
   },
   {
+   "id": "rust:dlv-list",
+   "component": "dlv-list",
+   "version": "0.5.2",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/dlv-list/0.5.2",
+   "repository": "https://github.com/sgodwincs/dlv-list-rs",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/dlv-list-0.5.2/LICENSE-APACHE",
+    "LICENSES/third-party/rust/dlv-list-0.5.2/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:doc-comment",
+   "component": "doc-comment",
+   "version": "0.3.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/doc-comment/0.3.4",
+   "repository": "https://github.com/GuillaumeGomez/doc-comment",
+   "license": "MIT",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:downcast-rs",
+   "component": "downcast-rs",
+   "version": "1.2.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/downcast-rs/1.2.1",
+   "repository": "https://github.com/marcianx/downcast-rs",
+   "license": "MIT/Apache-2.0",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/downcast-rs-1.2.1/LICENSE-APACHE",
+    "LICENSES/third-party/rust/downcast-rs-1.2.1/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:dyn-clone",
+   "component": "dyn-clone",
+   "version": "1.0.20",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/dyn-clone/1.0.20",
+   "repository": "https://github.com/dtolnay/dyn-clone",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/dyn-clone-1.0.20/LICENSE-APACHE",
+    "LICENSES/third-party/rust/dyn-clone-1.0.20/LICENSE-MIT"
+   ]
+  },
+  {
    "id": "rust:either",
    "component": "either",
    "version": "1.19.0",
@@ -3475,7 +1980,10 @@
    "origin": "https://crates.io/crates/either/1.19.0",
    "repository": "https://github.com/rayon-rs/either",
    "license": "MIT OR Apache-2.0",
-   "features": [],
+   "features": [
+    "std",
+    "use_std"
+   ],
    "included_in": "lib/arm64-v8a/libklipp_bridge.so",
    "distributed": true,
    "status": "verified",
@@ -3600,6 +2108,24 @@
    "notices": [
     "LICENSES/third-party/rust/fdeflate-0.3.7/LICENSE-APACHE",
     "LICENSES/third-party/rust/fdeflate-0.3.7/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:filetime",
+   "component": "filetime",
+   "version": "0.2.30",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/filetime/0.2.30",
+   "repository": "https://github.com/alexcrichton/filetime",
+   "license": "MIT/Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/filetime-0.2.30/LICENSE-APACHE",
+    "LICENSES/third-party/rust/filetime-0.2.30/LICENSE-MIT"
    ]
   },
   {
@@ -4477,6 +3003,21 @@
    ]
   },
   {
+   "id": "rust:find-msvc-tools",
+   "component": "find-msvc-tools",
+   "version": "0.1.15",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/find-msvc-tools/0.1.15",
+   "repository": "https://github.com/rust-lang/cc-rs",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
    "id": "rust:flate2",
    "component": "flate2",
    "version": "1.1.10",
@@ -4564,6 +3105,26 @@
   {
    "id": "rust:getrandom",
    "component": "getrandom",
+   "version": "0.2.17",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/getrandom/0.2.17",
+   "repository": "https://github.com/rust-random/getrandom",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/getrandom-0.2.17/LICENSE-APACHE",
+    "LICENSES/third-party/rust/getrandom-0.2.17/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:getrandom",
+   "component": "getrandom",
    "version": "0.4.3",
    "kind": "rust-crate",
    "origin": "https://crates.io/crates/getrandom/0.4.3",
@@ -4613,6 +3174,7 @@
    "features": [
     "alloc",
     "default",
+    "num-traits",
     "std"
    ],
    "included_in": "lib/arm64-v8a/libklipp_bridge.so",
@@ -4641,6 +3203,27 @@
    "notes": "",
    "notices": [
     "LICENSES/third-party/rust/harfrust-0.12.0/LICENSE"
+   ]
+  },
+  {
+   "id": "rust:hashbrown",
+   "component": "hashbrown",
+   "version": "0.14.5",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/hashbrown/0.14.5",
+   "repository": "https://github.com/rust-lang/hashbrown",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "ahash",
+    "inline-more"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/hashbrown-0.14.5/LICENSE-APACHE",
+    "LICENSES/third-party/rust/hashbrown-0.14.5/LICENSE-MIT"
    ]
   },
   {
@@ -4856,6 +3439,64 @@
    ]
   },
   {
+   "id": "rust:itertools",
+   "component": "itertools",
+   "version": "0.10.5",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/itertools/0.10.5",
+   "repository": "https://github.com/rust-itertools/itertools",
+   "license": "MIT/Apache-2.0",
+   "features": [
+    "use_alloc"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:itertools",
+   "component": "itertools",
+   "version": "0.12.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/itertools/0.12.1",
+   "repository": "https://github.com/rust-itertools/itertools",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "use_alloc",
+    "use_std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/itertools-0.12.1/LICENSE-APACHE",
+    "LICENSES/third-party/rust/itertools-0.12.1/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:itertools",
+   "component": "itertools",
+   "version": "0.13.0",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/itertools/0.13.0",
+   "repository": "https://github.com/rust-itertools/itertools",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "use_alloc",
+    "use_std"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
    "id": "rust:itoa",
    "component": "itoa",
    "version": "1.0.18",
@@ -4945,6 +3586,26 @@
    "notices": []
   },
   {
+   "id": "rust:kstring",
+   "component": "kstring",
+   "version": "2.0.5",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/kstring/2.0.5",
+   "repository": "https://github.com/cobalt-org/kstring",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "serde",
+    "std",
+    "unsafe"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
    "id": "rust:lazy_static",
    "component": "lazy_static",
    "version": "1.5.1",
@@ -4971,6 +3632,7 @@
    "repository": "https://github.com/rust-lang/libc",
    "license": "MIT OR Apache-2.0",
    "features": [
+    "default",
     "std"
    ],
    "included_in": "lib/arm64-v8a/libklipp_bridge.so",
@@ -4980,6 +3642,26 @@
    "notices": [
     "LICENSES/third-party/rust/libc-0.2.191/LICENSE-APACHE",
     "LICENSES/third-party/rust/libc-0.2.191/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:libm",
+   "component": "libm",
+   "version": "0.2.16",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/libm/0.2.16",
+   "repository": "https://github.com/rust-lang/compiler-builtins",
+   "license": "MIT",
+   "features": [
+    "arch",
+    "default"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/libm-0.2.16/LICENSE.txt"
    ]
   },
   {
@@ -5010,6 +3692,77 @@
    ]
   },
   {
+   "id": "rust:liquid",
+   "component": "liquid",
+   "version": "0.26.8",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/liquid/0.26.8",
+   "repository": "https://github.com/cobalt-org/liquid-rust",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "liquid-lib",
+    "stdlib"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:liquid-core",
+   "component": "liquid-core",
+   "version": "0.26.8",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/liquid-core/0.26.8",
+   "repository": "https://github.com/cobalt-org/liquid-rust/tree/master/crate/core",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "derive",
+    "liquid-derive"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:liquid-derive",
+   "component": "liquid-derive",
+   "version": "0.26.8",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/liquid-derive/0.26.8",
+   "repository": "https://github.com/cobalt-org/liquid-rust",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:liquid-lib",
+   "component": "liquid-lib",
+   "version": "0.26.8",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/liquid-lib/0.26.8",
+   "repository": "https://github.com/cobalt-org/liquid-rust/tree/master/liquid-lib",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "stdlib"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
    "id": "rust:litemap",
    "component": "litemap",
    "version": "0.8.3",
@@ -5034,7 +3787,10 @@
    "origin": "https://crates.io/crates/log/0.4.34",
    "repository": "https://github.com/rust-lang/log",
    "license": "MIT OR Apache-2.0",
-   "features": [],
+   "features": [
+    "alloc",
+    "std"
+   ],
    "included_in": "lib/arm64-v8a/libklipp_bridge.so",
    "distributed": true,
    "status": "verified",
@@ -5042,6 +3798,45 @@
    "notices": [
     "LICENSES/third-party/rust/log-0.4.34/LICENSE-APACHE",
     "LICENSES/third-party/rust/log-0.4.34/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:maplit",
+   "component": "maplit",
+   "version": "1.0.2",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/maplit/1.0.2",
+   "repository": "https://github.com/bluss/maplit",
+   "license": "MIT/Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/maplit-1.0.2/LICENSE-APACHE",
+    "LICENSES/third-party/rust/maplit-1.0.2/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:matrixmultiply",
+   "component": "matrixmultiply",
+   "version": "0.3.11",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/matrixmultiply/0.3.11",
+   "repository": "https://github.com/bluss/matrixmultiply/",
+   "license": "MIT/Apache-2.0",
+   "features": [
+    "cgemm",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/matrixmultiply-0.3.11/LICENSE-APACHE",
+    "LICENSES/third-party/rust/matrixmultiply-0.3.11/LICENSE-MIT"
    ]
   },
   {
@@ -5054,6 +3849,7 @@
    "license": "Unlicense OR MIT",
    "features": [
     "alloc",
+    "default",
     "std"
    ],
    "included_in": "lib/arm64-v8a/libklipp_bridge.so",
@@ -5064,6 +3860,45 @@
     "LICENSES/third-party/rust/memchr-2.8.3/COPYING",
     "LICENSES/third-party/rust/memchr-2.8.3/LICENSE-MIT",
     "LICENSES/third-party/rust/memchr-2.8.3/UNLICENSE"
+   ]
+  },
+  {
+   "id": "rust:memmap2",
+   "component": "memmap2",
+   "version": "0.9.12",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/memmap2/0.9.12",
+   "repository": "https://github.com/RazrFalcon/memmap2-rs",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/memmap2-0.9.12/LICENSE-APACHE",
+    "LICENSES/third-party/rust/memmap2-0.9.12/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:minimal-lexical",
+   "component": "minimal-lexical",
+   "version": "0.2.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/minimal-lexical/0.2.1",
+   "repository": "https://github.com/Alexhuszagh/minimal-lexical",
+   "license": "MIT/Apache-2.0",
+   "features": [
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/minimal-lexical-0.2.1/LICENSE-APACHE",
+    "LICENSES/third-party/rust/minimal-lexical-0.2.1/LICENSE-MIT",
+    "LICENSES/third-party/rust/minimal-lexical-0.2.1/LICENSE.md"
    ]
   },
   {
@@ -5165,6 +4000,107 @@
    "notices": []
   },
   {
+   "id": "rust:ndarray",
+   "component": "ndarray",
+   "version": "0.15.6",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/ndarray/0.15.6",
+   "repository": "https://github.com/rust-ndarray/ndarray",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "serde",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/ndarray-0.15.6/LICENSE-APACHE",
+    "LICENSES/third-party/rust/ndarray-0.15.6/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:nom",
+   "component": "nom",
+   "version": "7.1.3",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/nom/7.1.3",
+   "repository": "https://github.com/Geal/nom",
+   "license": "MIT",
+   "features": [
+    "alloc",
+    "default",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/nom-7.1.3/LICENSE"
+   ]
+  },
+  {
+   "id": "rust:num-complex",
+   "component": "num-complex",
+   "version": "0.4.6",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/num-complex/0.4.6",
+   "repository": "https://github.com/rust-num/num-complex",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "serde",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/num-complex-0.4.6/LICENSE-APACHE",
+    "LICENSES/third-party/rust/num-complex-0.4.6/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:num-conv",
+   "component": "num-conv",
+   "version": "0.2.2",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/num-conv/0.2.2",
+   "repository": "https://github.com/jhpratt/num-conv",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:num-integer",
+   "component": "num-integer",
+   "version": "0.1.47",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/num-integer/0.1.47",
+   "repository": "https://github.com/rust-num/num-integer",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/num-integer-0.1.47/LICENSE-APACHE",
+    "LICENSES/third-party/rust/num-integer-0.1.47/LICENSE-MIT"
+   ]
+  },
+  {
    "id": "rust:num-traits",
    "component": "num-traits",
    "version": "0.2.19",
@@ -5174,6 +4110,8 @@
    "license": "MIT OR Apache-2.0",
    "features": [
     "default",
+    "i128",
+    "libm",
     "std"
    ],
    "included_in": "lib/arm64-v8a/libklipp_bridge.so",
@@ -5195,6 +4133,7 @@
    "license": "MIT OR Apache-2.0",
    "features": [
     "alloc",
+    "default",
     "race",
     "std"
    ],
@@ -5208,6 +4147,41 @@
    ]
   },
   {
+   "id": "rust:ordered-multimap",
+   "component": "ordered-multimap",
+   "version": "0.7.3",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/ordered-multimap/0.7.3",
+   "repository": "https://github.com/sgodwincs/ordered-multimap-rs",
+   "license": "MIT",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/ordered-multimap-0.7.3/LICENSE"
+   ]
+  },
+  {
+   "id": "rust:paste",
+   "component": "paste",
+   "version": "1.0.15",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/paste/1.0.15",
+   "repository": "https://github.com/dtolnay/paste",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
    "id": "rust:percent-encoding",
    "component": "percent-encoding",
    "version": "2.3.2",
@@ -5217,6 +4191,7 @@
    "license": "MIT OR Apache-2.0",
    "features": [
     "alloc",
+    "default",
     "std"
    ],
    "included_in": "lib/arm64-v8a/libklipp_bridge.so",
@@ -5227,6 +4202,92 @@
     "LICENSES/third-party/rust/percent-encoding-2.3.2/LICENSE-APACHE",
     "LICENSES/third-party/rust/percent-encoding-2.3.2/LICENSE-MIT"
    ]
+  },
+  {
+   "id": "rust:pest",
+   "component": "pest",
+   "version": "2.9.6",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/pest/2.9.6",
+   "repository": "https://github.com/pest-parser/pest",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "memchr",
+    "std"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:pest_derive",
+   "component": "pest_derive",
+   "version": "2.9.6",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/pest_derive/2.9.6",
+   "repository": "https://github.com/pest-parser/pest",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:pest_generator",
+   "component": "pest_generator",
+   "version": "2.9.6",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/pest_generator/2.9.6",
+   "repository": "https://github.com/pest-parser/pest",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "std"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:pest_meta",
+   "component": "pest_meta",
+   "version": "2.9.6",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/pest_meta/2.9.6",
+   "repository": "https://github.com/pest-parser/pest",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:pest_stack_guard",
+   "component": "pest_stack_guard",
+   "version": "1.0.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/pest_stack_guard/1.0.1",
+   "repository": "https://github.com/pest-parser/pest_stack_guard",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
   },
   {
    "id": "rust:png",
@@ -5266,6 +4327,60 @@
    ]
   },
   {
+   "id": "rust:powerfmt",
+   "component": "powerfmt",
+   "version": "0.2.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/powerfmt/0.2.1",
+   "repository": "https://github.com/jhpratt/powerfmt",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:ppv-lite86",
+   "component": "ppv-lite86",
+   "version": "0.2.21",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/ppv-lite86/0.2.21",
+   "repository": "https://github.com/cryptocorrosion/cryptocorrosion",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "simd",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/ppv-lite86-0.2.21/LICENSE-APACHE",
+    "LICENSES/third-party/rust/ppv-lite86-0.2.21/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:primal-check",
+   "component": "primal-check",
+   "version": "0.3.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/primal-check/0.3.4",
+   "repository": "https://github.com/huonw/primal",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/primal-check-0.3.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/primal-check-0.3.4/LICENSE-MIT"
+   ]
+  },
+  {
    "id": "rust:proc-macro2",
    "component": "proc-macro2",
    "version": "1.0.107",
@@ -5277,6 +4392,42 @@
     "default",
     "proc-macro"
    ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:prost",
+   "component": "prost",
+   "version": "0.11.9",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/prost/0.11.9",
+   "repository": "https://github.com/tokio-rs/prost",
+   "license": "Apache-2.0",
+   "features": [
+    "default",
+    "prost-derive",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/prost-0.11.9/LICENSE"
+   ]
+  },
+  {
+   "id": "rust:prost-derive",
+   "component": "prost-derive",
+   "version": "0.11.9",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/prost-derive/0.11.9",
+   "repository": "https://github.com/tokio-rs/prost",
+   "license": "Apache-2.0",
+   "features": [],
    "included_in": "not distributed (build script or proc-macro)",
    "distributed": false,
    "status": "verified",
@@ -5338,6 +4489,119 @@
    "notices": []
   },
   {
+   "id": "rust:rand",
+   "component": "rand",
+   "version": "0.8.8",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/rand/0.8.8",
+   "repository": "https://github.com/rust-random/rand",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "alloc",
+    "default",
+    "getrandom",
+    "libc",
+    "rand_chacha",
+    "small_rng",
+    "std",
+    "std_rng"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/rand-0.8.8/COPYRIGHT",
+    "LICENSES/third-party/rust/rand-0.8.8/LICENSE-APACHE",
+    "LICENSES/third-party/rust/rand-0.8.8/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:rand_chacha",
+   "component": "rand_chacha",
+   "version": "0.3.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/rand_chacha/0.3.1",
+   "repository": "https://github.com/rust-random/rand",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/rand_chacha-0.3.1/COPYRIGHT",
+    "LICENSES/third-party/rust/rand_chacha-0.3.1/LICENSE-APACHE",
+    "LICENSES/third-party/rust/rand_chacha-0.3.1/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:rand_core",
+   "component": "rand_core",
+   "version": "0.6.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/rand_core/0.6.4",
+   "repository": "https://github.com/rust-random/rand",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "alloc",
+    "getrandom",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/rand_core-0.6.4/COPYRIGHT",
+    "LICENSES/third-party/rust/rand_core-0.6.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/rand_core-0.6.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:rand_distr",
+   "component": "rand_distr",
+   "version": "0.4.3",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/rand_distr/0.4.3",
+   "repository": "https://github.com/rust-random/rand",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "alloc",
+    "default",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/rand_distr-0.4.3/COPYRIGHT",
+    "LICENSES/third-party/rust/rand_distr-0.4.3/LICENSE-APACHE",
+    "LICENSES/third-party/rust/rand_distr-0.4.3/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:rawpointer",
+   "component": "rawpointer",
+   "version": "0.2.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/rawpointer/0.2.1",
+   "repository": "https://github.com/bluss/rawpointer/",
+   "license": "MIT/Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/rawpointer-0.2.1/LICENSE-APACHE",
+    "LICENSES/third-party/rust/rawpointer-0.2.1/LICENSE-MIT"
+   ]
+  },
+  {
    "id": "rust:rayon",
    "component": "rayon",
    "version": "1.12.0",
@@ -5395,6 +4659,131 @@
    ]
   },
   {
+   "id": "rust:realfft",
+   "component": "realfft",
+   "version": "3.5.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/realfft/3.5.1",
+   "repository": "https://github.com/HEnquist/realfft",
+   "license": "MIT",
+   "features": [
+    "default"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/realfft-3.5.1/LICENSE"
+   ]
+  },
+  {
+   "id": "rust:regex",
+   "component": "regex",
+   "version": "1.13.2",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/regex/1.13.2",
+   "repository": "https://github.com/rust-lang/regex",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "perf",
+    "perf-backtrack",
+    "perf-cache",
+    "perf-dfa",
+    "perf-inline",
+    "perf-literal",
+    "perf-onepass",
+    "std",
+    "unicode",
+    "unicode-age",
+    "unicode-bool",
+    "unicode-case",
+    "unicode-gencat",
+    "unicode-perl",
+    "unicode-script",
+    "unicode-segment"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/regex-1.13.2/LICENSE-APACHE",
+    "LICENSES/third-party/rust/regex-1.13.2/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:regex-automata",
+   "component": "regex-automata",
+   "version": "0.4.19",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/regex-automata/0.4.19",
+   "repository": "https://github.com/rust-lang/regex",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "alloc",
+    "dfa-onepass",
+    "hybrid",
+    "meta",
+    "nfa-backtrack",
+    "nfa-pikevm",
+    "nfa-thompson",
+    "perf-inline",
+    "perf-literal",
+    "perf-literal-multisubstring",
+    "perf-literal-substring",
+    "std",
+    "syntax",
+    "unicode",
+    "unicode-age",
+    "unicode-bool",
+    "unicode-case",
+    "unicode-gencat",
+    "unicode-perl",
+    "unicode-script",
+    "unicode-segment",
+    "unicode-word-boundary"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/regex-automata-0.4.19/LICENSE-APACHE",
+    "LICENSES/third-party/rust/regex-automata-0.4.19/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:regex-syntax",
+   "component": "regex-syntax",
+   "version": "0.8.12",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/regex-syntax/0.8.12",
+   "repository": "https://github.com/rust-lang/regex",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "std",
+    "unicode",
+    "unicode-age",
+    "unicode-bool",
+    "unicode-case",
+    "unicode-gencat",
+    "unicode-perl",
+    "unicode-script",
+    "unicode-segment"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/regex-syntax-0.8.12/LICENSE-APACHE",
+    "LICENSES/third-party/rust/regex-syntax-0.8.12/LICENSE-MIT"
+   ]
+  },
+  {
    "id": "rust:roxmltree",
    "component": "roxmltree",
    "version": "0.21.1",
@@ -5414,6 +4803,65 @@
    "notices": [
     "LICENSES/third-party/rust/roxmltree-0.21.1/LICENSE-APACHE",
     "LICENSES/third-party/rust/roxmltree-0.21.1/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:rubato",
+   "component": "rubato",
+   "version": "0.14.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/rubato/0.14.1",
+   "repository": "https://github.com/HEnquist/rubato",
+   "license": "MIT",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/rubato-0.14.1/LICENSE.txt"
+   ]
+  },
+  {
+   "id": "rust:rust-ini",
+   "component": "rust-ini",
+   "version": "0.21.3",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/rust-ini/0.21.3",
+   "repository": "https://github.com/zonyitoo/rust-ini",
+   "license": "MIT",
+   "features": [
+    "default"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/rust-ini-0.21.3/LICENSE"
+   ]
+  },
+  {
+   "id": "rust:rustfft",
+   "component": "rustfft",
+   "version": "6.4.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/rustfft/6.4.1",
+   "repository": "https://github.com/ejmahler/RustFFT",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "avx",
+    "default",
+    "neon",
+    "sse"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/rustfft-6.4.1/LICENSE-APACHE",
+    "LICENSES/third-party/rust/rustfft-6.4.1/LICENSE-MIT"
    ]
   },
   {
@@ -5465,11 +4913,36 @@
    "repository": "https://github.com/BurntSushi/same-file",
    "license": "Unlicense/MIT",
    "features": [],
-   "included_in": "not distributed (build script or proc-macro)",
-   "distributed": false,
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
    "status": "verified",
-   "notes": "Build-time only: not part of the APK.",
-   "notices": []
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/same-file-1.0.6/COPYING",
+    "LICENSES/third-party/rust/same-file-1.0.6/LICENSE-MIT",
+    "LICENSES/third-party/rust/same-file-1.0.6/UNLICENSE"
+   ]
+  },
+  {
+   "id": "rust:scan_fmt",
+   "component": "scan_fmt",
+   "version": "0.2.6",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/scan_fmt/0.2.6",
+   "repository": "https://github.com/wlentz/scan_fmt",
+   "license": "MIT",
+   "features": [
+    "default",
+    "regex",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/scan_fmt-0.2.6/LICENSE"
+   ]
   },
   {
    "id": "rust:scopeguard",
@@ -5498,6 +4971,7 @@
    "repository": "https://github.com/serde-rs/serde",
    "license": "MIT OR Apache-2.0",
    "features": [
+    "alloc",
     "default",
     "derive",
     "rc",
@@ -5522,6 +4996,7 @@
    "repository": "https://github.com/serde-rs/serde",
    "license": "MIT OR Apache-2.0",
    "features": [
+    "alloc",
     "rc",
     "result",
     "std"
@@ -5593,6 +5068,24 @@
     "LICENSES/third-party/rust/sha2-0.10.9/LICENSE-APACHE",
     "LICENSES/third-party/rust/sha2-0.10.9/LICENSE-MIT"
    ]
+  },
+  {
+   "id": "rust:shlex",
+   "component": "shlex",
+   "version": "2.0.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/shlex/2.0.1",
+   "repository": "https://github.com/comex/rust-shlex",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
   },
   {
    "id": "rust:simd-adler32",
@@ -5692,6 +5185,64 @@
    "notices": [
     "LICENSES/third-party/rust/stable_deref_trait-1.2.1/LICENSE-APACHE",
     "LICENSES/third-party/rust/stable_deref_trait-1.2.1/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:static_assertions",
+   "component": "static_assertions",
+   "version": "1.1.0",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/static_assertions/1.1.0",
+   "repository": "https://github.com/nvzqz/static-assertions-rs",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:strength_reduce",
+   "component": "strength_reduce",
+   "version": "0.2.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/strength_reduce/0.2.4",
+   "repository": "http://github.com/ejmahler/strength_reduce",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/strength_reduce-0.2.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/strength_reduce-0.2.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:string-interner",
+   "component": "string-interner",
+   "version": "0.15.0",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/string-interner/0.15.0",
+   "repository": "https://github.com/robbepop/string-interner",
+   "license": "MIT/Apache-2.0",
+   "features": [
+    "backends",
+    "default",
+    "inline-more",
+    "serde",
+    "serde-1",
+    "std"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/string-interner-0.15.0/LICENSE-APACHE",
+    "LICENSES/third-party/rust/string-interner-0.15.0/LICENSE-MIT"
    ]
   },
   {
@@ -5923,6 +5474,30 @@
   {
    "id": "rust:syn",
    "component": "syn",
+   "version": "1.0.109",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/syn/1.0.109",
+   "repository": "https://github.com/dtolnay/syn",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "clone-impls",
+    "default",
+    "derive",
+    "extra-traits",
+    "parsing",
+    "printing",
+    "proc-macro",
+    "quote"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:syn",
+   "component": "syn",
    "version": "2.0.119",
    "kind": "rust-crate",
    "origin": "https://crates.io/crates/syn/2.0.119",
@@ -5987,6 +5562,27 @@
    "status": "verified",
    "notes": "Build-time only: not part of the APK.",
    "notices": []
+  },
+  {
+   "id": "rust:tar",
+   "component": "tar",
+   "version": "0.4.46",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tar/0.4.46",
+   "repository": "https://github.com/composefs/tar-rs",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "xattr"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tar-0.4.46/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tar-0.4.46/LICENSE-MIT"
+   ]
   },
   {
    "id": "rust:tempfile",
@@ -6102,6 +5698,79 @@
    ]
   },
   {
+   "id": "rust:time",
+   "component": "time",
+   "version": "0.3.55",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/time/0.3.55",
+   "repository": "https://github.com/time-rs/time",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "alloc",
+    "default",
+    "formatting",
+    "macros",
+    "parsing",
+    "std"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:time-core",
+   "component": "time-core",
+   "version": "0.1.9",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/time-core/0.1.9",
+   "repository": "https://github.com/time-rs/time",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:time-macros",
+   "component": "time-macros",
+   "version": "0.2.32",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/time-macros/0.2.32",
+   "repository": "https://github.com/time-rs/time",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "formatting",
+    "parsing"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:tiny-keccak",
+   "component": "tiny-keccak",
+   "version": "2.0.2",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tiny-keccak/2.0.2",
+   "repository": "",
+   "license": "CC0-1.0",
+   "features": [
+    "default",
+    "shake"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
    "id": "rust:tinystr",
    "component": "tinystr",
    "version": "0.8.5",
@@ -6118,6 +5787,224 @@
    "notes": "",
    "notices": [
     "LICENSES/third-party/rust/tinystr-0.8.5/LICENSE"
+   ]
+  },
+  {
+   "id": "rust:tinyvec",
+   "component": "tinyvec",
+   "version": "1.13.3",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tinyvec/1.13.3",
+   "repository": "https://github.com/Lokathor/tinyvec",
+   "license": "Zlib OR Apache-2.0 OR MIT",
+   "features": [
+    "alloc",
+    "default"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
+  },
+  {
+   "id": "rust:tract-core",
+   "component": "tract-core",
+   "version": "0.21.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tract-core/0.21.4",
+   "repository": "https://github.com/snipsco/tract",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tract-core-0.21.4/LICENSE",
+    "LICENSES/third-party/rust/tract-core-0.21.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tract-core-0.21.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:tract-data",
+   "component": "tract-data",
+   "version": "0.21.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tract-data/0.21.4",
+   "repository": "https://github.com/snipsco/tract",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tract-data-0.21.4/LICENSE",
+    "LICENSES/third-party/rust/tract-data-0.21.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tract-data-0.21.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:tract-hir",
+   "component": "tract-hir",
+   "version": "0.21.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tract-hir/0.21.4",
+   "repository": "https://github.com/snipsco/tract",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tract-hir-0.21.4/LICENSE",
+    "LICENSES/third-party/rust/tract-hir-0.21.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tract-hir-0.21.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:tract-linalg",
+   "component": "tract-linalg",
+   "version": "0.21.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tract-linalg/0.21.4",
+   "repository": "https://github.com/snipsco/tract",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tract-linalg-0.21.4/LICENSE",
+    "LICENSES/third-party/rust/tract-linalg-0.21.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tract-linalg-0.21.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:tract-nnef",
+   "component": "tract-nnef",
+   "version": "0.21.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tract-nnef/0.21.4",
+   "repository": "https://github.com/snipsco/tract",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "flate2"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tract-nnef-0.21.4/LICENSE",
+    "LICENSES/third-party/rust/tract-nnef-0.21.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tract-nnef-0.21.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:tract-onnx",
+   "component": "tract-onnx",
+   "version": "0.21.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tract-onnx/0.21.4",
+   "repository": "https://github.com/snipsco/tract",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tract-onnx-0.21.4/LICENSE",
+    "LICENSES/third-party/rust/tract-onnx-0.21.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tract-onnx-0.21.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:tract-onnx-opl",
+   "component": "tract-onnx-opl",
+   "version": "0.21.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tract-onnx-opl/0.21.4",
+   "repository": "https://github.com/snipsco/tract",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tract-onnx-opl-0.21.4/LICENSE",
+    "LICENSES/third-party/rust/tract-onnx-opl-0.21.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tract-onnx-opl-0.21.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:tract-pulse",
+   "component": "tract-pulse",
+   "version": "0.21.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tract-pulse/0.21.4",
+   "repository": "https://github.com/snipsco/tract",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tract-pulse-0.21.4/LICENSE",
+    "LICENSES/third-party/rust/tract-pulse-0.21.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tract-pulse-0.21.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:tract-pulse-opl",
+   "component": "tract-pulse-opl",
+   "version": "0.21.4",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/tract-pulse-opl/0.21.4",
+   "repository": "https://github.com/snipsco/tract",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/tract-pulse-opl-0.21.4/LICENSE",
+    "LICENSES/third-party/rust/tract-pulse-opl-0.21.4/LICENSE-APACHE",
+    "LICENSES/third-party/rust/tract-pulse-opl-0.21.4/LICENSE-MIT"
+   ]
+  },
+  {
+   "id": "rust:transpose",
+   "component": "transpose",
+   "version": "0.2.3",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/transpose/0.2.3",
+   "repository": "https://github.com/ejmahler/transpose",
+   "license": "MIT OR Apache-2.0",
+   "features": [],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/transpose-0.2.3/LICENSE-APACHE",
+    "LICENSES/third-party/rust/transpose-0.2.3/LICENSE-MIT"
    ]
   },
   {
@@ -6138,6 +6025,23 @@
     "LICENSES/third-party/rust/typenum-1.20.1/LICENSE-APACHE",
     "LICENSES/third-party/rust/typenum-1.20.1/LICENSE-MIT"
    ]
+  },
+  {
+   "id": "rust:ucd-trie",
+   "component": "ucd-trie",
+   "version": "0.1.8",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/ucd-trie/0.1.8",
+   "repository": "https://github.com/BurntSushi/ucd-generate",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "std"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
   },
   {
    "id": "rust:unicode-bidi",
@@ -6193,6 +6097,24 @@
    "notices": [
     "LICENSES/third-party/rust/unicode-linebreak-0.1.5/LICENSE"
    ]
+  },
+  {
+   "id": "rust:unicode-normalization",
+   "component": "unicode-normalization",
+   "version": "0.1.26",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/unicode-normalization/0.1.26",
+   "repository": "https://github.com/unicode-rs/unicode-normalization",
+   "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+   "features": [
+    "default",
+    "std"
+   ],
+   "included_in": "not distributed (build script or proc-macro)",
+   "distributed": false,
+   "status": "verified",
+   "notes": "Build-time only: not part of the APK.",
+   "notices": []
   },
   {
    "id": "rust:unicode-segmentation",
@@ -6296,11 +6218,15 @@
    "repository": "https://github.com/BurntSushi/walkdir",
    "license": "Unlicense/MIT",
    "features": [],
-   "included_in": "not distributed (build script or proc-macro)",
-   "distributed": false,
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
    "status": "verified",
-   "notes": "Build-time only: not part of the APK.",
-   "notices": []
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/walkdir-2.5.0/COPYING",
+    "LICENSES/third-party/rust/walkdir-2.5.0/LICENSE-MIT",
+    "LICENSES/third-party/rust/walkdir-2.5.0/UNLICENSE"
+   ]
   },
   {
    "id": "rust:web-time",
@@ -6357,6 +6283,27 @@
    "notes": "",
    "notices": [
     "LICENSES/third-party/rust/writeable-0.6.4/LICENSE"
+   ]
+  },
+  {
+   "id": "rust:xattr",
+   "component": "xattr",
+   "version": "1.6.1",
+   "kind": "rust-crate",
+   "origin": "https://crates.io/crates/xattr/1.6.1",
+   "repository": "https://github.com/Stebalien/xattr",
+   "license": "MIT OR Apache-2.0",
+   "features": [
+    "default",
+    "unsupported"
+   ],
+   "included_in": "lib/arm64-v8a/libklipp_bridge.so",
+   "distributed": true,
+   "status": "verified",
+   "notes": "",
+   "notices": [
+    "LICENSES/third-party/rust/xattr-1.6.1/LICENSE-APACHE",
+    "LICENSES/third-party/rust/xattr-1.6.1/LICENSE-MIT"
    ]
   },
   {
