@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -754,6 +755,11 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
     val pBase = TrackService.partialBase
     val win = (if (partial != null && pBase != null) node.win.copy(cx = pBase.cx, cy = pBase.cy, rx = pBase.rx, ry = pBase.ry, track = partial) else node.win).at(src)
     val cloud = src?.let { t -> TrackService.clouds[we]?.at(t) }
+    // the clip's picture shape: a clip of another shape than the sequence lies fitted inside the frame (bars), and the
+    // window is placed in its picture – drawn and grabbed there (touches anywhere in the frame still count)
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val clipUri = gs.clipInfo?.invoke(we.first)?.uri
+    val aspect by produceState<Float?>(null, clipUri) { value = clipUri?.let { u -> withContext(Dispatchers.IO) { StabService.aspectOf(ctx, u) } } }
     Box(
         modifier.fillMaxSize().testTag("windowOverlay").pointerInput(we) {
             awaitEachGesture {
@@ -762,7 +768,8 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
                 var changed = false
                 // a handle: the width, the height or the rotation (the window as shown – its tracking included – mapped
                 // back from the stabilized picture); otherwise the whole window as before
-                val w = size.width.toFloat(); val h = size.height.toFloat()
+                val (w, h) = se.gendut.klipp.engine.fitIn(aspect, size.width, size.height)
+                val o = Offset((size.width - w) / 2f, (size.height - h) / 2f)
                 val srcT = srcOf(we.first)
                 val stabA = srcT?.let { t -> gs.grades[we.first]?.stab?.let { st -> runCatching { st.transform(t, w, h) }.getOrNull() } }
                     ?.takeIf { it.a.isFinite() && it.d.isFinite() && kotlin.math.abs(it.a * it.d - it.b * it.c) > 1e-6f }
@@ -773,7 +780,7 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
                     return Offset(inv.a * x + inv.b * y + w / 2, inv.c * x + inv.d * y + h / 2)
                 }
                 val shownWin = cur.win.at(srcT)
-                val handle = windowHandleAt(shownWin, unstab(down.position), w, h, 36.dp.toPx(), WINDOW_TURN_REACH.dp.toPx())
+                val handle = windowHandleAt(shownWin, unstab(down.position - o), w, h, 36.dp.toPx(), WINDOW_TURN_REACH.dp.toPx())
                 if (handle != null) {
                     down.consume()
                     val base = cur.win
@@ -781,7 +788,7 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
                         val ev = awaitPointerEvent()
                         val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                         if (!ch.pressed) break
-                        cur = cur.copy(win = windowByHandle(base, shownWin, handle, unstab(ch.position), w, h))
+                        cur = cur.copy(win = windowByHandle(base, shownWin, handle, unstab(ch.position - o), w, h))
                         gs.liveNode(we.first, cur)
                         changed = true
                         ch.consume()
@@ -795,7 +802,7 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
                     // stabilized clip: the window is drawn in the moved/rotated/zoomed image – the drag is mapped
                     // back to source image coordinates so the window follows the finger
                     val pan = srcOf(we.first)?.let { t -> gs.grades[we.first]?.stab?.let { st ->
-                        runCatching { st.transform(t, size.width.toFloat(), size.height.toFloat()).inverse() }.getOrNull()
+                        runCatching { st.transform(t, w, h).inverse() }.getOrNull()
                             ?.takeIf { it.a.isFinite() && it.d.isFinite() }
                             ?.let { inv -> val v = ev.calculatePan(); Offset(inv.a * v.x + inv.b * v.y, inv.c * v.x + inv.d * v.y) }
                     } } ?: ev.calculatePan()
@@ -807,10 +814,10 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
                         val src = srcOf(we.first)
                         cur = cur.copy(win = if (gs.correctTrack && t != null && src != null) {
                             // correct the tracking: move the window from this frame onward
-                            w0.copy(track = t.shiftFrom(src, pan.x / size.width, pan.y / size.height))
+                            w0.copy(track = t.shiftFrom(src, pan.x / w, pan.y / h))
                         } else w0.copy(
-                            cx = (w0.cx + pan.x / size.width).coerceIn(-0.5f, 1.5f),
-                            cy = (w0.cy + pan.y / size.height).coerceIn(-0.5f, 1.5f),
+                            cx = (w0.cx + pan.x / w).coerceIn(-0.5f, 1.5f),
+                            cy = (w0.cy + pan.y / h).coerceIn(-0.5f, 1.5f),
                             rx = (w0.rx * zoom).coerceIn(0.01f, 1.5f),
                             ry = (w0.ry * zoom).coerceIn(0.01f, 1.5f),
                             angle = normAngle(w0.angle + turn),
@@ -827,18 +834,20 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
         // stabilized clip: the window and points move with the image
         val stab = src?.let { t -> gs.grades[we.first]?.stab?.let { st -> { w: Float, h: Float -> st.transform(t, w, h) } } }
         Canvas(Modifier.fillMaxSize()) {
+          val (pw, ph) = se.gendut.klipp.engine.fitIn(aspect, size.width.toInt(), size.height.toInt())
+          translate((size.width - pw) / 2f, (size.height - ph) / 2f) {
           if (stab != null) {
-              val a = stab(size.width, size.height)
+              val a = stab(pw, ph)
               drawContext.canvas.nativeCanvas.concat(android.graphics.Matrix().apply {
                   // around the image center
-                  setValues(floatArrayOf(a.a, a.b, a.tx + size.width / 2 - a.a * size.width / 2 - a.b * size.height / 2,
-                      a.c, a.d, a.ty + size.height / 2 - a.c * size.width / 2 - a.d * size.height / 2, 0f, 0f, 1f))
+                  setValues(floatArrayOf(a.a, a.b, a.tx + pw / 2 - a.a * pw / 2 - a.b * ph / 2,
+                      a.c, a.d, a.ty + ph / 2 - a.c * pw / 2 - a.d * ph / 2, 0f, 0f, 1f))
               })
           }
-          val c = Offset(win.cx * size.width, win.cy * size.height)
+          val c = Offset(win.cx * pw, win.cy * ph)
           // rotated window: drawn rotated around its center (the points below are drawn without rotation)
           rotate(win.angle, c) {
-            val sz = Size(win.rx * 2 * size.width, win.ry * 2 * size.height)
+            val sz = Size(win.rx * 2 * pw, win.ry * 2 * ph)
             val tl = Offset(c.x - sz.width / 2, c.y - sz.height / 2)
             val st = Stroke(2.dp.toPx())
             val inner = (1f - win.soft * 0.5f).coerceAtLeast(0.02f)
@@ -869,13 +878,14 @@ fun GradeOverlay(gs: GradeState, modifier: Modifier = Modifier, srcOf: (Long) ->
                 val a = 3.5.dp.toPx()
                 val w1 = 1.5.dp.toPx()
                 for (i in 0 until p.size / 2) {
-                    val x = p[2 * i] * size.width; val y = p[2 * i + 1] * size.height
+                    val x = p[2 * i] * pw; val y = p[2 * i + 1] * ph
                     drawLine(Color(0xAA000000), Offset(x - a - 1, y), Offset(x + a + 1, y), w1 + 2f)
                     drawLine(Color(0xAA000000), Offset(x, y - a - 1), Offset(x, y + a + 1), w1 + 2f)
                     drawLine(col, Offset(x - a, y), Offset(x + a, y), w1)
                     drawLine(col, Offset(x, y - a), Offset(x, y + a), w1)
                 }
             }
+          }
         }
     }
 }
