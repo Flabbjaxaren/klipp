@@ -49,6 +49,27 @@ class AudioPlanTest {
     }
 
     @Test
+    fun outgoingFileEndingAtTheCutFadesOutByTheCut() {
+        val s = snap()
+        val a1 = s.sequence!!.audio[0]
+        val x = a1.transitions.first()
+        val from = a1.clips.first { it.id == x.from }
+        val to = a1.clips.first { it.id == x.to }
+        // the outgoing clip's file ends where the clip does: no sound after the cut
+        val end = from.sourceIn + from.duration * from.speed
+        val plan = AudioPlanner.plan(a1) { item -> if (item == from.item) end else 30.0 }
+        val cut = to.start
+        val out = plan.base.last { it.clip == from.id }
+        // it reaches silence at the cut (it stood at 70 % and stopped dead there)
+        assertEquals(0f, out.gain(cut - 1e-6), 0.02f)
+        assertTrue("halfway down before the cut", out.gain((x.start + cut) / 2) in 0.5f..0.9f)
+        // and no outgoing piece plays past the cut
+        assertTrue(plan.over.none { it.clip == from.id && it.end > cut + 1e-6 })
+        // the incoming side keeps the whole dissolve
+        assertEquals(x.end, plan.base.first { it.clip == to.id }.ramps.single().t1, 1e-9)
+    }
+
+    @Test
     fun gainRampProcessorScalesPcmOverThePiece() {
         val piece = se.gendut.klipp.engine.AudioPiece(0.0, 1.0, 1, 0.0, 1.0, 0.0, listOf(AudioRamp(0.0, 1.0, true)))
         val p = GainRampProcessor(piece, 1f)

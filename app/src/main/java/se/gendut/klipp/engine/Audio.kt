@@ -52,10 +52,20 @@ object AudioPlanner {
         val byId = clips.associateBy { it.id }
         val base = ArrayList<AudioPiece>()
         val over = ArrayList<AudioPiece>()
+        // each side's fade within the sound it has: the outgoing clip's file can end at (or just after) the cut – it then
+        // fades all the way out by the cut (it stood at 68 % and stopped dead there: a hard cut in a crossfade), the
+        // incoming one likewise from where its file begins
+        fun tail(c: ClipSnap): Double = mediaDur(c.item)?.let { md -> ((md - (c.sourceIn + c.duration * c.speed)) / c.speed.coerceAtLeast(1e-9)).coerceAtLeast(0.0) } ?: Double.MAX_VALUE
+        fun head(c: ClipSnap): Double = c.sourceIn / c.speed.coerceAtLeast(1e-9)
+        fun outRamp(x: TransitionSnap, from: ClipSnap): AudioRamp {
+            val cut = x.to?.let { byId[it] }?.start ?: (from.start + from.duration)
+            return AudioRamp(x.start, minOf(x.end, cut + tail(from)).coerceAtLeast(x.start), false)
+        }
+        fun inRamp(x: TransitionSnap, to: ClipSnap): AudioRamp = AudioRamp(maxOf(x.start, to.start - head(to)).coerceAtMost(x.end), x.end, true)
         for (c in clips) {
             // all transitions touching the clip: fade in at the start, out at the end
-            val ins = t.transitions.filter { it.to == c.id }.map { AudioRamp(it.start, it.end, true) }
-            val outs = t.transitions.filter { it.from == c.id }.map { AudioRamp(it.start, it.end, false) }
+            val ins = t.transitions.filter { it.to == c.id }.map { inRamp(it, c) }
+            val outs = t.transitions.filter { it.from == c.id }.map { outRamp(it, c) }
             val ramps = ins + outs
             val lk = c.kf[KfKeys.LEVEL].orEmpty()
             if (ramps.isEmpty()) { base += AudioPiece(c.start, c.duration, c.item, c.sourceIn, c.speed, c.levelDb, levelKf = lk, clip = c.id, afx = c.afx); continue }
@@ -78,13 +88,13 @@ object AudioPlanner {
             // only as much as exists before the clip's in point; the piece is shortened at the start so it ends exactly at the cut
             val pre = (cut - x.start).coerceAtMost(to.sourceIn / to.speed.coerceAtLeast(1e-9))
             if (pre > EPS) {
-                over += AudioPiece(cut - pre, pre, to.item, (to.sourceIn - pre * to.speed).coerceAtLeast(0.0), to.speed, to.levelDb, listOf(AudioRamp(x.start, x.end, true)), to.kf[KfKeys.LEVEL].orEmpty(), to.id, to.afx)
+                over += AudioPiece(cut - pre, pre, to.item, (to.sourceIn - pre * to.speed).coerceAtLeast(0.0), to.speed, to.levelDb, listOf(inRamp(x, to)), to.kf[KfKeys.LEVEL].orEmpty(), to.id, to.afx)
             }
             if (x.end - cut > EPS) {
                 val s0 = from.sourceIn + from.duration * from.speed
                 var len = x.end - cut
                 mediaDur(from.item)?.let { md -> len = len.coerceAtMost((md - s0) / from.speed) }
-                if (len > EPS) over += AudioPiece(cut, len, from.item, s0, from.speed, from.levelDb, listOf(AudioRamp(x.start, x.end, false)), from.kf[KfKeys.LEVEL].orEmpty(), from.id, from.afx)
+                if (len > EPS) over += AudioPiece(cut, len, from.item, s0, from.speed, from.levelDb, listOf(outRamp(x, from)), from.kf[KfKeys.LEVEL].orEmpty(), from.id, from.afx)
             }
         }
         return AudioTrackPlan(base, over.sortedBy { it.start })
@@ -160,6 +170,16 @@ class GainRampProcessor(
             if (meter >= 0 && ((f + 1) % block == 0 || f == frames - 1)) {
                 Meters.report(meter, startUs + (f - f % block) * 1_000_000L / fmt.sampleRate, peak)
                 peak = 0f
+            }
+        }
+        // (diagnostics: what each faded piece plays, every 50 ms – the cut trace's "afade" lines)
+        if (CutTrace.on && piece.ramps.isNotEmpty() && clip) {
+            val step = (rate / 20).toLong()
+            var k = framesOut - framesOut % step + if (framesOut % step == 0L) 0 else step
+            while (k < framesOut + frames) {
+                val local = offsetUs / 1e6 + k / rate
+                CutTrace.log("afade", "piece=${"%.2f".format(java.util.Locale.ROOT, piece.start)}-${"%.2f".format(java.util.Locale.ROOT, piece.end)} clip=${piece.clip} t=${"%.3f".format(java.util.Locale.ROOT, piece.start + local)} g=${"%.3f".format(java.util.Locale.ROOT, gainAt(local))} in=${if (piece.ramps.any { it.fadeIn }) 1 else 0} off=${offsetUs / 1000}")
+                k += step
             }
         }
         framesOut += frames
