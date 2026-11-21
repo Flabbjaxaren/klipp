@@ -137,6 +137,9 @@
     <string name="colortools_points_normal">Normal</string>
     <string name="colortools_points_dense">Dense</string>
     <string name="colortools_points_very_dense">Very dense</string>
+    <string name="colortools_track_size">Size</string>
+    <string name="colortools_size_follow">Follows</string>
+    <string name="colortools_size_keep">Fixed</string>
     <string name="colortools_remove_tracking">Remove tracking</string>
     <string name="colortools_correct_from_here">Correct from here</string>
     <string name="colortools_continue_from_here">Continue tracking from here</string>

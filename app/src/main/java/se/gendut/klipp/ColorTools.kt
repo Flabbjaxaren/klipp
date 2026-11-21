@@ -1196,4 +1196,10 @@ fun TrackDensityRow() {
     ConnectedToggleGroup(listOf(stringResource(R.string.colortools_points_normal), stringResource(R.string.colortools_points_dense), stringResource(R.string.colortools_points_very_dense)),
         ds.indexOfFirst { kotlin.math.abs(it - d) < 0.01f }.coerceAtLeast(0), { i -> d = ds[i]; AppPrefs.setTrackDensity(ctx, ds[i]) },
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "trackPts:$it" })
+    // size: follow the object's size, or keep it (a turning head reads as shrinking to a point tracker)
+    var follow by remember { mutableStateOf(se.gendut.klipp.engine.WindowTracker.followSize) }
+    Text(stringResource(R.string.colortools_track_size), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+    ConnectedToggleGroup(listOf(stringResource(R.string.colortools_size_follow), stringResource(R.string.colortools_size_keep)),
+        if (follow) 0 else 1, { i -> follow = i == 0; AppPrefs.setTrackFollowSize(ctx, i == 0) },
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "trackSize:$it" })
 }

@@ -187,6 +187,9 @@ object WindowTracker {
      * low-contrast or partly covered objects better; tracking takes about as many times longer. Saved in the settings.
      */
     @Volatile var density = 1f
+    /** false: the window keeps its size (only position and turn follow) – for a head that turns, whose points close
+     *  up as it looks away and made the window shrink though the head stayed the same size. */
+    @Volatile var followSize = true
     val DENSITIES = floatArrayOf(1f, 2f, 4f)
 
     /** A tracker in Rust (always closed). */
@@ -378,7 +381,7 @@ object WindowTracker {
     fun merge(samples: List<Sample>): WindowTrack {
         val s = samples.sortedBy { it.t }.fold(ArrayList<Sample>()) { acc, x -> if (acc.isEmpty() || x.t - acc.last().t > 1e-4) acc += x; acc }
         require(s.isNotEmpty()) { "no frames to track" }
-        if (s.size == 1) return WindowTrack(s[0].t, 1.0 / 30, floatArrayOf(s[0].dx), floatArrayOf(s[0].dy), floatArrayOf(s[0].s), floatArrayOf(s[0].q), r = floatArrayOf(s[0].rot))
+        if (s.size == 1) return WindowTrack(s[0].t, 1.0 / 30, floatArrayOf(s[0].dx), floatArrayOf(s[0].dy), floatArrayOf(if (followSize) s[0].s else 1f), floatArrayOf(s[0].q), r = floatArrayOf(s[0].rot))
         val gaps = s.zipWithNext { a, b -> b.t - a.t }.sorted()
         val dt = gaps[gaps.size / 2].coerceAtLeast(1e-3)
         val n = ((s.last().t - s.first().t) / dt).roundToInt() + 1
@@ -390,7 +393,7 @@ object WindowTracker {
             val a = s[j]; val b = s[(j + 1).coerceAtMost(s.size - 1)]
             val k = if (b.t - a.t > 1e-9) ((t - a.t) / (b.t - a.t)).toFloat().coerceIn(0f, 1f) else 0f
             dx[i] = a.dx + (b.dx - a.dx) * k; dy[i] = a.dy + (b.dy - a.dy) * k
-            sc[i] = a.s + (b.s - a.s) * k; q[i] = if (abs(k) < 0.5f) a.q else b.q
+            sc[i] = if (followSize) a.s + (b.s - a.s) * k else 1f; q[i] = if (abs(k) < 0.5f) a.q else b.q
             rot[i] = a.rot + (b.rot - a.rot) * k
         }
         return WindowTrack(s.first().t, dt, dx, dy, sc, q, r = rot)

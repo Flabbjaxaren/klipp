@@ -54,6 +54,8 @@ object AppPrefs {
     /** Tracking point cloud density (see WindowTracker.density). */
     fun trackDensity(c: Context): Float = p(c).getFloat("trackDensity", 1f)
     fun setTrackDensity(c: Context, d: Float) { p(c).edit().putFloat("trackDensity", d).apply(); se.gendut.klipp.engine.WindowTracker.density = d }
+    fun trackFollowSize(c: Context): Boolean = p(c).getBoolean("trackFollowSize", true)
+    fun setTrackFollowSize(c: Context, on: Boolean) { p(c).edit().putBoolean("trackFollowSize", on).apply(); se.gendut.klipp.engine.WindowTracker.followSize = on }
 
     /** Playhead locked in the center when the app starts. */
     fun centerDefault(c: Context): Boolean = p(c).getBoolean("centerPlayhead", false)
