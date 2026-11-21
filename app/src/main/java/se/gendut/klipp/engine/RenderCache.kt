@@ -137,7 +137,59 @@ object RenderCache {
 
     private fun fileOf(hash: String): File? = dir?.let { File(it, "$hash.mp4") }
 
-    private fun exists(hash: String) = fileOf(hash)?.let { it.exists() && it.length() > 0 } == true
+    private fun exists(hash: String) = fileOf(hash)?.let { it.exists() && it.length() > 0 && whole(hash, it) } == true
+
+    /** Files read once and found whole (by name: a chunk's or join's key never changes its content). */
+    private val wholeFiles = ConcurrentHashMap<String, Boolean>()
+
+    /**
+     * Whether [f] holds every frame: a file with a hole is thrown away (and rendered again) – a 5.32 s chunk with its
+     * first frame and then nothing until 4.0 s froze playback at every play through it (vivo: the picture stood on the
+     * frame, the player waited 4 s for the next and the stall watch nudged it a frame at a time). Read once per file.
+     */
+    private fun whole(hash: String, f: File): Boolean {
+        if (wholeFiles[hash] == true) return true
+        val times = runCatching { frameTimes(f) }.getOrNull()
+        val hole = times?.let { holeIn(it) }
+        if (hole != null) {
+            // (only "whole" is remembered: the file is gone, and the next one under this key is read again)
+            se.gendut.klipp.CrashReport.note("pre-render: ${f.name} has no frames for ${hole / 1000} ms (${times.size} frames) – thrown away")
+            files.entries.removeIf { it.value == f }
+            f.delete()
+            return false
+        }
+        wholeFiles[hash] = true
+        return true
+    }
+
+    /** The video frames' times in [f] (µs, in time order) from its sample table – nothing is decoded. */
+    private fun frameTimes(f: File): List<Long> {
+        val ex = android.media.MediaExtractor()
+        try {
+            ex.setDataSource(f.path)
+            val t = (0 until ex.trackCount).first { ex.getTrackFormat(it).getString(android.media.MediaFormat.KEY_MIME)?.startsWith("video/") == true }
+            ex.selectTrack(t)
+            val out = ArrayList<Long>()
+            while (ex.sampleTime >= 0) { out += ex.sampleTime; if (!ex.advance()) break }
+            return out.sorted()
+        } finally {
+            ex.release()
+        }
+    }
+
+    /**
+     * The longest stretch without a frame in [times] (µs, sorted) when it is a hole, else null: longer than
+     * [HOLE_US] and than eight usual frame steps (the median step). A file starting late counts too.
+     */
+    internal fun holeIn(times: List<Long>): Long? {
+        if (times.size < 2) return null
+        val steps = times.zipWithNext { a, b -> b - a }
+        val usual = steps.sorted()[steps.size / 2].coerceAtLeast(1)
+        val worst = maxOf(steps.max(), times.first())
+        return worst.takeIf { it > HOLE_US && it > usual * 8 }
+    }
+
+    private const val HOLE_US = 500_000L
 
     fun isReady(c: Chunk): Boolean = exists(c.hash) || c.longer.any { exists(it.first) }
 
@@ -827,6 +879,11 @@ object RenderCache {
                         continue
                     }
                     r = out
+                    // a file with a hole (see whole) is a failed attempt: rendered once more, never kept
+                    if (r.isSuccess) runCatching { holeIn(frameTimes(tmp)) }.getOrNull()?.let { hole ->
+                        se.gendut.klipp.CrashReport.note("pre-render: chunk ${"%.2f".format(java.util.Locale.ROOT, c.a)}–${"%.2f".format(java.util.Locale.ROOT, c.b)} s came out with no frames for ${hole / 1000} ms – rendered again")
+                        r = Result.failure(IllegalStateException("frames missing in the chunk"))
+                    }
                     if (r.isSuccess || r.exceptionOrNull() is kotlinx.coroutines.CancellationException) break
                     kotlinx.coroutines.delay(1000)
                     attempt++
@@ -841,6 +898,7 @@ object RenderCache {
                 }
                 val f = File(d, "${c.hash}.mp4")
                 if (!tmp.renameTo(f)) { tmp.delete(); return Result.failure(IllegalStateException("could not save")) }
+                wholeFiles[c.hash] = true
                 files[idOf(c.hash)] = f
                 done += c.b - c.a
                 n++
