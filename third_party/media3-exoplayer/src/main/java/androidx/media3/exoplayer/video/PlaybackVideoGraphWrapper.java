@@ -593,6 +593,10 @@ public final class PlaybackVideoGraphWrapper implements VideoGraph.Listener {
         } else if (inputColorInfo.colorTransfer == C.COLOR_TRANSFER_SRGB
             || inputColorInfo.colorTransfer == C.COLOR_TRANSFER_GAMMA_2_2) {
           outputColorInfo = ColorInfo.SDR_BT709_LIMITED;
+        } else if (inputColorInfo.colorTransfer == C.COLOR_TRANSFER_SDR
+            && inputColorInfo.colorSpace == C.COLOR_SPACE_BT2020) {
+          // Klipp: SDR in BT.2020 (camera log, see getAdjustedInputColorInfo) is shown as Rec.709 like the export
+          outputColorInfo = ColorInfo.SDR_BT709_LIMITED;
         } else {
           outputColorInfo = inputColorInfo;
         }
@@ -744,6 +748,27 @@ public final class PlaybackVideoGraphWrapper implements VideoGraph.Listener {
   }
 
   private ColorInfo getAdjustedInputColorInfo(@Nullable ColorInfo inputColorInfo) {
+    // Klipp: a file with matrix and range but no transfer (camera log) keeps its matrix and range – see
+    // TransformerUtil.klippUntaggedSdr in media3-transformer (the same rule, kept apart: no dependency)
+    if (inputColorInfo != null
+        && !isInputSdrToneMapped
+        && !inputColorInfo.isDataSpaceValid()
+        && inputColorInfo.colorTransfer == Format.NO_VALUE
+        && (inputColorInfo.colorSpace != Format.NO_VALUE
+            || inputColorInfo.colorRange != Format.NO_VALUE)) {
+      return inputColorInfo
+          .buildUpon()
+          .setColorSpace(
+              inputColorInfo.colorSpace != Format.NO_VALUE
+                  ? inputColorInfo.colorSpace
+                  : C.COLOR_SPACE_BT709)
+          .setColorRange(
+              inputColorInfo.colorRange != Format.NO_VALUE
+                  ? inputColorInfo.colorRange
+                  : C.COLOR_RANGE_LIMITED)
+          .setColorTransfer(C.COLOR_TRANSFER_SDR)
+          .build();
+    }
     if (inputColorInfo == null || !inputColorInfo.isDataSpaceValid() || isInputSdrToneMapped) {
       return ColorInfo.SDR_BT709_LIMITED;
     }

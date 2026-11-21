@@ -113,6 +113,11 @@ import org.checkerframework.checker.initialization.qual.Initialized;
       // COLOR_TRANSFER_SDR (BT.709), COLOR_TRANSFER_SRGB and COLOR_TRANSFER_GAMMA_2_2 are similar,
       // so the conversion should not bring a large quality degradation.
       videoGraphOutputColor = SDR_BT709_LIMITED;
+    } else if (videoGraphInputColor.colorTransfer == C.COLOR_TRANSFER_SDR
+        && videoGraphInputColor.colorSpace == C.COLOR_SPACE_BT2020) {
+      // Klipp: SDR in BT.2020 (camera log without a transfer, see TransformerUtil.klippUntaggedSdr) is graded in
+      // Rec.709 – the output is BT.709 limited like other SDR, not tagged BT.2020
+      videoGraphOutputColor = SDR_BT709_LIMITED;
     } else {
       videoGraphOutputColor = videoGraphInputColor;
     }

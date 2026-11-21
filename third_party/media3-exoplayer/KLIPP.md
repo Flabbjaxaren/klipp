@@ -14,4 +14,8 @@ upgrade: take the new version's sources (the `-sources.jar` of the same version)
   there lost its last frames – in the export, the pre-rendering and playback alike (the regression run's R1 with HEVC
   clips: frames 58 and 59 of a 30 fps clip ending at 1.97 s, the keyframe at 2.0 s).
 
+- `PlaybackVideoGraphWrapper.java` (`getAdjustedInputColorInfo`, `registerInput`): the same rule as the transformer's
+  `TransformerUtil.klippUntaggedSdr` for playback – a file with matrix and range but no transfer keeps them (SDR), and
+  SDR in BT.2020 is shown as BT.709 limited.
+
 The resources (`res/`) and the manifest come from the AAR file of the same version.
