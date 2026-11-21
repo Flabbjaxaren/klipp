@@ -7,6 +7,8 @@ import android.media.MediaCodecInfo
 import androidx.media3.inspector.MediaExtractorCompat
 import android.media.MediaFormat
 import android.net.Uri
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
@@ -198,7 +200,7 @@ object WindowTracker {
      * (rust/src/face.rs) – which keeps up with a head that turns, nods or looks away, where points slide off it.
      * Saved in the settings.
      */
-    @Volatile var faces = false
+    var faces by androidx.compose.runtime.mutableStateOf(false)
     /** Face work size (long side): faces are large enough at this size, and detection costs follow the pixel count. */
     private const val FACE_WORK = 320
 

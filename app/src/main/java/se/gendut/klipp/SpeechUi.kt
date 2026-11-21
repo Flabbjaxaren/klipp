@@ -62,13 +62,13 @@ fun SpeechPicker(pick: SpeechPick, tag: String, words: Boolean = false) {
         )
         if (pick.tier == 2) Text(stringResource(R.string.transcribe_best_hint), color = K.Outline, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp))
         // exact word edges for cutting (Swedish): a switch, and the model's download when it is on
-        if (words && SpeechChoice.whisperLanguage(model, pick.language) == WordAligner.LANGUAGE) WordEdgesRow(tag)
+        if (words && SpeechChoice.whisperLanguage(model, pick.language) == WordAligner.LANGUAGE) WordEdgesRow(tag, ready)
     }
 }
 
 /** "Exact word edges": on/off, and the model (1.3 GB) downloaded when it is on and missing. */
 @Composable
-private fun WordEdgesRow(tag: String) {
+private fun WordEdgesRow(tag: String, modelReady: Boolean) {
     val ctx = LocalContext.current
     val ac = AutoCaptions
     var on by remember { mutableStateOf(WordAligner.enabled(ctx)) }
@@ -80,7 +80,7 @@ private fun WordEdgesRow(tag: String) {
     ) {
         ToggleChip(stringResource(R.string.speech_word_edges), on, { on = !on; WordAligner.setEnabled(ctx, on) },
             Modifier.testTag("$tag:edges"), icon = Ic.Waveform)
-        if (on && !ready) PillButton(stringResource(R.string.titleui_download_model, WordAligner.BYTES / 1_000_000), { ac.downloadAligner(ctx) },
+        if (on && !ready && modelReady) PillButton(stringResource(R.string.titleui_download_model, WordAligner.BYTES / 1_000_000), { ac.downloadAligner(ctx) },
             Modifier.testTag("$tag:edgesDownload"), icon = Ic.Download, filled = false, enabled = !ac.running)
     }
     Text(stringResource(if (!on) R.string.speech_word_edges_off else if (ready) R.string.speech_word_edges_ready else R.string.speech_word_edges_needs),

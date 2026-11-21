@@ -526,6 +526,40 @@ object AutoCaptions {
         }
     }
 
+    /** Whether a word transcript in [language] with [model] also wants the word-edge model, still missing. */
+    fun needsAligner(context: Context, model: SpeechModel, language: String): Boolean =
+        SpeechChoice.whisperLanguage(model, language) == WordAligner.LANGUAGE && WordAligner.enabled(context) && !WordAligner.ready(context)
+
+    /** Everything a word transcript needs, in one go: the speech model, then the word-edge model when it is wanted. */
+    fun downloadForWords(context: Context, model: SpeechModel, language: String) {
+        if (running) return
+        val aligner = needsAligner(context, model, language)
+        if (!aligner) { download(context, model); return }
+        if (SpeechModels.ready(context, model)) { downloadAligner(context); return }
+        message = null
+        progress = 0f
+        val total = model.bytes + WordAligner.BYTES
+        phase = Str.t(R.string.transcribe_downloading, total / 1_000_000)
+        running = true
+        job = scope.launch {
+            try {
+                SpeechModels.download(context, model) { p -> scope.launch { progress = p * model.bytes / total } }
+                WordAligner.download(context) { p -> scope.launch { progress = (model.bytes + p * WordAligner.BYTES) / total } }
+                message = Str.t(R.string.transcribe_downloaded)
+                modelRevision++
+            } catch (e: CancellationException) {
+                message = Str.t(R.string.transcribe_canceled)
+                throw e
+            } catch (e: Throwable) {
+                message = Str.t(R.string.transcribe_download_failed, Str.netError(e))
+            } finally {
+                progress = null
+                phase = ""
+                running = false
+            }
+        }
+    }
+
     /** Downloads the word-edge model ([WordAligner], Swedish). */
     fun downloadAligner(context: Context) {
         if (running) return

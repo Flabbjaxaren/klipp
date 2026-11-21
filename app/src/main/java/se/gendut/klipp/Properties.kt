@@ -901,7 +901,7 @@ private fun MaskControls(
             if (busy) {
                 PillButton(stringResource(R.string.properties_cancel), { MaskTrackService.cancel() }, Modifier.testTag("mask:trackCancel"), icon = Ic.Close, filled = false)
             } else {
-                PillButton(stringResource(if (mask.animated) R.string.properties_track_again else R.string.properties_track_object), {
+                PillButton(stringResource(if (mask.animated) R.string.properties_track_again else if (se.gendut.klipp.engine.WindowTracker.faces) R.string.colortools_track_face else R.string.properties_track_object), {
                     MaskTrackService.start(ctx, gs, info, state.playhead) { t -> state.playing = false; state.playhead = t }
                 }, Modifier.testTag("mask:track"), icon = Ic.Target)
                 if (mask.animated) PillButton(stringResource(R.string.properties_clear_keyframes), {

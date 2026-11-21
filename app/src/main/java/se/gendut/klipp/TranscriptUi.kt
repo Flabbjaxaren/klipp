@@ -73,7 +73,7 @@ fun TranscriptView(controller: ProjectController, state: EditorState, modifier: 
             SpeechPicker(pick, "tx", words = true)
             val model = pick.model
             val ready = remember(model, ac.modelRevision, ac.running) { SpeechModels.ready(ctx, model) }
-            if (!ready) PillButton(stringResource(R.string.titleui_download_model, model.bytes / 1_000_000), { haptics.confirm(); ac.download(ctx, model) },
+            if (!ready) PillButton(stringResource(R.string.titleui_download_model, (model.bytes + (if (ac.needsAligner(ctx, model, pick.language)) se.gendut.klipp.engine.WordAligner.BYTES else 0L)) / 1_000_000), { haptics.confirm(); ac.downloadForWords(ctx, model, pick.language) },
                 Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("tx:download"), icon = Ic.Download, filled = false)
             else PillButton(stringResource(R.string.transcript_transcribe), { haptics.confirm(); redo = false; ac.transcript(ctx, controller, model, pick.language) },
                 Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("tx:start"), icon = Ic.Transcript)

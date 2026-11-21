@@ -135,7 +135,7 @@ fun SourceTextView(
                     // the media panel's job and the timeline's share the one recognizer
                     ac.running -> Text(if (busy != null) stringResource(R.string.source_transcribing_other) else ac.phase, color = K.OnSurfaceVar, fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-                    !ready -> PillButton(stringResource(R.string.titleui_download_model, model.bytes / 1_000_000), { haptics.confirm(); ac.download(ctx, model) },
+                    !ready -> PillButton(stringResource(R.string.titleui_download_model, (model.bytes + (if (ac.needsAligner(ctx, model, pick.language)) se.gendut.klipp.engine.WordAligner.BYTES else 0L)) / 1_000_000), { haptics.confirm(); ac.downloadForWords(ctx, model, pick.language) },
                         Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("src:download"), icon = Ic.Download, filled = false)
                     else -> PillButton(stringResource(R.string.transcript_transcribe), { haptics.confirm(); redo = false; onSelect(null); text.transcribe(ctx, pick) },
                         Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("src:transcribe"), icon = Ic.Transcript)
