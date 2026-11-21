@@ -24,11 +24,17 @@
 
     <!-- AudioUi.kt -->
     <string name="audioui_effects">Ljudeffekter</string>
-    <string name="audioui_effects_hint">Effekterna gäller bara det här klippet och hörs direkt.</string>
     <string name="audioui_on">På</string>
     <string name="audioui_off">Av</string>
     <string name="audioui_remove">Ta bort</string>
     <string name="audioui_not_controlled">Effekten styrs inte härifrån.</string>
+    <string name="audioui_add">Lägg till</string>
+    <string name="audioui_done_adding">Stäng</string>
+    <string name="audioui_bypassed">Av – förbikopplad</string>
+    <string name="audioui_rack_full">Ett spår rymmer %1$d effekter.</string>
+    <string name="audioui_track_effects">Effekter på %1$s</string>
+    <string name="audioui_track_effects_hint">Effekter på ett spår gäller alla klipp på det, efter varje klipps egna effekter. Välj en effekt för att lägga till den.</string>
+    <string name="audioui_clip_effects_hint">Effekterna gäller bara det här klippet och hörs direkt. Välj en effekt för att lägga till den.</string>
 
     <!-- App.kt -->
     <string name="app_mode_edit">Redigera</string>

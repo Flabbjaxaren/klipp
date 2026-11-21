@@ -24,11 +24,17 @@
 
     <!-- AudioUi.kt -->
     <string name="audioui_effects">Audio effects</string>
-    <string name="audioui_effects_hint">Effects apply only to this clip and play right away.</string>
     <string name="audioui_on">On</string>
     <string name="audioui_off">Off</string>
     <string name="audioui_remove">Remove</string>
     <string name="audioui_not_controlled">This effect isn\'t controlled from here.</string>
+    <string name="audioui_add">Add</string>
+    <string name="audioui_done_adding">Close</string>
+    <string name="audioui_bypassed">Off – bypassed</string>
+    <string name="audioui_rack_full">A track holds %1$d effects.</string>
+    <string name="audioui_track_effects">Effects on %1$s</string>
+    <string name="audioui_track_effects_hint">Effects on a track apply to every clip on it, after each clip\'s own effects. Pick an effect to add it.</string>
+    <string name="audioui_clip_effects_hint">Effects apply only to this clip and play right away. Pick an effect to add it.</string>
 
     <!-- App.kt -->
     <string name="app_mode_edit">Edit</string>
