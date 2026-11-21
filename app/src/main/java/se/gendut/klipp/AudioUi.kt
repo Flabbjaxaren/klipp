@@ -87,8 +87,8 @@ fun AudioFxSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
 @Composable
 fun AudioFxRack(effects: List<AfxSnap>, ops: AfxRackOps, title: String, hint: String, key: Any? = null) {
     val haptics = rememberHaptics()
-    // the open card (its place in the rack) and the picker; a new rack starts with everything closed
-    var open by remember(key) { mutableStateOf<Int?>(null) }
+    // the open card (its place in the rack) and the picker; a new rack starts closed – unless it holds a single effect
+    var open by remember(key) { mutableStateOf(effects.singleOrNull()?.index) }
     var picking by remember(key) { mutableStateOf(false) }
     // an effect just added: opened once the engine has it (the slots that were there before don't count)
     var added by remember(key) { mutableStateOf<Pair<String, Set<Int>>?>(null) }
