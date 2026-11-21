@@ -641,6 +641,12 @@ fun CropOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
     val seqH = controller.snapshot.sequence?.height ?: return
     val haptics = rememberHaptics()
     val info = remember(id, gs.clipInfo, state.clips.firstOrNull { it.id == id }) { gs.clipInfo?.invoke(id) }
+    // the clip's picture shape: a clip of another shape than the sequence is fitted inside the frame (bars), and the
+    // outline and handles must lie where its picture is
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val aspect by androidx.compose.runtime.produceState<Float?>(null, info?.uri) {
+        value = info?.uri?.let { u -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { StabService.aspectOf(ctx, u) } }
+    }
     fun box(): se.gendut.klipp.engine.LayerMask {
         val c = gs.shown(id)?.layer?.crop ?: FULL_FRAME
         return if (c.animated) c.at(info?.srcAt(state.playhead)) else c
@@ -656,9 +662,9 @@ fun CropOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
             // handles: which edges each one moves (-1 left/top, 1 right/bottom, 0 none)
             val handles = listOf(Triple(l, t, -1 to -1), Triple(r, t, 1 to -1), Triple(r, b, 1 to 1), Triple(l, b, -1 to 1),
                 Triple(l, start.cy, -1 to 0), Triple(r, start.cy, 1 to 0), Triple(start.cx, t, 0 to -1), Triple(start.cx, b, 0 to 1))
-            fun screen(u: Float, v: Float) = c0.toFrame(u, v, seqW, seqH).let { Offset(it[0] * w, it[1] * h) }
+            fun screen(u: Float, v: Float) = c0.toFrame(u, v, seqW, seqH, aspect).let { Offset(it[0] * w, it[1] * h) }
             val hit = handles.minByOrNull { (screen(it.first, it.second) - down.position).getDistance() }?.takeIf { (screen(it.first, it.second) - down.position).getDistance() < 44.dp.toPx() }
-            val p0 = c0.fromFrame(down.position.x / w, down.position.y / h, seqW, seqH)
+            val p0 = c0.fromFrame(down.position.x / w, down.position.y / h, seqW, seqH, aspect)
             val inside = p0[0] in l..r && p0[1] in t..b
             if (hit == null && !inside) return@awaitEachGesture
             down.consume()
@@ -672,7 +678,7 @@ fun CropOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
                 val ev = awaitPointerEvent()
                 val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                 if (!c.pressed) break
-                val q = c0.fromFrame(c.position.x / w, c.position.y / h, seqW, seqH)
+                val q = c0.fromFrame(c.position.x / w, c.position.y / h, seqW, seqH, aspect)
                 var nl = l; var nt = t; var nr = 1f - r; var nb = 1f - b
                 if (hit != null) {
                     val (ex, ey) = hit.third
@@ -693,7 +699,7 @@ fun CropOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
     }) {
         Canvas(Modifier.fillMaxSize()) {
             val c = box(); val pl = placed()
-            fun pt(u: Float, v: Float) = pl.toFrame(u, v, seqW, seqH).let { Offset(it[0] * size.width, it[1] * size.height) }
+            fun pt(u: Float, v: Float) = pl.toFrame(u, v, seqW, seqH, aspect).let { Offset(it[0] * size.width, it[1] * size.height) }
             val l = c.cx - c.w / 2f; val r = c.cx + c.w / 2f; val t = c.cy - c.h / 2f; val b = c.cy + c.h / 2f
             val path = androidx.compose.ui.graphics.Path().apply { pt(l, t).let { moveTo(it.x, it.y) }; pt(r, t).let { lineTo(it.x, it.y) }; pt(r, b).let { lineTo(it.x, it.y) }; pt(l, b).let { lineTo(it.x, it.y) }; close() }
             drawPath(path, Color.Black.copy(alpha = 0.5f), style = androidx.compose.ui.graphics.drawscope.Stroke(3.5.dp.toPx()))
@@ -747,6 +753,12 @@ fun MaskOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
     val seqH = controller.snapshot.sequence?.height ?: return
     val haptics = rememberHaptics()
     val info = remember(id, gs.clipInfo, state.clips.firstOrNull { it.id == id }) { gs.clipInfo?.invoke(id) }
+    // the clip's picture shape: a clip of another shape than the sequence is fitted inside the frame (bars), and the
+    // outline and handles must lie where its picture is
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val aspect by androidx.compose.runtime.produceState<Float?>(null, info?.uri) {
+        value = info?.uri?.let { u -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { StabService.aspectOf(ctx, u) } }
+    }
     fun shown(): se.gendut.klipp.engine.LayerMask? {
         val m = gs.shown(id)?.layer?.mask ?: return null
         return if (m.animated) m.at(info?.srcAt(state.playhead)) else m
@@ -765,13 +777,13 @@ fun MaskOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
             val l = start.cx - start.w / 2f; val r = start.cx + start.w / 2f; val t = start.cy - start.h / 2f; val b = start.cy + start.h / 2f
             val handles = listOf(Triple(l, t, -1 to -1), Triple(r, t, 1 to -1), Triple(r, b, 1 to 1), Triple(l, b, -1 to 1),
                 Triple(l, start.cy, -1 to 0), Triple(r, start.cy, 1 to 0), Triple(start.cx, t, 0 to -1), Triple(start.cx, b, 0 to 1))
-            fun screen(u: Float, v: Float) = c0.toFrame(u, v, seqW, seqH).let { Offset(it[0] * w, it[1] * h) }
+            fun screen(u: Float, v: Float) = c0.toFrame(u, v, seqW, seqH, aspect).let { Offset(it[0] * w, it[1] * h) }
             // the nearest handle within reach – unless the shape's center is nearer (a small mask on a small picture:
             // its middle lies within reach of the handles, and a drag there is meant to move it)
             val toCenter = (screen(start.cx, start.cy) - down.position).getDistance()
             val hit = handles.minByOrNull { (screen(it.first, it.second) - down.position).getDistance() }
                 ?.takeIf { (screen(it.first, it.second) - down.position).getDistance().let { d -> d < 36.dp.toPx() && d < toCenter } }
-            val p0 = c0.fromFrame(down.position.x / w, down.position.y / h, seqW, seqH)
+            val p0 = c0.fromFrame(down.position.x / w, down.position.y / h, seqW, seqH, aspect)
             val inside = if (start.shape == se.gendut.klipp.engine.LayerMask.ELLIPSE) {
                 val dx = (p0[0] - start.cx) / (start.w / 2f).coerceAtLeast(1e-4f); val dy = (p0[1] - start.cy) / (start.h / 2f).coerceAtLeast(1e-4f)
                 dx * dx + dy * dy <= 1f
@@ -789,7 +801,7 @@ fun MaskOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
                 val ev = awaitPointerEvent()
                 val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                 if (!c.pressed) break
-                val q = c0.fromFrame(c.position.x / w, c.position.y / h, seqW, seqH)
+                val q = c0.fromFrame(c.position.x / w, c.position.y / h, seqW, seqH, aspect)
                 val (ex, ey) = hit?.third ?: (0 to 0)
                 result = all.withValues(maskDragged(start, ex, ey, q[0], q[1], q[0] - p0[0], q[1] - p0[1]), key, tol)
                 gs.setLive(id, g0.copy(layer = fx0.copy(mask = result)))
@@ -805,7 +817,7 @@ fun MaskOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
         Canvas(Modifier.fillMaxSize()) {
             val m = shown() ?: return@Canvas
             val pl = placed()
-            fun pt(u: Float, v: Float) = pl.toFrame(u, v, seqW, seqH).let { Offset(it[0] * size.width, it[1] * size.height) }
+            fun pt(u: Float, v: Float) = pl.toFrame(u, v, seqW, seqH, aspect).let { Offset(it[0] * size.width, it[1] * size.height) }
             fun path(mm: se.gendut.klipp.engine.LayerMask) = androidx.compose.ui.graphics.Path().apply {
                 maskOutline(mm).forEachIndexed { i, (u, v) -> pt(u, v).let { if (i == 0) moveTo(it.x, it.y) else lineTo(it.x, it.y) } }
                 close()
@@ -813,7 +825,7 @@ fun MaskOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
             // the feather's band, dashed: where the mask starts to fade and where it has faded out (the shader's distances)
             if (m.feather > 0.005f) {
                 val dash = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
-                val (inner, outer) = m.featherBounds(seqW / seqH.toFloat())
+                val (inner, outer) = m.featherBounds(aspect ?: (seqW / seqH.toFloat()))
                 drawPath(path(outer), Color.White.copy(alpha = 0.55f), style = dash)
                 drawPath(path(inner), Color.White.copy(alpha = 0.55f), style = dash)
             }

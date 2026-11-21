@@ -4,6 +4,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import se.gendut.klipp.engine.LayerMask
 import se.gendut.klipp.engine.MaskKey
+import se.gendut.klipp.engine.fromFrame
+import se.gendut.klipp.engine.toFrame
 
 /** The mask's handles on the picture: a handle moves its edges (the opposite stays), inside moves the shape; keyframes and tracking are kept. */
 class MaskHandlesTest {
@@ -55,5 +57,20 @@ class MaskHandlesTest {
             val mid = s.copy(w = (inner.w + outer.w) / 2f, h = (inner.h + outer.h) / 2f)
             for ((u, v) in maskOutline(mid, 36)) assertEquals("middle, shape $shape", 0.5f, s.coverage(u, v, aspect), 0.08f)
         }
+    }
+
+    /** A 4:3 clip in a portrait 9:16 sequence lies in a band across the middle: the outline is drawn there, not over the whole frame. */
+    @Test fun aClipOfAnotherShapeIsFittedInsideTheFrame() {
+        val c = se.gendut.klipp.engine.ClipSnap(1, 1, "c", 0.0, 1.0, 0.0, 1.0, null)
+        val (fw, fh) = se.gendut.klipp.engine.fitIn(4f / 3f, 1080, 1920)
+        assertEquals(1080f, fw, 0.01f); assertEquals(810f, fh, 0.01f)
+        // the clip's top edge: at the top of the band, (1920 − 810) / 2 px down
+        val top = c.toFrame(0.5f, 0f, 1080, 1920, 4f / 3f)
+        assertEquals(555f / 1920f, top[1], 1e-5f)
+        // and back
+        val back = c.fromFrame(top[0], top[1], 1080, 1920, 4f / 3f)
+        assertEquals(0.5f, back[0], 1e-5f); assertEquals(0f, back[1], 1e-5f)
+        // without a shape: the whole frame, as before
+        assertEquals(0f, c.toFrame(0.5f, 0f, 1080, 1920)[1], 1e-6f)
     }
 }

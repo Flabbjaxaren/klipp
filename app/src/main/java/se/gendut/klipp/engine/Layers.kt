@@ -889,10 +889,11 @@ class MotionMatrix(private val c: ClipSnap, private val w: Int, private val h: I
  * with the clip's position, scale and rotation (clockwise), as [MotionMatrix] places it. The clip is taken to fill
  * the frame (as the tracked windows assume).
  */
-fun ClipSnap.toFrame(u: Float, v: Float, w: Int, h: Int): FloatArray {
+fun ClipSnap.toFrame(u: Float, v: Float, w: Int, h: Int, aspect: Float? = null): FloatArray {
     val k = (scale / 100.0).toFloat()
     val a = Math.toRadians(rotation)
-    val px = (u - 0.5f) * w; val py = (v - 0.5f) * h
+    val (fw, fh) = fitIn(aspect, w, h)
+    val px = (u - 0.5f) * fw; val py = (v - 0.5f) * fh
     val rx = (px * kotlin.math.cos(a) - py * kotlin.math.sin(a)).toFloat()
     val ry = (px * kotlin.math.sin(a) + py * kotlin.math.cos(a)).toFloat()
     return floatArrayOf(((x ?: (w / 2.0)).toFloat() + k * rx) / w, ((y ?: (h / 2.0)).toFloat() + k * ry) / h)
@@ -912,13 +913,23 @@ fun scaleOf(t: Affine): Float = kotlin.math.hypot(t.a, t.c)
 fun turnOf(t: Affine): Float = kotlin.math.atan2(t.c, t.a)
 
 /** The inverse of [toFrame]: a point in the frame → the clip's own picture. */
-fun ClipSnap.fromFrame(fx: Float, fy: Float, w: Int, h: Int): FloatArray {
+fun ClipSnap.fromFrame(fx: Float, fy: Float, w: Int, h: Int, aspect: Float? = null): FloatArray {
     val k = (scale / 100.0).toFloat().coerceAtLeast(1e-3f)
     val a = Math.toRadians(-rotation)
     val qx = (fx * w - (x ?: (w / 2.0)).toFloat()) / k; val qy = (fy * h - (y ?: (h / 2.0)).toFloat()) / k
     val px = (qx * kotlin.math.cos(a) - qy * kotlin.math.sin(a)).toFloat()
     val py = (qx * kotlin.math.sin(a) + qy * kotlin.math.cos(a)).toFloat()
-    return floatArrayOf(px / w + 0.5f, py / h + 0.5f)
+    val (fw, fh) = fitIn(aspect, w, h)
+    return floatArrayOf(px / fw + 0.5f, py / fh + 0.5f)
+}
+
+/**
+ * The size (px) a picture of [aspect] (width / height) takes in a [w]×[h] frame, fitted inside it as playback draws a
+ * clip of another shape (bars beside or above it); null = it fills the frame.
+ */
+fun fitIn(aspect: Float?, w: Int, h: Int): Pair<Float, Float> {
+    if (aspect == null || !(aspect > 0f) || w <= 0 || h <= 0) return w.toFloat() to h.toFloat()
+    return if (aspect > w.toFloat() / h) w.toFloat() to w / aspect else h * aspect to h.toFloat()
 }
 
 object OverlayRenderer {
