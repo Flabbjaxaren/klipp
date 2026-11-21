@@ -195,7 +195,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
         val full = i == 2 || i == 3 || i == state.targetVideo || i == state.targetAudio || i == hoverTrack ||
             state.clips.any { it.track == i && it.id !in state.removing }
         // volume lines: taller audio tracks, so the line has room to be dragged
-        val tall = state.volLines && TRACKS[i].kind == TrackKind.AUDIO
+        val tall = state.volOn(i) && TRACKS[i].kind == TrackKind.AUDIO
         LaunchedEffect(i, full, tall, fullPx, slimPx) { trackH[i].animateTo(if (!full) slimPx else if (tall) fullPx[i] * VOL_TRACK_SCALE else fullPx[i], Springs.settle()) }
     }
     // read at use (in gestures and drawing), so they always follow the animated heights
@@ -270,6 +270,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     var volTip by remember { mutableStateOf<Pair<Offset, Float>?>(null) }
     /** The last tap on a volume keyframe (clip, media time, time) – a second one soon after deletes it. */
     val volTap = remember { longArrayOf(0L, 0L, 0L) }
+    /** The last tap on an audio track's lane (track, time) – a second one soon after opens or closes its volume lines. */
+    val trackTap = remember { longArrayOf(-1L, 0L) }
     val clipInsetPx = with(density) { 3.dp.toPx() }
     val volGrabPx = with(density) { 22.dp.toPx() }
     val volLinePx = with(density) { 18.dp.toPx() }
@@ -312,7 +314,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     /** The volume line or one of its keyframes under (cx, y) (content coordinates), or null. */
     fun volHit(cx: Float, y: Float, list: List<Clip>): Hit? {
         for (c in list.asReversed()) {
-            if (c.kind.track != TrackKind.AUDIO || state.locked(c.track)) continue
+            if (c.kind.track != TrackKind.AUDIO || state.locked(c.track) || !state.volOn(c.track)) continue
             val a = anims[c.id] ?: continue
             val x0 = a.start.value * pps
             val x1 = (a.start.value + a.len.value) * pps
@@ -505,6 +507,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         .combinedClickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null,
                             onLongClick = { haptics.heavy(); menu = true },
+                            // an audio track: a double tap opens it for the clips' volume lines (or closes it)
+                            onDoubleClick = if (t.kind == TrackKind.AUDIO) ({ haptics.confirm(); state.toggleVolTrack(i) }) else null,
                         ) {
                             haptics.tick()
                             val cb = state.onTargetTrack
@@ -598,7 +602,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             if (y < 0) return@run Hit.Ruler
                             val sel = state.selected
                             val list = state.clips.filter { it.id !in state.removing }
-                            if (state.volLines && tool != Tool.RAZOR && state.props != null) volHit(cx, y, list)?.let { return@run it }
+                            if ((state.volLines || state.volTracks.isNotEmpty()) && tool != Tool.RAZOR && state.props != null) volHit(cx, y, list)?.let { return@run it }
                             val canFade = state.props != null && tool != Tool.RAZOR
                             // the fade handles in the selected clip's top corners
                             if (sel != null && canFade) {
@@ -1455,6 +1459,20 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 }
                             }
                             // Tap
+                            // a double tap on an audio track (on a clip or between them) opens it for the clips' volume
+                            // lines – taller, with the line to draw keyframes on – or closes it again
+                            if (tool != Tool.RAZOR && state.props != null && (hit is Hit.Body || hit is Hit.TrimL || hit is Hit.TrimR || hit == Hit.Empty)) {
+                                val ti = anyTrackAt(start.y - rulerPx + scrollY)
+                                if (TRACKS[ti].kind == TrackKind.AUDIO) {
+                                    if (trackTap[0] == ti.toLong() && down.uptimeMillis - trackTap[1] < viewConfiguration.doubleTapTimeoutMillis) {
+                                        trackTap[0] = -1L
+                                        haptics.confirm()
+                                        state.toggleVolTrack(ti)
+                                        return@awaitEachGesture
+                                    }
+                                    trackTap[0] = ti.toLong(); trackTap[1] = down.uptimeMillis
+                                } else trackTap[0] = -1L
+                            }
 
                             when (hit) {
                                 is Hit.Body -> {
@@ -1736,7 +1754,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         yOf = { yOf(it) - scrollY },
                         hOf = ::hOf,
                         level = if (c.kind.track == TrackKind.AUDIO) volEdit?.takeIf { it.first == c.id }?.second ?: state.clipLevels[c.id] else null,
-                        editLine = state.volLines,
+                        editLine = state.volOn(c.track),
                     )
                 }
             }
@@ -2091,7 +2109,7 @@ private fun ClipView(
 }
 
 /** Audio tracks are this much taller while the volume lines are edited. */
-const val VOL_TRACK_SCALE = 1.6f
+const val VOL_TRACK_SCALE = 2.2f
 
 /** Where an audio clip [h] px tall draws its volume line: (top, bottom) within the clip – under the name, to the bottom edge. */
 fun volBandOf(h: Float, density: Float): Pair<Float, Float> = 17f * density to (h - 3f * density).coerceAtLeast(17f * density + 1f)

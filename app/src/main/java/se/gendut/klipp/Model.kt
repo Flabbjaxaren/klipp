@@ -451,6 +451,12 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var clipLevels by mutableStateOf<Map<Long, ClipLevel>>(emptyMap())
     /** The volume lines on the audio clips can be edited (taller audio tracks, the line takes touches). */
     var volLines by mutableStateOf(false)
+    /** Audio tracks opened for their volume lines one by one (a double tap on the track): taller, the line takes touches. */
+    var volTracks by mutableStateOf<Set<Int>>(emptySet())
+    /** Track [track]'s volume lines can be edited (all of them, or that track opened). */
+    fun volOn(track: Int) = volLines || track in volTracks
+    /** Open or close audio track [track] for its volume lines. */
+    fun toggleVolTrack(track: Int) { volTracks = if (track in volTracks) volTracks - track else volTracks + track }
     /** While a volume line is dragged: how much (dB) the level at the playhead changes – heard right away. */
     var liveLevelDelta by mutableStateOf<Float?>(null)
     /** Track volume automation per audio track (A1–A3): (time, dB). Drawn as a line in the timeline. */

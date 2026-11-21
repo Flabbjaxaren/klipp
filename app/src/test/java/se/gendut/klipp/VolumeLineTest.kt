@@ -44,17 +44,17 @@ class VolumeLineTest {
         assertEquals(-20f, lv.at(9f), 0f)
     }
 
-    /** A1 (0–8 s "intervju L"): the track starts 132 dp below the ruler, 44 × 1.6 dp tall with the lines on. */
+    /** A1 (0–8 s "intervju L"): the track starts 132 dp below the ruler, 44 × VOL_TRACK_SCALE dp tall with the lines on. */
     private val clipTop = 132f + 3f
     private val clipH = 44f * VOL_TRACK_SCALE - 6f
     private fun yOfDb(db: Float): Float { val bt = clipTop + 17f; val bb = clipTop + clipH - 3f; return bb - ClipLevel.pos(db) * (bb - bt) }
     private fun pt(sec: Float, yDp: Float): Offset { val d = rule.density.density; return Offset(sec * 16f * d, (28f + yDp) * d) }
 
-    private fun setup(levels: (Long) -> ClipLevel? = { null }): Triple<EditorState, VolProps, Long> {
+    private fun setup(all: Boolean = true, levels: (Long) -> ClipLevel? = { null }): Triple<EditorState, VolProps, Long> {
         val st = EditorState()
         val props = VolProps()
         st.props = props
-        st.volLines = true
+        st.volLines = all
         val id = st.clips.first { it.track == 3 && it.start == 0f }.id
         levels(id)?.let { st.clipLevels = mapOf(id to it) }
         rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { Timeline(st, Tool.SELECT, Modifier.fillMaxSize()) } } }
@@ -138,5 +138,31 @@ class VolumeLineTest {
         }
         rule.waitForIdle()
         assertEquals(listOf("delete $id 2000"), props.log)
+    }
+
+    /** A double tap on one audio track opens it for its volume lines (the others stay as they are); another closes it. */
+    @Test fun aDoubleTapOpensOneTrack() {
+        val (st, props, id) = setup(all = false)
+        // closed: a tap at the line's height selects the clip, no keyframe
+        val closedY = 132f + 22f
+        rule.onNodeWithTag("timeline").performTouchInput {
+            down(pt(4f, closedY)); up()
+            advanceEventTime(120)
+            down(pt(4f, closedY)); up()
+        }
+        rule.waitForIdle()
+        assertEquals(setOf(3), st.volTracks)
+        assertTrue(st.volOn(3) && !st.volOn(4))
+        assertTrue(props.log.toString(), props.log.isEmpty())
+        // open: the line takes a tap (a keyframe)
+        rule.mainClock.advanceTimeBy(1000)
+        rule.onNodeWithTag("timeline").performTouchInput { down(pt(4f, yOfDb(0f))); up() }
+        rule.waitForIdle()
+        assertEquals(listOf("add $id 4.00"), props.log)
+        // a double tap on the track's header closes it
+        rule.onNodeWithTag("trackHeader:A1").performTouchInput { down(center); up(); advanceEventTime(100); down(center); up() }
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1000)
+        assertTrue(st.volTracks.isEmpty())
     }
 }
