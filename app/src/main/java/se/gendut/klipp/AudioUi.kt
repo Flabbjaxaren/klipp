@@ -229,6 +229,14 @@ private fun FxCard(e: AfxSnap, place: Int, open: Boolean, ops: AfxRackOps, onOpe
 /** A short line for a closed card: the effect's main settings (the first two shown parameters). */
 internal fun fxSummary(e: AfxSnap): String {
     val def = AudioFxCatalog.of(e.id) ?: return ""
+    // the EQ: its raised or lowered bands (its only slider is the output, which said "+0,0 dB" over a boosted band)
+    if (e.id == "parametric_eq") {
+        val bands = e.params.keys.filter { it.endsWith("_gain") && it != "master_gain" }.map { it.removeSuffix("_gain") }
+            .filter { b -> (e.params["${b}_on"] ?: 1.0) >= 0.5 && kotlin.math.abs(e.params["${b}_gain"] ?: 0.0) >= 0.05 }
+            .sortedBy { e.params["${it}_freq"] ?: 0.0 }
+        val parts = bands.map { "${hz(e.params["${it}_freq"] ?: 0.0)} ${db(e.params["${it}_gain"] ?: 0.0)}" }
+        if (parts.isNotEmpty()) return parts.take(2).joinToString(" · ") + if (parts.size > 2) " · …" else ""
+    }
     return def.params.filter { !it.toggle && (it.onlyIf == null || (e.params[it.onlyIf] ?: 0.0) >= 0.5) }.take(2)
         .joinToString(" · ") { p -> "${p.label} ${p.format((e.params[p.id] ?: p.default.toDouble()).toFloat())}" }
 }

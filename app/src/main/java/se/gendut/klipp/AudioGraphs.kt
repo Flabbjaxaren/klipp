@@ -64,8 +64,8 @@ private val BandColors = listOf(
     Color(0xFFFF8A65), Color(0xFFFFD54F), Color(0xFFAED581), Color(0xFF4DD0E1), Color(0xFF64B5F6), Color(0xFFBA68C8), Color(0xFFF06292),
 )
 
-private fun hz(v: Double) = if (v >= 1000) "%.1f kHz".format(v / 1000) else "%.0f Hz".format(v)
-private fun db(v: Double) = "%+.1f dB".format(v).replace('-', '−')
+internal fun hz(v: Double) = if (v >= 1000) "%.1f kHz".format(v / 1000) else "%.0f Hz".format(v)
+internal fun db(v: Double) = "%+.1f dB".format(v).replace('-', '−')
 
 /**
  * Graphical parametric EQ: the engine's frequency response as a curve, one draggable handle per band (horizontal =
