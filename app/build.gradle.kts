@@ -110,6 +110,11 @@ android {
             matchingFallbacks += "release"
         }
     }
+    packaging {
+        // cargo ndk also copies DeepFilterNet's own cdylib (libdf-<hash>.so) into jniLibs; its code is linked into
+        // libklipp_bridge.so already and nothing loads it
+        jniLibs.excludes += "**/libdf-*.so"
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
