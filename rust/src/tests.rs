@@ -1388,7 +1388,8 @@ fn rendered_effects_keep_length_and_time() {
 
 #[test]
 fn own_rendered_noise_reduction_is_strong_from_the_start() {
-    // (not 48 kHz: Klipp's own cleaning) noise, then a tone over it from 1 s: the noise goes down at once, the tone stays
+    // Klipp's own cleaning (the network's fallback; asked for with "own"): noise, then a tone over it from 1 s – the
+    // noise goes down at once, the tone stays
     let r = 48_000usize;
     let mut x = hiss(r * 3, 0.05, 5);
     for i in r..r * 3 {
@@ -1396,13 +1397,13 @@ fn own_rendered_noise_reduction_is_strong_from_the_start() {
         x[i * 2] += v;
         x[i * 2 + 1] += v;
     }
-    let y = offline_run_at(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 40.0}}]), &x, 44_100);
+    let y = offline_run_at(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 40.0, "own": 1.0}}]), &x, 44_100);
     let (n0, n1) = (rms_db(&x[..r * 2 / 2]), rms_db(&y[..r * 2 / 2]));
     assert!(n1 < n0 - 14.0, "noise {n0:.1} → {n1:.1} dB in the first half second");
     let (t0, t1) = (rms_db(&x[r * 2 + r..]), rms_db(&y[r * 2 + r..]));
     assert!((t0 - t1).abs() < 1.0, "tone {t0:.1} → {t1:.1} dB");
     // stronger with more
-    let z = offline_run_at(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 100.0}}]), &x, 44_100);
+    let z = offline_run_at(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 100.0, "own": 1.0}}]), &x, 44_100);
     assert!(rms_db(&z[..r]) < n1 - 5.0);
 }
 
@@ -1454,5 +1455,44 @@ fn rendered_noise_reduction_brings_real_speech_out() {
     let before = si_sdr(&noisy, &clean[..n]);
     let y = offline_run(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 40.0}}]), &noisy);
     let after = si_sdr(&y, &clean[..n]);
+    assert!(after > before + 7.0, "SI-SDR {before:.1} → {after:.1} dB");
+}
+
+/// Sound at 44.1 kHz gets the network too (resampled to its 48 kHz and back): real speech under noise comes out about
+/// as clean as at 48 kHz, clearly better than Klipp's own cleaning, and in time (no shift against the input).
+#[test]
+fn rendered_noise_reduction_at_44k_uses_the_network() {
+    let dir = std::env::var("KLIPP_TEST_MEDIA").expect("set KLIPP_TEST_MEDIA to the folder with the test clips");
+    let read = |n: &str| -> Vec<f32> {
+        let b = std::fs::read(format!("{dir}/{n}")).unwrap_or_else(|_| panic!("{n} missing in KLIPP_TEST_MEDIA"));
+        let ch = u16::from_le_bytes([b[22], b[23]]) as usize;
+        let start = b.windows(4).position(|w| w == b"data").unwrap() + 8;
+        b[start..].chunks_exact(2 * ch).map(|f| i16::from_le_bytes([f[0], f[1]]) as f32 / 32768.0).collect()
+    };
+    // 48 kHz → 44.1 kHz with plain linear interpolation of a 2× oversampled… simply: every 48k sample at its 44.1k time
+    // (a test signal only needs to be the same for the reference and the input)
+    let to44 = |x: &[f32]| -> Vec<f32> {
+        let n = x.len() * 147 / 160;
+        (0..n).map(|i| { let t = i as f64 * 160.0 / 147.0; let k = t as usize; let f = (t - k as f64) as f32; x[k] * (1.0 - f) + x.get(k + 1).copied().unwrap_or(0.0) * f }).collect()
+    };
+    let clean = to44(&read("df_clean.wav"));
+    let noise = to44(&read("df_noise.wav"));
+    let n = clean.len().min(noise.len());
+    let st = |v: &[f32]| v.iter().flat_map(|x| [*x, *x]).collect::<Vec<f32>>();
+    let (clean, noise) = (st(&clean[..n]), st(&noise[..n]));
+    let (cs, ns) = (rms_db(&clean), rms_db(&noise));
+    let g = 10f32.powf((cs - ns - 5.0) / 20.0);
+    let noisy: Vec<f32> = (0..clean.len()).map(|i| clean[i] + g * noise[i]).collect();
+    let before = si_sdr(&noisy, &clean);
+    let y = offline_run_at(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 40.0}}]), &noisy, 44_100);
+    assert_eq!(y.len(), noisy.len());
+    let after = si_sdr(&y, &clean);
+    // the same lag search as a listener would notice: the best match is at zero shift
+    let lag = (-40i64..=40).max_by(|&a, &b| {
+        let c = |d: i64| (2000..clean.len() / 2 - 2000).map(|i| clean[i * 2] as f64 * y[((i as i64 + d) * 2) as usize] as f64).sum::<f64>();
+        c(a).total_cmp(&c(b))
+    }).unwrap();
+    println!("44.1 kHz: SI-SDR {before:.1} → {after:.1} dB, lag {lag}");
+    assert_eq!(lag, 0, "the cleaned sound is shifted by {lag} samples");
     assert!(after > before + 7.0, "SI-SDR {before:.1} → {after:.1} dB");
 }

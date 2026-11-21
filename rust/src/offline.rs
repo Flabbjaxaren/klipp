@@ -22,7 +22,7 @@ use std::f32::consts::PI;
 pub const RENDERED: [&str; 2] = ["denoise", "speech_enhance"];
 
 /// Bumped when rendered files come out differently (Kotlin keys its files with it).
-pub const VERSION: u32 = 2;
+pub const VERSION: u32 = 3;
 
 // ------------------------------------------------------------------ FFT
 
@@ -378,20 +378,180 @@ impl Dfn {
     }
 }
 
-/// The cleaning: the model when it can run, otherwise Klipp's own spectral one.
+/// Band-limited resampling at a fixed ratio (out = in · l / m), streaming, with an exact time map: output n is the
+/// input's value at time n·m/l + `offset` (input samples) – a Kaiser-windowed sinc read from a table. It answers an
+/// output only once the input it needs has come, so a caller holds its output back by a fixed number of samples.
+struct Rs {
+    l: u64,
+    m: u64,
+    half: i64,
+    offset: f64,
+    /// h(d) for d in [-half, half] at `RES` steps per sample.
+    table: Vec<f32>,
+    hist: VecDeque<f32>,
+    /// Input index of `hist[0]`.
+    base: i64,
+    next: i64,
+}
+
+const RES: usize = 512;
+
+impl Rs {
+    /// `cut`: the passband edge in cycles per input sample (< 0.5).
+    fn new(l: u64, m: u64, half: i64, cut: f64, offset: f64) -> Self {
+        let n = 2 * half as usize * RES + 1;
+        let beta = 8.6f64;
+        let i0 = |x: f64| {
+            let (mut s, mut t) = (1.0, 1.0);
+            for k in 1..40 {
+                t *= (x / 2.0) / k as f64;
+                s += t * t;
+            }
+            s
+        };
+        let table = (0..n)
+            .map(|i| {
+                let d = i as f64 / RES as f64 - half as f64;
+                let x = 2.0 * cut * d;
+                let sinc = if x.abs() < 1e-9 { 1.0 } else { (std::f64::consts::PI * x).sin() / (std::f64::consts::PI * x) };
+                let r = d / half as f64;
+                let w = if r.abs() >= 1.0 { 0.0 } else { i0(beta * (1.0 - r * r).sqrt()) / i0(beta) };
+                (2.0 * cut * sinc * w) as f32
+            })
+            .collect();
+        Rs { l, m, half, offset, table, hist: VecDeque::new(), base: 0, next: 0 }
+    }
+
+    fn h(&self, d: f64) -> f32 {
+        let p = (d + self.half as f64) * RES as f64;
+        if p < 0.0 || p >= (self.table.len() - 1) as f64 {
+            return 0.0;
+        }
+        let i = p as usize;
+        let f = (p - i as f64) as f32;
+        self.table[i] + (self.table[i + 1] - self.table[i]) * f
+    }
+
+    fn push(&mut self, x: &[f32], out: &mut Vec<f32>) {
+        self.hist.extend(x.iter().copied());
+        let have = self.base + self.hist.len() as i64; // inputs 0..have exist
+        loop {
+            let t = self.next as f64 * self.m as f64 / self.l as f64 + self.offset;
+            let c = t.floor() as i64;
+            if c + self.half >= have {
+                break;
+            }
+            let mut acc = 0f32;
+            for k in (c - self.half + 1)..=(c + self.half) {
+                if k < self.base {
+                    continue; // before the start: silence
+                }
+                acc += self.hist[(k - self.base) as usize] * self.h(t - k as f64);
+            }
+            out.push(acc);
+            self.next += 1;
+        }
+        // keep what the next outputs can still need
+        let t = self.next as f64 * self.m as f64 / self.l as f64 + self.offset;
+        let keep_from = t.floor() as i64 - self.half;
+        while self.base < keep_from && !self.hist.is_empty() {
+            self.hist.pop_front();
+            self.base += 1;
+        }
+    }
+}
+
+fn gcd(a: u64, b: u64) -> u64 {
+    if b == 0 { a } else { gcd(b, a % b) }
+}
+
+/// The model at another rate than its own: resampled to 48 kHz, cleaned, resampled back – the time map exact (the
+/// model's own delay is taken out in the way back), the whole held back by a fixed `lat`.
+struct DfnAt {
+    dfn: Dfn,
+    up: [Rs; 2],
+    down: [Rs; 2],
+    q: [VecDeque<f32>; 2],
+    lat: usize,
+    bufs: [Vec<f32>; 2],
+}
+
+impl DfnAt {
+    fn new(rate: u32, atten_db: f32) -> Option<Self> {
+        if !(8_000..=192_000).contains(&rate) {
+            return None;
+        }
+        let dfn = Dfn::new(48_000, atten_db)?;
+        let g = gcd(48_000, rate as u64);
+        let (l, m) = (48_000 / g, rate as u64 / g); // up: out = in · l / m
+        let (hu, hd) = (16i64, 18i64);
+        let r = rate as f64 / 48_000.0;
+        // up: the signal's band (just under its Nyquist); down: the target's band, both 95 %
+        let cut_up = 0.475 * (1.0f64).min(1.0 / r).min(1.0);
+        let cut_down = 0.475 * r.min(1.0);
+        let ld = dfn.lat as f64;
+        let mk_up = || Rs::new(l, m, hu, cut_up.min(0.475), 0.0);
+        let mk_down = || Rs::new(m, l, hd, cut_down, ld);
+        // how far behind the way back can be (rate samples): the up filter's reach, the model's delay and the down filter's reach
+        let lat = ((ld + hd as f64 + 2.0) * m as f64 / l as f64 + hu as f64 + 4.0).ceil() as usize;
+        Some(DfnAt {
+            dfn,
+            up: [mk_up(), mk_up()],
+            down: [mk_down(), mk_down()],
+            q: [VecDeque::from(vec![0f32; lat]), VecDeque::from(vec![0f32; lat])],
+            lat,
+            bufs: [Vec::new(), Vec::new()],
+        })
+    }
+
+    fn process(&mut self, x: [&mut [f32]; 2]) {
+        let [a, b] = x;
+        let n = a.len();
+        let (mut ua, mut ub) = (Vec::new(), Vec::new());
+        self.up[0].push(a, &mut ua);
+        self.up[1].push(b, &mut ub);
+        let k = ua.len().min(ub.len());
+        ua.truncate(k);
+        ub.truncate(k);
+        self.dfn.process([&mut ua[..], &mut ub[..]]);
+        for (c, u) in [ua, ub].into_iter().enumerate() {
+            self.bufs[c].clear();
+            let mut o = std::mem::take(&mut self.bufs[c]);
+            self.down[c].push(&u, &mut o);
+            self.q[c].extend(o.iter().copied());
+            self.bufs[c] = o;
+        }
+        for (c, ch) in [a, b].into_iter().enumerate() {
+            for v in ch.iter_mut().take(n) {
+                *v = self.q[c].pop_front().unwrap_or(0.0);
+            }
+        }
+    }
+}
+
+/// The cleaning: the model when it can run (at its own 48 kHz, or resampled to it), otherwise Klipp's own spectral one.
 enum Cleaner {
     Net(Box<Dfn>),
+    NetAt(Box<DfnAt>),
     Own(Denoise),
 }
 
 impl Cleaner {
     /// `amount` 0…1 → how far the noise may go down: 0 = not at all, 0.4 → 24 dB, 1 = all the way.
     fn new(rate: u32, amount: f32) -> Self {
+        Self::with(rate, amount, false)
+    }
+
+    /// `own`: Klipp's own cleaning even where the model could run (tests; the model's fallback).
+    fn with(rate: u32, amount: f32, own: bool) -> Self {
         let a = amount.clamp(0.0, 1.0);
         let atten = if a >= 0.99 { 100.0 } else { 60.0 * a };
-        if a > 0.0 {
+        if a > 0.0 && !own {
             if let Some(d) = Dfn::new(rate, atten) {
                 return Cleaner::Net(Box::new(d));
+            }
+            if let Some(d) = DfnAt::new(rate, atten) {
+                return Cleaner::NetAt(Box::new(d));
             }
         }
         Cleaner::Own(Denoise::new(rate, a))
@@ -400,6 +560,7 @@ impl Cleaner {
     fn latency(&self) -> usize {
         match self {
             Cleaner::Net(d) => d.lat,
+            Cleaner::NetAt(d) => d.lat,
             Cleaner::Own(d) => d.latency(),
         }
     }
@@ -413,6 +574,7 @@ impl Cleaner {
     fn process(&mut self, x: [&mut [f32]; 2]) {
         match self {
             Cleaner::Net(d) => d.process(x),
+            Cleaner::NetAt(d) => d.process(x),
             Cleaner::Own(d) => d.process(x),
         }
     }
@@ -611,7 +773,7 @@ impl Offline {
                 continue;
             }
             match e["id"].as_str()? {
-                "denoise" => stages.push(Stage::Denoise(Cleaner::new(rate, (num(e, "amount", 40.0) / 100.0) as f32))),
+                "denoise" => stages.push(Stage::Denoise(Cleaner::with(rate, (num(e, "amount", 40.0) / 100.0) as f32, num(e, "own", 0.0) > 0.5))),
                 "speech_enhance" => stages.push(Stage::Voice(Voice::new(rate, (num(e, "mix", 100.0) / 100.0) as f32, num(e, "tone", 0.0) > 0.5))),
                 _ => {
                     let one = crate::audio::FxChain::from_json(&serde_json::Value::Array(vec![e.clone()]));
