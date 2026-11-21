@@ -79,17 +79,19 @@ fun ConnectedToggleGroup(
     modifier: Modifier = Modifier,
     height: Dp = 44.dp,
     tag: (Int) -> String? = { null },
+    /** An icon before each label (optional). */
+    icons: List<ImageVector?> = emptyList(),
 ) {
     Row(modifier.height(height), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         for ((i, label) in items.withIndex()) {
             ConnectedItem(label, i == selected, first = i == 0, last = i == items.lastIndex, height = height,
-                modifier = Modifier.weight(1f).let { m -> tag(i)?.let { m.testTag(it) } ?: m }) { onSelect(i) }
+                modifier = Modifier.weight(1f).let { m -> tag(i)?.let { m.testTag(it) } ?: m }, icon = icons.getOrNull(i)) { onSelect(i) }
         }
     }
 }
 
 @Composable
-private fun ConnectedItem(label: String, selected: Boolean, first: Boolean, last: Boolean, height: Dp, modifier: Modifier, onClick: () -> Unit) {
+private fun ConnectedItem(label: String, selected: Boolean, first: Boolean, last: Boolean, height: Dp, modifier: Modifier, icon: ImageVector? = null, onClick: () -> Unit) {
     val haptics = rememberHaptics()
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
@@ -116,13 +118,16 @@ private fun ConnectedItem(label: String, selected: Boolean, first: Boolean, last
             .semantics { this.selected = selected },
         contentAlignment = Alignment.Center,
     ) {
-        // a long name shrinks to its segment on a narrow phone before it is cut
-        androidx.compose.foundation.text.BasicText(
-            label, color = { fg }, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium),
-            autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
-            modifier = Modifier.padding(horizontal = 6.dp),
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) androidx.compose.material3.Icon(icon, null, tint = fg, modifier = Modifier.padding(start = 6.dp).size(18.dp))
+            // a long name shrinks to its segment on a narrow phone before it is cut
+            androidx.compose.foundation.text.BasicText(
+                label, color = { fg }, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium),
+                autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 14.sp, stepSize = 0.5.sp),
+                modifier = Modifier.padding(horizontal = 6.dp),
+            )
+        }
     }
 }
 

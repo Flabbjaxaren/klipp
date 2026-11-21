@@ -903,7 +903,7 @@ private fun MaskControls(
             } else {
                 PillButton(stringResource(if (mask.animated) R.string.properties_track_again else if (se.gendut.klipp.engine.WindowTracker.faces) R.string.colortools_track_face else R.string.properties_track_object), {
                     MaskTrackService.start(ctx, gs, info, state.playhead) { t -> state.playing = false; state.playhead = t }
-                }, Modifier.testTag("mask:track"), icon = Ic.Target)
+                }, Modifier.testTag("mask:track"), icon = if (se.gendut.klipp.engine.WindowTracker.faces) Ic.Face else Ic.Target)
                 if (mask.animated) PillButton(stringResource(R.string.properties_clear_keyframes), {
                     haptics.confirm(); srcOf(state.playhead)?.let { set(fx.copy(mask = mask.at(it))) }
                 }, Modifier.testTag("mask:keysClear"), icon = Ic.Delete, filled = false)

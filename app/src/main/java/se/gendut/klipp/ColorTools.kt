@@ -653,7 +653,7 @@ fun WindowEditor(clip: Long, n: GradeNode, gs: GradeState, onLive: (GradeNode) -
                 } else {
                     PillButton(if (w.track != null) stringResource(R.string.colortools_retrack) else stringResource(if (se.gendut.klipp.engine.WindowTracker.faces) R.string.colortools_track_face else R.string.colortools_track_object), {
                         colorClip?.let { TrackService.start(ctx, gs, it, n.id, playhead(), seek) }
-                    }, Modifier.testTag("win:track"), icon = Ic.Target)
+                    }, Modifier.testTag("win:track"), icon = if (se.gendut.klipp.engine.WindowTracker.faces) Ic.Face else Ic.Target)
                     if (w.track != null) PillButton(stringResource(R.string.colortools_remove_tracking), { TrackService.clouds.remove(clip to n.id); gs.correctTrack = false; set(w.copy(track = null)) }, Modifier.testTag("win:trackClear"), icon = Ic.Delete, filled = false)
                 }
             }
@@ -1195,7 +1195,7 @@ fun TrackDensityRow() {
     Text(stringResource(R.string.colortools_track_follow), color = K.OnSurfaceVar, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
     ConnectedToggleGroup(listOf(stringResource(R.string.colortools_follow_object), stringResource(R.string.colortools_follow_face)),
         if (faces) 1 else 0, { i -> AppPrefs.setTrackFaces(ctx, i == 1) },
-        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "trackFollow:$it" })
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), tag = { "trackFollow:$it" }, icons = listOf(Ic.Target, Ic.Face))
     if (faces) Text(stringResource(R.string.colortools_follow_face_hint), color = K.Outline, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp))
     var d by remember { mutableStateOf(se.gendut.klipp.engine.WindowTracker.density) }
     val ds = se.gendut.klipp.engine.WindowTracker.DENSITIES

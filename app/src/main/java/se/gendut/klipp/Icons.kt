@@ -118,6 +118,8 @@ object Ic {
     val Layers = shifted("layers", 0f, 0.5f, "M12 4l9 5-9 5-9-5z", "M3 14l9 5 9-5")
     val Reset = stroke("reset", "M4 12a8 8 0 1 0 2.3-5.7", "M4 4v4h4")
     val Target = stroke("target", "M12 4a8 8 0 1 0 0.01 0", "M12 2v4", "M12 18v4", "M2 12h4", "M18 12h4", "M12 11a1 1 0 1 0 0.01 0")
+    /** A face (head outline, eyes, smile) – face following. */
+    val Face = stroke("face", "M12 3a8 9 0 1 0 0.01 0", "M9 10.5v0.5", "M15 10.5v0.5", "M9 15.5c1.8 1.5 4.2 1.5 6 0")
     val Waveform = stroke("waveform", "M3 5v14h18", "M6 14l3-6 3 8 3-10 3 6")
     val Parade = stroke("parade", "M3 5v14h18", "M7 9v7", "M12 7v9", "M17 11v5")
     val Vectorscope = stroke("vectorscope", "M12 3a9 9 0 1 0 0.01 0", "M12 7v10", "M7 12h10")
