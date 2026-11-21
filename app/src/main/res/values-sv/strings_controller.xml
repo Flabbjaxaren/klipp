@@ -120,6 +120,7 @@
     <string name="projectcontroller_undo_remove_media">Ta bort media</string>
     <string name="projectcontroller_undo_overwrite">Skriv över</string>
     <string name="projectcontroller_undo_insert">Infoga</string>
+    <string name="projectcontroller_undo_sequence_settings">Sekvensinställningar</string>
     <string name="projectcontroller_undo_move">Flytta</string>
     <string name="projectcontroller_undo_trim">Trimma</string>
     <string name="projectcontroller_undo_reverse">Baklänges</string>

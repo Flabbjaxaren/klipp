@@ -1374,8 +1374,20 @@ class ProjectController(
     fun setSequenceSettings(width: Int, height: Int, fps: Double, sampleRate: Int?, scaleMotion: Boolean = false) = scope.launch { editLock.withLock {
         val p = JSONObject().put("width", width).put("height", height).put("fps", fps).put("scaleMotion", scaleMotion)
         sampleRate?.let { p.put("sampleRate", it) }
-        if (snapshot.sequence == null) engine.tryExec("file.newSequence", newSeqParams().put("width", width).put("height", height).put("fps", fps).apply { sampleRate?.let { put("sampleRate", it) } })
-        else engine.tryExec("sequence.settings", p).onFailure { onMessage(Str.t(R.string.projectcontroller_change_failed, friendly(it.message))) }
+        val q0 = snapshot.sequence
+        if (q0 == null) engine.tryExec("file.newSequence", newSeqParams().put("width", width).put("height", height).put("fps", fps).apply { sampleRate?.let { put("sampleRate", it) } })
+        else group(Str.t(R.string.projectcontroller_undo_sequence_settings)) {
+            engine.tryExec("sequence.settings", p).onFailure { onMessage(Str.t(R.string.projectcontroller_change_failed, friendly(it.message))) }
+                .onSuccess {
+                    // positions follow the new frame (the center stays the center) – see FormatChange
+                    for (m in FormatChange.moves(q0, width, height)) {
+                        if (m.keys.isEmpty()) engine.tryExec("effects.setParam", JSONObject().put("clip", m.clip).put("effect", "motion")
+                            .put("param", "position").put("value", JSONArray().put(m.x).put(m.y)))
+                        for ((mt, v) in m.keys) engine.tryExec("effects.setKeyframe", JSONObject().put("clip", m.clip).put("effect", "motion")
+                            .put("param", "position").put("mediaTime", mt).put("value", JSONArray().put(v[0]).put(v[1])))
+                    }
+                }
+        }
         refresh()
         onMessage(Str.t(R.string.projectcontroller_sequence_now, width, height, "%.3f".format(fps).trimEnd('0').trimEnd(',', '.')))
     } }
