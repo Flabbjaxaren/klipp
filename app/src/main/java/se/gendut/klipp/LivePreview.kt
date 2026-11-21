@@ -399,18 +399,29 @@ fun LivePreview(
             val iw = img.width * f * s
             val ih = img.height * f * s
             val k = (c.scale / 100.0).toFloat()
+            // the layer's transparency (green screen, mask, crop) as playback makes it – without it a masked clip showed
+            // whole while scrubbing or dragging, and the mask came back when the finger was lifted
+            val alpha = gs?.shown(c.id)?.layer?.takeIf { it.hasAlpha }?.let { LayerAlpha.of(it, raw, shown.first) }
+            val opacity = (c.opacity / 100.0).toFloat().coerceIn(0f, 1f)
+            val dstOff = IntOffset((-iw / 2).roundToInt(), (-ih / 2).roundToInt())
+            val dstSize = IntSize(iw.roundToInt().coerceAtLeast(1), ih.roundToInt().coerceAtLeast(1))
             translate(((c.x ?: (w / 2.0)) * s).toFloat(), ((c.y ?: (h / 2.0)) * s).toFloat()) {
                 rotate(c.rotation.toFloat(), Offset.Zero) {
                     scale(k, k, Offset.Zero) {
-                        if (stab != null) drawContext.canvas.nativeCanvas.concat(android.graphics.Matrix().apply {
+                        val cv = drawContext.canvas.nativeCanvas
+                        if (alpha != null) cv.saveLayerAlpha(-iw / 2 - 1, -ih / 2 - 1, iw / 2 + 1, ih / 2 + 1, (opacity * 255).roundToInt())
+                        val saved = cv.save()
+                        if (stab != null) cv.concat(android.graphics.Matrix().apply {
                             // the translation in the still's pixels → drawn size
                             setValues(floatArrayOf(stab.a, stab.b, stab.tx / raw.width * iw, stab.c, stab.d, stab.ty / raw.height * ih, 0f, 0f, 1f))
                         })
-                        drawImage(
-                            img, dstOffset = IntOffset((-iw / 2).roundToInt(), (-ih / 2).roundToInt()),
-                            dstSize = IntSize(iw.roundToInt().coerceAtLeast(1), ih.roundToInt().coerceAtLeast(1)),
-                            alpha = (c.opacity / 100.0).toFloat().coerceIn(0f, 1f),
-                        )
+                        drawImage(img, dstOffset = dstOff, dstSize = dstSize, alpha = if (alpha != null) 1f else opacity)
+                        cv.restoreToCount(saved)
+                        if (alpha != null) {
+                            // (the mask lies in the stabilized frame, as in playback's chain: after the stabilization)
+                            drawImage(alpha, dstOffset = dstOff, dstSize = dstSize, blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
+                            cv.restore()
+                        }
                     }
                 }
             }
@@ -507,3 +518,48 @@ private var shiftsFor: Pair<se.gendut.klipp.engine.SequenceSnap, Map<Long, Float
 private fun captionShifts(q: se.gendut.klipp.engine.SequenceSnap): Map<Long, Float> =
     shiftsFor?.takeIf { it.first === q }?.second
         ?: se.gendut.klipp.engine.CaptionStack.shifts(q.captions, q.captionTracks, q.width, q.height).also { shiftsFor = q to it }
+
+/**
+ * A layer's transparency (green screen, mask, crop – [se.gendut.klipp.engine.LayerFx.apply], the shader's math) for a
+ * still, as a small image whose alpha is drawn over the still (DstIn). Computed at most 480 px wide (a few ms); the
+ * last few are kept, so a still that is shown again (the player paused, a slider that moves) costs nothing.
+ */
+internal object LayerAlpha {
+    private const val MAX_W = 480
+    private val cache = object : java.util.LinkedHashMap<Any, ImageBitmap>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Any, ImageBitmap>?) = size > 6
+    }
+
+    fun of(fx: se.gendut.klipp.engine.LayerFx, raw: ImageBitmap, src: Double): ImageBitmap? {
+        // the mask and crop as they are at the still's own time (keyframes, tracking); the key reads the still's colors
+        val at = fx.copy(mask = fx.mask?.atFor(src, src), crop = fx.crop?.atFor(src, src))
+        val key = if (at.key != null) Triple(at, raw, Unit) else Pair(at, raw.width.toFloat() / raw.height)
+        synchronized(cache) { cache[key] }?.let { return it }
+        val out = runCatching { make(at, raw) }.getOrNull() ?: return null
+        synchronized(cache) { cache[key] = out }
+        return out
+    }
+
+    internal fun make(fx: se.gendut.klipp.engine.LayerFx, raw: ImageBitmap): ImageBitmap {
+        val aw = raw.width.coerceAtMost(MAX_W).coerceAtLeast(1)
+        val ah = (aw.toFloat() * raw.height / raw.width).roundToInt().coerceAtLeast(1)
+        val aspect = raw.width.toFloat() / raw.height
+        val colors = if (fx.key != null) {
+            val b = raw.asAndroidBitmap().let { if (it.config == android.graphics.Bitmap.Config.HARDWARE) it.copy(android.graphics.Bitmap.Config.ARGB_8888, false) else it }
+            val small = android.graphics.Bitmap.createScaledBitmap(b, aw, ah, true)
+            IntArray(aw * ah).also { small.getPixels(it, 0, aw, 0, 0, aw, ah) }
+        } else null
+        val px = IntArray(aw * ah)
+        val rgb = FloatArray(3)
+        for (y in 0 until ah) {
+            val fy = (y + 0.5f) / ah
+            for (x in 0 until aw) {
+                val i = y * aw + x
+                colors?.get(i)?.let { c -> rgb[0] = ((c shr 16) and 255) / 255f; rgb[1] = ((c shr 8) and 255) / 255f; rgb[2] = (c and 255) / 255f }
+                val a = fx.apply(rgb, (x + 0.5f) / aw, fy, aspect)
+                px[i] = ((a.coerceIn(0f, 1f) * 255f).roundToInt() shl 24)
+            }
+        }
+        return android.graphics.Bitmap.createBitmap(px, aw, ah, android.graphics.Bitmap.Config.ARGB_8888).asImageBitmap()
+    }
+}
