@@ -1061,7 +1061,8 @@ private fun KlippAppContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 UndoRedo(state, ::undo, ::redo)
                 Spacer(Modifier.width(8.dp))
-                Dock(state, { page.value }, audioTabs(mix, audioTools != null), Modifier.weight(1f))
+                Dock(state, { page.value }, audioTabs(mix, audioTools != null, audioTools?.trackFx != null,
+                    controller?.let { c -> c.revision; c.snapshot.sequence?.audio?.take(3)?.any { t -> t.afx.any { it.on } } } == true), Modifier.weight(1f))
             }
         }
         }
