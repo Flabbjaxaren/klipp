@@ -417,16 +417,25 @@ class FxRegistry(private val native: FxNative = EngineFx) {
         return id
     }
 
+    companion object {
+        /** A track's effects (inserts) are registered under this key – apart from the clips' ids. */
+        fun trackKey(track: Long) = -1L - track
+    }
+
     /** A slider is dragged: all chains for the clip get the value immediately. */
     @Synchronized fun live(clip: Long, index: Int, param: String, value: Double) {
         byClip[clip]?.forEach { native.set(it, index, param, value) }
     }
 
     /** After a change in the engine (undo, another device …): the chains get the engine's values. */
-    @Synchronized fun sync(clips: List<ClipSnap>) {
+    @Synchronized fun sync(clips: List<ClipSnap>, tracks: List<TrackSnap> = emptyList()) {
         for (c in clips) {
             val ids = byClip[c.id] ?: continue
             for (e in c.afx) for ((k, v) in e.params) ids.forEach { native.set(it, e.index, k, v) }
+        }
+        for (t in tracks) {
+            val ids = byClip[trackKey(t.id)] ?: continue
+            for (e in t.afx) for ((k, v) in e.params) ids.forEach { native.set(it, e.index, k, v) }
         }
     }
 

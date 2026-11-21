@@ -127,11 +127,15 @@ object CompositionBuilder {
             if (p.start > t + 0.001) b.addGap(us(p.start - t))
             val speed = if (kotlin.math.abs(p.speed - 1.0) > 0.001) constantSpeed(p.speed.toFloat()) else null
             val chain = fx?.create(p.clip, p.afx) ?: 0L
-            val procs: List<androidx.media3.common.audio.AudioProcessor> = if (chain != 0L) {
+            // the track's own effects (inserts) after the clip's: a chain per piece, so its state starts over at each
+            // piece (an echo's tail stops at the clip's end)
+            val trackChain = fx?.create(FxRegistry.trackKey(track.id), track.afx) ?: 0L
+            val procs: List<androidx.media3.common.audio.AudioProcessor> = if (chain != 0L || trackChain != 0L) {
                 // effects between the clip's level (before) and the track's volume (after), as in the engine's mixer
-                listOf(
+                listOfNotNull(
                     GainRampProcessor(p, 1f),
-                    FxProcessor(chain),
+                    chain.takeIf { it != 0L }?.let { FxProcessor(it) },
+                    trackChain.takeIf { it != 0L }?.let { FxProcessor(it) },
                     GainRampProcessor(p, trackGain, clip = false, track = track.takeIf { it.hasAutomation }, master = master, meter = meter),
                 )
             } else if (!p.varying && !track.hasAutomation && meter < 0) {
@@ -1024,7 +1028,8 @@ class ProgramPlayback(private val context: Context) {
         val sb = StringBuilder()
         sb.append(playerLook).append(master).append(hdrCodecFailed).append(LiveGrades.structure(grades).hashCode()).append('#').append(q.width).append('x').append(q.height).append(q.captions).append('#')
         for (t in q.video.take(3) + q.audio.take(3)) {
-            sb.append(t.id).append(t.enabled).append(t.muted).append(t.solo).append(t.volumeDb).append(t.transitions).append(t.volKf).append(t.autoMode).append('|')
+            sb.append(t.id).append(t.enabled).append(t.muted).append(t.solo).append(t.volumeDb).append(t.transitions).append(t.volKf).append(t.autoMode)
+                .append(t.afx.map { it.copy(params = emptyMap()) }).append('|')
             // the audio effects' values change live in the chains (no rebuild) – only which effects exist counts
             for (c in t.clips) sb.append(c.copy(afx = c.afx.map { it.copy(params = emptyMap()) })).append(':').append(uriOf(c.item)?.let { Proxies.videoUri(it) }).append(';')
         }
@@ -1066,7 +1071,7 @@ class ProgramPlayback(private val context: Context) {
         LiveGrades.publish(grades)
         if (!force && key == lastKey && hasContent) {
             // same structure: the chains get the engine's current parameter values (undo, released controls …)
-            fx.sync(s.sequence?.audio?.flatMap { it.clips }.orEmpty())
+            fx.sync(s.sequence?.audio?.flatMap { it.clips }.orEmpty(), s.sequence?.audio.orEmpty())
             // changed grade: a new frame is enough (if it is already playing the change shows directly). A seek to
             // exactly the same position is ignored – hence 1 ms forward, the same frame
             if (grades !== shownGrades && !player.playWhenReady) nudge()

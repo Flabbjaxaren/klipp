@@ -211,7 +211,7 @@ data class ClipSnap(
     val isTitle get() = text != null
 }
 
-/** An audio effect on a clip: slot in the rack ([index]), effect id, on/off and the parameters. */
+/** An audio effect on a clip or a track: slot in the rack ([index]), effect id, on/off and the parameters. */
 data class AfxSnap(val index: Int, val id: String, val on: Boolean, val params: Map<String, Double>) {
     fun toJson(): JSONObject = JSONObject().put("i", index).put("id", id).put("on", on)
         .put("p", JSONObject().also { o -> params.forEach { (k, v) -> o.put(k, v) } })
@@ -219,6 +219,14 @@ data class AfxSnap(val index: Int, val id: String, val on: Boolean, val params: 
     companion object {
         /** The chain's description for the bridge (only enabled effects matter). */
         fun chainJson(list: List<AfxSnap>): String = JSONArray().also { a -> list.forEach { a.put(it.toJson()) } }.toString()
+
+        /** The snapshot's `afx` list (a clip's effects or a track's). */
+        fun listOf(a: JSONArray?): List<AfxSnap> = if (a == null) emptyList() else (0 until a.length()).mapNotNull { i ->
+            val o = a.optJSONObject(i) ?: return@mapNotNull null
+            val p = o.optJSONObject("p")
+            AfxSnap(o.optInt("i"), o.optString("id"), o.optBoolean("on", true),
+                p?.keys()?.asSequence()?.associateWith { k -> p.optDouble(k) }?.filterValues { !it.isNaN() }.orEmpty())
+        }
     }
 }
 
@@ -252,6 +260,8 @@ data class TrackSnap(
     val volKf: List<Pair<Double, Double>> = emptyList(),
     /** Automation mode (Off = keyframes aren't read). */
     val autoMode: String = "Read",
+    /** The track's own audio effects (the mixer's inserts), after each clip's own. */
+    val afx: List<AfxSnap> = emptyList(),
 ) {
     /** The track volume at a time: the automation if present (and read), otherwise the fader. */
     fun volumeAt(t: Double): Double {
@@ -455,11 +465,7 @@ data class Snapshot(
                                         }.sortedBy { it.t }
                                     }
                                 }.orEmpty(),
-                                afx = c.optJSONArray("afx").list { a ->
-                                    val p = a.optJSONObject("p")
-                                    AfxSnap(a.optInt("i"), a.optString("id"), a.optBoolean("on", true),
-                                        p?.keys()?.asSequence()?.associateWith { k -> p.optDouble(k) }?.filterValues { !it.isNaN() }.orEmpty())
-                                },
+                                afx = AfxSnap.listOf(c.optJSONArray("afx")),
                                 text = c.optJSONObject("text")?.let { t ->
                                     val col = t.optJSONArray("color")
                                     TextSnap(
@@ -487,6 +493,7 @@ data class Snapshot(
                                 .filter { !it.first.isNaN() && !it.second.isNaN() }.sortedBy { it.first }
                         }.orEmpty(),
                         autoMode = t.optString("autoMode", "Read"),
+                        afx = AfxSnap.listOf(t.optJSONArray("afx")),
                     )
                 }
                 SequenceSnap(

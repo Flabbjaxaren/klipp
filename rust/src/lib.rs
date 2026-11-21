@@ -432,22 +432,7 @@ fn clip_json(c: &TrackItem) -> Value {
         v["kf"] = Value::Object(kf);
     }
     // audio effects with DSP (index = position in the clip's rack, for effects.setParam/remove)
-    let afx: Vec<Value> = c
-        .effects
-        .iter()
-        .enumerate()
-        .filter(|(_, e)| !e.def().is_some_and(|d| d.intrinsic) && filmcraft_engine::render::audio_fx::supported(&e.effect))
-        .map(|(i, e)| {
-            let mut p = serde_json::Map::new();
-            for (k, prm) in &e.params {
-                let x = prm.keyframes.first().map(|k| &k.value).unwrap_or(&prm.value);
-                if let Some(f) = x.as_f64() {
-                    p.insert(k.clone(), num(f));
-                }
-            }
-            json!({"i": i, "id": e.effect, "on": e.enabled, "p": p})
-        })
-        .collect();
+    let afx = afx_json(&c.effects);
     if !afx.is_empty() {
         v["afx"] = Value::Array(afx);
     }
@@ -470,6 +455,25 @@ fn clip_json(c: &TrackItem) -> Value {
     v
 }
 
+/// Audio effects with DSP as the snapshot's `afx` list: `i` = position in the rack (a clip's effects or a track's inserts).
+fn afx_json(effects: &[filmcraft_engine::project::EffectInstance]) -> Vec<Value> {
+    effects
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| !e.def().is_some_and(|d| d.intrinsic) && filmcraft_engine::render::audio_fx::supported(&e.effect))
+        .map(|(i, e)| {
+            let mut p = serde_json::Map::new();
+            for (k, prm) in &e.params {
+                let x = prm.keyframes.first().map(|k| &k.value).unwrap_or(&prm.value);
+                if let Some(f) = x.as_f64() {
+                    p.insert(k.clone(), num(f));
+                }
+            }
+            json!({"i": i, "id": e.effect, "on": e.enabled, "p": p})
+        })
+        .collect()
+}
+
 fn seq_json(q: &Sequence) -> Value {
     let tracks = |ts: &Vec<filmcraft_engine::project::Track>| -> Value {
         ts.iter()
@@ -481,6 +485,8 @@ fn seq_json(q: &Sequence) -> Value {
                     "autoMode": format!("{:?}", t.mixer.mode),
                     // volume automation (the track's keyframes, sequence time): [[s, dB], …]
                     "volKf": t.mixer.lanes.get("volume").map(|l| l.keyframes.iter().map(|k| json!([secs(k.time), num(k.value.as_f64().unwrap_or(0.0))])).collect::<Vec<_>>()).unwrap_or_default(),
+                    // the track's own effects (the mixer's inserts), played after each clip's own
+                    "afx": afx_json(&t.effects),
                     "clips": t.items.iter().map(clip_json).collect::<Vec<_>>(),
                     "transitions": t.transitions.iter().map(|x| json!({
                         "id": x.id.0, "effect": x.effect.effect, "start": secs(x.start), "duration": secs(x.duration),

@@ -124,6 +124,7 @@
     <string name="colorpage_log_high">High range</string>
     <string name="properties_tab_key">Keying</string>
     <string name="panels_tab_mixer">Mixer</string>
+    <string name="panels_tab_effects">Effects</string>
     <string name="panels_tab_loudness">Loudness</string>
     <string name="panels_tab_ducking">Ducking</string>
     <string name="colorpage_group_balance">White balance</string>

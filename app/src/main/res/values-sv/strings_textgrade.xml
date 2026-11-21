@@ -124,6 +124,7 @@
     <string name="colorpage_log_high">Övre gräns</string>
     <string name="properties_tab_key">Nyckling</string>
     <string name="panels_tab_mixer">Mixer</string>
+    <string name="panels_tab_effects">Effekter</string>
     <string name="panels_tab_loudness">Loudness</string>
     <string name="panels_tab_ducking">Ducking</string>
     <string name="colorpage_group_balance">Vitbalans</string>

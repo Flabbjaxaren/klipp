@@ -476,6 +476,18 @@ private fun KlippAppContent(
                 duck = { t, db -> c.autoDuck(t, db) },
                 unduck = { t -> c.removeDucking(t) },
                 addSound = { file, name, secs -> state.playing = false; c.placeSound(file, state.playhead.toDouble(), secs, name) },
+                trackFx = { i ->
+                    AfxRackOps(
+                        add = { c.addTrackFx(i, it) },
+                        toggle = { c.toggleTrackFx(i, it) },
+                        remove = { c.removeTrackFx(i, it) },
+                        setParam = { s, k, v -> c.setTrackFxParams(i, s, mapOf(k to v)) },
+                        setParams = { s, m -> c.setTrackFxParams(i, s, m) },
+                        // heard directly in the playing chains, as a clip's
+                        live = { s, k, v -> c.snapshot.sequence?.audio?.getOrNull(i)?.let { t -> state.onFxLive?.invoke(se.gendut.klipp.engine.FxRegistry.trackKey(t.id), s, k, v) } },
+                        max = 5,
+                    )
+                },
             )
         }
     }

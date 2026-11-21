@@ -427,6 +427,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var openTab by mutableStateOf<String?>(null)
     /** The audio and text pages' current tab (the dock at the bottom shows and changes it). */
     var audioTab by mutableStateOf(0)
+    /** The track whose effects the sound page's Effects tab shows (0–2 = A1–A3). */
+    var audioFxTrack by mutableStateOf(0)
     /**
      * Draw a box on the picture (what a title should follow): the box as center and half sides (fractions of the
      * picture, y down) goes to the callback; null = not drawing.

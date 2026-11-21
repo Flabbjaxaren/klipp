@@ -313,14 +313,19 @@ class AudioRoundTest {
         val tools = AudioTools(
             tracks = { tracks }, toggleKf = { i, at, db -> log += "kf $i $at ${"%.1f".format(java.util.Locale.ROOT, db)}" }, clearKf = { log += "clear $it" },
             measure = { Result.success(Triple(-19.9, -11.9, 4.0)) }, voiceOver = vo,
+            trackFx = { i -> AfxRackOps({ log += "trackfx $i $it" }, { log += "toggle $i $it" }, { log += "remove $i $it" }, { _, _, _ -> }, { _, _ -> }, { _, _, _ -> }, max = 5) },
         )
         var commits = 0
         mix.onCommit = { if (it == 3) commits++ }
         rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { AudioPanel(mix, st, tools) } } }
         rule.waitForIdle()
-        rule.onNodeWithTag("kf:A2").performScrollTo().performClick()
-        rule.waitForIdle()
-        assertTrue(log.toString(), log.contains("kf 1 3.0 0.0"))
+        // the old track automation is gone from the mixer (volume is drawn on the clips in the timeline)
+        rule.onNodeWithTag("kf:A2").assertDoesNotExist()
+        // the tracks' own effects: the same rack as a clip's
+        rule.onNodeWithTag("audioTab:effects").performClick(); rule.waitForIdle()
+        rule.onNodeWithTag("fxTrack:1").performClick(); rule.waitForIdle()
+        rule.onNodeWithTag("addFx:delay").performScrollTo().performClick(); rule.waitForIdle()
+        assertTrue(log.toString(), log.contains("trackfx 1 delay"))
         rule.onNodeWithTag("audioTab:loudness").performClick(); rule.waitForIdle()
         rule.onNodeWithTag("normalize").performScrollTo().performClick()
         rule.waitUntil(3000) { commits > 0 }

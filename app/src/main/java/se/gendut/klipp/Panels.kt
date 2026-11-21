@@ -283,6 +283,8 @@ class AudioTools(
     val unduck: suspend (Int) -> Result<Int> = { Result.success(0) },
     /** Place a sound effect (file, name, seconds) at the playhead (SoundFxSheet). */
     val addSound: ((java.io.File, String, Double) -> Unit)? = null,
+    /** The effects on track i (A1–A3): the same rack as a clip's. */
+    val trackFx: ((Int) -> AfxRackOps)? = null,
 )
 
 /**
@@ -364,8 +366,9 @@ private val LOUDNESS_TARGETS = listOf(-14.0 to R.string.panels_target_youtube, -
  * already there. New sound (effects, speech, a voice-over) is added from the edit page's dock.
  */
 @Composable
-internal fun audioTabs(mix: AudioMix, tools: Boolean): List<ToolTab> = listOf(
+internal fun audioTabs(mix: AudioMix, tools: Boolean, effects: Boolean = false, effectsOn: Boolean = false): List<ToolTab> = listOf(
     ToolTab(stringResource(R.string.panels_tab_mixer), Ic.Sliders, "audioTab:mixer"),
+) + (if (effects) listOf(ToolTab(stringResource(R.string.panels_tab_effects), Ic.Bolt, "audioTab:effects", effectsOn)) else emptyList()) + listOf(
     ToolTab(stringResource(R.string.panels_tab_loudness), Ic.Waveform, "audioTab:loudness", mix.normDb != 0f),
 ) + if (!tools) emptyList() else listOf(
     ToolTab(stringResource(R.string.panels_tab_ducking), Ic.VolLine, "audioTab:ducking"),
@@ -417,15 +420,15 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
         // the tab lives in the editor state: in the app the dock at the bottom shows the tabs (dockTabs) and the top
         // bar names the page; on its own the page does both itself
         var tab by state::audioTab
-        val tabs = audioTabs(mix, tools != null)
+        val tabs = audioTabs(mix, tools != null, tools?.trackFx != null, tracks.take(3).any { t -> t.afx.any { it.on } })
         LaunchedEffect(state.openTab) { tabs.indexOfFirst { it.tag == state.openTab }.takeIf { it >= 0 }?.let { tab = it; state.openTab = null } }
         if (!dockTabs) {
             PanelTitle(stringResource(R.string.panels_audio))
             ToolTabs(tabs, tab.coerceIn(0, tabs.lastIndex), { tab = it }, Modifier.padding(horizontal = 12.dp))
         }
         Spacer(Modifier.height(10.dp))
-        when (tab.coerceIn(0, tabs.lastIndex)) {
-            0 -> {
+        when (tabs[tab.coerceIn(0, tabs.lastIndex)].tag) {
+            "audioTab:mixer" -> {
                 // the strips take the room above the dock, so the values and M/S under the faders show without scrolling
                 val above = if (dockTabs) 10.dp else 122.dp
                 val stripHeight = (pageHeight - above - (if (bar > 0.dp) bar + 8.dp else 12.dp)).coerceIn(216.dp, 280.dp)
@@ -438,21 +441,31 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
                 Text(stringResource(R.string.panels_faders_scope), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("mixer:scope"))
                 if (tracks.take(3).any { it.volKf.isNotEmpty() }) Text(stringResource(R.string.panels_auto_meaning), color = K.OnSurfaceVar, fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("mixer:auto"))
-                if (tools != null) PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.panels_volume_automation)) {
-                    Text(stringResource(R.string.panels_automation_hint),
-                        color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))
-                    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        for (i in 0..2) {
-                            val n = tracks.getOrNull(i)?.volKf?.size ?: 0
-                            SpringChip("◆ A${i + 1}" + if (n > 0) " ($n)" else "", n > 0, {
-                                haptics.tick(); tools.toggleKf(i, state.playhead.toDouble(), mix.db(i))
-                            }, Modifier.testTag("kf:A${i + 1}"))
-                            if (n > 0) SpringChip(stringResource(R.string.panels_clear_track, i + 1), false, { haptics.heavy(); tools.clearKf(i) }, Modifier.testTag("kfClear:A${i + 1}"))
-                        }
-                    }
+                // volume is drawn on each clip in the timeline now (double-tap an audio track); a track that still has
+                // the old track automation can have it taken away here
+                if (tools != null && tracks.take(3).any { it.volKf.isNotEmpty() }) androidx.compose.foundation.layout.FlowRow(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    for (i in 0..2) if ((tracks.getOrNull(i)?.volKf?.size ?: 0) > 0)
+                        SpringChip(stringResource(R.string.panels_clear_track, i + 1), false, { haptics.heavy(); tools.clearKf(i) }, Modifier.testTag("kfClear:A${i + 1}"))
                 }
             }
-            1 -> PanelCard {
+            "audioTab:effects" -> if (tools?.trackFx != null) {
+                // the track's own effects: the same rack as a clip's
+                var fxTrack by state::audioFxTrack
+                Row(Modifier.padding(horizontal = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (i in 0..2) {
+                        val n = tracks.getOrNull(i)?.afx?.size ?: 0
+                        SpringChip("A${i + 1}" + if (n > 0) " · $n" else "", fxTrack == i, { haptics.tick(); fxTrack = i }, Modifier.weight(1f).testTag("fxTrack:$i"))
+                    }
+                }
+                val t = tracks.getOrNull(fxTrack)
+                val ops = remember(fxTrack, tools) { tools.trackFx.invoke(fxTrack) }
+                PanelCard(Modifier.padding(top = 10.dp)) {
+                    AudioFxRack(t?.afx.orEmpty(), ops, stringResource(R.string.audioui_track_effects, "A${fxTrack + 1}"), stringResource(R.string.audioui_track_effects_hint), key = "track$fxTrack")
+                }
+            }
+            "audioTab:loudness" -> PanelCard {
                 // loudness: measure the whole mix and normalize master toward a target
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 4.dp).fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

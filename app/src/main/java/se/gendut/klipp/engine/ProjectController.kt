@@ -1510,6 +1510,29 @@ class ProjectController(
 
     fun clearTrackKeyframes(index: Int) = run("mixer.clearLane", JSONObject().put("strip", "A${index + 1}").put("lane", "volume")).let { }
 
+    // ------------------------------------------------------------------ audio: the tracks' own effects (inserts)
+
+    /** Effect [effect] last on audio track A(index+1) (applies to every clip on it, after the clip's own effects). */
+    fun addTrackFx(index: Int, effect: String) = run("mixer.addInsert", JSONObject().put("strip", "A${index + 1}").put("effect", effect)).let { }
+    fun removeTrackFx(index: Int, slot: Int) = run("mixer.removeInsert", JSONObject().put("strip", "A${index + 1}").put("slot", slot)).let { }
+    fun toggleTrackFx(index: Int, slot: Int) {
+        val on = snapshot.sequence?.audio?.getOrNull(index)?.afx?.firstOrNull { it.index == slot }?.on ?: return
+        run("mixer.setInsert", JSONObject().put("strip", "A${index + 1}").put("slot", slot).put("enabled", !on))
+    }
+    /** Parameters of the effect in [slot] on track A(index+1) – one undo step. */
+    fun setTrackFxParams(index: Int, slot: Int, values: Map<String, Double>) {
+        if (values.isEmpty()) return
+        val fx = snapshot.sequence?.audio?.getOrNull(index)?.afx?.firstOrNull { it.index == slot }?.id ?: ""
+        val p = JSONObject()
+        for ((param, value) in values) p.put(param, when {
+            // on/off parameters are bool in the engine, choices (slope) integers
+            AudioFxCatalog.isToggle(fx, param) -> value > 0.5
+            AudioFxCatalog.isChoice(param) -> Math.round(value).toInt()
+            else -> value
+        })
+        run("mixer.setInsert", JSONObject().put("strip", "A${index + 1}").put("slot", slot).put("params", p))
+    }
+
     /** Loudness measurement of the whole mix (the engine's mix, before master): integrated LUFS, true peak, LRA. */
     /**
      * Automatic ducking (the engine's Essential Sound): the music on audio track [track] is lowered [reduceDb] dB where something is heard on
