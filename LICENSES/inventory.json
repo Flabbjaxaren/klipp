@@ -1122,6 +1122,1862 @@
    "notes": ""
   },
   {
+   "id": "maven:androidx.activity:activity",
+   "component": "androidx.activity:activity",
+   "version": "1.13.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/activity#1.13.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.activity:activity-compose",
+   "component": "androidx.activity:activity-compose",
+   "version": "1.13.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/activity#1.13.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.activity:activity-ktx",
+   "component": "androidx.activity:activity-ktx",
+   "version": "1.13.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/activity#1.13.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.annotation:annotation",
+   "component": "androidx.annotation:annotation",
+   "version": "1.9.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/annotation#1.9.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.annotation:annotation-experimental",
+   "component": "androidx.annotation:annotation-experimental",
+   "version": "1.4.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/annotation#1.4.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.annotation:annotation-jvm",
+   "component": "androidx.annotation:annotation-jvm",
+   "version": "1.9.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/annotation#1.9.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.arch.core:core-common",
+   "component": "androidx.arch.core:core-common",
+   "version": "2.2.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/arch-core#2.2.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.arch.core:core-runtime",
+   "component": "androidx.arch.core:core-runtime",
+   "version": "2.2.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/arch-core#2.2.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.autofill:autofill",
+   "component": "androidx.autofill:autofill",
+   "version": "1.0.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.collection:collection",
+   "component": "androidx.collection:collection",
+   "version": "1.5.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/collection#1.5.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.collection:collection-jvm",
+   "component": "androidx.collection:collection-jvm",
+   "version": "1.5.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/collection#1.5.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.collection:collection-ktx",
+   "component": "androidx.collection:collection-ktx",
+   "version": "1.5.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/collection#1.5.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.animation:animation",
+   "component": "androidx.compose.animation:animation",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-animation#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.animation:animation-android",
+   "component": "androidx.compose.animation:animation-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-animation#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.animation:animation-core",
+   "component": "androidx.compose.animation:animation-core",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-animation#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.animation:animation-core-android",
+   "component": "androidx.compose.animation:animation-core-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-animation#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.foundation:foundation",
+   "component": "androidx.compose.foundation:foundation",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-foundation#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.foundation:foundation-android",
+   "component": "androidx.compose.foundation:foundation-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-foundation#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.foundation:foundation-layout",
+   "component": "androidx.compose.foundation:foundation-layout",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-foundation#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.foundation:foundation-layout-android",
+   "component": "androidx.compose.foundation:foundation-layout-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-foundation#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.material3:material3",
+   "component": "androidx.compose.material3:material3",
+   "version": "1.4.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-material3#1.4.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.material3:material3-android",
+   "component": "androidx.compose.material3:material3-android",
+   "version": "1.4.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-material3#1.4.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.material:material-ripple",
+   "component": "androidx.compose.material:material-ripple",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-material#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.material:material-ripple-android",
+   "component": "androidx.compose.material:material-ripple-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-material#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.runtime:runtime",
+   "component": "androidx.compose.runtime:runtime",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.runtime:runtime-android",
+   "component": "androidx.compose.runtime:runtime-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.runtime:runtime-annotation",
+   "component": "androidx.compose.runtime:runtime-annotation",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.runtime:runtime-annotation-android",
+   "component": "androidx.compose.runtime:runtime-annotation-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.runtime:runtime-retain",
+   "component": "androidx.compose.runtime:runtime-retain",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.runtime:runtime-retain-android",
+   "component": "androidx.compose.runtime:runtime-retain-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.runtime:runtime-saveable",
+   "component": "androidx.compose.runtime:runtime-saveable",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.runtime:runtime-saveable-android",
+   "component": "androidx.compose.runtime:runtime-saveable-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-runtime#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui",
+   "component": "androidx.compose.ui:ui",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-android",
+   "component": "androidx.compose.ui:ui-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-geometry",
+   "component": "androidx.compose.ui:ui-geometry",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-geometry-android",
+   "component": "androidx.compose.ui:ui-geometry-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-graphics",
+   "component": "androidx.compose.ui:ui-graphics",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-graphics-android",
+   "component": "androidx.compose.ui:ui-graphics-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-text",
+   "component": "androidx.compose.ui:ui-text",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-text-android",
+   "component": "androidx.compose.ui:ui-text-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-tooling-preview",
+   "component": "androidx.compose.ui:ui-tooling-preview",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-tooling-preview-android",
+   "component": "androidx.compose.ui:ui-tooling-preview-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-unit",
+   "component": "androidx.compose.ui:ui-unit",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-unit-android",
+   "component": "androidx.compose.ui:ui-unit-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-util",
+   "component": "androidx.compose.ui:ui-util",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose.ui:ui-util-android",
+   "component": "androidx.compose.ui:ui-util-android",
+   "version": "1.12.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/compose-ui#1.12.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.compose:compose-bom",
+   "component": "androidx.compose:compose-bom",
+   "version": "2026.09.00",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK, so there is no source to publish.",
+   "included_in": "not distributed – Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK, so there is no source to publish.",
+   "distributed": false,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.concurrent:concurrent-futures",
+   "component": "androidx.concurrent:concurrent-futures",
+   "version": "1.2.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/concurrent#1.2.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.core:core",
+   "component": "androidx.core:core",
+   "version": "1.18.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/core#1.18.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.core:core-ktx",
+   "component": "androidx.core:core-ktx",
+   "version": "1.18.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/core#1.18.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.core:core-viewtree",
+   "component": "androidx.core:core-viewtree",
+   "version": "1.0.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/core#1.0.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.customview:customview-poolingcontainer",
+   "component": "androidx.customview:customview-poolingcontainer",
+   "version": "1.0.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/customview#1.0.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.emoji2:emoji2",
+   "component": "androidx.emoji2:emoji2",
+   "version": "1.4.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/emoji2#1.4.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.exifinterface:exifinterface",
+   "component": "androidx.exifinterface:exifinterface",
+   "version": "1.3.6",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/exifinterface#1.3.6",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.graphics:graphics-path",
+   "component": "androidx.graphics:graphics-path",
+   "version": "1.0.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/graphics#1.0.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.interpolator:interpolator",
+   "component": "androidx.interpolator:interpolator",
+   "version": "1.0.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "http://developer.android.com/tools/extras/support-library.html",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-common",
+   "component": "androidx.lifecycle:lifecycle-common",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-common-java8",
+   "component": "androidx.lifecycle:lifecycle-common-java8",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-common-jvm",
+   "component": "androidx.lifecycle:lifecycle-common-jvm",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-livedata-core",
+   "component": "androidx.lifecycle:lifecycle-livedata-core",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-process",
+   "component": "androidx.lifecycle:lifecycle-process",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-runtime",
+   "component": "androidx.lifecycle:lifecycle-runtime",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-runtime-android",
+   "component": "androidx.lifecycle:lifecycle-runtime-android",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-runtime-compose",
+   "component": "androidx.lifecycle:lifecycle-runtime-compose",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-runtime-compose-android",
+   "component": "androidx.lifecycle:lifecycle-runtime-compose-android",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-runtime-ktx",
+   "component": "androidx.lifecycle:lifecycle-runtime-ktx",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-runtime-ktx-android",
+   "component": "androidx.lifecycle:lifecycle-runtime-ktx-android",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-viewmodel",
+   "component": "androidx.lifecycle:lifecycle-viewmodel",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-viewmodel-android",
+   "component": "androidx.lifecycle:lifecycle-viewmodel-android",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-viewmodel-ktx",
+   "component": "androidx.lifecycle:lifecycle-viewmodel-ktx",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-viewmodel-savedstate",
+   "component": "androidx.lifecycle:lifecycle-viewmodel-savedstate",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.lifecycle:lifecycle-viewmodel-savedstate-android",
+   "component": "androidx.lifecycle:lifecycle-viewmodel-savedstate-android",
+   "version": "2.9.4",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/lifecycle#2.9.4",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-common",
+   "component": "androidx.media3:media3-common",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-common-ktx",
+   "component": "androidx.media3:media3-common-ktx",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-container",
+   "component": "androidx.media3:media3-container",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-database",
+   "component": "androidx.media3:media3-database",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-datasource",
+   "component": "androidx.media3:media3-datasource",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-decoder",
+   "component": "androidx.media3:media3-decoder",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-extractor",
+   "component": "androidx.media3:media3-extractor",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-inspector",
+   "component": "androidx.media3:media3-inspector",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-muxer",
+   "component": "androidx.media3:media3-muxer",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.media3:media3-ui-compose",
+   "component": "androidx.media3:media3-ui-compose",
+   "version": "1.11.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.navigationevent:navigationevent",
+   "component": "androidx.navigationevent:navigationevent",
+   "version": "1.0.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/navigationevent#1.0.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.navigationevent:navigationevent-android",
+   "component": "androidx.navigationevent:navigationevent-android",
+   "version": "1.0.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/navigationevent#1.0.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.navigationevent:navigationevent-compose",
+   "component": "androidx.navigationevent:navigationevent-compose",
+   "version": "1.0.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/navigationevent#1.0.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.navigationevent:navigationevent-compose-android",
+   "component": "androidx.navigationevent:navigationevent-compose-android",
+   "version": "1.0.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/navigationevent#1.0.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.profileinstaller:profileinstaller",
+   "component": "androidx.profileinstaller:profileinstaller",
+   "version": "1.4.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/profileinstaller#1.4.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.savedstate:savedstate",
+   "component": "androidx.savedstate:savedstate",
+   "version": "1.3.2",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.savedstate:savedstate-android",
+   "component": "androidx.savedstate:savedstate-android",
+   "version": "1.3.2",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.savedstate:savedstate-compose",
+   "component": "androidx.savedstate:savedstate-compose",
+   "version": "1.3.2",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.savedstate:savedstate-compose-android",
+   "component": "androidx.savedstate:savedstate-compose-android",
+   "version": "1.3.2",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.savedstate:savedstate-ktx",
+   "component": "androidx.savedstate:savedstate-ktx",
+   "version": "1.3.2",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/savedstate#1.3.2",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.startup:startup-runtime",
+   "component": "androidx.startup:startup-runtime",
+   "version": "1.1.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/startup#1.1.1",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.tracing:tracing",
+   "component": "androidx.tracing:tracing",
+   "version": "1.2.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/tracing#1.2.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.versionedparcelable:versionedparcelable",
+   "component": "androidx.versionedparcelable:versionedparcelable",
+   "version": "1.1.1",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "http://developer.android.com/tools/extras/support-library.html",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.window:window",
+   "component": "androidx.window:window",
+   "version": "1.5.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/window#1.5.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.window:window-core",
+   "component": "androidx.window:window-core",
+   "version": "1.5.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/window#1.5.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:androidx.window:window-core-android",
+   "component": "androidx.window:window-core-android",
+   "version": "1.5.0",
+   "kind": "maven",
+   "origin": "Google Maven",
+   "homepage": "https://developer.android.com/jetpack/androidx/releases/window#1.5.0",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:com.google.code.findbugs:jsr305",
+   "component": "com.google.code.findbugs:jsr305",
+   "version": "3.0.2",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "http://findbugs.sourceforge.net/",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:com.google.errorprone:error_prone_annotations",
+   "component": "com.google.errorprone:error_prone_annotations",
+   "version": "2.28.0",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:com.google.guava:failureaccess",
+   "component": "com.google.guava:failureaccess",
+   "version": "1.0.2",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses> (parent POM)",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:com.google.guava:guava",
+   "component": "com.google.guava:guava",
+   "version": "33.3.1-android",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/google/guava",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses> (parent POM)",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:com.google.guava:listenablefuture",
+   "component": "com.google.guava:listenablefuture",
+   "version": "9999.0-empty-to-avoid-conflict-with-guava",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": null,
+   "license": "Apache-2.0",
+   "evidence": "The 'empty to avoid conflict with Guava' artifact: its jar holds only META-INF (manifest and POM), no classes – nothing of it is in the APK (ListenableFuture comes from guava itself).",
+   "included_in": "not distributed – The 'empty to avoid conflict with Guava' artifact: its jar holds only META-INF (manifest and POM), no classes – nothing of it is in the APK (ListenableFuture comes from guava itself).",
+   "distributed": false,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:com.google.j2objc:j2objc-annotations",
+   "component": "com.google.j2objc:j2objc-annotations",
+   "version": "3.0.0",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/google/j2objc/",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.checkerframework:checker-qual",
+   "component": "org.checkerframework:checker-qual",
+   "version": "3.43.0",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://checkerframework.org/",
+   "license": "MIT",
+   "evidence": "POM <licenses>; LICENSE.txt in the jar",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/third-party/maven/checker-qual-LICENSE.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains.kotlin:kotlin-stdlib",
+   "component": "org.jetbrains.kotlin:kotlin-stdlib",
+   "version": "2.4.21",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://kotlinlang.org/",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-android",
+   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-android",
+   "version": "1.10.2",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-bom",
+   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-bom",
+   "version": "1.10.2",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
+   "license": "Apache-2.0",
+   "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+   "included_in": "not distributed – Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+   "distributed": false,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-core",
+   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-core",
+   "version": "1.10.2",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm",
+   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm",
+   "version": "1.10.2",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains.kotlinx:kotlinx-coroutines-guava",
+   "component": "org.jetbrains.kotlinx:kotlinx-coroutines-guava",
+   "version": "1.10.2",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/Kotlin/kotlinx.coroutines",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses> (parent POM)",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains.kotlinx:kotlinx-serialization-bom",
+   "component": "org.jetbrains.kotlinx:kotlinx-serialization-bom",
+   "version": "1.7.3",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/Kotlin/kotlinx.serialization",
+   "license": "Apache-2.0",
+   "evidence": "Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+   "included_in": "not distributed – Bill of materials: a POM with version numbers only (packaging pom, no jar) – nothing of it is in the APK.",
+   "distributed": false,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains.kotlinx:kotlinx-serialization-core",
+   "component": "org.jetbrains.kotlinx:kotlinx-serialization-core",
+   "version": "1.7.3",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/Kotlin/kotlinx.serialization",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains.kotlinx:kotlinx-serialization-core-jvm",
+   "component": "org.jetbrains.kotlinx:kotlinx-serialization-core-jvm",
+   "version": "1.7.3",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/Kotlin/kotlinx.serialization",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jetbrains:annotations",
+   "component": "org.jetbrains:annotations",
+   "version": "23.0.0",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/JetBrains/java-annotations",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.jspecify:jspecify",
+   "component": "org.jspecify:jspecify",
+   "version": "1.0.0",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "http://jspecify.org/",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
    "id": "rust:adler2",
    "component": "adler2",
    "version": "2.0.1",
