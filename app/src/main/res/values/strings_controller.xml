@@ -144,10 +144,10 @@
 
     <!-- AudioFxCatalog -->
     <string name="audiofxcatalog_denoise">Noise reduction</string>
-    <string name="audiofxcatalog_denoise_hint">Removes steady noise (fans, hiss, wind).</string>
+    <string name="audiofxcatalog_denoise_hint">Removes steady noise (fans, hiss, wind) – also under the speech. Worked out over the whole clip.</string>
     <string name="audiofxcatalog_amount">Amount</string>
     <string name="audiofxcatalog_speech_enhance">Speech enhance</string>
-    <string name="audiofxcatalog_speech_enhance_hint">Clearer speech: tames the room and lifts the voice.</string>
+    <string name="audiofxcatalog_speech_enhance_hint">Clearer speech: removes the noise, lifts the voice and evens out the level. Worked out over the whole clip.</string>
     <string name="audiofxcatalog_mix">Mix</string>
     <string name="audiofxcatalog_eq">EQ</string>
     <string name="audiofxcatalog_eq_hint">Drag the points on the curve: sideways = frequency, up/down = level. Double-tap resets a band.</string>

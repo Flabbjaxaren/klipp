@@ -120,6 +120,10 @@ class Engine {
         @JvmStatic external fun nativeFxProcess(fx: Long, data: FloatArray, len: Int, channels: Int, rate: Int)
         @JvmStatic external fun nativeFxProcessDirect(fx: Long, buf: java.nio.ByteBuffer, offset: Int, frames: Int, channels: Int, float: Boolean, rate: Int): Boolean
         @JvmStatic external fun nativeMeasureWav(path: String): String
+        /** Rendered sound effects (rust/src/offline.rs): raw 16-bit PCM → 16-bit WAV. null = done, else the error. */
+        @JvmStatic external fun nativeAfxRender(json: String, raw: String, rate: Int, channels: Int, out: String, job: Long): String?
+        @JvmStatic external fun nativeAfxProgress(job: Long): Float
+        @JvmStatic external fun nativeAfxVersion(): Int
         /** Curve for a graphical effect editor: "response" (dB at Hz) or "transfer" (dB out for dB in). */
         @JvmStatic external fun nativeFxCurve(json: String, kind: String, xs: DoubleArray): DoubleArray?
         // window tracking (rust/src/track.rs): one tracker per direction, the luma plane straight from the decoder
@@ -376,20 +380,24 @@ data class CaptionStyle(
 
 /**
  * What is played and exported: disabled clips are removed (they become gaps), as are transitions to or from them.
- * Reversed clips play forward from their reversed files once those are ready ([Reversals.rewrite]).
+ * Reversed clips play forward from their reversed files once those are ready ([Reversals.rewrite]); audio clips with
+ * rendered effects play their rendered files once those are ready ([AudioRenders.rewrite]).
  * Without disabled or reversed clips it's the same object.
  */
 fun Snapshot.playable(): Snapshot {
     val q = sequence ?: return this
     val anyOff = !(q.video + q.audio).all { t -> t.clips.all { it.enabled } }
     val anyRev = Reversals.any && (q.video + q.audio).any { t -> t.clips.any { it.reverse && it.hold == null } }
-    if (!anyOff && !anyRev) return this
+    val anyAr = AudioRenders.any && q.audio.any { t -> t.clips.any { AudioRenders.hasRendered(it) } }
+    if (!anyOff && !anyRev && !anyAr) return this
     fun TrackSnap.on(audio: Boolean): TrackSnap {
         val rev = anyRev && clips.any { it.reverse }
-        if (clips.all { it.enabled } && !rev) return this
+        val ar = audio && anyAr && clips.any { AudioRenders.hasRendered(it) }
+        if (clips.all { it.enabled } && !rev && !ar) return this
         val off = clips.filter { !it.enabled }.mapTo(HashSet()) { it.id }
         return copy(
-            clips = clips.filter { it.enabled }.let { cl -> if (rev) cl.map { Reversals.rewrite(it, audio) } else cl },
+            clips = clips.filter { it.enabled }.let { cl -> if (rev) cl.map { Reversals.rewrite(it, audio) } else cl }
+                .let { cl -> if (ar) cl.map { AudioRenders.rewrite(it) } else cl },
             transitions = transitions.filter { x -> (x.from == null || x.from !in off) && (x.to == null || x.to !in off) },
         )
     }

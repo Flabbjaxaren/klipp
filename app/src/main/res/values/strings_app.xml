@@ -31,6 +31,9 @@
     <string name="audioui_add">Add</string>
     <string name="audioui_done_adding">Close</string>
     <string name="audioui_bypassed">Off – bypassed</string>
+    <string name="audioui_render_working">Working it out over the clip… %1$d %%</string>
+    <string name="audioui_render_ready">Worked out – ready to play</string>
+    <string name="audioui_render_failed">Couldn\'t be worked out – plays live</string>
     <string name="audioui_rack_full">A track holds %1$d effects.</string>
     <string name="audioui_track_effects">Effects on %1$s</string>
     <string name="audioui_track_effects_hint">Effects on a track apply to every clip on it, after each clip\'s own effects. Pick an effect to add it.</string>

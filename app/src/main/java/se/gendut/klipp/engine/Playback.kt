@@ -1050,6 +1050,8 @@ class ProgramPlayback(private val context: Context) {
         FrameHolds.ensure(context, FrameHolds.holdsOf(s, uriOf))
         // reversed clips: the files that run backwards, likewise in the background
         Reversals.ensure(context, s, uriOf)
+        // rendered sound effects (noise reduction, speech enhance): worked out in the background, the cards show it
+        AudioRenders.ensure(context, s, uriOf)
         // the clips' first frame times (their in points on their own frames, see FrameSnap), likewise
         FrameSnap.ensure(context, s) { id -> uriOf(id)?.let { Proxies.videoUri(it) } }
         hdrMode = VideoPipeline.toneMapMode(CompositionBuilder.anyHdr(context, s) { id -> uriOf(id)?.takeUnless { Proxies.enabled && Proxies.hasProxy(it) } }, hdrCodecFailed)
@@ -1064,7 +1066,7 @@ class ProgramPlayback(private val context: Context) {
         val playable = RenderCache.playable(chunks, windows)
         edges = CutSeek.edgesOf(s, chunks)
         cuts = runCatching { CompositionBuilder.playPlan(s, uriOf, chunks)?.let { CutSeek.cutsOf(it.layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
-        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "/" + VideoPipeline.renderFull + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision +
+        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "/" + VideoPipeline.renderFull + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision + "#ar" + AudioRenders.revision +
             // the film's reference and the preview's downscale follow the sources' sizes: a size that came late rebuilds
             "#sizes" + SourceSizes.revision + (if (CompositionBuilder.testUnscaledFilm) "#unscaled" else "")
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
@@ -1422,6 +1424,8 @@ object Exporter {
         runCatching { FrameHolds.await(context, FrameHolds.holdsOf(s, uriOf)) }.onFailure { return Result.failure(it) }
         // the reversed clips' files likewise (otherwise they played forwards in the file)
         runCatching { Reversals.await(context, s, uriOf) }.onFailure { return Result.failure(it) }
+        // the rendered sound effects likewise (one that can't be made plays live)
+        runCatching { AudioRenders.await(context, s, uriOf) }
         // the clips' first frame times in the originals (their in points on their own frames, see FrameSnap)
         runCatching { FrameSnap.await(context, s, uriOf) }
         val anyHdr = withContext(Dispatchers.IO) { CompositionBuilder.anyHdr(context, s, probe = true, uriOf = uriOf) }

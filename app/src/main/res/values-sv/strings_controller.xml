@@ -144,10 +144,10 @@
 
     <!-- AudioFxCatalog -->
     <string name="audiofxcatalog_denoise">Brusreducering</string>
-    <string name="audiofxcatalog_denoise_hint">Tar bort jämnt brus (fläktar, sus, vind).</string>
+    <string name="audiofxcatalog_denoise_hint">Tar bort jämnt brus (fläktar, sus, vind) – även under talet. Räknas ut över hela klippet.</string>
     <string name="audiofxcatalog_amount">Styrka</string>
     <string name="audiofxcatalog_speech_enhance">Röstförbättring</string>
-    <string name="audiofxcatalog_speech_enhance_hint">Tydligare tal: dämpar rummet och lyfter rösten.</string>
+    <string name="audiofxcatalog_speech_enhance_hint">Tydligare tal: tar bort bruset, lyfter rösten och jämnar ut nivån. Räknas ut över hela klippet.</string>
     <string name="audiofxcatalog_mix">Mängd</string>
     <string name="audiofxcatalog_eq">EQ</string>
     <string name="audiofxcatalog_eq_hint">Dra punkterna i kurvan: åt sidan = frekvens, upp/ned = nivå. Dubbeltryck nollställer ett band.</string>

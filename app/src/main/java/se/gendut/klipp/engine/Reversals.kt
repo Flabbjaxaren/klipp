@@ -368,6 +368,9 @@ object Reversals {
         }
     }
 
+    /** [decodePcm] for others (the rendered sound effects). */
+    internal fun decodePcmRange(c: Context, uri: Uri, a: Double, b: Double, raw: File): Pair<Int, Int> = decodePcm(c, Job(uri, a, b), raw)
+
     /** Decode [a, b) to raw 16-bit PCM in [raw]; returns (sample rate, channels). */
     private fun decodePcm(c: Context, j: Job, raw: File): Pair<Int, Int> {
         val ex = MediaExtractor()

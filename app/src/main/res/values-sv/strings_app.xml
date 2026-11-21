@@ -31,6 +31,9 @@
     <string name="audioui_add">Lägg till</string>
     <string name="audioui_done_adding">Stäng</string>
     <string name="audioui_bypassed">Av – förbikopplad</string>
+    <string name="audioui_render_working">Räknas ut över klippet … %1$d %%</string>
+    <string name="audioui_render_ready">Uträknad – klar att spela</string>
+    <string name="audioui_render_failed">Kunde inte räknas ut – spelas direkt</string>
     <string name="audioui_rack_full">Ett spår rymmer %1$d effekter.</string>
     <string name="audioui_track_effects">Effekter på %1$s</string>
     <string name="audioui_track_effects_hint">Effekter på ett spår gäller alla klipp på det, efter varje klipps egna effekter. Välj en effekt för att lägga till den.</string>

@@ -164,6 +164,12 @@ impl FxChain {
         true
     }
 
+    /// The first effect's DSP, configured for `rate` (the rendered chains run the engine's effects one by one).
+    pub fn first_dsp(mut self, rate: u32) -> Option<Box<dyn AudioEffect>> {
+        self.configure(rate);
+        self.dsp.into_iter().next().flatten()
+    }
+
     pub fn reset(&mut self) {
         for d in self.dsp.iter_mut().flatten() {
             d.reset();

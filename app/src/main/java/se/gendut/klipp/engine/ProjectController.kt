@@ -99,12 +99,12 @@ class ProjectController(
     var captionPicker: (() -> Unit)? = null
 
     /** The media item's file; negative ids = reversed clips' files ([Reversals]). */
-    fun uriOf(item: Long): Uri? = if (item < 0) RenderCache.uriOf(item) ?: Reversals.uriOf(item) else uris[item]
+    fun uriOf(item: Long): Uri? = if (item < 0) RenderCache.uriOf(item) ?: AudioRenders.uriOf(item) ?: Reversals.uriOf(item) else uris[item]
 
     /** [uriOf] as it is now, for work that outlives this controller (the export: its screen may close). */
     fun frozenUris(): (Long) -> Uri? {
         val m = HashMap(uris)
-        return { item -> if (item < 0) RenderCache.uriOf(item) ?: Reversals.uriOf(item) else m[item] }
+        return { item -> if (item < 0) RenderCache.uriOf(item) ?: AudioRenders.uriOf(item) ?: Reversals.uriOf(item) else m[item] }
     }
 
     // ------------------------------------------------------------------ missing files

@@ -532,9 +532,10 @@ private fun KlippAppContent(
         }
     }
     if (playback != null) LaunchedEffect(playback) {
-        // the node cache and pre-rendered chunks only make playback lighter: swapped in when playback stops (a new
-        // composition in the middle of playback was a seek and a stall)
-        androidx.compose.runtime.snapshotFlow { se.gendut.klipp.engine.NodeCache.revision to se.gendut.klipp.engine.RenderCache.revision }.collect {
+        // the node cache and pre-rendered chunks only make playback lighter, and rendered sound effects play live until
+        // their files are ready: swapped in when playback stops (a new composition in the middle of playback was a seek
+        // and a stall)
+        androidx.compose.runtime.snapshotFlow { Triple(se.gendut.klipp.engine.NodeCache.revision, se.gendut.klipp.engine.RenderCache.revision, se.gendut.klipp.engine.AudioRenders.revision) }.collect {
             androidx.compose.runtime.snapshotFlow { state.playing }.first { !it }
             playback.refresh(state.playhead.toDouble())
         }

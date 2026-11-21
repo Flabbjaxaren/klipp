@@ -60,6 +60,11 @@ class AfxRackOps(
     val live: (Int, String, Double) -> Unit,
     /** How many effects the rack holds at most (a track has five slots); null = no limit. */
     val max: Int? = null,
+    /**
+     * A rendered effect's state ([se.gendut.klipp.engine.AudioRenders.statusOf]): null = not rendered, 0…1 = being
+     * worked out, 1 = ready, FAILED.
+     */
+    val status: (AfxSnap) -> Float? = { null },
 )
 
 /** Audio effects on the selected audio clip (Properties). */
@@ -73,6 +78,7 @@ fun AudioFxSection(state: EditorState, p: ClipProps, backend: PropsBackend) {
             setParam = { i, k, v -> backend.setAudioFxParam(p.id, i, k, v) },
             setParams = { i, m -> backend.setAudioFxParams(p.id, i, m) },
             live = { i, k, v -> state.onFxLive?.invoke(p.id, i, k, v) },
+            status = { e -> if (e.on && e.id in se.gendut.klipp.engine.AudioRenders.RENDERED) se.gendut.klipp.engine.AudioRenders.statusOf(p.id) else null },
         )
     }
     AudioFxRack(p.afx, ops, stringResource(R.string.audioui_effects), stringResource(R.string.audioui_clip_effects_hint), key = p.id)
@@ -183,6 +189,8 @@ private fun FxCard(e: AfxSnap, place: Int, open: Boolean, ops: AfxRackOps, onOpe
             Column(Modifier.weight(1f)) {
                 Text("$place · ${AudioFxCatalog.label(e.id)}", color = if (e.on) K.OnSurface else K.OnSurfaceVar, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(if (e.on) fxSummary(e) else stringResource(R.string.audioui_bypassed), color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // a rendered effect: worked out over the whole clip first, then played (live until then)
+                ops.status(e)?.let { st -> RenderLine(st) }
             }
             Icon(Ic.ChevronDown, null, tint = K.OnSurfaceVar, modifier = Modifier.size(20.dp).rotate(turn))
         }
@@ -223,6 +231,23 @@ private fun FxCard(e: AfxSnap, place: Int, open: Boolean, ops: AfxRackOps, onOpe
                 }
             }
         }
+    }
+}
+
+/** A rendered effect's progress under its name: working (with a bar), ready, or failed (it then plays live). */
+@Composable
+private fun RenderLine(st: Float) {
+    val failed = st == se.gendut.klipp.engine.AudioRenders.FAILED
+    val text = when {
+        failed -> stringResource(R.string.audioui_render_failed)
+        st >= 1f -> stringResource(R.string.audioui_render_ready)
+        else -> stringResource(R.string.audioui_render_working, (st * 100).toInt())
+    }
+    Text(text, color = if (failed) K.Error else if (st >= 1f) K.PrimarySoft else K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1,
+        overflow = TextOverflow.Ellipsis, modifier = Modifier.testTag("fxRender"))
+    if (!failed && st < 1f) {
+        val shown by animateFloatAsState(st, label = "render")
+        androidx.compose.material3.LinearProgressIndicator(progress = { shown }, Modifier.fillMaxWidth().padding(top = 3.dp, end = 8.dp).then(Modifier.heightIn(max = 3.dp)), color = K.Primary)
     }
 }
 

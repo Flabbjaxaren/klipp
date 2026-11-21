@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 pub mod audio;
 pub mod fds;
+pub mod offline;
 pub mod render;
 pub mod track;
 
@@ -687,6 +688,36 @@ mod jni_audio {
 
     fn string(env: &mut JNIEnv, s: &JString) -> String {
         env.get_string(s).map(|s| s.into()).unwrap_or_default()
+    }
+
+    /// Renders a rack prefix (`json`, the snapshot's `afx` form) over raw 16-bit PCM into a 16-bit WAV file.
+    /// null = done, otherwise the error. Progress under `job`: nativeAfxProgress.
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_se_gendut_klipp_engine_Engine_nativeAfxRender<'a>(
+        mut env: JNIEnv<'a>, _c: JClass<'a>, json: JString<'a>, raw: JString<'a>, rate: jint, channels: jint, out: JString<'a>, job: jlong,
+    ) -> jstring {
+        super::jni_api::install_panic_hook();
+        let (j, r, o) = (string(&mut env, &json), string(&mut env, &raw), string(&mut env, &out));
+        let res = std::panic::catch_unwind(|| {
+            let v: serde_json::Value = serde_json::from_str(&j).map_err(|e| e.to_string())?;
+            super::offline::render_raw(&v, &r, rate.max(1) as u32, channels.max(1) as usize, &o, job)
+        })
+        .unwrap_or_else(|_| Err("crashed".into()));
+        super::offline::forget(job);
+        match res {
+            Ok(()) => std::ptr::null_mut(),
+            Err(e) => env.new_string(e).map(|s| s.into_raw()).unwrap_or(std::ptr::null_mut()),
+        }
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_se_gendut_klipp_engine_Engine_nativeAfxProgress(_env: JNIEnv, _c: JClass, job: jlong) -> jni::sys::jfloat {
+        super::offline::progress_of(job)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "system" fn Java_se_gendut_klipp_engine_Engine_nativeAfxVersion(_env: JNIEnv, _c: JClass) -> jint {
+        super::offline::VERSION as jint
     }
 
     /// An effect chain from the snapshot's `afx` list (JSON). 0 = no effects.

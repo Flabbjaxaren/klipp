@@ -1354,3 +1354,66 @@ fn noise_reduction_acts_from_the_first_block() {
     let after = rms_db(&s[(half + lat) * 2..]);
     assert!((after - before).abs() < 1.0, "tone {before:.1} dB → {after:.1} dB");
 }
+
+fn offline_run(chain: Value, x: &[f32]) -> Vec<f32> {
+    let mut fx = offline::Offline::new(&chain, 48_000, 2).unwrap();
+    for b in x.chunks(5000 * 2) {
+        fx.learn(b);
+    }
+    let mut out = Vec::new();
+    for b in x.chunks(3000 * 2) {
+        out.extend(fx.process(b));
+    }
+    out.extend(fx.finish());
+    out
+}
+
+#[test]
+fn rendered_effects_keep_length_and_time() {
+    let x = hiss(48_000 * 3, 0.05, 11);
+    // nothing to take away: the same sound, at the same time, same length
+    let y = offline_run(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 0.0}}]), &x);
+    assert_eq!(y.len(), x.len());
+    assert!(x.iter().zip(&y).skip(4096).all(|(a, b)| (a - b).abs() < 1e-5), "aligned identity");
+    // an engine effect in front keeps the alignment too (its latency is taken out)
+    let y = offline_run(json!([{"i": 0, "id": "parametric_eq", "on": true, "p": {}}, {"i": 1, "id": "speech_enhance", "on": true, "p": {"mix": 0.0}}]), &x);
+    assert_eq!(y.len(), x.len());
+    assert!(x.iter().zip(&y).skip(4096).take(48_000).all(|(a, b)| (a - b).abs() < 1e-3), "mix 0 = dry, aligned");
+}
+
+#[test]
+fn rendered_noise_reduction_is_strong_from_the_start() {
+    // noise, then a tone over it from 1 s: the noise goes down at once and the tone stays
+    let r = 48_000usize;
+    let mut x = hiss(r * 3, 0.05, 5);
+    for i in r..r * 3 {
+        let v = (i as f32 * 2.0 * std::f32::consts::PI * 440.0 / 48_000.0).sin() * 0.3;
+        x[i * 2] += v;
+        x[i * 2 + 1] += v;
+    }
+    let y = offline_run(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 40.0}}]), &x);
+    let (n0, n1) = (rms_db(&x[..r * 2 / 2]), rms_db(&y[..r * 2 / 2]));
+    assert!(n1 < n0 - 14.0, "noise {n0:.1} → {n1:.1} dB in the first half second");
+    let (t0, t1) = (rms_db(&x[r * 2 + r..]), rms_db(&y[r * 2 + r..]));
+    assert!((t0 - t1).abs() < 1.0, "tone {t0:.1} → {t1:.1} dB");
+    // stronger with more
+    let z = offline_run(json!([{"i": 0, "id": "denoise", "on": true, "p": {"amount": 100.0}}]), &x);
+    assert!(rms_db(&z[..r]) < n1 - 5.0);
+}
+
+#[test]
+fn rendered_file_is_a_wav_of_the_same_length() {
+    let dir = std::env::temp_dir().join(format!("klipp_afx_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let raw = dir.join("in.raw");
+    let x = hiss(48_000, 0.1, 9);
+    std::fs::write(&raw, x.iter().flat_map(|v| ((v * 32767.0) as i16).to_le_bytes()).collect::<Vec<u8>>()).unwrap();
+    let out = dir.join("out.wav");
+    let chain = json!([{"i": 0, "id": "speech_enhance", "on": true, "p": {}}]);
+    offline::render_raw(&chain, raw.to_str().unwrap(), 48_000, 2, out.to_str().unwrap(), 7).unwrap();
+    let w = std::fs::read(&out).unwrap();
+    assert_eq!(&w[0..4], b"RIFF");
+    assert_eq!(w.len() - 44, x.len() * 2);
+    assert_eq!(offline::progress_of(7), 1.0);
+    std::fs::remove_dir_all(&dir).ok();
+}
