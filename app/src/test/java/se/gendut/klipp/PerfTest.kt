@@ -71,8 +71,11 @@ class PerfTest {
         assertTrue(P.readAhead(bufferedUs = 500_000, queuedBytes = (36 * mb).toInt(), heapUsed = 150 * mb, heapMax = 512 * mb))
         // a second is enough
         assertFalse(P.readAhead(P.READ_AHEAD_US, (72 * mb).toInt(), 150 * mb, 512 * mb))
-        // 50 fps APV reaches the byte cap first (0.66 s, 33 frames)
-        assertFalse(P.readAhead(660_000, P.READ_AHEAD_BYTES, 150 * mb, 512 * mb))
+        // past the floor the byte cap holds
+        assertFalse(P.readAhead(900_000, P.READ_AHEAD_BYTES, 150 * mb, 512 * mb))
+        // under the floor the byte cap doesn't stop it (the decoder and effects hold half a second) – the memory guard does
+        assertTrue(P.readAhead(560_000, (148 * mb).toInt(), 200 * mb, 512 * mb))
+        assertFalse(P.readAhead(560_000, (148 * mb).toInt(), 400 * mb, 512 * mb))
         // with the Java memory three quarters full Media3's own rule holds alone
         assertFalse(P.readAhead(500_000, (36 * mb).toInt(), 384 * mb, 512 * mb))
         // the load controls can be built (minimum, start and maximum times in order)

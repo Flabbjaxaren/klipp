@@ -37,8 +37,42 @@ object Perf {
      */
     private class ReadAheadLoadControl(private val queue: DefaultAllocator = DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE)) :
         DefaultLoadControl(queue, /* min */ 500, 500, /* max */ 8_000, 8_000, /* for playback */ 250, 250, /* after rebuffer */ 500, 500, MAX_BUFFER_BYTES, true, true, 0, false) {
-        override fun shouldContinueLoading(parameters: LoadControl.Parameters): Boolean =
-            super.shouldContinueLoading(parameters) || Runtime.getRuntime().let { readAhead(parameters.bufferedDurationUs, queue.totalBytesAllocated, it.totalMemory() - it.freeMemory(), it.maxMemory()) }
+        override fun shouldContinueLoading(parameters: LoadControl.Parameters): Boolean {
+            val base = super.shouldContinueLoading(parameters)
+            val rt = Runtime.getRuntime(); val heap = rt.totalMemory() - rt.freeMemory()
+            val mine = runCatching { getAllocator(parameters.playerId).totalBytesAllocated }.getOrDefault(-1)
+            // this player's own queue: the composition's players (picture and each sound sequence) share one pool, and
+            // the others' 100 MB stopped the picture's read-ahead at half a second (a stall at a sound crossfade)
+            val ahead = !base && pictures[parameters.playerId] != false && readAhead(parameters.bufferedDurationUs, if (mine >= 0) mine else queue.totalBytesAllocated, heap, rt.maxMemory())
+            if (asks.size > 16) { val old = android.os.SystemClock.uptimeMillis() - 5_000; asks.values.removeIf { it.at < old } }
+            asks["${System.identityHashCode(this)}/${if (pictures[parameters.playerId] == false) "snd" else "pic"}${System.identityHashCode(parameters.playerId) % 1000}"] = Ask(android.os.SystemClock.uptimeMillis(), parameters.bufferedDurationUs, queue.totalBytesAllocated, base, ahead, mine, heap, rt.maxMemory())
+            return base || ahead
+        }
+
+        /** Players that read a picture (false: sound only). A sound sequence's read-ahead was useless – nothing sits
+         *  between its reader and the mix – and costly: its camera file has the sound after a second of APV, so it
+         *  held up to 94 MB, filled the shared pool and the memory, and the picture's player stopped reading. */
+        private val pictures = java.util.concurrent.ConcurrentHashMap<androidx.media3.exoplayer.analytics.PlayerId, Boolean>()
+
+        override fun onTracksSelected(parameters: LoadControl.Parameters, trackGroups: androidx.media3.exoplayer.source.TrackGroupArray, trackSelections: Array<out androidx.media3.exoplayer.trackselection.ExoTrackSelection?>) {
+            super.onTracksSelected(parameters, trackGroups, trackSelections)
+            pictures[parameters.playerId] = trackSelections.any { it != null && (it.trackGroup.type == C.TRACK_TYPE_VIDEO || it.trackGroup.type == C.TRACK_TYPE_IMAGE) }
+        }
+
+        override fun onStopped(playerId: androidx.media3.exoplayer.analytics.PlayerId) { super.onStopped(playerId); pictures.remove(playerId) }
+        override fun onReleased(playerId: androidx.media3.exoplayer.analytics.PlayerId) { super.onReleased(playerId); pictures.remove(playerId) }
+    }
+
+    /** A load control's last answer (for the stall line in the trail): when, buffered, queued bytes, Media3's rule, read-ahead. */
+    class Ask(val at: Long, val bufferedUs: Long, val bytes: Int, val base: Boolean, val ahead: Boolean, val mine: Int = 0, val heap: Long = 0, val heapMax: Long = 0)
+    val asks = java.util.concurrent.ConcurrentHashMap<String, Ask>()
+
+    /** The last answers of the timeline players' load controls, newest first: "ago ms, buffered ms, MB, yes/no". */
+    fun asksLine(): String {
+        val now = android.os.SystemClock.uptimeMillis()
+        return asks.entries.sortedBy { now - it.value.at }.take(6).joinToString(" | ") { (k, it) ->
+            "${k.substringAfter('/')} ${now - it.at} ms ago buf ${it.bufferedUs / 1000} ms own ${it.mine shr 20}/all ${it.bytes shr 20} MB heap ${it.heap shr 20}/${it.heapMax shr 20} ${if (it.base) "load" else if (it.ahead) "ahead" else "no"}"
+        }
     }
 
     /** The time the timeline's players keep read beyond the playback position: the frames the decoder and effects hold, and as much again. */
@@ -52,7 +86,14 @@ object Perf {
      * only while a quarter of the Java memory is free (several layers with APV each have a queue of their own).
      */
     internal fun readAhead(bufferedUs: Long, queuedBytes: Int, heapUsed: Long, heapMax: Long): Boolean =
-        bufferedUs < READ_AHEAD_US && queuedBytes < READ_AHEAD_BYTES && heapUsed < heapMax / 4 * 3
+        bufferedUs < READ_AHEAD_US && (queuedBytes < READ_AHEAD_BYTES || bufferedUs < READ_AHEAD_FLOOR_US) && heapUsed < heapMax / 4 * 3
+
+    /**
+     * Below this a picture player's byte cap doesn't stop its read-ahead (only the memory guard does): the decoder and
+     * the effects hold about half a second of frames, and 0.8 s of 4K APV at 50 fps is already more than
+     * [READ_AHEAD_BYTES] – stopped at the cap, the player sat at 0.5 s and the picture froze.
+     */
+    const val READ_AHEAD_FLOOR_US = 800_000L
 
     /**
      * Buffer cap in bytes – but only beyond the minimum time (0.5 s, Media3's own lower bound), which is always filled.

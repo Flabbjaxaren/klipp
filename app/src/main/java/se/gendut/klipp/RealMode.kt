@@ -525,7 +525,7 @@ fun PlaybackSync(controller: ProjectController, playback: ProgramPlayback, state
                 // (real buffering always loads – buffering without loading is the stall: 0.3 s of it is enough to tell,
                 // a second cost a visible hitch every time, seen on the vivo with 4K APV just after a cut)
                 if (still == 3 && p.playbackState == androidx.media3.common.Player.STATE_BUFFERING && p.playWhenReady && !p.isLoading) {
-                    CrashReport.note("stall: buffering without loading at $now ms (buffered ${p.bufferedPosition}) – a frame on")
+                    CrashReport.note("stall: buffering without loading at $now ms (buffered ${p.bufferedPosition}) – a frame on; loads: ${se.gendut.klipp.engine.Perf.asksLine()}")
                     p.seekTo(now + 40)
                     still = 0
                     continue
