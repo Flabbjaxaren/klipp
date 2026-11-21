@@ -201,8 +201,8 @@ object SpeechModels {
 object SpeechAudio {
     const val RATE = 16_000
 
-    /** [from]–[to] seconds in the file. The decoder is the hardware/system one; mixed down to mono and resampled. */
-    suspend fun decode(context: Context, uri: Uri, from: Double, to: Double): FloatArray = withContext(Dispatchers.Default) {
+    /** [from]–[to] seconds in the file. The decoder is the hardware/system one; mixed down to mono and resampled to [target] Hz. */
+    suspend fun decode(context: Context, uri: Uri, from: Double, to: Double, target: Int = RATE): FloatArray = withContext(Dispatchers.Default) {
         val ex = MediaExtractorCompat(androidx.media3.extractor.DefaultExtractorsFactory(), androidx.media3.datasource.DefaultDataSource.Factory(context))
         try {
             ex.setDataSource(uri, 0)
@@ -211,7 +211,7 @@ object SpeechAudio {
             ex.selectTrack(track)
             val fmt = ex.getTrackFormat(track)
             val codec = MediaCodec.createDecoderByType(fmt.getString(MediaFormat.KEY_MIME)!!)
-            val out = FloatArrayBuilder(((to - from).coerceAtLeast(0.0) * RATE).toInt() + RATE)
+            val out = FloatArrayBuilder(((to - from).coerceAtLeast(0.0) * target).toInt() + target)
             try {
                 codec.configure(fmt, null, null, 0)
                 codec.start()
@@ -219,7 +219,7 @@ object SpeechAudio {
                 var rate = runCatching { fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE) }.getOrDefault(48_000)
                 var channels = runCatching { fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT) }.getOrDefault(2)
                 var float = false
-                val rs = Resampler()
+                val rs = Resampler(target)
                 val info = MediaCodec.BufferInfo()
                 var inputDone = false
                 while (true) {
@@ -274,14 +274,14 @@ object SpeechAudio {
         }
     }
 
-    /** Resampling to 16 kHz: the mean over each output sample's interval (low-pass and decimation in one). */
-    private class Resampler {
+    /** Resampling (to 16 kHz for speech): the mean over each output sample's interval (low-pass and decimation in one). */
+    private class Resampler(private val target: Int) {
         private var acc = 0f
         private var n = 0
         private var pos = 0.0
         fun push(v: Float, rate: Int, out: FloatArrayBuilder) {
             acc += v; n++
-            pos += RATE.toDouble() / rate
+            pos += target.toDouble() / rate
             while (pos >= 1.0) {
                 out.add(if (n > 0) acc / n else v)
                 acc = 0f; n = 0

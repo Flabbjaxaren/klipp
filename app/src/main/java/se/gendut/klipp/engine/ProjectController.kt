@@ -1468,9 +1468,16 @@ class ProjectController(
     fun addBeatMarkers(clipId: Long) = scope.launch {
         val (c, _, _) = find(clipId) ?: return@launch
         val uri = uriOf(c.item) ?: return@launch
-        val peaks = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Peaks.load(context, uri) }
         val speed = kotlin.math.abs(c.speed).coerceAtLeast(0.01)
-        val times = peaks?.let { Beats.detect(it) }.orEmpty()
+        // the beat network over the part of the file the clip uses (the level-rise finder if it can't run)
+        val a = c.sourceIn; val b = c.sourceIn + c.duration * speed
+        val net = runCatching { BeatNet.detect(context, SpeechAudio.decode(context, uri, a, b, BeatNet.RATE)) }
+            .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.getOrNull()
+        val found = net?.beats?.map { it + a } ?: run {
+            val peaks = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Peaks.load(context, uri) }
+            peaks?.let { Beats.detect(it) }.orEmpty()
+        }
+        val times = found
             .filter { !c.reverse && c.hold == null && it >= c.sourceIn && it < c.sourceIn + c.duration * speed }
             .map { c.start + (it - c.sourceIn) / speed }
         if (times.isEmpty()) { onMessage(Str.t(R.string.beats_none)); return@launch }

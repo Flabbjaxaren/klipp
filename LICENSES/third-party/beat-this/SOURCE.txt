@@ -1,0 +1,5 @@
+assets/beat_this_small0.onnx (bundled in the APK; beat markers)
+Beat This! – © 2024 Institute of Computational Perception, JKU Linz, https://github.com/CPJKU/beat_this, MIT (LICENSE in
+this folder). The small0 checkpoint as ONNX (fp32), from https://huggingface.co/jenila-ai/beat-this-small0-onnx at commit
+a1e1e4a99a55e167f4a7dc2df254ae404c2729ec (MIT; sha256 1dbbac9e2410debf083d4002f2c2b12b61a42b3cde9b0f6fb27cc9e1b61e7517,
+10401066 bytes). Not modified by Klipp.

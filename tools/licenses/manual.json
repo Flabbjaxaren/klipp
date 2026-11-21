@@ -198,6 +198,26 @@
    "notes": "Input size made dynamic (shape metadata only); weights unchanged – see SOURCE.txt."
   },
   {
+   "id": "beat-this",
+   "component": "Beat This! (small0 checkpoint, ONNX)",
+   "version": "small0 (jenila-ai/beat-this-small0-onnx a1e1e4a)",
+   "kind": "model",
+   "category": "assets",
+   "origin": "https://github.com/CPJKU/beat_this · https://huggingface.co/jenila-ai/beat-this-small0-onnx",
+   "license": "MIT",
+   "copyright": "© 2024 Institute of Computational Perception, JKU Linz",
+   "notices": [
+    "LICENSES/third-party/beat-this/LICENSE",
+    "LICENSES/third-party/beat-this/SOURCE.txt"
+   ],
+   "files": [
+    "assets/beat_this_small0.onnx"
+   ],
+   "included_in": "assets/beat_this_small0.onnx",
+   "status": "verified",
+   "notes": "Byte-identical to the Hugging Face file (sha256 1dbbac9e…7517)."
+  },
+  {
    "id": "ui-icons",
    "component": "Klipp's line icons",
    "version": "-",
