@@ -1273,11 +1273,68 @@ fn median_scale_lim(src: &[[f32; 2]], dst: &[[f32; 2]], inl: &[bool], rng: &mut 
         return None;
     }
     let m = r.len() / 2;
-    let (_, med, _) = r.select_nth_unstable_by(m, |a, b| a.total_cmp(b));
+    let med = *r.select_nth_unstable_by(m, |a, b| a.total_cmp(b)).1;
+    // per axis: an object that turns (a head looking away) is squeezed along one axis only – its points close up
+    // sideways while its height stays, and the whole-cloud ratio shrank the window by a third in half a second. The
+    // ratios along x and along y (with the cloud's rotation taken out) are compared and the axis that changed least
+    // wins; a real change of size (closer to the camera) changes both alike and still comes through.
+    let med = axis_scale(src, dst, &ids, rng).map_or(med, |(sx, sy)| {
+        let pick = if sx.ln().abs() <= sy.ln().abs() { sx } else { sy };
+        // only toward 1: an axis estimate never makes the change larger than the whole cloud's
+        if pick.ln().abs() < med.ln().abs() { pick } else { med }
+    });
     Some(match lim {
         Some((lo, hi)) => med.clamp(lo, hi),
-        None => *med,
+        None => med,
     })
+}
+
+/// The median distance ratios along x and along y between point pairs, after the cloud's rotation (the median
+/// angle change of the pairs) is taken out. Only pairs at least 8 px apart along that axis; None while either
+/// axis has fewer than 8 such pairs.
+fn axis_scale(src: &[[f32; 2]], dst: &[[f32; 2]], ids: &[usize], rng: &mut u32) -> Option<(f32, f32)> {
+    let n = ids.len();
+    let mut pairs = Vec::with_capacity(400);
+    if n * (n - 1) / 2 <= 400 {
+        for a in 0..n {
+            for b in a + 1..n {
+                pairs.push((ids[a], ids[b]));
+            }
+        }
+    } else {
+        for _ in 0..400 {
+            let (a, b) = (xorshift(rng) as usize % n, xorshift(rng) as usize % n);
+            if a != b {
+                pairs.push((ids[a], ids[b]));
+            }
+        }
+    }
+    let d = |p: &[[f32; 2]], i: usize, j: usize| [p[i][0] - p[j][0], p[i][1] - p[j][1]];
+    let mut ang: Vec<f32> = pairs.iter().filter_map(|&(i, j)| {
+        let (a, b) = (d(src, i, j), d(dst, i, j));
+        if a[0].hypot(a[1]) < 8.0 { return None; }
+        let x = b[1].atan2(b[0]) - a[1].atan2(a[0]);
+        Some((x + std::f32::consts::PI).rem_euclid(2.0 * std::f32::consts::PI) - std::f32::consts::PI)
+    }).collect();
+    if ang.len() < 3 {
+        return None;
+    }
+    let m = ang.len() / 2;
+    let th = *ang.select_nth_unstable_by(m, |a, b| a.total_cmp(b)).1;
+    let (c, s) = (th.cos(), th.sin());
+    let (mut rx, mut ry) = (Vec::new(), Vec::new());
+    for &(i, j) in &pairs {
+        let (a, b) = (d(src, i, j), d(dst, i, j));
+        // the destination pair turned back by the cloud's rotation
+        let bb = [c * b[0] + s * b[1], -s * b[0] + c * b[1]];
+        if a[0].abs() >= 8.0 { rx.push(bb[0].abs() / a[0].abs()); }
+        if a[1].abs() >= 8.0 { ry.push(bb[1].abs() / a[1].abs()); }
+    }
+    if rx.len() < 8 || ry.len() < 8 {
+        return None;
+    }
+    let (mx, my) = (rx.len() / 2, ry.len() / 2);
+    Some((*rx.select_nth_unstable_by(mx, |a, b| a.total_cmp(b)).1, *ry.select_nth_unstable_by(my, |a, b| a.total_cmp(b)).1))
 }
 
 /// `f` with the scale `s` (the angle is kept) and the translation that keeps the weighted centroid in place.
