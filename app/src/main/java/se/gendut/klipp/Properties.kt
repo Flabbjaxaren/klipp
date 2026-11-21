@@ -810,12 +810,12 @@ fun MaskOverlay(state: EditorState, gs: GradeState, modifier: Modifier = Modifie
                 maskOutline(mm).forEachIndexed { i, (u, v) -> pt(u, v).let { if (i == 0) moveTo(it.x, it.y) else lineTo(it.x, it.y) } }
                 close()
             }
-            // the feather's reach, dashed (fraction of the frame height around the shape)
+            // the feather's band, dashed: where the mask starts to fade and where it has faded out (the shader's distances)
             if (m.feather > 0.005f) {
-                val f = m.feather * 2f
-                val outer = m.copy(w = m.w + f * seqH / seqW.toFloat(), h = m.h + f)
-                drawPath(path(outer), Color.White.copy(alpha = 0.55f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx(),
-                    pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f))))
+                val dash = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
+                val (inner, outer) = m.featherBounds(seqW / seqH.toFloat())
+                drawPath(path(outer), Color.White.copy(alpha = 0.55f), style = dash)
+                drawPath(path(inner), Color.White.copy(alpha = 0.55f), style = dash)
             }
             val outline = path(m)
             drawPath(outline, Color.Black.copy(alpha = 0.5f), style = androidx.compose.ui.graphics.drawscope.Stroke(3.5.dp.toPx()))

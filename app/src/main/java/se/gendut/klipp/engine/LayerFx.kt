@@ -224,6 +224,21 @@ data class LayerMask(
         return copy(cx = (nl + nr) * 0.5f, cy = (nt + nb) * 0.5f, w = max(nr - nl, 1e-3f), h = max(nb - nt, 1e-3f), keys = emptyList())
     }
 
+    /**
+     * The feather's soft band as two shapes, the same distances as [coverage]: inside the first the mask is whole,
+     * outside the second nothing shows ([aspect] = frame width / height). Without keyframes (animated: call on [at]).
+     */
+    fun featherBounds(aspect: Float): Pair<LayerMask, LayerMask> {
+        val f = feather * 0.5f
+        fun grow(d: Float): LayerMask = if (shape == RECT) {
+            copy(w = max(w + 2f * d / aspect, 1e-4f), h = max(h + 2f * d, 1e-4f), keys = emptyList())
+        } else {
+            val k = max(1f + d / max(min(w * 0.5f * aspect, h * 0.5f), 1e-4f), 1e-3f)
+            copy(w = w * k, h = h * k, keys = emptyList())
+        }
+        return grow(-f) to grow(f)
+    }
+
     /** How much of the point (x, y) is visible (0..1). Animated: call on [at]. */
     fun coverage(x: Float, y: Float, aspect: Float): Float {
         val dist = if (shape == RECT) {

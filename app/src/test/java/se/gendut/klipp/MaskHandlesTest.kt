@@ -42,4 +42,18 @@ class MaskHandlesTest {
         val e = maskOutline(m.copy(shape = LayerMask.ELLIPSE), 4)
         assertEquals(0.7f, e[0].first, 1e-5f); assertEquals(0.6f, e[1].second, 1e-5f)
     }
+
+    /** The dashed feather lines lie where the mask actually starts to fade and where it has faded out – not further out. */
+    @Test fun theFeatherLinesMatchTheSoftEdge() {
+        val aspect = 16f / 9f
+        for (shape in listOf(LayerMask.RECT, LayerMask.ELLIPSE)) {
+            val s = m.copy(shape = shape, feather = 0.1f)
+            val (inner, outer) = s.featherBounds(aspect)
+            for ((u, v) in maskOutline(outer, 36)) assertEquals("outer, shape $shape at ($u, $v)", 0f, s.coverage(u, v, aspect), 0.02f)
+            for ((u, v) in maskOutline(inner, 36)) assertEquals("inner, shape $shape at ($u, $v)", 1f, s.coverage(u, v, aspect), 0.02f)
+            // and halfway between them it is half
+            val mid = s.copy(w = (inner.w + outer.w) / 2f, h = (inner.h + outer.h) / 2f)
+            for ((u, v) in maskOutline(mid, 36)) assertEquals("middle, shape $shape", 0.5f, s.coverage(u, v, aspect), 0.08f)
+        }
+    }
 }
