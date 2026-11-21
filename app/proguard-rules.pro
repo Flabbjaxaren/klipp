@@ -12,3 +12,6 @@
 
 # Krasch-rapporter: behåll rader och filnamn i stackspår (kartfilen sparas av bygget).
 -keepattributes SourceFile,LineNumberTable
+
+# ONNX Runtime (exact word edges): its native code finds the Java classes and constructors by name
+-keep class ai.onnxruntime.** { *; }
