@@ -102,20 +102,23 @@ fun AudioFxRack(effects: List<AfxSnap>, ops: AfxRackOps, title: String, hint: St
     Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 2.dp, bottom = 2.dp).heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         if (effects.isNotEmpty() && !full) SpringChip(if (picking) stringResource(R.string.audioui_done_adding) else "+ " + stringResource(R.string.audioui_add), picking,
-            { haptics.tick(); picking = !picking }, Modifier.testTag("fxAdd"), tight = true)
+            { haptics.tick(); picking = !picking; if (picking) open = null }, Modifier.testTag("fxAdd"), tight = true)
     }
     if (effects.isEmpty()) Text(hint, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))
-    for ((n, e) in effects.withIndex()) key(e.index, e.id) {
-        FxCard(e, n + 1, open == e.index, ops, onOpen = { open = if (open == e.index) null else e.index; picking = false })
-    }
-    // the picker: shown by itself while the rack is empty, otherwise behind "+ Add"
-    AnimatedVisibility(effects.isEmpty() || picking, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+    // the picker: shown by itself while the rack is empty, otherwise behind "+ Add" – right under the title, where the
+    // finger is (below an open card it fell outside a short panel, and "+ Add" seemed to do nothing)
+    val pickerBring = remember { BringIntoViewRequester() }
+    LaunchedEffect(picking) { if (picking) { kotlinx.coroutines.delay(220); runCatching { pickerBring.bringIntoView() } } }
+    AnimatedVisibility(effects.isEmpty() || picking, Modifier.bringIntoViewRequester(pickerBring), enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
         FxPicker(effects, full) { id ->
             haptics.confirm()
             added = id to effects.map { it.index }.toSet()
             picking = false
             ops.add(id)
         }
+    }
+    for ((n, e) in effects.withIndex()) key(e.index, e.id) {
+        FxCard(e, n + 1, open == e.index, ops, onOpen = { open = if (open == e.index) null else e.index; picking = false })
     }
     if (full) Text(stringResource(R.string.audioui_rack_full, ops.max ?: 0), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp))
 }
