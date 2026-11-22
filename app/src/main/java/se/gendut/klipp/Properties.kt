@@ -343,6 +343,23 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
             if (p.isTitle) PropSlider(stringResource(R.string.properties_clip_opacity), p.opacity, 0f, 100f, 100f, { fmtNum(it, " %") }, "opacity", anim = anim("opacity"),
                 onLive = { v -> live { it.copy(opacity = v) } }) { backend.setProps(p.id, opacity = it); done() }
             Text(stringResource(R.string.properties_motion_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+            // auto reframe: fill the frame and keep the face in the middle (a clip of another shape than the sequence)
+            val controller = state.props as? se.gendut.klipp.engine.ProjectController
+            val ctx = androidx.compose.ui.platform.LocalContext.current
+            if (controller != null && !p.isTitle && !p.isAudio) {
+                val busy = AutoReframe.target == p.id
+                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (busy) PillButton(stringResource(R.string.colortools_cancel), { AutoReframe.cancel() }, Modifier.testTag("reframe:cancel"), icon = Ic.Close, filled = false)
+                    else PillButton(stringResource(R.string.reframe_btn), { haptics.confirm(); state.playing = false; AutoReframe.start(ctx, controller, p.id) },
+                        Modifier.testTag("reframe:start"), icon = Ic.Face, filled = false)
+                }
+                AutoReframe.progress?.takeIf { busy }?.let { pr ->
+                    androidx.compose.material3.LinearProgressIndicator(progress = { pr }, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), color = K.Primary)
+                }
+                (AutoReframe.message?.takeIf { !busy } ?: if (!busy) stringResource(R.string.reframe_hint) else null)?.let {
+                    Text(it, color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("reframe:msg"))
+                }
+            }
         }
         @Composable fun fade() = PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_fade)) {
             FadeRow(stringResource(R.string.properties_fade_in), "In", p.fadeIn) { haptics.confirm(); backend.setTransition(p.id, true, it) }

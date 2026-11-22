@@ -1646,7 +1646,7 @@ class ProjectController(
 
     // ------------------------------------------------------------------ properties, titles, fades, captions
 
-    private fun find(id: Long): Triple<ClipSnap, TrackSnap, Boolean>? {
+    fun find(id: Long): Triple<ClipSnap, TrackSnap, Boolean>? {
         val q = snapshot.sequence ?: return null
         for (t in q.video) t.clips.firstOrNull { it.id == id }?.let { return Triple(it, t, false) }
         for (t in q.audio) t.clips.firstOrNull { it.id == id }?.let { return Triple(it, t, true) }
@@ -1908,6 +1908,29 @@ class ProjectController(
             levelDb?.let { setParam(id, "volume", "level", it.toDouble().coerceIn(-60.0, 15.0)) }
             refresh()
         } }
+    }
+
+    /**
+     * Auto reframe ([Reframe]): the clip's scale set to fill the frame and its position replaced by the plan's keyframes.
+     * One undo step.
+     */
+    suspend fun applyReframe(clipId: Long, plan: Reframe.Plan) = editLock.withLock {
+        val c = find(clipId)?.first ?: return@withLock
+        group(Str.t(R.string.reframe_undo)) {
+            suspend fun cmd(param: String, extra: JSONObject.() -> Unit) =
+                engine.tryExec("effects.setParam", JSONObject().put("clip", clipId).put("effect", "motion").put("param", param).apply(extra))
+            if (c.kf.containsKey(KfKeys.SCALE)) engine.tryExec("effects.toggleAnimation", JSONObject().put("clip", clipId).put("effect", "motion").put("param", "scale"))
+            cmd("scale") { put("value", plan.scale) }
+            if (c.kf.containsKey(KfKeys.POSITION)) engine.tryExec("effects.toggleAnimation", JSONObject().put("clip", clipId).put("effect", "motion").put("param", "position"))
+            var last = Long.MIN_VALUE
+            for ((t, x, y) in plan.keys) {
+                val ticks = frameTicks(t)
+                if (ticks == last) continue
+                last = ticks
+                cmd("position") { put("value", JSONArray().put(x).put(y)).put("time", ticks).put("keyframe", true) }
+            }
+        }
+        refresh()
     }
 
     override fun resetMotion(id: Long) {
