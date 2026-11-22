@@ -171,6 +171,8 @@ val SEQ_SAMPLE_RATES = listOf(44_100, 48_000, 96_000)
 fun fpsLabel(f: Double): String = "%.3f".format(f).trimEnd('0').trimEnd(',', '.')
 
 private fun durLabel(sec: Double): String {
+    // (a project under a second showed "0:00")
+    if (sec > 0.0 && sec < 1.0) return "%.1f s".format(sec)
     val s = sec.toInt()
     return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
 }

@@ -155,6 +155,8 @@ fun Thumb(uri: Uri?, modifier: Modifier) {
 }
 
 fun durText(sec: Double): String {
+    // (a clip under a second showed "0:00")
+    if (sec > 0.0 && sec < 1.0) return "%.1f s".format(sec)
     val s = sec.toInt()
     return "%d:%02d".format(s / 60, s % 60)
 }
