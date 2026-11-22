@@ -30,6 +30,7 @@ data class TranscriptCut(
 fun transcriptCut(
     wordStart: Float, wordEnd: Float, frame: Float,
     clips: List<Clip>, trackStates: List<TrackState>, targetVideo: Int, targetAudio: Int, captions: List<UiCaption>,
+    tracks: List<TrackDef> = DEFAULT_TRACKS,
 ): TranscriptCut {
     val start = floor(wordStart / frame + 1e-4f) * frame
     val end = ceil(wordEnd / frame - 1e-4f) * frame
@@ -38,10 +39,10 @@ fun transcriptCut(
         return !t.locked && (i == targetVideo || i == targetAudio || t.syncLock)
     }
     val withClips = clips.map { it.track }.distinct().sorted()
-    val cutTracks = TRACKS.indices.filter { cut(it) && it in withClips }
+    val cutTracks = tracks.indices.filter { cut(it) && it in withClips }
     val hit = clips.filter { it.track in cutTracks && it.start < end - 1e-4f && it.end > start + 1e-4f }
     val later = clips.any { it.track in cutTracks && it.end > end + 1e-4f }
-    val untouched = withClips.filter { !cut(it) }.mapNotNull { TRACKS.getOrNull(it)?.name }
+    val untouched = withClips.filter { !cut(it) }.mapNotNull { tracks.getOrNull(it)?.name }
     val caps = captions.count { !it.hidden && it.start < end - 1e-4f && it.end > start + 1e-4f }
-    return TranscriptCut(start, end, cutTracks.map { TRACKS[it].name }, hit.size, later, untouched, caps)
+    return TranscriptCut(start, end, cutTracks.map { tracks[it].name }, hit.size, later, untouched, caps)
 }

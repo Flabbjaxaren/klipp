@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -65,6 +66,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -138,6 +142,8 @@ private class ClipAnim(start: Float, len: Float, track: Float, appear: Float) {
      * waveform and filmstrip keep their material where it is while [len] changes (see liveSourceSpan).
      */
     var leftEdge by mutableStateOf(false)
+    /** The track (id) the clip was last shown on: the same track on a new row (rows shifted) snaps there, no slide. */
+    var rowId: Long? = null
 }
 
 private sealed interface Hit {
@@ -174,7 +180,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     val headerW = 68.dp
     // the caption lane is fixed under the ruler (as in other editing programs) when the sequence has a caption track
     val rulerBaseH = 28.dp
-    val capH = if (state.hasCaptionLane) 30.dp else 0.dp
+    val capH = if (state.showCaptionLane) 30.dp else 0.dp
     val rulerH = rulerBaseH + capH
     val rulerPx = with(density) { rulerH.toPx() }
     val rulerBasePx = with(density) { rulerBaseH.toPx() }
@@ -189,26 +195,41 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     /** Group move: the selected captions shifted by this much (s) – shown until the engine's reply arrives. */
     var capGroupDt by remember { mutableStateOf<Pair<Set<Long>, Float>?>(null) }
     LaunchedEffect(state.captions) { capDrag = null; capGroupDt = null }
-    val fullPx = remember(density) { TRACKS.map { with(density) { it.heightDp.dp.toPx() } } }
+    // the rows follow the sequence's tracks (read live: gestures and drawing always see the current rows)
+    fun rows(): List<TrackDef> = state.tracks
+    fun fullPxOf(i: Int): Float = with(density) { (rows().getOrNull(i)?.heightDp ?: 44).dp.toPx() }
     val slimPx = with(density) { SLIM_TRACK_DP.dp.toPx() }
-    // track heights, animated: an empty track (other than V1/A1 and the target tracks) shrinks to a slim lane and opens
-    // while a clip is dragged over it – more room for the tracks in use
-    val trackH = remember(density) { fullPx.map { Animatable(it) } }
+    // track heights, animated, per track (by id: a track added on top moves the rows, each track keeps its height): an
+    // empty track (other than V1/A1 and the target tracks) shrinks to a slim lane and opens while a clip is dragged over it
+    val trackH = remember(density) { HashMap<Long, Animatable<Float, androidx.compose.animation.core.AnimationVector1D>>() }
+    fun hAnim(i: Int): Animatable<Float, androidx.compose.animation.core.AnimationVector1D> {
+        val id = rows().getOrNull(i)?.id ?: Long.MIN_VALUE
+        return trackH.getOrPut(id) { Animatable(fullPxOf(i)) }
+    }
     /** The track a dragged clip is over right now (a slim lane opens under it). */
     var hoverTrack by remember { mutableIntStateOf(-1) }
-    for (i in TRACKS.indices) {
-        val full = i == 2 || i == 3 || i == state.targetVideo || i == state.targetAudio || i == hoverTrack ||
+    /** The track (id) whose deletion is being confirmed. */
+    var deleting by remember { mutableStateOf<Long?>(null) }
+    deleting?.let { id ->
+        val row = rows().indexOfFirst { it.id == id }
+        if (row < 0) deleting = null
+        else DeleteTrackDialog(rows()[row].name, { deleting = null }) { deleting = null; haptics.confirm(); state.deleteTrack(row) }
+    }
+    for (i in rows().indices) key(rows()[i].id) {
+        val full = i == rows().v1Row || i == rows().a1Row || i == state.targetVideo || i == state.targetAudio || i == hoverTrack ||
             state.clips.any { it.track == i && it.id !in state.removing }
-        // volume lines: taller audio tracks, so the line has room to be dragged
-        val tall = state.volOn(i) && TRACKS[i].kind == TrackKind.AUDIO
-        LaunchedEffect(i, full, tall, fullPx, slimPx) { trackH[i].animateTo(if (!full) slimPx else if (tall) fullPx[i] * VOL_TRACK_SCALE else fullPx[i], Springs.settle()) }
+        // opened with a double tap: taller (an audio track has room for its volume line to be dragged; a video track the same)
+        val tall = state.volOn(i) || state.isOpen(i)
+        val target = if (!full) slimPx else if (tall) with(density) { OPEN_TRACK_DP.dp.toPx() } else fullPxOf(i)
+        val anim = hAnim(i)
+        LaunchedEffect(anim, target) { anim.animateTo(target, Springs.settle()) }
     }
     // read at use (in gestures and drawing), so they always follow the animated heights
-    val heightsPx: List<Float> = remember(trackH) { object : AbstractList<Float>() { override val size get() = TRACKS.size; override fun get(index: Int) = trackH[index].value } }
+    val heightsPx: List<Float> = remember(trackH) { object : AbstractList<Float>() { override val size get() = rows().size; override fun get(index: Int) = hAnim(index).value } }
     val topsPx: List<Float> = remember(trackH) {
         object : AbstractList<Float>() {
-            override val size get() = TRACKS.size
-            override fun get(index: Int): Float { var a = 0f; for (k in 0 until index) a += trackH[k].value; return a }
+            override val size get() = rows().size
+            override fun get(index: Int): Float { var a = 0f; for (k in 0 until index) a += hAnim(k).value; return a }
         }
     }
     val snapPx = with(density) { 14.dp.toPx() }
@@ -237,7 +258,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     // vertical scrolling (to reach the audio tracks when the source panel takes up space)
     var scrollY by remember { mutableFloatStateOf(0f) }
     val bottomPadPx = with(density) { 96.dp.toPx() }
-    fun maxScrollY() = (topsPx[TRACKS.lastIndex] + heightsPx[TRACKS.lastIndex] + bottomPadPx - (laneHeight - rulerPx)).coerceAtLeast(0f)
+    fun maxScrollY() = (topsPx[rows().lastIndex] + heightsPx[rows().lastIndex] + bottomPadPx - (laneHeight - rulerPx)).coerceAtLeast(0f)
     fun clampY(v: Float) = v.coerceIn(0f, maxScrollY())
     // Locked mode: the playhead stays in the center and the timeline slides under it.
     fun sx(): Float = if (state.centerPlayhead) state.playhead * pps - laneWidth / 2f else freeScroll
@@ -284,7 +305,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     val volRangePx = with(density) { 150.dp.toPx() }
 
     fun yOf(tf: Float): Float {
-        val last = TRACKS.lastIndex
+        val last = rows().lastIndex
         if (tf <= 0f) return topsPx[0] + tf * heightsPx[0]
         if (tf >= last) return topsPx[last] + (tf - last) * heightsPx[last]
         val i = floor(tf).toInt()
@@ -292,13 +313,13 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
         return topsPx[i] + (topsPx[i + 1] - topsPx[i]) * f
     }
     fun hOf(tf: Float): Float {
-        val i = floor(tf.coerceIn(0f, TRACKS.lastIndex.toFloat())).toInt()
-        val j = min(i + 1, TRACKS.lastIndex)
-        val f = tf.coerceIn(0f, TRACKS.lastIndex.toFloat()) - i
+        val i = floor(tf.coerceIn(0f, rows().lastIndex.toFloat())).toInt()
+        val j = min(i + 1, rows().lastIndex)
+        val f = tf.coerceIn(0f, rows().lastIndex.toFloat()) - i
         return heightsPx[i] + (heightsPx[j] - heightsPx[i]) * f
     }
     fun trackAt(y: Float, kind: TrackKind): Int {
-        val range = if (kind == TrackKind.VIDEO) 0..2 else 3..5
+        val range = if (kind == TrackKind.VIDEO) rows().videoRows else rows().audioRows
         var best = range.first
         var bestD = Float.MAX_VALUE
         for (i in range) {
@@ -338,8 +359,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
 
     /** The track (any kind) at height [y] in content coordinates. */
     fun anyTrackAt(y: Float): Int {
-        for (i in TRACKS.indices) if (y < topsPx[i] + heightsPx[i]) return i
-        return TRACKS.lastIndex
+        for (i in rows().indices) if (y < topsPx[i] + heightsPx[i]) return i
+        return rows().lastIndex
     }
     fun clipRects(): Map<Long, androidx.compose.ui.geometry.Rect> = state.clips.filter { it.id !in state.removing }.mapNotNull { c ->
         val a = anims[c.id] ?: return@mapNotNull null
@@ -468,7 +489,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 val total = max(state.projectEnd, (sx() + laneWidth) / pps).coerceAtLeast(1f)
                 fun x(t: Float) = t / total * size.width
                 drawRoundRect(K.Deep, cornerRadius = CornerRadius(4.dp.toPx()))
-                val rowH = size.height / TRACKS.size
+                val rowH = size.height / rows().size
                 for (c in state.clips) {
                     if (c.id in state.removing) continue
                     drawRect(c.kind.fg.copy(alpha = 0.7f), Offset(x(c.start), c.track * rowH + rowH * 0.2f), Size((x(c.end) - x(c.start)).coerceAtLeast(1f), rowH * 0.6f))
@@ -477,7 +498,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 drawRoundRect(K.Mark, Offset(v0, 0f), Size((v1 - v0).coerceAtLeast(3f), size.height), CornerRadius(3.dp.toPx()), style = androidx.compose.ui.graphics.drawscope.Stroke(1.5.dp.toPx()))
                 drawRect(K.Mark, Offset(x(state.playhead) - 0.75.dp.toPx(), 0f), Size(1.5.dp.toPx(), size.height))
             }
-            if (state.hasCaptionLane) Row(Modifier.height(capH).fillMaxWidth().padding(start = 8.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (state.showCaptionLane) Row(Modifier.height(capH).fillMaxWidth().padding(start = 8.dp, end = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("TXT", color = if (state.captionsOn) K.Teal else K.Outline, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
                 // show/hide the captions (like the eye on a video track)
@@ -498,31 +519,43 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 val pl = m.measure(c.copy(maxHeight = Constraints.Infinity))
                 layout(pl.width, c.maxHeight) { pl.place(0, -scrollY.roundToInt()) }
             }) {
-            TRACKS.forEachIndexed { i, t ->
+            rows().forEachIndexed { i, t -> key(t.id) {
                 val ts = state.trackStates.getOrNull(i) ?: TrackState()
                 var menu by remember { mutableStateOf(false) }
                 val targeted = i == state.targetVideo || i == state.targetAudio
                 val lamp by androidx.compose.animation.animateColorAsState(if (targeted) K.Mark else K.OutlineVar, label = "lamp$i")
                 val lampH by androidx.compose.animation.core.animateDpAsState(if (targeted) 24.dp else 16.dp, androidx.compose.animation.core.spring(0.35f, 500f), label = "lh$i")
-                val slim = trackH[i].value < fullPx[i] * 0.7f
+                val slim = heightsPx[i] < fullPxOf(i) * 0.7f
                 Row(
-                    Modifier.height(with(density) { trackH[i].value.toDp() }).fillMaxWidth().clipToBounds()
+                    Modifier.height(with(density) { heightsPx[i].toDp() }).fillMaxWidth().clipToBounds()
                         .testTag("trackHeader:${t.name}")
-                        // tap = target track, hold = track states (lock, hide/mute, solo, sync lock)
-                        .combinedClickable(
+                        // tap = target track, hold = track states (lock, hide/mute, solo, sync lock, add, delete); a double tap
+                        // opens the track (audio: for the clips' volume lines; video: as tall) or closes it
+                        .then(if (t.kind == TrackKind.AUDIO) Modifier.combinedClickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null,
                             onLongClick = { haptics.heavy(); menu = true },
-                            // an audio track: a double tap opens it for the clips' volume lines (or closes it)
-                            onDoubleClick = if (t.kind == TrackKind.AUDIO) ({ haptics.confirm(); state.toggleVolTrack(i) }) else null,
+                            onDoubleClick = { haptics.confirm(); state.toggleOpen(i) },
                         ) {
                             haptics.tick()
                             val cb = state.onTargetTrack
-                            if (cb != null) cb(i) else if (t.kind == TrackKind.VIDEO) state.targetVideo = i else state.targetAudio = i
-                        }
+                            if (cb != null) cb(i) else state.targetAudio = i
+                        } else Modifier.headerTaps(
+                            // a video track is targeted at once (as before); the second tap of a double tap opens it
+                            onTap = {
+                                haptics.tick()
+                                val cb = state.onTargetTrack
+                                if (cb != null) cb(i) else state.targetVideo = i
+                            },
+                            onDoubleTap = { haptics.confirm(); state.toggleOpen(i) },
+                            onLongPress = { haptics.heavy(); menu = true },
+                        ))
                         .padding(start = 8.dp, end = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TrackMenu(menu, { menu = false }, t, ts) { flag, on -> haptics.tick(); state.setTrackFlag(i, flag, on) }
+                    TrackMenu(menu, { menu = false }, t, ts, state.tracks.canDelete(i, state.clips.filter { it.id !in state.removing }, state.transitions),
+                        canAdd = if (t.kind == TrackKind.VIDEO) state.tracks.canAddVideo else state.tracks.canAddAudio,
+                        onAdd = { menu = false; haptics.confirm(); state.addTrack(t.kind) }, onDelete = { menu = false; deleting = t.id },
+                    ) { flag, on -> haptics.tick(); state.setTrackFlag(i, flag, on) }
                     // an empty track as a slim lane: just its name (tap = target it, which opens it)
                     if (slim) { Text(t.name, color = K.Outline, fontSize = 9.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(start = 14.dp)); return@Row }
                     Box(
@@ -548,7 +581,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         haptics.press(); state.setTrackFlag(i, "muted", !ts.muted)
                     }
                 }
-            }
+            } }
+            // under the last track: add a video track (on top) or an audio track (at the bottom), up to the limits
+            AddTrackRow(state.tracks.canAddVideo, state.tracks.canAddAudio) { kind -> haptics.confirm(); state.addTrack(kind) }
             }
             }
         }
@@ -576,7 +611,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     layout(p.width, p.height) { p.place(0, 0) }
                 }
                 // keys: everything that changes the geometry the gesture relies on (the caption lane shifts the tracks 30 dp)
-                .pointerInput(tool, state.hasCaptionLane) {
+                .pointerInput(tool, state.showCaptionLane) {
                     awaitEachGesture {
                       try {
                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -589,9 +624,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             val cx = start.x + sx()
                             if (start.y >= rulerBasePx && start.y < rulerPx) {
                                 // several caption tracks: a row each – only the row under the finger counts
-                                val rows = captionRows(state)
-                                val row = if (rows.size < 2) -1 else (((start.y - rulerBasePx) / (rulerPx - rulerBasePx)) * rows.size).toInt().coerceIn(0, rows.size - 1)
-                                val inRow = { c: UiCaption -> row < 0 || rows.indexOf(c.track) == row }
+                                val capRows = captionRows(state)
+                                val row = if (capRows.size < 2) -1 else (((start.y - rulerBasePx) / (rulerPx - rulerBasePx)) * capRows.size).toInt().coerceIn(0, capRows.size - 1)
+                                val inRow = { c: UiCaption -> row < 0 || capRows.indexOf(c.track) == row }
                                 val sc = state.selectedCaption
                                 state.captions.firstOrNull { it.id == sc && inRow(it) }?.let { c ->
                                     val x0 = c.start * pps
@@ -607,7 +642,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             if (y < 0) return@run Hit.Ruler
                             val sel = state.selected
                             val list = state.clips.filter { it.id !in state.removing }
-                            if ((state.volLines || state.volTracks.isNotEmpty()) && tool != Tool.RAZOR && state.props != null) volHit(cx, y, list)?.let { return@run it }
+                            if (state.anyVolOn && tool != Tool.RAZOR && state.props != null) volHit(cx, y, list)?.let { return@run it }
                             val canFade = state.props != null && tool != Tool.RAZOR
                             // the fade handles in the selected clip's top corners
                             if (sel != null && canFade) {
@@ -1486,19 +1521,21 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 }
                             }
                             // Tap
-                            // a double tap on an audio track (on a clip or between them) opens it for the clips' volume
-                            // lines – taller, with the line to draw keyframes on – or closes it again
+                            // a double tap on a track (on a clip or between them) opens it – an audio track for the clips'
+                            // volume lines, taller, with the line to draw keyframes on; a video track as tall (between its clips:
+                            // two taps on a video clip still select and deselect it) – or closes it again
                             if (tool != Tool.RAZOR && state.props != null && (hit is Hit.Body || hit is Hit.TrimL || hit is Hit.TrimR || hit == Hit.Empty)) {
                                 val ti = anyTrackAt(start.y - rulerPx + scrollY)
-                                if (TRACKS[ti].kind == TrackKind.AUDIO) {
+                                if (rows().getOrNull(ti)?.kind == TrackKind.VIDEO && hit != Hit.Empty) trackTap[0] = -1L
+                                else {
                                     if (trackTap[0] == ti.toLong() && down.uptimeMillis - trackTap[1] < viewConfiguration.doubleTapTimeoutMillis) {
                                         trackTap[0] = -1L
                                         haptics.confirm()
-                                        state.toggleVolTrack(ti)
+                                        state.toggleOpen(ti)
                                         return@awaitEachGesture
                                     }
                                     trackTap[0] = ti.toLong(); trackTap[1] = down.uptimeMillis
-                                } else trackTap[0] = -1L
+                                }
                             }
 
                             when (hit) {
@@ -1663,11 +1700,11 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
             Canvas(Modifier.fillMaxSize()) {
                 val w = size.width
                 // empty tracks as slim lanes (a darker strip)
-                TRACKS.indices.forEach { i ->
-                    if (heightsPx[i] < fullPx[i] - 0.5f) drawRect(K.Deep.copy(alpha = 0.7f), Offset(0f, rulerPx + topsPx[i] - scrollY), Size(w, heightsPx[i]))
+                rows().indices.forEach { i ->
+                    if (heightsPx[i] < fullPxOf(i) - 0.5f) drawRect(K.Deep.copy(alpha = 0.7f), Offset(0f, rulerPx + topsPx[i] - scrollY), Size(w, heightsPx[i]))
                 }
                 // tracks
-                TRACKS.forEachIndexed { i, _ ->
+                rows().forEachIndexed { i, _ ->
                     val y = rulerPx + topsPx[i] + heightsPx[i] - 1f - scrollY
                     drawLine(K.Bg, Offset(0f, y), Offset(w, y), strokeWidth = 2f)
                 }
@@ -1737,7 +1774,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             val pop = state.popFrom[c.id]
                             if (pop != null) ClipAnim(pop.first, c.length, pop.second, 0f)
                             else ClipAnim(c.start, c.length, c.track.toFloat(), if (initialized) 0f else 1f)
-                        }
+                        }.also { if (it.rowId == null) it.rowId = state.tracks.getOrNull(c.track)?.id }
                     }
                     DisposableEffect(a) {
                         if (anims[c.id] !== a) anims[c.id] = a
@@ -1767,6 +1804,11 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         if (dragId == c.id) return@LaunchedEffect
                         // the engine's reply to a trim: the clip's own source start now holds what was cut
                         a.leftEdge = false
+                        // the same track on another row (a track was added on top or deleted): it moves with its row at once
+                        val rowId = state.tracks.getOrNull(c.track)?.id
+                        val shifted = rowId != null && rowId == a.rowId && abs(a.track.value - c.track) > 0.01f && abs(a.track.value - a.track.targetValue) < 0.01f
+                        a.rowId = rowId
+                        if (shifted) { a.track.snapTo(c.track.toFloat()); state.rippleDelay.remove(c.id) }
                         val d = state.rippleDelay.remove(c.id) ?: 0
                         if (d > 0) delay(d.toLong())
                         launch { a.start.animateTo(c.start, Springs.settle()) }
@@ -1792,7 +1834,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
             Canvas(Modifier.fillMaxSize()) {
                 // hidden/muted tracks are dimmed, locked ones get diagonal stripes
                 state.trackStates.forEachIndexed { i, ts ->
-                    if (i > TRACKS.lastIndex) return@forEachIndexed
+                    if (i > rows().lastIndex) return@forEachIndexed
                     val top = rulerPx + topsPx[i] - scrollY
                     val h = heightsPx[i]
                     if (top + h < rulerPx || top > size.height) return@forEachIndexed
@@ -1865,7 +1907,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 // track volume automation (yellow line with keyframes, as in other editing programs): +6 dB at the top, −60 dB at the bottom
                 state.trackVolKf.forEachIndexed { k, kfs ->
                     if (kfs.isEmpty()) return@forEachIndexed
-                    val ti = 3 + k
+                    val ti = rows().audioRow(k)
                     val top = rulerPx + yOf(ti.toFloat()) - scrollY
                     val h = hOf(ti.toFloat())
                     if (top + h < rulerPx || top > size.height) return@forEachIndexed
@@ -1894,13 +1936,13 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 // caption lane: blocks with the text, selected = bright border and handles at the edges
                 if (rulerPx > rulerBasePx) {
                     // several caption tracks with captions: a row each (they were drawn on each other)
-                    val rows = captionRows(state)
+                    val capRows = captionRows(state)
                     val laneTop = rulerBasePx + 3.dp.toPx()
                     val laneH = rulerPx - rulerBasePx - 6.dp.toPx()
-                    val rowH = if (rows.size < 2) laneH else (laneH - (rows.size - 1) * 2.dp.toPx()) / rows.size
-                    val paint = capPaint.apply { textSize = if (rows.size < 2) 11.sp.toPx() else (rowH * 0.62f).coerceAtMost(11.sp.toPx()) }
+                    val rowH = if (capRows.size < 2) laneH else (laneH - (capRows.size - 1) * 2.dp.toPx()) / capRows.size
+                    val paint = capPaint.apply { textSize = if (capRows.size < 2) 11.sp.toPx() else (rowH * 0.62f).coerceAtMost(11.sp.toPx()) }
                     for (c0 in state.captions) {
-                        val ri = if (rows.size < 2) 0 else rows.indexOf(c0.track).coerceAtLeast(0)
+                        val ri = if (capRows.size < 2) 0 else capRows.indexOf(c0.track).coerceAtLeast(0)
                         val top = laneTop + ri * (rowH + 2.dp.toPx())
                         val h = rowH
                         val gd = capGroupDt?.takeIf { c0.id in it.first }?.second
@@ -2142,6 +2184,8 @@ private fun ClipView(
 
 /** Audio tracks are this much taller while the volume lines are edited. */
 const val VOL_TRACK_SCALE = 2.2f
+/** A track opened with a double tap (audio: for its volume lines; video: the same height). */
+const val OPEN_TRACK_DP = 44f * VOL_TRACK_SCALE
 
 /** Where an audio clip [h] px tall draws its volume line: (top, bottom) within the clip – under the name, to the bottom edge. */
 fun volBandOf(h: Float, density: Float): Pair<Float, Float> = 17f * density to (h - 3f * density).coerceAtLeast(17f * density + 1f)
@@ -2384,9 +2428,89 @@ private fun HeaderToggleBox(icon: androidx.compose.ui.graphics.vector.ImageVecto
     }
 }
 
-/** Track states (hold the track header). Video tracks: lock, show/hide, sync lock. Audio tracks: lock, mute, solo, sync lock. */
+/**
+ * A track header's taps without waiting for a second one: [onTap] at once on every tap, [onDoubleTap] on the second of
+ * two quick taps (instead of a second [onTap]), [onLongPress] when held. (A clickable with a double click delays every
+ * single tap by the double-tap timeout – targeting a video track by tapping its header must stay immediate.)
+ */
 @Composable
-private fun TrackMenu(open: Boolean, onDismiss: () -> Unit, t: TrackDef, ts: TrackState, set: (String, Boolean) -> Unit) {
+private fun Modifier.headerTaps(onTap: () -> Unit, onDoubleTap: () -> Unit, onLongPress: () -> Unit): Modifier {
+    val tap by androidx.compose.runtime.rememberUpdatedState(onTap)
+    val double by androidx.compose.runtime.rememberUpdatedState(onDoubleTap)
+    val long by androidx.compose.runtime.rememberUpdatedState(onLongPress)
+    val last = remember { longArrayOf(Long.MIN_VALUE / 2) }
+    return this
+        .semantics {
+            onClick { tap(); true }
+            onLongClick { long(); true }
+        }
+        .pointerInput(Unit) {
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                down.consume()
+                var up: androidx.compose.ui.input.pointer.PointerInputChange? = null
+                val ended = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                    up = waitForUpOrCancellation()
+                    true
+                }
+                if (ended == null) {
+                    long()
+                    // the rest of the press is the menu's
+                    while (awaitPointerEvent().changes.any { it.pressed }) { }
+                    return@awaitEachGesture
+                }
+                val u = up ?: return@awaitEachGesture
+                u.consume()
+                if (u.uptimeMillis - last[0] < viewConfiguration.doubleTapTimeoutMillis) { last[0] = Long.MIN_VALUE / 2; double() }
+                else { last[0] = u.uptimeMillis; tap() }
+            }
+        }
+}
+
+/**
+ * Under the last track header: add a video track (it goes on top) or an audio track (at the bottom); greyed out at the
+ * limits (MAX_VIDEO_TRACKS, MAX_AUDIO_TRACKS).
+ */
+@Composable
+private fun AddTrackRow(canVideo: Boolean, canAudio: Boolean, onAdd: (TrackKind) -> Unit) {
+    Row(Modifier.fillMaxWidth().height(36.dp).padding(start = 6.dp, end = 4.dp, top = 4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        for ((kind, on) in listOf(TrackKind.VIDEO to canVideo, TrackKind.AUDIO to canAudio)) {
+            val label = stringResource(if (kind == TrackKind.VIDEO) R.string.timeline_add_video_track else R.string.timeline_add_audio_track)
+            Box(
+                Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(8.dp)).background(K.SurfaceHigh)
+                    .clickable(enabled = on, onClickLabel = label) { onAdd(kind) }
+                    .testTag("addTrack:${kind.name.lowercase()}"),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("+" + if (kind == TrackKind.VIDEO) "V" else "A", color = if (on) K.OnSurfaceVar else K.OutlineVar, fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+/** "Delete track V4?" – only an empty track is offered; the deletion is one undo step. */
+@Composable
+private fun DeleteTrackDialog(name: String, onDismiss: () -> Unit, onDelete: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.timeline_delete_track_title, name)) },
+        text = { Text(stringResource(R.string.timeline_delete_track_text)) },
+        confirmButton = { FlatTextButton(onDelete, Modifier.testTag("deleteTrackConfirm")) { Text(stringResource(R.string.timeline_delete_track)) } },
+        dismissButton = { FlatTextButton(onDismiss) { Text(stringResource(R.string.titleui_cancel)) } },
+        containerColor = K.SurfaceHigh,
+    )
+}
+
+/**
+ * Track states (hold the track header). Video tracks: lock, show/hide, sync lock. Audio tracks: lock, mute, solo, sync
+ * lock. Then: add a track of the same kind ([canAdd]: below the limit), delete this track ([canDelete]: it is empty).
+ */
+@Composable
+private fun TrackMenu(
+    open: Boolean, onDismiss: () -> Unit, t: TrackDef, ts: TrackState, canDelete: Boolean,
+    canAdd: Boolean, onAdd: () -> Unit, onDelete: () -> Unit, set: (String, Boolean) -> Unit,
+) {
     androidx.compose.material3.DropdownMenu(open, onDismiss, containerColor = K.SurfaceHighest, modifier = Modifier.testTag("trackMenu:${t.name}")) {
         @Composable
         fun item(label: String, on: Boolean, tag: String, click: () -> Unit) = androidx.compose.material3.DropdownMenuItem(
@@ -2404,6 +2528,17 @@ private fun TrackMenu(open: Boolean, onDismiss: () -> Unit, t: TrackDef, ts: Tra
         }
         item(stringResource(R.string.timeline_sync_lock), ts.syncLock
 , "syncLock") { set("syncLock", !ts.syncLock) }
+        androidx.compose.material3.HorizontalDivider(color = K.OutlineVar)
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(stringResource(if (t.kind == TrackKind.VIDEO) R.string.timeline_add_video_track else R.string.timeline_add_audio_track), color = if (canAdd) K.OnSurface else K.Outline, fontSize = 14.sp) },
+            onClick = onAdd, enabled = canAdd,
+            modifier = Modifier.testTag("trackAdd:${t.name}"),
+        )
+        androidx.compose.material3.DropdownMenuItem(
+            text = { Text(stringResource(R.string.timeline_delete_track_menu), color = if (canDelete) K.OnSurface else K.Outline, fontSize = 14.sp) },
+            onClick = onDelete, enabled = canDelete,
+            modifier = Modifier.testTag("trackDelete:${t.name}"),
+        )
     }
 }
 

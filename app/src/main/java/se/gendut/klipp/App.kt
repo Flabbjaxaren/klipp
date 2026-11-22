@@ -893,13 +893,13 @@ private fun KlippAppContent(
         val monitorH = userMonitorH ?: defaultMonitorH
         // the picture's scrub speed while it is dragged (shown as a badge on the picture)
         var monitorTier by remember { mutableIntStateOf(0) }
-        /** The clips the color page grades: the video clips of the three lowest tracks, in timeline order. */
+        /** The clips the color page grades: the video clips of all video tracks, in timeline order. */
         @Composable
         fun colorClips(): List<ColorClip> {
             val q = controller?.snapshot?.sequence
             return remember(q) {
-                q?.video?.take(3)?.flatMapIndexed { k, t ->
-                    t.clips.filter { it.text == null }.map { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 2 - k, c.speed, c.hold, c.reverse) }
+                q?.video?.flatMapIndexed { k, t ->
+                    t.clips.filter { it.text == null }.map { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, q.video.size - 1 - k, c.speed, c.hold, c.reverse) }
                 }.orEmpty().sortedBy { it.start }
             }
         }

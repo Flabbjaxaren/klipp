@@ -12,8 +12,8 @@ import org.robolectric.annotation.Config
 class LinkedMoveTest {
     private class Rec : EditBackend {
         val log = mutableListOf<String>()
-        override fun move(clip: Clip, start: Float, track: Int, insert: Boolean) { log += "move ${clip.id} $start ${TRACKS[track].name}" }
-        override fun moveMany(moves: List<Triple<Clip, Float, Int>>, insert: Boolean) { log += moves.joinToString("; ") { "${it.first.id} ${it.second} ${TRACKS[it.third].name}" } }
+        override fun move(clip: Clip, start: Float, track: Int, insert: Boolean) { log += "move ${clip.id} $start ${DEFAULT_TRACKS[track].name}" }
+        override fun moveMany(moves: List<Triple<Clip, Float, Int>>, insert: Boolean) { log += moves.joinToString("; ") { "${it.first.id} ${it.second} ${DEFAULT_TRACKS[it.third].name}" } }
         override fun trim(old: Clip, updated: Clip, ripple: Boolean) {}
         override fun split(id: Long, at: Float) {}
         override fun remove(id: Long, ripple: Boolean) {}
