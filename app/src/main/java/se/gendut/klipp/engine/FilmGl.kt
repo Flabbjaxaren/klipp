@@ -27,11 +27,13 @@ class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Bo
                  /** The short side of the clip's original (the film's input in the export), 0 = unknown: see [FilmFx.Frame]. */
                  val refShort: Int = 0,
                  /** The node's mix: the film is blended with its input by it, like the node's color (live: read from [LiveGrades]). */
-                 val mix: Float = 1f) : GlEffect {
+                 val mix: Float = 1f,
+                 /** The node's key (window, qualifier) from its color pass: the film applies only there. */
+                 val link: se.gendut.klipp.engine.NodeKeyLink? = null) : GlEffect {
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram {
         if (FilmGl.floatTargets()) {
             try {
-                return FilmGl.Program(film, live, useHdr, main, refShort, mix)
+                return FilmGl.Program(film, live, useHdr, main, refShort, mix, link)
             } catch (e: Exception) {
                 se.gendut.klipp.CrashReport.note("film: GPU path could not start (${e.message}) – color only")
             }
@@ -477,6 +479,9 @@ uniform int uDisplay;
 uniform sampler2D uA;
 // the node's mix: the film blended with its input (the node's own output), like the node's color
 uniform float uMix;
+// the node's key (window × qualifier) from its color pass – the film only applies there (see NodeKeyLink)
+uniform int uUseKey;
+uniform sampler2D uKey;
 // effects only (FilmFx.keepColors): the input × the film's output / the film's colors alone (uLut), in linear light
 uniform int uKeep;
 uniform sampler3D uLut;
@@ -515,7 +520,8 @@ void main() {
   l = clamp(l, 0.0, 1.0);
   vec4 src = texelFetch(uA, p, 0);
   vec3 o = uKeep == 1 ? keepColors(l, src.rgb) : (uDisplay == 1 ? pow(l, vec3(1.0 / 2.4)) : vec3(enc(l.r), enc(l.g), enc(l.b)));
-  outColor = vec4(mix(src.rgb, o, uMix), src.a);
+  float m = uMix * (uUseKey == 1 ? texelFetch(uKey, p, 0).r : 1.0);
+  outColor = vec4(mix(src.rgb, o, m), src.a);
 }
 """
 
@@ -527,9 +533,12 @@ uniform float uLutN;
 // effects only: the image unchanged
 uniform int uPass;
 uniform float uMix;
+uniform int uUseKey;
+uniform sampler2D uKey;
 void main() {
   vec4 c = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0);
-  outColor = uPass == 1 ? c : vec4(mix(c.rgb, texture(uLut, (clamp(c.rgb, 0.0, 1.0) * (uLutN - 1.0) + 0.5) / uLutN).rgb, uMix), c.a);
+  float m = uMix * (uUseKey == 1 ? texelFetch(uKey, ivec2(gl_FragCoord.xy), 0).r : 1.0);
+  outColor = uPass == 1 ? c : vec4(mix(c.rgb, texture(uLut, (clamp(c.rgb, 0.0, 1.0) * (uLutN - 1.0) + 0.5) / uLutN).rgb, m), c.a);
 }
 """
 
@@ -649,7 +658,14 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
 
     /** [main]: in the main player's chain (see Occlusion.hideMain). */
     class Program(private var film: Film, private val live: Pair<Long, Int>?, useHdr: Boolean, private val main: Boolean = false,
-                  private val refShort: Int = 0, private val fixedMix: Float = 1f) : BaseGlShaderProgram(useHdr, 1) {
+                  private val refShort: Int = 0, private val fixedMix: Float = 1f,
+                  private val link: se.gendut.klipp.engine.NodeKeyLink? = null) : BaseGlShaderProgram(useHdr, 1) {
+        /** The node's key texture this frame (its window/qualifier); none = the film applies everywhere. */
+        private fun bindKey(p: Prog) {
+            val k = link?.key()
+            p.i1("uUseKey", if (k != null) 1 else 0)
+            if (k != null) p.tex("uKey", GLES20.GL_TEXTURE_2D, k)
+        }
         /** The node's mix now (playback: the node's live values, so the slider works while it is dragged). */
         private fun mixNow(): Float = ((live?.let { LiveGrades.get(it) }?.mix) ?: fixedMix).coerceIn(0f, 1f)
         private val expose = Prog(EXPOSE)
@@ -1045,6 +1061,7 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 p.tex("uLut", GLES30.GL_TEXTURE_3D, lut)
                 p.i1("uPass", if (film.effectsOnly) 1 else 0)
                 p.f1("uMix", mixNow())
+                bindKey(p)
                 p.f1("uLutN", Spektra.composite(null, 0f, film).size.toFloat())
                 draw()
                 GlUtil.checkGlError()
@@ -1217,6 +1234,7 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 final.i1("uDisplay", s.f.display)
                 final.tex("uA", GLES20.GL_TEXTURE_2D, inputTexId)
                 final.f1("uMix", mixNow())
+                bindKey(final)
                 final.i1("uKeep", if (s.f.effectsOnly) 1 else 0)
                 // every sampler gets its own unit even when unused: an unbound sampler3D would share unit 0 with a
                 // sampler2D, and then the draw fails (the film fell back to color only)
