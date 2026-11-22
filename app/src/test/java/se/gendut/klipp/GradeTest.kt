@@ -121,4 +121,12 @@ class GradeTest {
         val other = comp.sequences[0].editedMediaItems.filter { it.mediaItem.localConfiguration != null }[1].effects.videoEffects.filterNot { it is androidx.media3.effect.Presentation || it is se.gendut.klipp.engine.PrerollDrop }
         assertEquals("ungraded clip: no effects of its own", 0, other.size)
     }
+
+    @Test fun rebuildKeyTellsGradedFromUngraded() {
+        // clip 32 with node 1: the structure map's hashCode is 0, as for no grade at all – the key must still differ
+        val graded = mapOf(32L to ClipGrade(listOf(GradeNode(1, "Primär", sat = 0.5f))))
+        val structure = se.gendut.klipp.engine.LiveGrades.structure(graded)
+        assertEquals(structure.hashCode(), emptyMap<Long, List<Int>>().hashCode())
+        assertTrue(se.gendut.klipp.engine.LiveGrades.structureKey(graded) != se.gendut.klipp.engine.LiveGrades.structureKey(emptyMap()))
+    }
 }
