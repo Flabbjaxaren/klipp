@@ -15,3 +15,17 @@
 
 # ONNX Runtime (exact word edges): its native code finds the Java classes and constructors by name
 -keep class ai.onnxruntime.** { *; }
+
+# MediaPipe (face following): its native library finds Java classes, fields and methods by name (packets, the graph's
+# callbacks, the tasks' option and result classes), and protobuf lite reads the generated messages' fields by name.
+# The usage-statistics transport (com.google.android.datatransport) is left out on purpose (app/build.gradle.kts):
+# only MediaPipe's RemoteLoggingClient refers to it, and nothing creates that.
+-keep class com.google.mediapipe.** { *; }
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite { <fields>; }
+-dontwarn com.google.android.datatransport.**
+# Referenced but not in the app, and never used by face following: LiteRT-LM (an optional dependency of the image
+# embedder), AutoValue's annotations, and two framework protos (graph profiler and templates)
+-dontwarn com.google.ai.edge.litertlm.**
+-dontwarn com.google.auto.value.**
+-dontwarn com.google.mediapipe.proto.CalculatorProfileProto$*
+-dontwarn com.google.mediapipe.proto.GraphTemplateProto$*

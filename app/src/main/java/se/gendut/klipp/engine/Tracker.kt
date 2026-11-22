@@ -62,6 +62,17 @@ object WindowTracker {
         fun report() = onProgress(((done[0] + done[1]) / total).toFloat().coerceIn(0f, 1f))
         val fwdPool = Executors.newSingleThreadExecutor { r -> Thread(r, "track-forward").apply { isDaemon = true } }.asCoroutineDispatcher()
         val bwdPool = Executors.newSingleThreadExecutor { r -> Thread(r, "track-backward").apply { isDaemon = true } }.asCoroutineDispatcher()
+        // faces: MediaPipe where it runs (FaceLandmarks), else YuNet in the engine
+        if (face && withContext(fwdPool) { FaceLandmarks.available(context) }) try {
+            val fwd = async(fwdPool) { forwardFaces(context, file, ref, hi, win, onSample) { t -> done[0] = t - ref; report() } }
+            val bwd = async(bwdPool) { if (!forwardOnly && ref - lo > 0.02) backwardFaces(context, file, ref, lo, win, onSample) { t -> done[1] = ref - t; report() } else null }
+            val f = fwd.await()
+            val b = bwd.await()
+            onProgress(1f)
+            return@coroutineScope withContext(Dispatchers.Default) { merge(faceSamples((b?.steps?.asReversed() ?: emptyList()) + f.steps, ref, f.w, f.h)) }
+        } finally {
+            fwdPool.close(); bwdPool.close()
+        }
         try {
             val fwd = async(fwdPool) { forward(context, file, ref, hi, win, face, onSample) { t -> done[0] = t - ref; report() } }
             val bwd = async(bwdPool) { if (!forwardOnly && ref - lo > 0.02) backward(context, file, ref, lo, win, face, onSample) { t -> done[1] = ref - t; report() } else emptyList() }
@@ -197,12 +208,13 @@ object WindowTracker {
     val DENSITIES = floatArrayOf(1f, 2f, 4f)
 
     /**
-     * What the window follows: points on the object (any object; the default), or a face found anew in every frame
-     * (rust/src/face.rs) – which keeps up with a head that turns, nods or looks away, where points slide off it.
-     * Saved in the settings.
+     * What the window follows: points on the object (any object; the default), or a face – which keeps up with a head
+     * that turns, nods or looks away, where points slide off it. Faces are followed with MediaPipe's Face Landmarker
+     * ([FaceLandmarks], [FaceFollow]); where MediaPipe can't run, with YuNet in the engine (rust/src/face.rs, found anew
+     * in every frame). Saved in the settings.
      */
     var faces by androidx.compose.runtime.mutableStateOf(false)
-    /** Face work size (long side): faces are large enough at this size, and detection costs follow the pixel count. */
+    /** YuNet's work size (long side): faces are large enough at this size, and detection costs follow the pixel count. */
     private const val FACE_WORK = 320
 
     /** A tracker in Rust (always closed): points, or faces ([face], for frames stored turned [rotation]). */
@@ -317,6 +329,124 @@ object WindowTracker {
             return out
         } finally {
             v.ex.release()
+        }
+    }
+
+    /** One direction of MediaPipe face following: per frame the chosen face (null: not found), in a [w]×[h] analysed frame. */
+    internal class FaceSteps(val w: Int, val h: Int, val steps: List<Pair<Double, FaceFollow.Obs?>>)
+
+    /** A live sample for the progress display: the face relative to the first one found in this direction. */
+    private class FaceLive(val w: Int, val h: Int) {
+        private var first: FaceFollow.Obs? = null
+        private var last: FaceFollow.Obs? = null
+        fun sample(t: Double, o: FaceFollow.Obs?): Sample {
+            if (o != null) { if (first == null) first = o; last = o }
+            val r = first ?: return Sample(t, 0f, 0f, 1f, 0f)
+            val c = last!!
+            return Sample(t, ((c.cx - r.cx) / w).toFloat(), ((c.cy - r.cy) / h).toFloat(), (c.size / r.size).toFloat(), if (o != null) 1f else 0f, c.pts, (c.angle - r.angle).toFloat())
+        }
+    }
+
+    private suspend fun forwardFaces(context: Context, uri: Uri, ref: Double, hi: Double, win: Window, onSample: (Sample) -> Unit, progress: (Double) -> Unit): FaceSteps {
+        val v = open(context, uri)
+        try {
+            val out = ArrayList<Pair<Double, FaceFollow.Obs?>>()
+            val hint = Perf.Hint(context, 6)
+            var tracker: MpFaceTracker? = null
+            var live: FaceLive? = null
+            try {
+                decode(v, ref, hi) { t, img ->
+                    val p = img.planes[0]
+                    val tr = tracker ?: FacePicture.workSize(img.width, img.height, v.rotation).let { (w, h) -> MpFaceTracker(context, w, h, win) }.also { tracker = it; live = FaceLive(it.w, it.h) }
+                    val pic = FacePicture(p.buffer, p.buffer.position(), p.rowStride, p.pixelStride, img.width, img.height, v.rotation, tr.w, tr.h)
+                    val o = hint.run { tr.frame(pic) }
+                    out += t to o
+                    onSample(live!!.sample(t, o))
+                    progress(t)
+                }
+            } finally {
+                tracker?.close()
+            }
+            val (w, h) = tracker?.let { it.w to it.h } ?: (1 to 1)
+            return FaceSteps(w, h, out)
+        } finally {
+            v.ex.release()
+        }
+    }
+
+    /**
+     * Backward, as [backward]: chunks are decoded forward, their luma stored at the analysed size (at most
+     * [FaceLandmarks.WORK] on the long side, ~0.9 MB a frame – so a chunk is about 30 frames) and followed in reverse.
+     */
+    private suspend fun backwardFaces(context: Context, uri: Uri, ref: Double, lo: Double, win: Window, onSample: (Sample) -> Unit, progress: (Double) -> Unit): FaceSteps {
+        val v = open(context, uri)
+        try {
+            val out = ArrayList<Pair<Double, FaceFollow.Obs?>>()
+            val hint = Perf.Hint(context, 6)
+            val chunk = (30.0 / frameRate(v.format)).coerceIn(0.25, CHUNK_SEC)
+            var tracker: MpFaceTracker? = null
+            var live: FaceLive? = null
+            var direct: ByteBuffer? = null
+            // stored size (buffer orientation) and analysed size (display orientation)
+            var store: Pair<Int, Int>? = null
+            var work: Pair<Int, Int>? = null
+            try {
+                var end = ref
+                var firstChunk = true
+                while (end > lo + 1e-3) {
+                    currentCoroutineContext().ensureActive()
+                    val start = (end - chunk).coerceAtLeast(lo)
+                    val frames = ArrayList<Pair<Double, ByteArray>>()
+                    decode(v, start, end) { t, img ->
+                        if (t > end + 1e-3 || (!firstChunk && t >= end - 1e-3)) return@decode
+                        val (sw, sh) = store ?: run {
+                            val k = minOf(1.0, FaceLandmarks.WORK.toDouble() / maxOf(img.width, img.height))
+                            ((img.width * k).roundToInt().coerceAtLeast(16) to (img.height * k).roundToInt().coerceAtLeast(16)).also {
+                                store = it; work = FacePicture.workSize(it.first, it.second, v.rotation)
+                            }
+                        }
+                        frames += t to downscale(img, sw, sh)
+                    }
+                    if (frames.isEmpty()) break
+                    val (sw, sh) = store!!
+                    val (w, h) = work!!
+                    val tr = tracker ?: MpFaceTracker(context, w, h, win).also { tracker = it; live = FaceLive(w, h) }
+                    val buf = direct ?: ByteBuffer.allocateDirect(sw * sh).order(ByteOrder.nativeOrder()).also { direct = it }
+                    for ((t, px) in frames.asReversed()) {
+                        currentCoroutineContext().ensureActive()
+                        buf.clear(); buf.put(px); buf.flip()
+                        val o = hint.run { tr.frame(FacePicture(buf, 0, sw, 1, sw, sh, v.rotation, w, h)) }
+                        out += t to o
+                        onSample(live!!.sample(t, o))
+                        progress(t)
+                    }
+                    firstChunk = false
+                    end = frames.first().first
+                    if (start <= lo + 1e-3) break
+                }
+            } finally {
+                tracker?.close()
+            }
+            val (w, h) = work ?: (1 to 1)
+            return FaceSteps(w, h, out)
+        } finally {
+            v.ex.release()
+        }
+    }
+
+    /**
+     * Face steps of both directions → samples for [merge]: the frames where the face was found, smoothed
+     * ([FaceFollow.smooth]) and relative to the face at the reference time [ref] (where the window was placed – it
+     * starts exactly where it is). Frames without the face are left out (the track interpolates over them).
+     */
+    internal fun faceSamples(steps: List<Pair<Double, FaceFollow.Obs?>>, ref: Double, w: Int, h: Int): List<Sample> {
+        val found = steps.filter { it.second != null }.sortedBy { it.first }
+            .fold(ArrayList<Pair<Double, FaceFollow.Obs?>>()) { acc, x -> if (acc.isEmpty() || x.first - acc.last().first > 1e-4) acc += x; acc }
+        if (found.isEmpty()) return steps.map { Sample(it.first, 0f, 0f, 1f, 0f) }.ifEmpty { listOf(Sample(ref, 0f, 0f, 1f, 0f)) }
+        val sm = FaceFollow.smooth(found.map { (t, o) -> FaceFollow.State(t, o!!.cx, o.cy, o.size, o.angle) })
+        val r = sm.minBy { abs(it.t - ref) }
+        return sm.mapIndexed { i, s ->
+            Sample(s.t, ((s.cx - r.cx) / w).toFloat(), ((s.cy - r.cy) / h).toFloat(), (s.size / r.size).toFloat(), 1f, found[i].second!!.pts, (s.angle - r.angle).toFloat())
         }
     }
 
@@ -455,7 +585,8 @@ class TrackCloud(samples: List<WindowTracker.Sample>) {
 }
 
 /**
- * Face samples before they become a track (pure, testable): frames where the face wasn't found are left out (the
+ * YuNet face samples (the fallback where MediaPipe can't run; MediaPipe's are smoothed by [FaceFollow.smooth]) before
+ * they become a track (pure, testable): frames where the face wasn't found are left out (the
  * track interpolates over them), and the detector's frame-to-frame jitter is smoothed – position and turn lightly,
  * size more (a face box's size wobbles a few per cent from frame to frame).
  */

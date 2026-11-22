@@ -245,7 +245,7 @@
     <string name="colortools_track_follow">Follow</string>
     <string name="colortools_follow_object">Object</string>
     <string name="colortools_follow_face">Face</string>
-    <string name="colortools_follow_face_hint">Found again in every frame – keeps up when the head turns.</string>
+    <string name="colortools_follow_face_hint">Follows the face the window is on – keeps up when the head turns and stays with that person.</string>
     <string name="colortools_track_face">Follow the face</string>
     <string name="lutbrowser_builtin">Built-in</string>
     <string name="lutbrowser_imported">Imported</string>
