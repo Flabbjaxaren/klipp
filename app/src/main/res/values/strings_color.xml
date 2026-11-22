@@ -2,7 +2,7 @@
 <resources>
     <string name="colortools_lut_intro">The LUT applies to this clip only and goes last in the node. Put it in its own node if you want to grade before or after it.</string>
     <string name="colortools_none">None</string>
-    <string name="colortools_import_cube">+ Import .cube</string>
+    <string name="colortools_import_cube">+ Import .cube / .zip</string>
     <string name="colortools_lut_missing">The LUT \"%1$s\" is no longer in the app – choose another.</string>
     <string name="colortools_lut_strength">LUT strength</string>
     <string name="colortools_drt_title">Display transform · OpenDRT</string>
@@ -247,4 +247,13 @@
     <string name="colortools_follow_face">Face</string>
     <string name="colortools_follow_face_hint">Found again in every frame – keeps up when the head turns.</string>
     <string name="colortools_track_face">Follow the face</string>
+    <string name="lutbrowser_builtin">Built-in</string>
+    <string name="lutbrowser_imported">Imported</string>
+    <string name="lutbrowser_selected">%1$d selected</string>
+    <string name="lutbrowser_select_all">All imported</string>
+    <string name="lutbrowser_delete">Delete</string>
+    <string name="lutbrowser_cancel">Cancel</string>
+    <string name="lutbrowser_delete_title">Delete %1$d LUTs?</string>
+    <string name="lutbrowser_delete_text">Clips that use them keep the name and show the LUT as missing until it is imported again.</string>
+    <string name="lutbrowser_hint">Hold a LUT to select several (then tap a group name for the whole group)</string>
 </resources>

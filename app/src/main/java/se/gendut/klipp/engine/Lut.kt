@@ -321,7 +321,109 @@ object LutStore {
         names.clear()
         names += TEAL_ORANGE
         names += BLEACH
-        dir?.listFiles { f -> f.name.endsWith(".cube", true) }?.sortedBy { it.name.lowercase() }?.forEach { names += it.nameWithoutExtension }
+        val d = dir ?: return
+        d.listFiles { f -> f.isFile && f.name.endsWith(".cube", true) }?.sortedBy { it.name.lowercase() }?.forEach { names += it.nameWithoutExtension }
+        // a folder is a group (from a zip's folders); its LUTs are named "Group/Name"
+        d.listFiles { f -> f.isDirectory }?.sortedBy { it.name.lowercase() }?.forEach { g ->
+            g.listFiles { f -> f.isFile && f.name.endsWith(".cube", true) }?.sortedBy { it.name.lowercase() }
+                ?.forEach { names += g.name + "/" + it.nameWithoutExtension }
+        }
+    }
+
+    // ------------------------------------------------------------------ groups, zip import, delete
+
+    /** The built-in LUTs (not files: they can't be deleted). */
+    fun isBuiltIn(name: String) = name == TEAL_ORANGE || name == BLEACH
+
+    /** The group of [name]: its folder, "" for a LUT imported on its own (or a built-in one). */
+    fun groupOf(name: String): String = name.substringBeforeLast('/', "")
+
+    /** The name shown for [name]: without its group. */
+    fun shortName(name: String): String = name.substringAfterLast('/')
+
+    private fun clean(s: String) = s.replace(Regex("[^\\p{L}\\p{N} _.-]"), "_").trim().take(40)
+
+    private fun forget(name: String) {
+        cache.remove(name)
+        missing.remove(name)
+    }
+
+    /** After files changed: LUTs baked into OpenDRT or film with an old file are rebuilt, the list is reloaded. */
+    private fun changed() {
+        OpenDrt.clearCache()
+        Spektra.clearCache()
+        // the name list is UI state: changed on the main thread
+        android.os.Handler(android.os.Looper.getMainLooper()).post { refreshNames() }
+    }
+
+    /**
+     * Imports .cube files and zips of them (a zip's folders become groups; a .cube at its top goes into a group named
+     * after the zip). Returns the names imported, in order; a file that is not a valid 3D LUT is skipped and counted in
+     * [ImportResult.failed].
+     */
+    fun importAll(context: Context, uris: List<android.net.Uri>): ImportResult {
+        init(context)
+        val d = dir ?: return ImportResult(emptyList(), uris.size)
+        val done = ArrayList<String>()
+        var failed = 0
+        for (uri in uris) {
+            val display = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            } ?: "LUT"
+            if (display.endsWith(".zip", true)) {
+                val zipGroup = clean(display.substringBeforeLast('.'))
+                runCatching {
+                    context.contentResolver.openInputStream(uri)!!.use { input ->
+                        val zip = java.util.zip.ZipInputStream(input)
+                        while (true) {
+                            val e = zip.nextEntry ?: break
+                            val path = e.name.replace('\\', '/')
+                            val file = path.substringAfterLast('/')
+                            if (e.isDirectory || !file.endsWith(".cube", true) || file.startsWith(".") || path.startsWith("__MACOSX/")) continue
+                            val folder = path.substringBeforeLast('/', "").substringAfterLast('/')
+                            val group = clean(folder.ifEmpty { zipGroup }).ifEmpty { "LUT" }
+                            val name = clean(file.substringBeforeLast('.')).ifEmpty { "LUT" }
+                            val text = zip.readBytes().toString(Charsets.UTF_8)
+                            val key = "$group/$name"
+                            val lut = runCatching { CubeLut.parseCube(name, text) }.getOrNull()
+                            if (lut == null) { failed++; continue }
+                            java.io.File(d, group).mkdirs()
+                            java.io.File(d, "$key.cube").writeText(text)
+                            forget(key)
+                            cache[key] = lut
+                            done += key
+                        }
+                    }
+                }.onFailure { failed++ }
+            } else {
+                runCatching {
+                    val name = clean(display.substringBeforeLast('.')).ifEmpty { "LUT" }
+                    val text = context.contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
+                    val lut = CubeLut.parseCube(name, text) // throws if the file is not a valid 3D LUT
+                    java.io.File(d, "$name.cube").writeText(text)
+                    forget(name)
+                    cache[name] = lut
+                    done += name
+                }.onFailure { failed++ }
+            }
+        }
+        if (done.isNotEmpty()) changed()
+        return ImportResult(done, failed)
+    }
+
+    class ImportResult(val names: List<String>, val failed: Int)
+
+    /** Deletes imported LUTs (built-in ones are kept); an emptied group folder goes too. */
+    fun delete(toDelete: Collection<String>) {
+        val d = dir ?: return
+        for (name in toDelete) {
+            if (isBuiltIn(name)) continue
+            java.io.File(d, "$name.cube").delete()
+            forget(name)
+            val group = groupOf(name)
+            if (group.isNotEmpty()) java.io.File(d, group).takeIf { it.isDirectory && it.list()?.isEmpty() == true }?.delete()
+        }
+        changed()
     }
 
     fun get(name: String): CubeLut? {

@@ -275,12 +275,20 @@ private fun KlippAppContent(
     fun openImport() { picker.launch(videoRequest()) }
     // an imported LUT goes into the timeline look, or into a node if the import was started from there
     var lutTarget by remember { mutableStateOf<((String) -> Unit)?>(null) }
-    val lutPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+    // several .cube files and .zip packs at once (a zip's folders become groups)
+    val lutPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         val target = lutTarget
         lutTarget = null
-        if (uri != null) scope.launch {
-            runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.LutStore.import(context, uri) } }
-                .onSuccess { name -> if (target != null) target(name) else grade.lutName = name; haptics.confirm(); toaster.show(Str.t(R.string.app_lut_imported, name)) }
+        if (uris.isNotEmpty()) scope.launch {
+            runCatching { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.LutStore.importAll(context, uris) } }
+                .onSuccess { r ->
+                    val first = r.names.firstOrNull()
+                    if (first == null) { toaster.show(Str.t(R.string.app_lut_read_failed, "")); return@onSuccess }
+                    if (target != null) target(first) else grade.lutName = first
+                    haptics.confirm()
+                    toaster.show(if (r.names.size == 1 && r.failed == 0) Str.t(R.string.app_lut_imported, first)
+                        else Str.t(R.string.app_luts_imported, r.names.size, r.failed))
+                }
                 .onFailure { toaster.show(Str.t(R.string.app_lut_read_failed, it.message ?: "")) }
         }
     }
