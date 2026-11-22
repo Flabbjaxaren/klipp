@@ -341,7 +341,25 @@ object LutStore {
     /** The name shown for [name]: without its group. */
     fun shortName(name: String): String = name.substringAfterLast('/')
 
-    private fun clean(s: String) = s.replace(Regex("[^\\p{L}\\p{N} _.-]"), "_").trim().take(40)
+    // (no leading dots: "." or ".." from a zip's folder names would point outside the LUT folder)
+    private fun clean(s: String) = s.replace(Regex("[^\\p{L}\\p{N} _.-]"), "_").trim().trimStart('.').trim().take(40)
+
+    /** The largest .cube read (a 129³ LUT is about 60 MB of text): a bigger zip entry is skipped, not read into memory. */
+    private const val MAX_CUBE = 96L shl 20
+
+    private fun readCapped(input: java.io.InputStream): String? {
+        val out = java.io.ByteArrayOutputStream()
+        val buf = ByteArray(64 shl 10)
+        var total = 0L
+        while (true) {
+            val n = input.read(buf)
+            if (n < 0) break
+            total += n
+            if (total > MAX_CUBE) return null
+            out.write(buf, 0, n)
+        }
+        return out.toString(Charsets.UTF_8.name())
+    }
 
     private fun forget(name: String) {
         cache.remove(name)
@@ -383,7 +401,8 @@ object LutStore {
                             val folder = path.substringBeforeLast('/', "").substringAfterLast('/')
                             val group = clean(folder.ifEmpty { zipGroup }).ifEmpty { "LUT" }
                             val name = clean(file.substringBeforeLast('.')).ifEmpty { "LUT" }
-                            val text = zip.readBytes().toString(Charsets.UTF_8)
+                            val text = readCapped(zip)
+                            if (text == null) { failed++; continue }
                             val key = "$group/$name"
                             val lut = runCatching { CubeLut.parseCube(name, text) }.getOrNull()
                             if (lut == null) { failed++; continue }
