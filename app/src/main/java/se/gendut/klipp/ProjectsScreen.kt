@@ -206,6 +206,8 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { backend.list() }
     }
     var creating by remember { mutableStateOf(false) }
+    // a low window (a phone on its side): New project is a button in the header – floating at the bottom it lay over Continue
+    val low = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 560
     var menuFor by remember { mutableStateOf<ProjectCard?>(null) }
     var renaming by remember { mutableStateOf<ProjectCard?>(null) }
     var deleting by remember { mutableStateOf<ProjectCard?>(null) }
@@ -273,6 +275,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                     Text("Klipp", color = K.OnSurface, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
                     HeaderButton(Ic.Check, stringResource(R.string.projectsscreen_select), Color.Transparent, Modifier.testTag("selectProjects")) { haptics.tick(); selecting = true }
                     HeaderButton(Ic.Search, stringResource(R.string.projectsscreen_search), Color.Transparent, Modifier.testTag("searchProjects")) { query = "" }
+                    if (low) HeaderButton(Ic.Plus, stringResource(R.string.projectsscreen_new_project), Color.Transparent, Modifier.testTag("newProject")) { haptics.confirm(); creating = true }
                     if (onSettings != null) HeaderButton(Ic.Gear, stringResource(R.string.app_app_settings), K.SurfaceHigh, Modifier.testTag("appSettings")) { onSettings() }
                 }
             }
@@ -311,7 +314,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                 }
             }
         }
-        if (!selecting) NewProjectButton(Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 16.dp, bottom = 28.dp)) {
+        if (!selecting && !low) NewProjectButton(Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 16.dp, bottom = 28.dp)) {
             haptics.confirm(); creating = true
         }
     }
@@ -543,7 +546,9 @@ private fun ProjectPicture(p: ProjectCard, corner: Int, modifier: Modifier, onOp
 @Composable
 private fun HeroCard(p: ProjectCard, backup: BackupInfo?, onOpen: () -> Unit, onMenu: () -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(K.Surface).padding(8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ProjectPicture(p, 20, Modifier.fillMaxWidth().height(180.dp), onOpen, onMenu) {
+        // a low window (a phone on its side): a lower picture, so Continue isn't under New project at the bottom
+        val low = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 560
+        ProjectPicture(p, 20, Modifier.fillMaxWidth().height(if (low) 110.dp else 180.dp), onOpen, onMenu) {
             Text(
                 stringResource(R.string.projectsscreen_last_opened), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.align(Alignment.TopStart).padding(10.dp).clip(RoundedCornerShape(12.dp)).background(Scrim).padding(horizontal = 10.dp, vertical = 4.dp),
