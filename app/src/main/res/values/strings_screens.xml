@@ -322,4 +322,7 @@
     <string name="videopicker_allow">Allow access</string>
     <string name="videopicker_none">No videos found on the phone.</string>
     <string name="videopicker_clear">Clear</string>
+    <string name="videopicker_partial">Only the videos you chose are shown.</string>
+    <string name="videopicker_choose">Choose videos</string>
+    <string name="videopicker_none_chosen">No videos chosen yet: tap Choose videos.</string>
 </resources>

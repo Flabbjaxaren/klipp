@@ -79,6 +79,11 @@ object VideoLibrary {
     /** Full access, or (Android 14+) access to the videos the user chose. */
     fun hasAccess(c: Context): Boolean = permissions().any { ContextCompat.checkSelfPermission(c, it) == PackageManager.PERMISSION_GRANTED }
 
+    /** Android 14+ "select some": only the videos the user chose are visible (asking again lets them choose more). */
+    fun isPartial(c: Context): Boolean = Build.VERSION.SDK_INT >= 34 &&
+        ContextCompat.checkSelfPermission(c, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED &&
+        ContextCompat.checkSelfPermission(c, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
+
     fun query(c: Context): List<Video> {
         val out = ArrayList<Video>()
         val cols = arrayOf(
@@ -110,11 +115,14 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
     val ctx = LocalContext.current
     val haptics = rememberHaptics()
     var access by remember { mutableStateOf(VideoLibrary.hasAccess(ctx)) }
+    var partial by remember { mutableStateOf(VideoLibrary.isPartial(ctx)) }
     var asked by remember { mutableStateOf(false) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { asked = true; access = VideoLibrary.hasAccess(ctx) }
+    var reload by remember { mutableIntStateOf(0) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        asked = true; access = VideoLibrary.hasAccess(ctx); partial = VideoLibrary.isPartial(ctx); reload++
+    }
     // asked once on opening; after a refusal the page offers it again (or the files app)
     LaunchedEffect(Unit) { if (!access) ask.launch(VideoLibrary.permissions()) }
-    var reload by remember { mutableIntStateOf(0) }
     val videos by produceState<List<VideoLibrary.Video>?>(null, access, reload) {
         value = if (access) withContext(Dispatchers.IO) { VideoLibrary.query(ctx) } else emptyList()
     }
@@ -130,6 +138,13 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
             Text(stringResource(R.string.videopicker_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
             PillButton(stringResource(R.string.videopicker_files_app), { onFilesApp() }, icon = Ic.Folder, filled = false, modifier = Modifier.padding(end = 8.dp).testTag("videoPicker:files"))
         }
+        // with "select some" (Android 14+) only the chosen videos are listed; asking again opens the system's
+        // selection, where more can be chosen
+        if (access && partial) Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.videopicker_partial), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            PillButton(stringResource(R.string.videopicker_choose), { ask.launch(VideoLibrary.permissions()) }, filled = false,
+                modifier = Modifier.padding(start = 8.dp).testTag("videoPicker:choose"))
+        }
         val list = videos
         when {
             !access -> Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -141,7 +156,7 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
             }
             list == null -> Box(Modifier.fillMaxWidth().weight(1f))
             list.isEmpty() -> Box(Modifier.fillMaxWidth().weight(1f).padding(24.dp)) {
-                Text(stringResource(R.string.videopicker_none), color = K.OnSurfaceVar, fontSize = 15.sp)
+                Text(stringResource(if (partial) R.string.videopicker_none_chosen else R.string.videopicker_none), color = K.OnSurfaceVar, fontSize = 15.sp)
             }
             else -> {
                 // folders, the most used first (Camera usually); "All" = every video, newest first
