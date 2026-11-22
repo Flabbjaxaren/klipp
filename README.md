@@ -85,7 +85,14 @@ Requirements: Android Studio (or SDK + JDK 21), Rust (rustup), Android NDK.
    RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo ndk -t arm64-v8a --platform 29 -o ../app/src/main/jniLibs build --release
    ```
 
-3. Open the project in Android Studio and run, or build from the terminal:
+3. Build the ProRes import's library (FFmpeg's ProRes decoder + Klipp's wrapper, `libklipp_prores.so`) into the same
+   folder – it downloads the pinned FFmpeg release and checks its SHA-256 (a minute or two; CI builds it too):
+
+   ```
+   tools/ffmpeg/build.sh
+   ```
+
+4. Open the project in Android Studio and run, or build from the terminal:
 
    ```
    ./gradlew assembleDebug
@@ -146,7 +153,8 @@ Parts from other projects:
   `app/src/main/assets/spektrafilm/SPEKTRAFILM_LICENSE.txt`. The spectral upsampling tables behind the film tables are
   Klipp's own (`tools/spectra`, after Jakob & Hanika 2019).
 - **OpenDRT** (Jed Smith, https://github.com/jedypod/open-display-transform) – GPL-3.0, in `engine/OpenDrt.kt`.
-- **FilmCraft** (the editing engine, Rust), **Media3** (Apache-2.0), **whisper.cpp** (MIT).
+- **FilmCraft** (the editing engine, Rust), **Media3** (Apache-2.0), **whisper.cpp** (MIT), **FFmpeg** (LGPL-2.1+,
+  only its ProRes decoder and MOV reading/writing, for the ProRes import).
 - **Media3 effect** (Apache-2.0) as source code in `third_party/media3-effect`, modified so that the whole video chain
   computes in floating point (RGBA16F) – see `third_party/media3-effect/KLIPP.md`.
 - **Media3 transformer** (Apache-2.0) as source code in `third_party/media3-transformer`, modified for live playback's cuts

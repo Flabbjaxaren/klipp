@@ -18,7 +18,7 @@
    "notices": [
     "LICENSES/texts/GPL-3.0.txt"
    ],
-   "included_in": "the whole app (classes*.dex, resources, lib/arm64-v8a/libklipp_bridge.so's JNI bridge, libklipp_whisper.so's JNI glue)",
+   "included_in": "the whole app (classes*.dex, resources, lib/arm64-v8a/libklipp_bridge.so's JNI bridge, libklipp_whisper.so's JNI glue, libklipp_prores.so's JNI wrapper)",
    "files": [
     "assets/gap/*",
     "assets/yuvcheck/*"
@@ -82,6 +82,26 @@
    "included_in": "lib/arm64-v8a/libc++_shared.so",
    "status": "verified",
    "notes": "Same build id as the NDK's sysroot copy (the APK's copy is stripped by the build). Shipped as its own shared library, so the LLVM exception for code embedded in object files does not apply: the notice ships."
+  },
+  {
+   "id": "ffmpeg",
+   "component": "FFmpeg (ProRes decoder, PCM decoders, MOV demuxer and muxer)",
+   "version": "9.0.2",
+   "kind": "vendored-source",
+   "category": "code",
+   "origin": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz (SHA-256 8c385028…e002e)",
+   "license": "LGPL-2.1-or-later",
+   "copyright": "© the FFmpeg developers; jrevdct.c © 1991, 1992 Thomas G. Lane (Independent JPEG Group)",
+   "notices": [
+    "LICENSES/third-party/ffmpeg/COPYING.LGPLv2.1",
+    "LICENSES/third-party/ffmpeg/LICENSE.md",
+    "LICENSES/third-party/ffmpeg/CREDITS",
+    "LICENSES/third-party/ffmpeg/SOURCE.txt"
+   ],
+   "changes": "None to FFmpeg's files. Built from the unmodified release tarball by tools/ffmpeg/build.sh with only the components the ProRes import needs (--disable-everything; no --enable-gpl, --enable-nonfree or --enable-version3).",
+   "included_in": "lib/arm64-v8a/libklipp_prores.so",
+   "status": "verified",
+   "notes": "Linked statically with Klipp's GPL wrapper into one library; the corresponding source (FFmpeg's tarball, Klipp's wrapper and build script) is in every source package, so the library can be rebuilt with a modified FFmpeg (LGPL-2.1 §6, docs/licensing.md). Includes libavcodec/jrevdct.c (IJG): the IJG credit is in SOURCE.txt."
   },
   {
    "id": "spektrafilm-code",

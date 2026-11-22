@@ -216,6 +216,19 @@ def verbatim_problems(crates):
     return out
 
 
+def ffmpeg_problems(entries):
+    """The FFmpeg that tools/ffmpeg/build.sh builds into libklipp_prores.so must be the version the entry reviewed."""
+    m = re.search(r"^FFMPEG_VERSION=(\S+)", open(os.path.join(ROOT, "tools", "ffmpeg", "build.sh")).read(), re.M)
+    e = next((e for e in entries if e["id"] == "ffmpeg"), None)
+    if not m:
+        return []
+    if e is None:
+        return ["tools/ffmpeg/build.sh builds FFmpeg but tools/licenses/manual.json has no 'ffmpeg' entry"]
+    if e.get("version") != m.group(1):
+        return [f"FFmpeg {m.group(1)} is built (tools/ffmpeg/build.sh) but the license entry reviewed {e.get('version')}"]
+    return []
+
+
 def rust_status(c, overrides):
     o = overrides.get(c["component"], {})
     if not c["distributed"]:
@@ -264,6 +277,7 @@ def main():
               f"({len(man['entries'])} reviewed by hand, {len(mav)} Maven, {len(crates)} Rust)")
     if mode == "check":
         problems += verbatim_problems(crates)
+        problems += ffmpeg_problems(man["entries"])
         # the generated inventory must match what was reviewed (run `inventory.py build` after changing manual.json)
         try:
             shipped = json.load(open(os.path.join(OUT, "inventory.json")))

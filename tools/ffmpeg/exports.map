@@ -1,0 +1,8 @@
+/* libklipp_prores.so exports only its JNI entry points; FFmpeg stays hidden inside */
+{
+  global:
+    JNI_OnLoad;
+    Java_se_gendut_klipp_engine_ProResNative_*;
+  local:
+    *;
+};

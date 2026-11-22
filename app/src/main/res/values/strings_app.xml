@@ -193,4 +193,5 @@
         <item quantity="one">%1$d graded clip goes in as SDR (white at 75 %%) – %2$s</item>
         <item quantity="other">%1$d graded clips go in as SDR (white at 75 %%) – e.g. %2$s</item>
     </plurals>
+    <string name="app_export_prores_failed">%1$s couldn\'t be converted from ProRes, so it can\'t be exported: %2$s</string>
 </resources>

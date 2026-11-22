@@ -256,4 +256,6 @@
     <string name="lutbrowser_delete_title">Ta bort %1$d LUT:ar?</string>
     <string name="lutbrowser_delete_text">Klipp som använder dem behåller namnet och visar LUT:en som saknad tills den importeras igen.</string>
     <string name="lutbrowser_hint">Håll på en LUT för att välja flera (tryck sedan på ett gruppnamn för hela gruppen)</string>
+    <string name="colortools_log_detected">Kameran säger att klippet spelades in i %1$s.</string>
+    <string name="colortools_log_use">Använd %1$s</string>
 </resources>

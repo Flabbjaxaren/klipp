@@ -57,6 +57,9 @@ class ProjectController(
             android.system.Os.setenv("HOME", context.filesDir.absolutePath, true)
         }
         Reversals.onMessage = onMessage
+        // ProRes sources are converted in the background (ProRes): a finished one swaps in as the clip's file
+        ProRes.onMessage = onMessage
+        ProRes.onChange = { scope.launch { refresh(force = true) } }
     }
     val engine = Engine()
     var snapshot by mutableStateOf(Snapshot.EMPTY)
@@ -104,13 +107,45 @@ class ProjectController(
     /** Set by the UI: opens the file picker for captions. */
     var captionPicker: (() -> Unit)? = null
 
-    /** The media item's file; negative ids = reversed clips' files ([Reversals]). */
-    fun uriOf(item: Long): Uri? = if (item < 0) RenderCache.uriOf(item) ?: AudioRenders.uriOf(item) ?: Reversals.uriOf(item) else uris[item]
+    /**
+     * The file to decode for a media item; negative ids = reversed clips' files ([Reversals]). A ProRes source decodes
+     * from its intermediate ([ProRes.playable]) – none until it is converted.
+     */
+    fun uriOf(item: Long): Uri? = if (item < 0) RenderCache.uriOf(item) ?: AudioRenders.uriOf(item) ?: Reversals.uriOf(item) else uris[item]?.let { ProRes.playable(it) }
 
-    /** [uriOf] as it is now, for work that outlives this controller (the export: its screen may close). */
+    /**
+     * [uriOf] as it is now, for work that outlives this controller (the export: its screen may close). The addresses are
+     * taken now; a ProRes intermediate is looked up when asked (the export may wait for one, see [proResWaiting]).
+     */
     fun frozenUris(): (Long) -> Uri? {
         val m = HashMap(uris)
-        return { item -> if (item < 0) RenderCache.uriOf(item) ?: AudioRenders.uriOf(item) ?: Reversals.uriOf(item) else m[item] }
+        return { item -> if (item < 0) RenderCache.uriOf(item) ?: AudioRenders.uriOf(item) ?: Reversals.uriOf(item) else m[item]?.let { ProRes.playable(it) } }
+    }
+
+    /** The project's own file for an item (the original, also for a ProRes source). */
+    fun originalUriOf(item: Long): Uri? = uris[item]
+
+    /** A ProRes source's conversion state for the media panel; null = not ProRes. */
+    fun proResStatus(item: Long): ProRes.Status? = uris[item]?.let { ProRes.statusOf(it) }
+
+    /** The sequence's ProRes sources whose intermediate isn't ready (the export waits for them). */
+    fun proResWaiting(): List<Uri> = sequenceSources().filter { ProRes.isProRes(it) == true && ProRes.playable(it) == null }
+
+    /** A sequence's ProRes source that couldn't be converted: its name and the reason (the export refuses). */
+    fun proResFailure(): Pair<String, String>? = snapshot.sequence?.let { q ->
+        (q.video + q.audio).flatMap { it.clips }.map { it.item }.distinct().firstNotNullOfOrNull { item ->
+            (proResStatus(item) as? ProRes.Status.Failed)?.let { f -> (snapshot.media.firstOrNull { it.id == item }?.name ?: "") to f.message }
+        }
+    }
+
+    private fun sequenceSources(): List<Uri> = snapshot.sequence?.let { q ->
+        (q.video + q.audio).flatMap { it.clips }.filter { it.text == null }.mapNotNull { uris[it.item] }.distinct()
+    }.orEmpty()
+
+    /** Looks at newly opened files (on a background thread): ProRes ones get no player until converted. */
+    private suspend fun probeProRes(list: Collection<Uri>) {
+        if (list.isEmpty()) return
+        withContext(kotlinx.coroutines.Dispatchers.IO) { for (u in list) runCatching { ProRes.probe(context, u) } }
     }
 
     // ------------------------------------------------------------------ missing files
@@ -244,14 +279,16 @@ class ProjectController(
                     }
                     val errors = r.optJSONArray("errors")
                     if (errors != null && errors.length() > 0) onMessage(Str.p(R.plurals.projectcontroller_files_import_failed, errors.length(), errors.length()))
+                    // ProRes? (before anything is built from the new files: a ProRes original has no decoder)
+                    probeProRes(used.map { opened[it].first })
                     val snap = engine.snapshot()
                     if (snap.sequence == null) {
                         val first = snap.media.firstOrNull { it.hasVideo }
                         val p = newSeqParams()
                         if (first != null && first.width > 0) {
                             // (the rate the frames are at, measured from the file: a file can state another – see MediaProbe.rateOf)
-                            val measured = withContext(kotlinx.coroutines.Dispatchers.IO) { uris[first.id]?.let { MediaProbe.probe(context, it)?.fps } }
-                            p.put("width", first.width).put("height", first.height).put("fps", firstFps(measured ?: first.fps, uris[first.id]))
+                            val measured = withContext(kotlinx.coroutines.Dispatchers.IO) { uriOf(first.id)?.let { MediaProbe.probe(context, it)?.fps } }
+                            p.put("width", first.width).put("height", first.height).put("fps", firstFps(measured ?: first.fps, uriOf(first.id)))
                         }
                         engine.exec("file.newSequence", p)
                     }
@@ -369,6 +406,9 @@ class ProjectController(
         }
         // (the file's address is kept – undo brings the media back)
         refresh()
+        // a ProRes source no other item uses: its conversion stops (made again if undo brings it back)
+        val live = snapshot.media.mapNotNull { uris[it.id]?.toString() }.toSet()
+        for (id in all) uris[id]?.takeIf { it.toString() !in live }?.let { ProRes.cancel(it) }
     }
 
     /** All media in the bin and its sub-bins. */
@@ -569,7 +609,7 @@ class ProjectController(
             var delta = if (c != null) frameTicks(c.start + c.duration + dl) - exactTicks(c.start + c.duration) else frameTicks(dl)
             // …or past the file's end (according to Media3, same as the player)
             if (c != null && c.text == null) {
-                val len = MediaProbe.length(uris[c.item], snapshot.media.firstOrNull { it.id == c.item }?.duration)
+                val len = MediaProbe.length(uriOf(c.item), snapshot.media.firstOrNull { it.id == c.item }?.duration)
                 if (len != null) {
                     val sp = abs(c.speed).coerceAtLeast(1e-6)
                     val maxDelta = exactTicks((len - (c.sourceIn + c.duration * sp)) / sp)
@@ -845,10 +885,12 @@ class ProjectController(
         revision++
         scheduleSave()
         // the sources' sizes (the film's reference, see SourceSizes) – before the players are built from this snapshot
-        SourceSizes.remember(snap.media.mapNotNull { m -> uris[m.id]?.let { it to m } })
+        SourceSizes.remember(snap.media.mapNotNull { m -> uriOf(m.id)?.let { it to m } })
+        // ProRes sources are converted into files the phone can decode (everything below then reads those)
+        runCatching { ProRes.ensure(context, snap.media.filter { !it.offline }.mapNotNull { m -> uris[m.id]?.let { it to m } }) }
         // heavy files (4K, high frame rate, HDR) get proxy files in the background
-        runCatching { Proxies.ensure(context, snap.media.mapNotNull { m -> uris[m.id]?.let { it to m } }) }
-        scope.launch { runCatching { Perf.prefetchHdr(context, snap.media.filter { it.hasVideo }.mapNotNull { uris[it.id] }) } }
+        runCatching { Proxies.ensure(context, snap.media.mapNotNull { m -> uriOf(m.id)?.let { it to m } }) }
+        scope.launch { runCatching { Perf.prefetchHdr(context, snap.media.filter { it.hasVideo }.mapNotNull { uriOf(it.id) }) } }
         probeMedia(snap)
     }
 
@@ -878,7 +920,7 @@ class ProjectController(
      * are recomputed with them. If the engine's length differs by more than a frame, it's noted (diagnostics).
      */
     private fun probeMedia(snap: Snapshot) {
-        val todo = snap.media.mapNotNull { m -> uris[m.id]?.let { m to it } }
+        val todo = snap.media.mapNotNull { m -> uriOf(m.id)?.let { m to it } }
             .filter { (_, u) -> MediaProbe.cached(u) == null || (Proxies.videoUri(u) != u && MediaProbe.cached(Proxies.videoUri(u)) == null) }
         if (todo.isEmpty()) return
         scope.launch {
@@ -959,6 +1001,22 @@ class ProjectController(
         projectsRevision++
     }
 
+    /**
+     * Every file address any saved project (or earlier version of one) refers to, and the open project's: what ProRes
+     * intermediates are kept for.
+     */
+    private fun allProjectSources(): Set<String> {
+        val out = HashSet<String>()
+        uris.values.forEach { out += it.toString() }
+        offline.values.forEach { out += it.toString() }
+        // (the earlier versions' side files too – a version restored later finds its intermediates)
+        for (f in projectDir.walk().maxDepth(3).filter { it.isFile && (it.name.endsWith(".media.json") || it.name.endsWith(".media.json.bak")) }) {
+            val a = runCatching { JSONObject(f.readText()).optJSONArray("media") }.getOrNull() ?: continue
+            for (i in 0 until a.length()) a.optJSONObject(i)?.optString("uri")?.takeIf { it.isNotEmpty() }?.let { out += it }
+        }
+        return out
+    }
+
     /** Writes via a temporary file, so an interrupted write never leaves half a file. [bak]: the previous one becomes .bak. */
     private fun writeAtomic(f: File, text: String, bak: Boolean = false) {
         val tmp = File.createTempFile(f.name, ".tmp", f.parentFile)
@@ -987,7 +1045,7 @@ class ProjectController(
     /** Small image for the projects page: the first frame of the first video clip. */
     private fun writeThumb(id: String, snap: Snapshot, links: Map<Long, Uri>) {
         val c = snap.sequence?.video?.firstOrNull { it.clips.isNotEmpty() }?.clips?.minByOrNull { it.start } ?: return
-        val uri = links[c.item] ?: return
+        val uri = links[c.item]?.let { ProRes.playable(it) } ?: return
         val f = thumbFile(id)
         if (f.exists() && System.currentTimeMillis() - f.lastModified() < 60_000) return
         runCatching {
@@ -1050,10 +1108,14 @@ class ProjectController(
         if (unreachable.isNotEmpty()) {
             engine.tryExec("media.makeOffline", JSONObject().put("items", JSONArray().apply { unreachable.forEach { put(it) } }))
         }
+        // ProRes sources: known before the players are built (they play from their intermediates)
+        probeProRes(uris.values.toList())
         // leftovers (clips shorter than half a frame) from earlier versions are cleaned up
         if (sliverIds().isNotEmpty()) group(Str.t(R.string.projectcontroller_undo_clean_slivers)) { sweepSlivers() }
         refresh()
         state.playhead = snapshot.playhead.toFloat()
+        // intermediates of ProRes sources no project uses any more are deleted (big files)
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) { runCatching { ProRes.sweep(context, allProjectSources()) } }
         onMessage((if (missing == 0) Str.t(R.string.projectcontroller_restored) else Str.p(R.plurals.projectcontroller_restored_missing, missing, missing)) + (sideNote?.let { " ($it)" } ?: ""))
     }
 
@@ -2611,7 +2673,7 @@ class ProjectController(
     private fun ClipSnap.toUi(track: Int, kind: ClipKind, m: MediaInfo?, lastRow: Int): Clip {
         // titles can be extended as far as you like
         // the file's length according to Media3 (same as the player) – the one that limits how far the clip can be extended
-        val total = if (isTitle) (sourceIn + duration + 3600).toFloat() else (MediaProbe.length(uris[item], m?.duration) ?: (sourceIn + duration)).toFloat()
+        val total = if (isTitle) (sourceIn + duration + 3600).toFloat() else (MediaProbe.length(uriOf(item), m?.duration) ?: (sourceIn + duration)).toFloat()
         return Clip(
             id = id,
             name = name,

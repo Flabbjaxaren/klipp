@@ -35,6 +35,19 @@ jobs:
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
           RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo ndk -t arm64-v8a --platform 29 -o ../app/src/main/jniLibs build --release
+      # the ProRes import's library (libklipp_prores.so: a minimal FFmpeg, LGPL-2.1-or-later, and Klipp's wrapper) – not in
+      # the repository either. The FFmpeg tarball (SHA-256 pinned) and its static build are cached per build script; the
+      # wrapper is linked every time
+      - uses: actions/cache@v4
+        with:
+          path: |
+            tools/ffmpeg/build/ffmpeg-*.tar.xz
+            tools/ffmpeg/build/android-arm64
+          key: ffmpeg-${{ hashFiles('tools/ffmpeg/build.sh') }}
+      - name: Build the ProRes import library
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+          tools/ffmpeg/build.sh
       # v5: Node 24 and MIT throughout (v6 moved its caching into a separately licensed, proprietary component)
       - uses: gradle/actions/setup-gradle@v5
       # every Rust crate in the bridge, every Maven library in the APK and every asset needs a reviewed license entry,

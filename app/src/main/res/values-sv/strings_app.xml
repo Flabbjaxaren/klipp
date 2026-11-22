@@ -193,4 +193,5 @@
         <item quantity="one">%1$d graderat klipp läggs in som SDR (vitt på 75 %%) – %2$s</item>
         <item quantity="other">%1$d graderade klipp läggs in som SDR (vitt på 75 %%) – t.ex. %2$s</item>
     </plurals>
+    <string name="app_export_prores_failed">%1$s kunde inte konverteras från ProRes och kan därför inte exporteras: %2$s</string>
 </resources>

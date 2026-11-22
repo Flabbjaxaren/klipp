@@ -349,15 +349,21 @@ private fun KlippAppContent(
         val inUse = gradesInUse(c.snapshot, gs.grades)
         val graded = inUse.any { !it.isNeutral } || !lookOf(grade).isNeutral
         val st = (if (graded) settings.copy(hdr = false) else settings).let { if (it.hlg && !hlgReadyOf(inUse, lookOf(grade))) it.copy(hlg = false) else it }
+        // a ProRes clip that couldn't be converted can't be exported (nothing decodes it): said, nothing started
+        c.proResFailure()?.let { (n, why) -> toaster.show(Str.t(R.string.app_export_prores_failed, n, why)); return }
         // everything the export reads, taken now: the job outlives this screen (and its controller)
         val snap = c.snapshot
         val uris = c.frozenUris()
+        // ProRes clips still being converted: the export waits for them first
+        val proRes = c.proResWaiting()
         val look = lookOf(grade)
         val master = mixMaster(mix)
         val grades = HashMap(gs.grades)
         state.playing = false
         // run by the export service once it is in the foreground (refused: the dialog below, nothing made)
         se.gendut.klipp.engine.ExportJobs.start(context, name) { ctx, onProgress ->
+            if (proRes.isNotEmpty()) try { se.gendut.klipp.engine.ProRes.await(ctx, proRes) }
+                catch (e: kotlin.coroutines.cancellation.CancellationException) { throw e } catch (e: Exception) { return@start Result.failure(e) }
             se.gendut.klipp.engine.Exporter.export(ctx, snap, uris, name, look, master, grades, st, onProgress)
         }
     }
@@ -1291,6 +1297,7 @@ internal fun RenderChip(modifier: Modifier, selection: ClosedFloatingPointRange<
     val selTodo = selection != null && rc.states.any { it.heavy && !it.ready && it.a < selection.endInclusive - 1e-6 && it.b > selection.start + 1e-6 }
     // background preparation: each file's progress (−1 = queued) averaged
     val prep = se.gendut.klipp.engine.Proxies.progress.values.toList() + se.gendut.klipp.engine.NodeCache.progress.values.toList() +
+        se.gendut.klipp.engine.ProRes.progress.values.toList() +
         List(se.gendut.klipp.engine.HoldVideos.busy) { -1 }
     val prepPct = if (prep.isEmpty()) 0 else prep.sumOf { it.coerceAtLeast(0) } / prep.size
     val preparing = prep.isNotEmpty()
