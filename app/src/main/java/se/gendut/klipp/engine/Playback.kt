@@ -347,9 +347,10 @@ object CompositionBuilder {
             val grade = c?.let { cl ->
                 val g = grades[cl.id] ?: return@let null
                 if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades, filmRef = filmRef)
-                else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock, filmRef = filmRef, hlg = hlg)
+                // (HLG from the grade only where it ends in OpenDRT – a clip that goes on after it, e.g. a film, is SDR and converted below)
+                else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock, filmRef = filmRef, hlg = hlg && g.hlgReady)
             }.orEmpty() +
-                // in the HLG export a clip whose grade doesn't end in OpenDRT (ungraded) is SDR: to HLG (BT.2408)
+                // in the HLG export a clip whose grade doesn't end in OpenDRT (ungraded, a film last, a LUT) is SDR: to HLG (BT.2408)
                 listOfNotNull(if (hlg && c != null && grades[c.id]?.hlgReady != true) GradeNodeEffect(GradeNode(Int.MIN_VALUE + 1, sdrToHlg = true).params()) else null)
             // playback: 4K material is downscaled to the preview size before the nodes and the film (same
             // image on screen, a fraction of the work). The size of the file being played: the original (the node cache

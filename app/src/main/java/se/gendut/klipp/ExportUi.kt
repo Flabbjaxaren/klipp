@@ -46,7 +46,7 @@ private val KEYFRAMES = listOf(0f, 0.5f, 1f, 2f, 5f)
  * bitrate (levels or custom), CBR/VBR, keyframes, profile, SDR/HDR and audio.
  *
  * @param hdrPossible the sources are HDR and the phone can encode HDR; [hdrBlocked] = why it still isn't possible (grade)
- * @param hlgReady every graded clip ends in OpenDRT (HLG can be made from the grade, see ClipGrade.hlgReady)
+ * @param hlgReady HLG can be made (an HDR encoder, no timeline look – see hlgReadyOf)
  */
 @Composable
 fun ExportOptions(
@@ -60,6 +60,8 @@ fun ExportOptions(
     hlgReady: Boolean = false,
     /** Why HLG can't be made (shown under the choices). */
     hlgWhyNot: String? = null,
+    /** What HLG makes of the grades (see hlgSdrNote): some or all clips go in as SDR. */
+    hlgSdrNote: String? = null,
     onChange: (ExportSettings) -> Unit,
 ) {
     // the same plan the export itself follows: what is made, what is refused, what to know
@@ -185,7 +187,7 @@ fun ExportOptions(
     Chips {
         Choice("SDR · Rec.709", !plan.hdr && !plan.hlg, true, "exp:sdr") { onChange(s.copy(hdr = false, hlg = false)) }
         Choice(stringResource(R.string.exportui_hdr_keep), plan.hdr, hdrPossible && hdrBlocked == null, "exp:hdr") { onChange(s.copy(hdr = true, hlg = false, codec = MimeTypes.VIDEO_H265)) }
-        Choice("HLG · OpenDRT", plan.hlg, hlgReady && se.gendut.klipp.engine.EncoderCaps.hdrSupported, "exp:hlg") { onChange(s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265)) }
+        Choice("HLG · Rec.2100", plan.hlg, hlgReady && se.gendut.klipp.engine.EncoderCaps.hdrSupported, "exp:hlg") { onChange(s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265)) }
     }
     Note(when {
         plan.hlg -> stringResource(R.string.exportui_note_hlg)
@@ -195,6 +197,7 @@ fun ExportOptions(
         else -> stringResource(R.string.exportui_note_sdr)
     })
     if (!plan.hlg && hlgWhyNot != null) Note(stringResource(R.string.exportui_hlg_why_not, hlgWhyNot))
+    if (plan.hlg && hlgSdrNote != null) Note(hlgSdrNote)
 
         }
         else -> {
@@ -234,6 +237,8 @@ fun ExportDialog(
     /** Every graded clip ends in OpenDRT (see [ExportOptions]). */
     hlgReady: Boolean = false,
     hlgWhyNot: String? = null,
+    /** What HLG makes of the grades (see hlgSdrNote): some or all clips go in as SDR. */
+    hlgSdrNote: String? = null,
     onDismiss: () -> Unit, onExport: (ExportSettings, String) -> Unit,
 ) {
     var s by remember { mutableStateOf(initial) }
@@ -254,7 +259,7 @@ fun ExportDialog(
                 // the same height on every tab, so the dialog stays where it is when the tab changes; the summary is always in view
                 Column(if (low) Modifier else Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
                     TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
-                    ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps, seconds, hlgReady, hlgWhyNot) { s = it }
+                    ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps, seconds, hlgReady, hlgWhyNot, hlgSdrNote) { s = it }
                 }
                 Text(
                     "${ow}×$oh · ${stringResource(R.string.exportui_fps_value, fpsLabel(plan.fps))} · ${codecName(plan.effective.codec)}" +

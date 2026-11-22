@@ -434,6 +434,7 @@ private fun KlippAppContent(
             anyTenBit = anyTen,
             hlgReady = hlgReadyOf(inUse, lookOf(grade)),
             hlgWhyNot = hlgWhyNot(inUse, lookOf(grade)),
+            hlgSdrNote = hlgSdrNote(inUse),
             onDismiss = { exportAsk = false },
         ) { st, name -> exportAsk = false; runExport(st, name) }
     }
@@ -1392,22 +1393,31 @@ fun gradesInUse(s: se.gendut.klipp.engine.Snapshot, grades: Map<Long, se.gendut.
     s.sequence?.video.orEmpty().flatMap { it.clips }.filter { it.enabled }.mapNotNull { grades[it.id] }
 
 /**
- * HLG can be made from the grade: some clip is graded, every graded clip ends in OpenDRT ([ClipGrade.hlgReady]) and
- * the timeline has no look (it would work on the HLG code values). Ungraded clips, titles and captions are converted from
- * SDR (BT.2408).
+ * HLG can be made: the phone has an HDR encoder and the timeline has no look (it would work on the HLG code values).
+ * Clips whose grade ends in OpenDRT ([ClipGrade.hlgReady]) are rendered in HLG by it; everything else – ungraded clips,
+ * a film or a LUT last, titles and captions – is converted from SDR (BT.2408, white at 75 %).
  */
 fun hlgReadyOf(grades: Collection<se.gendut.klipp.engine.ClipGrade>, look: se.gendut.klipp.engine.Look): Boolean =
     hlgWhyNot(grades, look) == null
 
-/** Why HLG can't be made from the grade (null = it can) – shown under the export's color choices. */
+/** Why HLG can't be made (null = it can) – shown under the export's color choices. */
+@Suppress("UNUSED_PARAMETER")
 fun hlgWhyNot(grades: Collection<se.gendut.klipp.engine.ClipGrade>, look: se.gendut.klipp.engine.Look): String? {
     if (!se.gendut.klipp.engine.EncoderCaps.hdrSupported) return Str.t(R.string.app_hlg_no_encoder)
     if (!look.isNeutral) return Str.t(R.string.app_hlg_look)
+    return null
+}
+
+/**
+ * What an HLG export makes of the grades (null = every graded clip is rendered in HLG by its OpenDRT): no clip ends in
+ * OpenDRT (all of it is SDR in an HLG file), or how many graded clips are converted from SDR and why, for one of them.
+ */
+fun hlgSdrNote(grades: Collection<se.gendut.klipp.engine.ClipGrade>): String? {
     val graded = grades.filter { g -> g.chain.any { !it.isNeutral } }
-    if (graded.isEmpty()) return Str.t(R.string.app_hlg_none_graded)
-    val bad = graded.count { !it.hlgReady }
-    if (bad == 0) return null
-    val g = graded.first { !it.hlgReady }
+    if (graded.none { it.hlgReady }) return Str.t(R.string.app_hlg_none_graded)
+    val bad = graded.filter { !it.hlgReady }
+    if (bad.isEmpty()) return null
+    val g = bad.first()
     val last = g.chain.last { !it.isNeutral }
     val why = when {
         last.drt == null -> Str.t(R.string.app_hlg_no_drt, last.label.ifBlank { Str.t(R.string.app_hlg_node_n, g.chain.indexOf(last) + 1) })
@@ -1415,7 +1425,7 @@ fun hlgWhyNot(grades: Collection<se.gendut.klipp.engine.ClipGrade>, look: se.gen
         last.hasKey -> Str.t(R.string.app_hlg_key)
         else -> Str.t(R.string.app_hlg_mix)
     }
-    return Str.p(R.plurals.app_hlg_bad, bad, bad, why)
+    return Str.p(R.plurals.app_hlg_bad, bad.size, bad.size, why)
 }
 
 fun lookOf(g: ColorGrade) = se.gendut.klipp.engine.Look(
