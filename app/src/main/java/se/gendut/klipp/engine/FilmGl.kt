@@ -25,11 +25,13 @@ import java.nio.ShortBuffer
 @UnstableApi
 class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Boolean = false,
                  /** The short side of the clip's original (the film's input in the export), 0 = unknown: see [FilmFx.Frame]. */
-                 val refShort: Int = 0) : GlEffect {
+                 val refShort: Int = 0,
+                 /** The node's mix: the film is blended with its input by it, like the node's color (live: read from [LiveGrades]). */
+                 val mix: Float = 1f) : GlEffect {
     override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram {
         if (FilmGl.floatTargets()) {
             try {
-                return FilmGl.Program(film, live, useHdr, main, refShort)
+                return FilmGl.Program(film, live, useHdr, main, refShort, mix)
             } catch (e: Exception) {
                 se.gendut.klipp.CrashReport.note("film: GPU path could not start (${e.message}) – color only")
             }
@@ -37,13 +39,13 @@ class FilmEffect(val film: Film, val live: Pair<Long, Int>? = null, val main: Bo
         // color only: spektrafilm's chain baked into a LUT (as the node did before the spatial effects); effects only:
         // nothing
         val p = if (film.effectsOnly) GradeNode(0).params() else GradeNode(0).params().let { n ->
-            GradeNode.Params(n.lift, n.gammaExp, n.gain, n.offset, n.contrast, n.pivot, n.wb, n.sat, n.hueMat, 1f, null, Spektra.composite(null, 0f, film), 1f)
+            GradeNode.Params(n.lift, n.gammaExp, n.gain, n.offset, n.contrast, n.pivot, n.wb, n.sat, n.hueMat, mix.coerceIn(0f, 1f), null, Spektra.composite(null, 0f, film), 1f)
         }
         return GradeNodeEffect(p).toGlShaderProgram(context, useHdr)
     }
 
-    override fun equals(other: Any?) = other is FilmEffect && other.film == film && other.live == live && other.main == main && other.refShort == refShort
-    override fun hashCode() = ((film.hashCode() * 31 + (live?.hashCode() ?: 0)) * 31 + main.hashCode()) * 31 + refShort
+    override fun equals(other: Any?) = other is FilmEffect && other.film == film && other.live == live && other.main == main && other.refShort == refShort && other.mix == mix
+    override fun hashCode() = (((film.hashCode() * 31 + (live?.hashCode() ?: 0)) * 31 + main.hashCode()) * 31 + refShort) * 31 + mix.hashCode()
 }
 
 @UnstableApi
@@ -473,6 +475,8 @@ uniform int uSharpDetail;
 uniform int uDisplay;
 // the image's own alpha (green screen before the grade) – the film steps only process color
 uniform sampler2D uA;
+// the node's mix: the film blended with its input (the node's own output), like the node's color
+uniform float uMix;
 // effects only (FilmFx.keepColors): the input × the film's output / the film's colors alone (uLut), in linear light
 uniform int uKeep;
 uniform sampler3D uLut;
@@ -511,7 +515,7 @@ void main() {
   l = clamp(l, 0.0, 1.0);
   vec4 src = texelFetch(uA, p, 0);
   vec3 o = uKeep == 1 ? keepColors(l, src.rgb) : (uDisplay == 1 ? pow(l, vec3(1.0 / 2.4)) : vec3(enc(l.r), enc(l.g), enc(l.b)));
-  outColor = vec4(o, src.a);
+  outColor = vec4(mix(src.rgb, o, uMix), src.a);
 }
 """
 
@@ -522,9 +526,10 @@ uniform sampler3D uLut;
 uniform float uLutN;
 // effects only: the image unchanged
 uniform int uPass;
+uniform float uMix;
 void main() {
   vec4 c = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0);
-  outColor = uPass == 1 ? c : vec4(texture(uLut, (clamp(c.rgb, 0.0, 1.0) * (uLutN - 1.0) + 0.5) / uLutN).rgb, c.a);
+  outColor = uPass == 1 ? c : vec4(mix(c.rgb, texture(uLut, (clamp(c.rgb, 0.0, 1.0) * (uLutN - 1.0) + 0.5) / uLutN).rgb, uMix), c.a);
 }
 """
 
@@ -644,7 +649,9 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
 
     /** [main]: in the main player's chain (see Occlusion.hideMain). */
     class Program(private var film: Film, private val live: Pair<Long, Int>?, useHdr: Boolean, private val main: Boolean = false,
-                  private val refShort: Int = 0) : BaseGlShaderProgram(useHdr, 1) {
+                  private val refShort: Int = 0, private val fixedMix: Float = 1f) : BaseGlShaderProgram(useHdr, 1) {
+        /** The node's mix now (playback: the node's live values, so the slider works while it is dragged). */
+        private fun mixNow(): Float = ((live?.let { LiveGrades.get(it) }?.mix) ?: fixedMix).coerceIn(0f, 1f)
         private val expose = Prog(EXPOSE)
         private val blur = Prog(BLUR)
         private val blurVHalf = Prog(BLUR_V_HALF)
@@ -1037,6 +1044,7 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 p.tex("uIn", GLES20.GL_TEXTURE_2D, inputTexId)
                 p.tex("uLut", GLES30.GL_TEXTURE_3D, lut)
                 p.i1("uPass", if (film.effectsOnly) 1 else 0)
+                p.f1("uMix", mixNow())
                 p.f1("uLutN", Spektra.composite(null, 0f, film).size.toFloat())
                 draw()
                 GlUtil.checkGlError()
@@ -1208,6 +1216,7 @@ void main() { outColor = texelFetch(uIn, ivec2(gl_FragCoord.xy), 0); }
                 final.f1("uAmount", s.f.sharpen)
                 final.i1("uDisplay", s.f.display)
                 final.tex("uA", GLES20.GL_TEXTURE_2D, inputTexId)
+                final.f1("uMix", mixNow())
                 final.i1("uKeep", if (s.f.effectsOnly) 1 else 0)
                 // every sampler gets its own unit even when unused: an unbound sampler3D would share unit 0 with a
                 // sampler2D, and then the draw fails (the film fell back to color only)
