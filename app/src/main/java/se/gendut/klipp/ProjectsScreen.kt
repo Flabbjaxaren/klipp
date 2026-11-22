@@ -328,6 +328,8 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                     MenuRow(stringResource(R.string.projectsscreen_open)) { menuFor = null; backend.open(p.id); onClose() }
                     MenuRow(stringResource(R.string.projectsscreen_rename)) { menuFor = null; renaming = p }
                     MenuRow(stringResource(R.string.projectsscreen_duplicate)) { menuFor = null; backend.duplicate(p.id) }
+                    // start selecting with this project, to delete several (near the top: the menu is taller than the screen)
+                    if (!p.current) MenuRow(stringResource(R.string.projectsscreen_select_several)) { menuFor = null; selecting = true; picked = setOf(p.id) }
                     // keeping the project safe: a file of its own (with or without the media) and the versions kept in the app
                     fun export(withMedia: Boolean) {
                         menuFor = null
@@ -355,8 +357,6 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                     MenuRow(stringResource(R.string.projectsscreen_versions)) { menuFor = null; versionsOf = p }
                     if (folder != null) MenuRow(stringResource(R.string.projectsscreen_backup_change)) { menuFor = null; pendingBackup = null; pickFolder.launch(null) }
                     if (!p.current) MenuRow(stringResource(R.string.projectsscreen_delete), danger = true) { menuFor = null; deleting = p }
-                    // start selecting with this project, to delete several
-                    if (!p.current) MenuRow(stringResource(R.string.projectsscreen_select_several)) { menuFor = null; selecting = true; picked = setOf(p.id) }
                     Text(stringResource(R.string.projectsscreen_safety_note), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp,
                         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 10.dp).testTag("safetyNote"))
                 }
