@@ -52,6 +52,44 @@ class OpenDrtTest {
     }
 
     /**
+     * The HLG export's encoding against the original: opendrt_hlg_ref.txt is OpenDRT.dctl v1.1.0 compiled as C++ the
+     * same way, with "Rec.2100 - HLG / Rec.2020 (P3 Limited)" and Display Peak Luminance 1000 (24 settings × 2 mid
+     * grays × 12 colors, the inputs of opendrt_ref.txt).
+     */
+    @Test fun hlgMatchesTheOriginalDctl() {
+        val lines = javaClass.classLoader!!.getResourceAsStream("opendrt_hlg_ref.txt")!!.bufferedReader().readLines().filter { it.isNotBlank() }
+        assertEquals(576, lines.size)
+        var worst = 0f
+        val transforms = HashMap<Drt, OpenDrt.Transform>()
+        for (l in lines) {
+            val v = l.trim().split(Regex("\\s+"))
+            val key = inputs.getValue(v[0].toInt() to v[1].toInt())
+            val cwp = v[4].toInt()
+            val drt = Drt(key, v[2].toInt(), v[3].toInt(), cwp, if (cwp != 0) 0.4f else 0.25f, v[5].toFloat())
+            val t = transforms.getOrPut(drt) { OpenDrt.Transform(drt, hdr = true) }
+            val px = floatArrayOf(v[7].toFloat(), v[8].toFloat(), v[9].toFloat())
+            t.apply(px)
+            for (k in 0..2) {
+                val d = abs(px[k] - v[10 + k].toFloat())
+                if (d > worst) worst = d
+                assertTrue("$l → ${px.toList()}", d < 2e-3f)
+            }
+        }
+        println("OpenDRT HLG largest deviation from the original: $worst")
+    }
+
+    @Test fun hlgOnlyWhenOpenDrtEndsTheGrade() {
+        val drt = GradeNode(1, "Ut", drt = Drt())
+        assertTrue(ClipGrade(listOf(drt)).hlgReady)
+        // a colour node after OpenDRT, a film on it or a window: no
+        assertTrue(!ClipGrade(listOf(drt, GradeNode(2, "B", sat = 1.2f))).hlgReady)
+        assertTrue(!ClipGrade(listOf(GradeNode(2, "B", sat = 1.2f))).hlgReady)
+        // the HLG LUT differs from the SDR one and is kept apart
+        assertTrue(drt.params(hlg = true).lut !== drt.params().lut)
+        assertSame(drt.params(hlg = true).lut, drt.params(hlg = true).lut)
+    }
+
+    /**
      * vivo Log has no published spec: the decode was measured.
      */
     @Test fun vivoLogMatchesTheMeasurement() {

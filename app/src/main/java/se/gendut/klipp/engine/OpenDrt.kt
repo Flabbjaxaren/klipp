@@ -5,7 +5,8 @@
  * License: GNU General Public License v3.0 (GPLv3). This file is a derivative of OpenDRT.dctl and
  * is covered by the same license.
  *
- * The port is limited to SDR (100 nits peak, Rec.709 primaries) because Klipp's image pipeline is SDR. The algorithm,
+ * The port renders SDR (100 nits peak, Rec.709 primaries) for Klipp's image pipeline, and for an HLG export the
+ * original's "Rec.2100 - HLG / Rec.2020 (P3 Limited)" encoding (1000 nits peak, [Transform] with hdr). The algorithm,
  * the matrices and all presets (looks, tonescales, creative white point) are unchanged from the original.
  * Additions in Klipp: input "Rec.709 video" (2.4 power to linear; the film node reads it with the BT.709 camera curve instead, Spektra.decode) and "Apple Log" (Apple's published curve).
  */
@@ -328,17 +329,22 @@ object OpenDrt {
         )
         /** Normalization by the white point for Rec.709 (D93, D75, D65, D60, D55, D50). */
         val CWP_NORM_709 = floatArrayOf(0.744192699063f, 0.873470832146f, 1f, 0.955936992163f, 0.905671332781f, 0.850004385027f)
+        /** The same for P3-D65 and P3 limited Rec.2020 (the HLG encoding). */
+        val CWP_NORM_P3 = floatArrayOf(0.762687057298f, 0.884054083328f, 1f, 0.964320186739f, 0.923076518860f, 0.876572837784f)
+        val P3_TO_REC2020 = floatArrayOf(0.753833034361722221f, 0.198597369052616435f, 0.0475695965856618441f, 0.0457438489653582137f, 0.9417772198116936f, 0.0124789312229481135f, -0.0012103403545183941f, 0.0176017173010899926f, 0.983608623053428777f)
     }
 
     // ---------------------------------------------------------------- the transform itself
 
     /** A prepared OpenDRT (the presets and the tonescale constants computed once). */
-    class Transform(drt: Drt) {
+    class Transform(drt: Drt, private val hdr: Boolean = false) {
         private val p = preset(drt.look, drt.tonescale, drt.cwp, drt.cwpLimit)
         private val input = Input.of(drt.input)
-        private val eotf = if (drt.display == 1) 2 else 1 // 2.4 Rec.1886 / 2.2 sRGB display
-        private val tnSu = if (drt.display == 1) 1 else 2
-        private val tnLp = 100f
+        // with [hdr]: the original's display encoding preset "Rec.2100 - HLG / Rec.2020 (P3 Limited)" (surround dark,
+        // HLG for 1000 nits) at 1000 nits peak; [Drt.display] then doesn't matter
+        private val eotf = if (hdr) 5 else if (drt.display == 1) 2 else 1 // HLG / 2.4 Rec.1886 / 2.2 sRGB display
+        private val tnSu = if (hdr) 0 else if (drt.display == 1) 1 else 2
+        private val tnLp = if (hdr) 1000f else 100f
         private val tnLg = drt.grey
         private val tnGb = 0.13f
         private val ptHdr = 0.5f
@@ -353,7 +359,7 @@ object OpenDrt {
         private val tsM1 = tsY1 / (tsX1 / (tsX1 + tsS10)).pow(p.tn_con)
         private val tsM2 = compressToeQuadratic(tsM1, p.tn_toe, true)
         private val tsS = tsX0 * ((tsS0 / tsM2).pow(-1f / p.tn_con) - 1f)
-        private val tsDsc = 100f / tnLp
+        private val tsDsc = if (eotf == 5) 0.1f else 100f / tnLp
         private val ptCmpLf = ptHdr * min(1f, (tnLp - 100f) / 900f)
         private val sLp100 = tsX0 * ((tnLg / 100f).pow(-1f / p.tn_con) - 1f)
         private val tsS1 = tsS * ptCmpLf + sLp100 * (1f - ptCmpLf)
@@ -463,19 +469,37 @@ object OpenDrt {
             tsn *= tsM2
             tsn = compressToeQuadratic(tsn, p.tn_toe, false)
             tsn *= tsDsc
+            if (hdr) {
+                // Rec.2020 (P3 limited), clamped, then the inverse HLG EOTF
+                for (i in 0..2) rgb[i] = max(0f, rgb[i] * tsn)
+                mul(M.P3_TO_REC2020, rgb)
+                for (i in 0..2) rgb[i] = rgb[i].coerceIn(0f, 1f)
+                hlgInverseEotf(rgb)
+                return
+            }
             val ep = 2f + eotf * 0.2f
             for (i in 0..2) rgb[i] = spowf((rgb[i] * tsn).coerceIn(0f, 1f), 1f / ep)
         }
 
-        /** P3-D65 → the display's Rec.709 with the creative white point (only D65 displays in Klipp). */
+        /** OpenDRT's eotf_hlg (inverse, 1000 nits): display light (1 = 1000 nits) → HLG code values. */
+        private fun hlgInverseEotf(rgb: FloatArray) {
+            val yd = 0.2627f * rgb[0] + 0.6780f * rgb[1] + 0.0593f * rgb[2]
+            val k = spowf(yd, (1f - 1.2f) / 1.2f)
+            for (i in 0..2) {
+                val x = rgb[i] * k
+                rgb[i] = if (x <= 1f / 12f) sqrt(3f * x) else 0.17883277f * ln(12f * x - 0.28466892f) + 0.55991073f
+            }
+        }
+
+        /** P3-D65 → the display's Rec.709 (HDR: P3-D65) with the creative white point (only D65 displays in Klipp). */
         private fun displayWhite(rgb: FloatArray, tsn: Float) {
             mul(M.P3D65_TO_XYZ, rgb)
             val n0 = rgb[0]; val n1 = rgb[1]; val n2 = rgb[2]
             val f = tsn.pow(2f * p.cwp_lm)
             M.CAT_D65.getOrNull(p.cwp)?.let { mul(it, rgb) }
             for (i in 0..2) rgb[i] = rgb[i] * f + (if (i == 0) n0 else if (i == 1) n1 else n2) * (1f - f)
-            mul(M.XYZ_TO_REC709, rgb)
-            val norm = M.CWP_NORM_709.getOrElse(p.cwp) { 1f }
+            mul(if (hdr) M.XYZ_TO_P3D65 else M.XYZ_TO_REC709, rgb)
+            val norm = (if (hdr) M.CWP_NORM_P3 else M.CWP_NORM_709).getOrElse(p.cwp) { 1f }
             val k = norm * f + 1f - f
             for (i in 0..2) rgb[i] *= k
         }
@@ -495,11 +519,11 @@ object OpenDrt {
     /** A LUT has been re-imported: everything baked with that name is baked again. */
     fun clearCache() = synchronized(cache) { cache.clear() }
 
-    fun composite(base: CubeLut?, baseMix: Float, drt: Drt): CubeLut {
+    fun composite(base: CubeLut?, baseMix: Float, drt: Drt, hlg: Boolean = false): CubeLut {
         val mixQ = (baseMix.coerceIn(0f, 1f) * 50f).toInt() / 50f
-        val key = "${base?.name}|${if (base != null) mixQ else 0f}|$drt"
+        val key = "${base?.name}|${if (base != null) mixQ else 0f}|$drt${if (hlg) "|hlg" else ""}"
         synchronized(cache) { cache[key]?.let { return it } }
-        val t = Transform(drt)
+        val t = Transform(drt, hlg)
         val d = FloatArray(SIZE * SIZE * SIZE * 3)
         val px = FloatArray(3)
         var i = 0

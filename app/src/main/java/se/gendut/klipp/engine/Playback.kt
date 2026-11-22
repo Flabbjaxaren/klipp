@@ -240,6 +240,8 @@ object CompositionBuilder {
         realStarts: Set<Long>? = null,
         /** Live playback with one video renderer across the items (see [LiveCuts]). */
         oneRenderer: Boolean = false,
+        /** The HLG export: the grades' OpenDRT renders Rec.2100 HLG (see [ClipGrade.hlgReady]). */
+        hlg: Boolean = false,
     ): EditedMediaItemSequence? {
         val previewDownscale = outW > 0 && outH > 0
         val fw = if (previewDownscale) outW else plan.width
@@ -345,7 +347,7 @@ object CompositionBuilder {
             val grade = c?.let { cl ->
                 val g = grades[cl.id] ?: return@let null
                 if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades, filmRef = filmRef)
-                else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock, filmRef = filmRef)
+                else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock, filmRef = filmRef, hlg = hlg)
             }.orEmpty()
             // playback: 4K material is downscaled to the preview size before the nodes and the film (same
             // image on screen, a fraction of the work). The size of the file being played: the original (the node cache
@@ -597,7 +599,7 @@ object CompositionBuilder {
         val (pw, ph) = if (plan == null || outShort <= 0) 0 to 0 else previewSize(plan.width, plan.height, outShort)
         // the size the effects compute at (the downscale before them): the preview's, also when the frames are larger
         val (ew, eh) = if (plan == null || previewShort <= 0) 0 to 0 else previewSize(plan.width, plan.height, previewShort)
-        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, workW = ew, workH = eh, fps =  output?.outputFps(s.fps)?.takeIf { it > 0.0 } ?: s.fps, fillSlots = output != null, realStarts = realStarts, oneRenderer = output == null && LiveCuts.oneRenderer)?.let { seqs += it } }
+        plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, workW = ew, workH = eh, fps =  output?.outputFps(s.fps)?.takeIf { it > 0.0 } ?: s.fps, fillSlots = output != null, realStarts = realStarts, oneRenderer = output == null && LiveCuts.oneRenderer, hlg = output?.hlg == true)?.let { seqs += it } }
         val hasVideo = seqs.isNotEmpty()
         // export without audio (and pre-render): no audio sequences
         val audio = if (output?.audio == false || range != null) emptyList() else q.audio.take(3)
@@ -1432,9 +1434,15 @@ object Exporter {
         val anyTen = withContext(Dispatchers.IO) { CompositionBuilder.anyTenBit(context, s, uriOf) }
         // what is made: the same plan the export dialog showed (HDR or SDR, 8 or 10 bits, the codec for the size)
         val q0 = s.sequence
-        val plan = ExportPlan.resolve(settings, q0?.width ?: 1920, q0?.height ?: 1080, s.fps, anyHdr, anyTen, graded = false, caps = PhoneEncoders)
+        val plan = ExportPlan.resolve(settings, q0?.width ?: 1920, q0?.height ?: 1080, s.fps, anyHdr, anyTen, graded = false, caps = PhoneEncoders, hlgReady = settings.hlg)
         plan.errors.firstOrNull()?.let { return Result.failure(IllegalStateException(se.gendut.klipp.exportIssueText(it, plan))) }
         if (plan.warnings.isNotEmpty()) se.gendut.klipp.CrashReport.note("export plan: ${plan.warnings.joinToString { it.kind.name }} → ${plan.effective.codec}${if (plan.tenBit) " 10-bit" else ""}")
+        if (plan.hlg) {
+            // HLG from the grades' OpenDRT: the chain stays SDR (log footage in, HLG code values out of the last node)
+            // into a 10-bit surface; only the encoder and the file are told BT.2020 / HLG (see HlgEncoders)
+            se.gendut.klipp.CrashReport.note("export: HLG from OpenDRT")
+            return exportOnce(context, s, uriOf, name, look, master, grades, fx, VideoPipeline.toneMapMode(anyHdr, false), plan.effective, true, onProgress)
+        }
         if (plan.hdr) {
             return exportOnce(context, s, uriOf, name, look, master, grades, fx, androidx.media3.transformer.Composition.HDR_MODE_KEEP_HDR, plan.effective, false, onProgress)
         }
@@ -1491,6 +1499,21 @@ object Exporter {
     private class OneColorEncoders(private val base: androidx.media3.transformer.Codec.EncoderFactory) : androidx.media3.transformer.Codec.EncoderFactory by base {
         override fun createForVideoEncoding(format: androidx.media3.common.Format, logSessionId: android.media.metrics.LogSessionId?): androidx.media3.transformer.Codec =
             base.createForVideoEncoding(format.buildUpon().setColorInfo(androidx.media3.common.ColorInfo.SDR_BT709_LIMITED).build(), logSessionId)
+    }
+
+    /**
+     * The HLG export: the frames already hold HLG code values in BT.2020 (the grades' OpenDRT with its Rec.2100 HLG
+     * encoding), but the chain is SDR – the encoder (and through its format the file) is told BT.2020, HLG, limited
+     * range. Media3's encoder factory then picks an encoder that can do HDR, HEVC Main10 and 10-bit RGBA input.
+     */
+    private class HlgEncoders(private val base: androidx.media3.transformer.Codec.EncoderFactory) : androidx.media3.transformer.Codec.EncoderFactory by base {
+        override fun createForVideoEncoding(format: androidx.media3.common.Format, logSessionId: android.media.metrics.LogSessionId?): androidx.media3.transformer.Codec =
+            base.createForVideoEncoding(format.buildUpon().setColorInfo(HLG_BT2020).build(), logSessionId)
+
+        companion object {
+            val HLG_BT2020: androidx.media3.common.ColorInfo = androidx.media3.common.ColorInfo.Builder()
+                .setColorSpace(C.COLOR_SPACE_BT2020).setColorRange(C.COLOR_RANGE_LIMITED).setColorTransfer(C.COLOR_TRANSFER_HLG).build()
+        }
     }
 
     /** The encoders' settings from [st]: bitrate, CBR/VBR, keyframes, profile, audio bitrate. */
@@ -1552,7 +1575,7 @@ object Exporter {
                     .setAssetLoaderFactory(Perf.assetLoaderFactory(context))
                     .setVideoMimeType(st.codec)
                     .setAudioMimeType(MimeTypes.AUDIO_AAC)
-                    .setEncoderFactory(encoderFactory(context, st, tenBit).let { if (oneColor) OneColorEncoders(it) else it })
+                    .setEncoderFactory(encoderFactory(context, st, tenBit).let { if (st.hlg) HlgEncoders(it) else if (oneColor) OneColorEncoders(it) else it })
                     // floating point in the whole chain; with 10-bit an RGBA_1010102 surface into the encoder
                     .setVideoFrameProcessorFactory(VideoPipeline.processorFactory(tenBit))
                     .addListener(object : Transformer.Listener {

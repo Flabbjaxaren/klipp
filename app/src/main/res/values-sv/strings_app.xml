@@ -181,4 +181,16 @@
     <string name="app_net_timeout">Anslutningen tog för lång tid</string>
     <string name="app_render_defaults_hint">Rendera automatiskt, ta bort renderingar, proxy och cache gäller alla projekt</string>
     <string name="app_clip_volume_keyframe">Klippvolym · nyckelruta vid spelhuvudet</string>
+    <string name="app_hlg_no_encoder">ingen HEVC-kodare för HDR på den här telefonen</string>
+    <string name="app_hlg_look">tidslinjen har en look (fliken Look) – den skulle verka på HLG-värdena</string>
+    <string name="app_hlg_none_graded">inget klipp är graderat – lägg till en OpenDRT-nod på klippen</string>
+    <string name="app_hlg_no_drt">dess sista aktiva nod (%1$s) har ingen OpenDRT</string>
+    <string name="app_hlg_node_n">nod %1$d</string>
+    <string name="app_hlg_film">dess OpenDRT-nod har en film</string>
+    <string name="app_hlg_key">dess OpenDRT-nod har en kvalificerare eller ett fönster</string>
+    <string name="app_hlg_mix">dess OpenDRT-nods mix är under 100%</string>
+    <plurals name="app_hlg_bad">
+        <item quantity="one">%1$d graderat klipp slutar inte i OpenDRT – %2$s</item>
+        <item quantity="other">%1$d graderade klipp slutar inte i OpenDRT – t.ex. %2$s</item>
+    </plurals>
 </resources>

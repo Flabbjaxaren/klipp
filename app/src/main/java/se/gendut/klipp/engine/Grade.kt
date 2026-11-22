@@ -433,7 +433,13 @@ data class GradeNode(
 
     fun params(): Params = paramsMemo
 
-    private fun computeParams(): Params {
+    /** The same values for an HLG export: OpenDRT baked with its Rec.2100 HLG encoding (see [ClipGrade.hlgReady]). */
+    private val hlgMemo by lazy(LazyThreadSafetyMode.PUBLICATION) { computeParams(hlg = true) }
+
+    /** [params], or with [hlg] (and OpenDRT in the node) the values for an HLG export. */
+    fun params(hlg: Boolean): Params = if (hlg && drt != null) hlgMemo else paramsMemo
+
+    private fun computeParams(hlg: Boolean = false): Params {
         val l = lift.rgb(); val g = gamma.rgb(); val gn = gain.rgb(); val o = offset.rgb()
         // the wheels as lift/gain/gamma values (master: all channels alike, puck: the color), then the primaries
         // (see [primaries]): lift and gain as one linear step, offset, gamma last
@@ -467,7 +473,7 @@ data class GradeNode(
         } else null
         val base = if (hasLut) lut?.let { runCatching { LutStore.get(it) }.getOrNull() } else null
         // with OpenDRT: the node's LUT (with its mix) and the transform in one single LUT, fully on
-        val l2 = drt?.let { d -> runCatching { OpenDrt.composite(base, lutMix, d) }.getOrNull() } ?: base
+        val l2 = drt?.let { d -> runCatching { OpenDrt.composite(base, lutMix, d, hlg) }.getOrNull() } ?: base
         val l2Mix = if (drt != null && l2 !== base) 1f else lutMix.coerceIn(0f, 1f)
         // the film is applied after the node on the whole image (grain, halation and diffusion need the neighbors – it
         // doesn't fit in the node's LUT). The tables are prepared here (FilmEditor computes the parameters on a background thread).
@@ -863,9 +869,12 @@ data class ClipGrade(
     /** [main]: the main player's chain – its first effect counts the clip's frames (see [Occlusion.sawMain]). */
     fun effects(clip: Long? = null, main: Boolean = false,
                 /** The short side of the clip's original (the film's sizes in pixels follow it, see [FilmFx.Frame]); 0 = unknown. */
-                filmRef: Int = 0, clock: ((Long) -> Double?)? = null): List<androidx.media3.common.Effect> =
+                filmRef: Int = 0,
+                /** The export in HLG: the nodes' OpenDRT renders Rec.2100 HLG (see [hlgReady]). */
+                hlg: Boolean = false,
+                clock: ((Long) -> Double?)? = null): List<androidx.media3.common.Effect> =
         chain.filter { !it.isNeutral }.flatMapIndexed<GradeNode, androidx.media3.common.Effect> { i, n ->
-            val p = n.params()
+            val p = n.params(hlg)
             val key = clip?.let { c -> c to n.id }
             listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key, main, filmRef) })
         } +
@@ -878,7 +887,17 @@ data class ClipGrade(
 
     /** Playback effects when the image up to and including node [point] comes from the node cache: the remaining nodes and the stabilization. */
     fun effectsAfter(point: Int, clip: Long?, clock: ((Long) -> Double?)?, main: Boolean = false, filmRef: Int = 0): List<androidx.media3.common.Effect> =
-        copy(nodes = nodes.drop(point + 1).ifEmpty { listOf(GradeNode(Int.MIN_VALUE)) }).effects(clip, main, filmRef, clock)
+        copy(nodes = nodes.drop(point + 1).ifEmpty { listOf(GradeNode(Int.MIN_VALUE)) }).effects(clip, main, filmRef, clock = clock)
+
+    /**
+     * Can be exported in HLG: the last node that colors has OpenDRT over the whole image (no qualifier or window, full
+     * mix, no film after it). The nodes before it work on the log footage, so only the display encoding changes – the
+     * preview stays SDR and the HLG export renders the same grade at 1000 nits peak.
+     */
+    val hlgReady: Boolean get() {
+        val last = chain.lastOrNull { !it.isNeutral } ?: return false
+        return last.drt != null && last.film == null && !last.hasKey && last.mix >= 0.999f
+    }
 
     companion object {
         /** Older projects may have "input" (removed log conversion) – it is ignored. */

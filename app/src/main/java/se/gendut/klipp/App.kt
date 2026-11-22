@@ -345,9 +345,9 @@ private fun KlippAppContent(
         val c = controller ?: return
         se.gendut.klipp.engine.ExportSettings.save(context, c.currentId, settings)
         lastExportAsk = settings to name
-        // color-graded clips always become SDR (grading is done in SDR)
+        // color-graded clips always become SDR (grading is done in SDR) – except HLG made from the grades' OpenDRT
         val graded = gs.grades.values.any { !it.isNeutral } || !lookOf(grade).isNeutral
-        val st = if (graded) settings.copy(hdr = false) else settings
+        val st = (if (graded) settings.copy(hdr = false) else settings).let { if (it.hlg && !hlgReadyOf(gs.grades.values, lookOf(grade))) it.copy(hlg = false) else it }
         // everything the export reads, taken now: the job outlives this screen (and its controller)
         val snap = c.snapshot
         val uris = c.frozenUris()
@@ -430,6 +430,8 @@ private fun KlippAppContent(
             // grading is done in SDR (8 bits, gamma) – in an HDR signal it would look wrong
             hdrBlocked = if (graded) stringResource(R.string.app_hdr_blocked) else null,
             anyTenBit = anyTen,
+            hlgReady = hlgReadyOf(gs.grades.values, lookOf(grade)),
+            hlgWhyNot = hlgWhyNot(gs.grades.values, lookOf(grade)),
             onDismiss = { exportAsk = false },
         ) { st, name -> exportAsk = false; runExport(st, name) }
     }
@@ -1364,6 +1366,32 @@ data class LookValues(val exposure: Float, val contrast: Float, val temp: Float,
     companion object {
         fun of(g: ColorGrade) = LookValues(g.exposure.value, g.contrast.value, g.temp.value, g.tint.value, g.sat.value, g.lutName, g.lutMix.value, g.tetra)
     }
+}
+
+/**
+ * HLG can be made from the grade: some clip is graded, every graded clip ends in OpenDRT ([ClipGrade.hlgReady]) and
+ * the timeline has no look (it would work on the HLG code values). Ungraded clips go into the file unconverted.
+ */
+fun hlgReadyOf(grades: Collection<se.gendut.klipp.engine.ClipGrade>, look: se.gendut.klipp.engine.Look): Boolean =
+    hlgWhyNot(grades, look) == null
+
+/** Why HLG can't be made from the grade (null = it can) – shown under the export's color choices. */
+fun hlgWhyNot(grades: Collection<se.gendut.klipp.engine.ClipGrade>, look: se.gendut.klipp.engine.Look): String? {
+    if (!se.gendut.klipp.engine.EncoderCaps.hdrSupported) return Str.t(R.string.app_hlg_no_encoder)
+    if (!look.isNeutral) return Str.t(R.string.app_hlg_look)
+    val graded = grades.filter { g -> g.chain.any { !it.isNeutral } }
+    if (graded.isEmpty()) return Str.t(R.string.app_hlg_none_graded)
+    val bad = graded.count { !it.hlgReady }
+    if (bad == 0) return null
+    val g = graded.first { !it.hlgReady }
+    val last = g.chain.last { !it.isNeutral }
+    val why = when {
+        last.drt == null -> Str.t(R.string.app_hlg_no_drt, last.label.ifBlank { Str.t(R.string.app_hlg_node_n, g.chain.indexOf(last) + 1) })
+        last.film != null -> Str.t(R.string.app_hlg_film)
+        last.hasKey -> Str.t(R.string.app_hlg_key)
+        else -> Str.t(R.string.app_hlg_mix)
+    }
+    return Str.p(R.plurals.app_hlg_bad, bad, bad, why)
 }
 
 fun lookOf(g: ColorGrade) = se.gendut.klipp.engine.Look(
