@@ -171,4 +171,15 @@ class OpenDrtTest {
         assertEquals(1, g.chain.size)
         assertTrue(g.isNeutral)
     }
+    /** SDR in the HLG export (BT.2408): white at 75 % HLG, black at 0, grey in between, neutral stays neutral. */
+    @Test
+    fun sdrToHlgReferenceWhite() {
+        val w = floatArrayOf(1f, 1f, 1f).also { se.gendut.klipp.engine.SdrHlg.apply(it) }
+        for (k in 0..2) assertEquals(0.75f, w[k], 0.005f)
+        val b = floatArrayOf(0f, 0f, 0f).also { se.gendut.klipp.engine.SdrHlg.apply(it) }
+        for (k in 0..2) assertEquals(0f, b[k], 1e-6f)
+        val g = floatArrayOf(0.5f, 0.5f, 0.5f).also { se.gendut.klipp.engine.SdrHlg.apply(it) }
+        assertTrue(g[0] in 0.3f..0.6f)
+        assertEquals(g[0], g[1], 1e-4f); assertEquals(g[0], g[2], 1e-4f)
+    }
 }
