@@ -218,6 +218,45 @@
    "notes": "Byte-identical to the Hugging Face file (sha256 1dbbac9e…7517)."
   },
   {
+   "id": "face-landmarker",
+   "component": "MediaPipe Face Landmarker model (BlazeFace short range, Face Mesh V2, Blendshape V2)",
+   "version": "float16/1 (sha256 64184e22…c9ff)",
+   "kind": "model",
+   "category": "assets",
+   "origin": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task · https://huggingface.co/litert-community/MediaPipe-FaceLandmarker",
+   "license": "Apache-2.0",
+   "copyright": "© Google LLC",
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "LICENSES/third-party/mediapipe/SOURCE.txt"
+   ],
+   "files": [
+    "assets/face_landmarker.task"
+   ],
+   "included_in": "assets/face_landmarker.task",
+   "status": "verified",
+   "notes": "Byte-identical to the published file (sha256 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff, 3758596 bytes; FaceLandmarksModelTest checks it). Not modified."
+  },
+  {
+   "id": "mediapipe",
+   "component": "MediaPipe Tasks (Vision, Core) – face following",
+   "version": "1.2.3",
+   "kind": "library",
+   "category": "code",
+   "origin": "https://github.com/google-ai-edge/mediapipe · Google Maven com.google.mediapipe:tasks-vision, :tasks-core",
+   "license": "Apache-2.0",
+   "copyright": "© The MediaPipe Authors (Google LLC)",
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "LICENSES/third-party/mediapipe/NOTICE",
+    "LICENSES/third-party/mediapipe/SOURCE.txt"
+   ],
+   "changes": "Usage statistics to Google switched off in the build: TasksStatsLoggerFactory.create calls MediaPipe's no-op TasksStatsDummyLogger instead of TasksStatsProtoLogger (bytecode rewrite, app/build.gradle.kts NoTaskStats), and the Firebase transport libraries are excluded. Otherwise unchanged.",
+   "included_in": "classes*.dex; lib/arm64-v8a/libmediapipe_tasks_jni.so",
+   "status": "verified",
+   "notes": "NOTICE is the AARs' META-INF/NOTICE (identical in tasks-vision and tasks-core 1.2.3), unchanged: the notices of TensorFlow Lite, XNNPACK, Abseil and the other parts compiled into the native library. Its privacy notice (usage metrics) does not apply to Klipp – see SOURCE.txt."
+  },
+  {
    "id": "ui-icons",
    "component": "Klipp's line icons",
    "version": "-",

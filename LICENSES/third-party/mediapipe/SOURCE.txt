@@ -1,0 +1,25 @@
+MediaPipe in Klipp (face following: windows, masks and titles that follow a face, auto reframe)
+
+1. MediaPipe Tasks Vision and Tasks Core 1.2.3 (com.google.mediapipe:tasks-vision, :tasks-core from Google Maven) –
+   © The MediaPipe Authors (Google LLC), Apache License 2.0 (LICENSES/texts/Apache-2.0.txt). The Java classes are in
+   classes*.dex; the native library lib/arm64-v8a/libmediapipe_tasks_jni.so (TensorFlow Lite, XNNPACK, Abseil,
+   OpenCV parts and the other components NOTICE lists) is in the APK unchanged. NOTICE in this folder is the
+   META-INF/NOTICE of both AARs (byte-identical), unchanged.
+
+   Changed by Klipp, in the build (app/build.gradle.kts, NoTaskStats): MediaPipe Tasks sends usage statistics to
+   Google (the privacy notice at the top of NOTICE). Klipp sends none: the one call that creates the statistics logger
+   (TasksStatsLoggerFactory.create → TasksStatsProtoLogger.create) is rewritten in the bytecode to MediaPipe's own
+   no-op TasksStatsDummyLogger.create, and the Firebase transport libraries that would send them
+   (com.google.android.datatransport:*) are not in the app. Nothing else in MediaPipe is changed.
+
+2. Face Landmarker model bundle, assets/face_landmarker.task (bundled in the APK) – © Google LLC, Apache License 2.0
+   (the model cards: MediaPipe BlazeFace (short range), MediaPipe Face Mesh V2, Blendshape V2). From
+   https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task, the
+   same file as https://huggingface.co/litert-community/MediaPipe-FaceLandmarker (commit
+   cfb66f449dc5cb9f8dada3d52174d4cdae1c9ef1, license: apache-2.0): sha256
+   64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff, 3758596 bytes. Not modified by Klipp (the
+   blendshape model in it is not used).
+
+Their dependencies (Maven): Flogger 0.6 (Apache-2.0), Protocol Buffers Java Lite 4.26.1 (BSD-3-Clause,
+LICENSES/third-party/maven/protobuf-javalite-LICENSE.txt), Checker Framework compat qualifiers 2.5.3 (annotations,
+MIT – LICENSES/third-party/maven/checker-compat-qual-LICENSE.txt), Guava (already in Klipp).

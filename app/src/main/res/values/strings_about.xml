@@ -30,4 +30,5 @@
     <string name="about_field_origin">Source</string>
     <string name="about_open_origin">Open the source\'s page</string>
     <string name="about_missing">This text is missing from the app: %1$s</string>
+    <string name="about_notice_cut">… The beginning is shown here: the whole text (%1$d kB) is in the app as %2$s and in the source code.</string>
 </resources>

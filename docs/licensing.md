@@ -47,6 +47,7 @@ version 3 is what Klipp offers for the whole. No third-party license or notice w
 | Fonts compiled into the engine (FilmCraft: Inter ×5, JetBrains Mono, Noto Serif – byte-identical, unmodified) | SIL OFL 1.1 | `LICENSES/third-party/filmcraft/OFL-*.txt` |
 | spektrafilm tables (`app/src/main/assets/spektrafilm`) | CC BY-SA 4.0 for what encodes the profiles; the KG3 spectrum as part of spektrafilm's data (open questions, A2) | `SPEKTRAFILM_LICENSE.txt` (unchanged), `CHANGELOG.txt` (what Klipp changed) |
 | Silero VAD model (`assets/silero-vad-v6.2.0.bin`) | MIT | `LICENSES/third-party/silero-vad/` |
+| MediaPipe Face Landmarker model (`assets/face_landmarker.task`, SHA-256 pinned) | Apache-2.0 | `LICENSES/third-party/mediapipe/SOURCE.txt` |
 | Speech models and sound packs downloaded at run time | per source – see `THIRD_PARTY.md`; pinned by SHA-256 (models now, sound packs once `sounds-1` is published) | shown in the app |
 
 The GPL does not cover these files; they ship beside the program ("aggregate", GPL-3.0 §5) under their own terms,
@@ -59,7 +60,7 @@ The release APK contains, under `assets/licenses/` (copied from `LICENSES/` at b
 - the GPL-3.0 text, Apache-2.0, MPL-2.0 and the other license texts in `LICENSES/texts/`;
 - every Rust crate's own license files (`LICENSES/third-party/rust/<crate>-<version>/`), FilmCraft's and
   craft-libs' `NOTICE`, the engine's font licenses, whisper.cpp's `LICENSE`/`AUTHORS` and the notice embedded in a
-  compiled ggml file, libc++'s LLVM notice;
+  compiled ggml file, libc++'s LLVM notice, MediaPipe's `NOTICE` (Apache-2.0 §4(d));
 - `inventory.json`, which the app's license screen reads.
 
 The fonts' and spektrafilm's license files ship in their own asset folders. Symphonia (MPL-2.0): the APK says where

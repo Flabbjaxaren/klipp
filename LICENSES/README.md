@@ -9,7 +9,9 @@ License texts and notices for everything Klipp contains or downloads. The whole 
 - `texts/` – full license texts (GPL-3.0 = Klipp's `LICENSE`, Apache-2.0, MPL-2.0).
 - `third-party/` – component notices as shipped by their projects: each Rust crate's license files (`rust/`, generated),
   FilmCraft's and craft-libs' licenses and NOTICE plus the engine fonts' OFL texts, whisper.cpp's LICENSE/AUTHORS and an
-  embedded notice, libc++'s LLVM notice, Silero VAD's and OpenAI Whisper's MIT licenses, Checker Framework's MIT text.
+  embedded notice, libc++'s LLVM notice, Silero VAD's and OpenAI Whisper's MIT licenses, Checker Framework's MIT texts, Protocol
+  Buffers' BSD text, MediaPipe's `NOTICE` (unchanged, 3 MB: the notices of everything in its native library) and what
+  Klipp changed in MediaPipe (`mediapipe/SOURCE.txt`).
 - `repo/` – copies of repository files an entry names as notices (the Media3 modules' and whisper.cpp's KLIPP.md),
   generated.
 
