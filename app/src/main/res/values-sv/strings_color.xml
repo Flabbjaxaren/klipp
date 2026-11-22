@@ -245,7 +245,7 @@
     <string name="colortools_track_follow">Följ</string>
     <string name="colortools_follow_object">Objekt</string>
     <string name="colortools_follow_face">Ansikte</string>
-    <string name="colortools_follow_face_hint">Hittas på nytt i varje bildruta – hänger med när huvudet vrids.</string>
+    <string name="colortools_follow_face_hint">Följer ansiktet som fönstret ligger på – hänger med när huvudet vrids och stannar hos den personen.</string>
     <string name="colortools_track_face">Följ ansiktet</string>
     <string name="lutbrowser_builtin">Inbyggda</string>
     <string name="lutbrowser_imported">Importerade</string>

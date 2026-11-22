@@ -155,6 +155,9 @@ dependencies {
     implementation("androidx.media3:media3-inspector:$media3")
     // on-device models (exact word edges): ONNX Runtime, MIT
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.32.0")
+    // face following: MediaPipe Face Landmarker (Apache-2.0). Without Google's usage logging: its transport libraries
+    // are left out, and the task runner's stats logger is replaced by MediaPipe's own no-op one (NoTaskStats below)
+    implementation("com.google.mediapipe:tasks-vision:1.2.3") { exclude(group = "com.google.android.datatransport") }
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
 
     testImplementation(bom)
@@ -191,6 +194,33 @@ abstract class LicenseAssets : DefaultTask() {
     }
 }
 val licenseAssets = tasks.register<LicenseAssets>("licenseAssets") { licenses.set(rootProject.layout.projectDirectory.dir("LICENSES")) }
+
+/**
+ * MediaPipe Tasks sends usage statistics (the app's id and version, the task, its running times) to Google through the
+ * Firebase transport libraries, from TasksStatsLoggerFactory.create. Klipp sends nothing: that call is rewritten in the
+ * bytecode to MediaPipe's own TasksStatsDummyLogger.create (same arguments; every method a no-op), and the transport
+ * libraries are not in the app at all (excluded in the dependencies above).
+ */
+abstract class NoTaskStats : com.android.build.api.instrumentation.AsmClassVisitorFactory<com.android.build.api.instrumentation.InstrumentationParameters.None> {
+    override fun isInstrumentable(classData: com.android.build.api.instrumentation.ClassData) =
+        classData.className == "com.google.mediapipe.tasks.core.logging.TasksStatsLoggerFactory"
+    override fun createClassVisitor(classContext: com.android.build.api.instrumentation.ClassContext, nextClassVisitor: org.objectweb.asm.ClassVisitor) =
+        object : org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM9, nextClassVisitor) {
+            override fun visitMethod(access: Int, name: String?, descriptor: String?, signature: String?, exceptions: Array<out String>?): org.objectweb.asm.MethodVisitor =
+                object : org.objectweb.asm.MethodVisitor(org.objectweb.asm.Opcodes.ASM9, super.visitMethod(access, name, descriptor, signature, exceptions)) {
+                    override fun visitMethodInsn(opcode: Int, owner: String?, name: String?, descriptor: String?, isInterface: Boolean) {
+                        val pkg = "com/google/mediapipe/tasks/core/logging/"
+                        if (opcode == org.objectweb.asm.Opcodes.INVOKESTATIC && owner == pkg + "TasksStatsProtoLogger" && name == "create")
+                            super.visitMethodInsn(opcode, pkg + "TasksStatsDummyLogger", name, descriptor!!.replace("TasksStatsProtoLogger;", "TasksStatsDummyLogger;"), isInterface)
+                        else super.visitMethodInsn(opcode, owner, name, descriptor, isInterface)
+                    }
+                }
+        }
+}
+
 androidComponents {
-    onVariants { variant -> variant.sources.assets?.addGeneratedSourceDirectory(licenseAssets, LicenseAssets::output) }
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(licenseAssets, LicenseAssets::output)
+        variant.instrumentation.transformClassesWith(NoTaskStats::class.java, com.android.build.api.instrumentation.InstrumentationScope.ALL) {}
+    }
 }

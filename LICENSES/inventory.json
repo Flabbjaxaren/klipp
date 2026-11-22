@@ -219,6 +219,45 @@
    "notes": "Byte-identical to the Hugging Face file (sha256 1dbbac9e…7517)."
   },
   {
+   "id": "face-landmarker",
+   "component": "MediaPipe Face Landmarker model (BlazeFace short range, Face Mesh V2, Blendshape V2)",
+   "version": "float16/1 (sha256 64184e22…c9ff)",
+   "kind": "model",
+   "category": "assets",
+   "origin": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task · https://huggingface.co/litert-community/MediaPipe-FaceLandmarker",
+   "license": "Apache-2.0",
+   "copyright": "© Google LLC",
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "LICENSES/third-party/mediapipe/SOURCE.txt"
+   ],
+   "files": [
+    "assets/face_landmarker.task"
+   ],
+   "included_in": "assets/face_landmarker.task",
+   "status": "verified",
+   "notes": "Byte-identical to the published file (sha256 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff, 3758596 bytes; FaceLandmarksModelTest checks it). Not modified."
+  },
+  {
+   "id": "mediapipe",
+   "component": "MediaPipe Tasks (Vision, Core) – face following",
+   "version": "1.2.3",
+   "kind": "library",
+   "category": "code",
+   "origin": "https://github.com/google-ai-edge/mediapipe · Google Maven com.google.mediapipe:tasks-vision, :tasks-core",
+   "license": "Apache-2.0",
+   "copyright": "© The MediaPipe Authors (Google LLC)",
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "LICENSES/third-party/mediapipe/NOTICE",
+    "LICENSES/third-party/mediapipe/SOURCE.txt"
+   ],
+   "changes": "Usage statistics to Google switched off in the build: TasksStatsLoggerFactory.create calls MediaPipe's no-op TasksStatsDummyLogger instead of TasksStatsProtoLogger (bytecode rewrite, app/build.gradle.kts NoTaskStats), and the Firebase transport libraries are excluded. Otherwise unchanged.",
+   "included_in": "classes*.dex; lib/arm64-v8a/libmediapipe_tasks_jni.so",
+   "status": "verified",
+   "notes": "NOTICE is the AARs' META-INF/NOTICE (identical in tasks-vision and tasks-core 1.2.3), unchanged: the notices of TensorFlow Lite, XNNPACK, Abseil and the other parts compiled into the native library. Its privacy notice (usage metrics) does not apply to Klipp – see SOURCE.txt."
+  },
+  {
    "id": "ui-icons",
    "component": "Klipp's line icons",
    "version": "-",
@@ -2759,6 +2798,38 @@
    "status": "verified"
   },
   {
+   "id": "maven:com.google.flogger:flogger",
+   "component": "com.google.flogger:flogger",
+   "version": "0.6",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/google/flogger",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:com.google.flogger:flogger-system-backend",
+   "component": "com.google.flogger:flogger-system-backend",
+   "version": "0.6",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/google/flogger",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt"
+   ],
+   "status": "verified"
+  },
+  {
    "id": "maven:com.google.guava:failureaccess",
    "component": "com.google.guava:failureaccess",
    "version": "1.0.2",
@@ -2823,6 +2894,58 @@
    "status": "verified"
   },
   {
+   "id": "maven:com.google.mediapipe:tasks-core",
+   "component": "com.google.mediapipe:tasks-core",
+   "version": "1.2.3",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/google-ai-edge/mediapipe",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>; META-INF/NOTICE in the AAR (also covers the native library)",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "LICENSES/third-party/mediapipe/NOTICE",
+    "LICENSES/third-party/mediapipe/SOURCE.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:com.google.mediapipe:tasks-vision",
+   "component": "com.google.mediapipe:tasks-vision",
+   "version": "1.2.3",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/google-ai-edge/mediapipe",
+   "license": "Apache-2.0",
+   "evidence": "POM <licenses>; META-INF/NOTICE in the AAR",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/texts/Apache-2.0.txt",
+    "LICENSES/third-party/mediapipe/NOTICE",
+    "LICENSES/third-party/mediapipe/SOURCE.txt"
+   ],
+   "status": "verified"
+  },
+  {
+   "id": "maven:com.google.protobuf:protobuf-javalite",
+   "component": "com.google.protobuf:protobuf-javalite",
+   "version": "4.26.1",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://github.com/protocolbuffers/protobuf",
+   "license": "BSD-3-Clause",
+   "evidence": "POM <licenses> (parent POM protobuf-parent 4.26.1); LICENSE of protocolbuffers/protobuf v26.1",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/third-party/maven/protobuf-javalite-LICENSE.txt"
+   ],
+   "status": "verified"
+  },
+  {
    "id": "maven:com.microsoft.onnxruntime:onnxruntime-android",
    "component": "com.microsoft.onnxruntime:onnxruntime-android",
    "version": "1.32.0",
@@ -2834,6 +2957,22 @@
    "included_in": "classes*.dex / resources",
    "distributed": true,
    "notices": [],
+   "status": "verified"
+  },
+  {
+   "id": "maven:org.checkerframework:checker-compat-qual",
+   "component": "org.checkerframework:checker-compat-qual",
+   "version": "2.5.3",
+   "kind": "maven",
+   "origin": "Maven Central",
+   "homepage": "https://checkerframework.org/",
+   "license": "MIT",
+   "evidence": "POM <licenses>: GPL-2.0 with the classpath exception or MIT; the annotations are MIT (LICENSE.txt of checker-framework 2.5.3) – used under MIT",
+   "included_in": "classes*.dex / resources",
+   "distributed": true,
+   "notices": [
+    "LICENSES/third-party/maven/checker-compat-qual-LICENSE.txt"
+   ],
    "status": "verified"
   },
   {

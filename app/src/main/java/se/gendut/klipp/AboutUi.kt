@@ -198,10 +198,18 @@ private fun ColumnScope.ItemDetail(item: LicenseItem, nav: AboutNav) {
     for (n in item.notices) LinkRow(n.substringAfterLast('/'), n, "lic:notice") { nav.stack.add(AboutStep.Notice(n.substringAfterLast('/'), n)) }
 }
 
+/** Characters of a notice shown at most (see NoticeText). */
+private const val NOTICE_SHOWN = 150_000
+
 @Composable
 private fun NoticeText(path: String) {
     val ctx = LocalContext.current
-    val text = remember(path) { LicenseInventory.reflow(LicenseInventory.text(ctx, path)) }
+    val full = remember(path) { LicenseInventory.reflow(LicenseInventory.text(ctx, path)) }
+    // a very long notice (MediaPipe's NOTICE, 3 MB) is shown in part – one Text that long takes seconds to lay out;
+    // the whole file is in the APK and in the source
+    val cut = full.length > NOTICE_SHOWN
+    val text = if (cut) full.substring(0, full.lastIndexOf('\n', NOTICE_SHOWN).coerceAtLeast(NOTICE_SHOWN / 2)) +
+        "\n\n" + stringResource(R.string.about_notice_cut, full.length / 1024, LicenseInventory.assetPath(path)) else full
     SelectionContainer {
         Text(text.ifEmpty { stringResource(R.string.about_missing, path) }, color = K.OnSurface, fontSize = 13.sp, lineHeight = 18.sp,
             fontFamily = FontFamily.Monospace, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).testTag("notice:text"))

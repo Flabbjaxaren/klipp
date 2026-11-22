@@ -600,6 +600,18 @@
   "evidence": "POM <licenses>",
   "homepage": null
  },
+ "com.google.flogger:flogger": {
+  "version": "0.6",
+  "license": "Apache-2.0",
+  "evidence": "POM <licenses>",
+  "homepage": "https://github.com/google/flogger"
+ },
+ "com.google.flogger:flogger-system-backend": {
+  "version": "0.6",
+  "license": "Apache-2.0",
+  "evidence": "POM <licenses>",
+  "homepage": "https://github.com/google/flogger"
+ },
  "com.google.guava:failureaccess": {
   "version": "1.0.2",
   "license": "Apache-2.0",
@@ -625,11 +637,51 @@
   "evidence": "POM <licenses>",
   "homepage": "https://github.com/google/j2objc/"
  },
+ "com.google.mediapipe:tasks-core": {
+  "version": "1.2.3",
+  "license": "Apache-2.0",
+  "evidence": "POM <licenses>; META-INF/NOTICE in the AAR (also covers the native library)",
+  "homepage": "https://github.com/google-ai-edge/mediapipe",
+  "notices": [
+   "LICENSES/texts/Apache-2.0.txt",
+   "LICENSES/third-party/mediapipe/NOTICE",
+   "LICENSES/third-party/mediapipe/SOURCE.txt"
+  ]
+ },
+ "com.google.mediapipe:tasks-vision": {
+  "version": "1.2.3",
+  "license": "Apache-2.0",
+  "evidence": "POM <licenses>; META-INF/NOTICE in the AAR",
+  "homepage": "https://github.com/google-ai-edge/mediapipe",
+  "notices": [
+   "LICENSES/texts/Apache-2.0.txt",
+   "LICENSES/third-party/mediapipe/NOTICE",
+   "LICENSES/third-party/mediapipe/SOURCE.txt"
+  ]
+ },
+ "com.google.protobuf:protobuf-javalite": {
+  "version": "4.26.1",
+  "license": "BSD-3-Clause",
+  "evidence": "POM <licenses> (parent POM protobuf-parent 4.26.1); LICENSE of protocolbuffers/protobuf v26.1",
+  "homepage": "https://github.com/protocolbuffers/protobuf",
+  "notices": [
+   "LICENSES/third-party/maven/protobuf-javalite-LICENSE.txt"
+  ]
+ },
  "com.microsoft.onnxruntime:onnxruntime-android": {
   "version": "1.32.0",
   "license": "MIT",
   "evidence": "POM <licenses>; native library notices in ThirdPartyNotices.txt of the ONNX Runtime repository",
   "homepage": "https://github.com/microsoft/onnxruntime"
+ },
+ "org.checkerframework:checker-compat-qual": {
+  "version": "2.5.3",
+  "license": "MIT",
+  "evidence": "POM <licenses>: GPL-2.0 with the classpath exception or MIT; the annotations are MIT (LICENSE.txt of checker-framework 2.5.3) – used under MIT",
+  "homepage": "https://checkerframework.org/",
+  "notices": [
+   "LICENSES/third-party/maven/checker-compat-qual-LICENSE.txt"
+  ]
  },
  "org.checkerframework:checker-qual": {
   "version": "3.43.0",
