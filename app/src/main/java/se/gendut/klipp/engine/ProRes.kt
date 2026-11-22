@@ -75,15 +75,16 @@ object ProRes {
     private val worker = Executors.newSingleThreadExecutor { r -> Thread(r, "prores").apply { isDaemon = true } }
     /** Probing never waits behind a conversion (minutes). */
     private val prober = Executors.newSingleThreadExecutor { r -> Thread(r, "prores-probe").apply { isDaemon = true } }
-    @Volatile private var app: Context? = null
+    /** The index has been read ([init]). */
+    @Volatile private var loaded = false
 
     private fun dir(c: Context) = File(c.filesDir, "prores").apply { mkdirs() }
     private fun index(c: Context) = File(dir(c), "index.json")
 
     fun init(context: Context) {
-        if (app != null) return
+        if (loaded) return
         val c = context.applicationContext
-        app = c
+        loaded = true
         runCatching {
             val o = JSONObject(index(c).readText())
             if (o.optInt("version") != VERSION) {
@@ -317,7 +318,7 @@ object ProRes {
     private fun pickEncoders(w: Int, h: Int): List<EncoderPick> {
         val mime = MediaFormat.MIMETYPE_VIDEO_HEVC
         val all = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filter { it.isEncoder && mime in it.supportedTypes.map { t -> t.lowercase() } }
-            .sortedBy { if (android.os.Build.VERSION.SDK_INT >= 29 && it.isHardwareAccelerated) 0 else 1 }
+            .sortedBy { if (it.isHardwareAccelerated) 0 else 1 }
         val out = ArrayList<EncoderPick>()
         for (tenBit in listOf(true, false)) for (info in all) {
             val caps = runCatching { info.getCapabilitiesForType(mime) }.getOrNull() ?: continue
