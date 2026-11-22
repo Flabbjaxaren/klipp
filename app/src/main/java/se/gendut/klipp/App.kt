@@ -1074,7 +1074,9 @@ private fun KlippAppContent(
             Modifier.windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(start = 8.dp, end = 8.dp, bottom = 12.dp).fillMaxWidth(),
         ) {
-            SelectionChip(state, { page.value })
+            // (in landscape the chip floats over the timeline instead: under the picture there is room for the dock
+            // only, and the chip lay over the transport's frame buttons)
+            if (!landscape) SelectionChip(state, { page.value })
             Row(verticalAlignment = Alignment.CenterVertically) {
                 UndoRedo(state, ::undo, ::redo)
                 Spacer(Modifier.width(8.dp))
@@ -1083,6 +1085,12 @@ private fun KlippAppContent(
             }
         }
         }
+
+        // (a Box: the chip keeps its own width, its cross right after the text)
+        if (landscape && bottomBar) Box(
+            Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.54f).windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(start = 8.dp, bottom = 12.dp),
+        ) { SelectionChip(state, { page.value }) }
 
         // Finger indicator for multi-finger gestures
         AnimatedVisibility(
