@@ -116,10 +116,14 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
     val haptics = rememberHaptics()
     var access by remember { mutableStateOf(VideoLibrary.hasAccess(ctx)) }
     var partial by remember { mutableStateOf(VideoLibrary.isPartial(ctx)) }
-    var asked by remember { mutableStateOf(false) }
     var reload by remember { mutableIntStateOf(0) }
+    // when the Allow access button asked (0 = the request on opening): an answer within a moment came without a dialog
+    val tapped = remember { longArrayOf(0L) }
     val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        asked = true; access = VideoLibrary.hasAccess(ctx); partial = VideoLibrary.isPartial(ctx); reload++
+        access = VideoLibrary.hasAccess(ctx); partial = VideoLibrary.isPartial(ctx); reload++
+        // refused for good (or "Allow none" in the selection), the system no longer shows its dialog: the app's settings
+        if (!access && tapped[0] > 0 && android.os.SystemClock.elapsedRealtime() - tapped[0] < 500) openAppSettings(ctx)
+        tapped[0] = 0L
     }
     // asked once on opening; after a refusal the page offers it again (or the files app)
     LaunchedEffect(Unit) { if (!access) ask.launch(VideoLibrary.permissions()) }
@@ -150,8 +154,8 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
             !access -> Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(stringResource(R.string.videopicker_access), color = K.OnSurfaceVar, fontSize = 15.sp)
                 PillButton(stringResource(R.string.videopicker_allow), {
-                    // after "don't ask again" the system answers at once without a dialog: the app's settings then
-                    if (asked && permissionsBlocked(ctx)) openAppSettings(ctx) else ask.launch(VideoLibrary.permissions())
+                    // asks again; when the system answers at once without a dialog, the app's settings open (above)
+                    tapped[0] = android.os.SystemClock.elapsedRealtime(); ask.launch(VideoLibrary.permissions())
                 }, filled = true)
             }
             list == null -> Box(Modifier.fillMaxWidth().weight(1f))
@@ -216,12 +220,6 @@ private fun VideoCard(v: VideoLibrary.Video, order: Int, onClick: () -> Unit) {
         ).joinToString(" · ")
         Text(meta, color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 2.dp, bottom = 8.dp))
     }
-}
-
-/** True when every permission is refused for good (the system no longer shows its dialog). */
-private fun permissionsBlocked(c: Context): Boolean {
-    val a = c as? android.app.Activity ?: return false
-    return VideoLibrary.permissions().none { a.shouldShowRequestPermissionRationale(it) } && !VideoLibrary.hasAccess(c)
 }
 
 private fun openAppSettings(c: Context) {
