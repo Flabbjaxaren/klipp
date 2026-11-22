@@ -96,6 +96,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.withPermit
 import se.gendut.klipp.engine.ClipGrade
 import se.gendut.klipp.engine.Curve
 import se.gendut.klipp.engine.GradeNode
@@ -617,6 +618,33 @@ private fun NodeTools(
         scope.launch { gs.endLive() }
     }
     var wbPicking by remember { mutableStateOf(false) }
+    // previews for the LUT browser – the frame at the playhead (small), graded with each LUT in this node
+    val lutTick = remember(current) { derivedStateOf { (current.srcAt(state.playhead) * 2).roundToInt() } }.value
+    val lutFrame by produceState<Bitmap?>(null, current.uri, lutTick, editor, state.playing) {
+        if (editor != 3 || state.playing) return@produceState
+        val uri = current.uri ?: return@produceState
+        val f = Frames.load(ctx, uri, current.srcAt(state.playhead), exact = false) ?: return@produceState
+        value = withContext(Dispatchers.Default) {
+            val b = f.asAndroidBitmap()
+            Bitmap.createScaledBitmap(b, 192, (192f * b.height / b.width).roundToInt().coerceAtLeast(1), true)
+        }
+    }
+    // the grade without this node's LUT: choosing another LUT doesn't redraw the previews
+    val lutBase = gs.of(current.id).let { g -> g.copy(nodes = g.nodes.map { if (it.id == node.id) it.copy(lut = null, lutMix = 1f) else it }) }
+    val lutPreview: LutPreview? = remember(lutFrame, lutBase, node.id) {
+        val frame = lutFrame ?: return@remember null
+        val sec = current.srcAt(state.playhead)
+        val gate = kotlinx.coroutines.sync.Semaphore(2)
+        val p: LutPreview = { lut ->
+            gate.withPermit {
+                withContext(Dispatchers.Default) {
+                    val g = lutBase.copy(nodes = lutBase.nodes.map { if (it.id == node.id) it.copy(lut = lut, lutMix = 1f) else it })
+                    runCatching { g.at(sec).applyTo(frame).asImageBitmap() }.getOrNull()
+                }
+            }
+        }
+        p
+    }
     // the window can be dragged in the image when the window tab is open; key/dropper apply only to the selected clip and node
     androidx.compose.runtime.DisposableEffect(current.id, node.id, editor) {
         gs.windowEdit = if (editor == 5) current.id to node.id else null
@@ -680,7 +708,7 @@ private fun NodeTools(
                             }
                         }
                     })
-                    3 -> NodeLutEditor(node, onLive = ::live, onCommit = ::commit, onImport = onImportLut)
+                    3 -> NodeLutEditor(node, onLive = ::live, onCommit = ::commit, onImport = onImportLut, preview = lutPreview)
                     6 -> FilmEditor(node, onCommit = ::commit, onLive = { gs.previewNode(current.id, it) })
                     4 -> QualifierEditor(current.id, node, gs, onLive = ::live, onCommit = ::commit, onPick = {
                         if (gs.pick != null) { gs.pick = null; return@QualifierEditor }

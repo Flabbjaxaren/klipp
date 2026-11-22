@@ -2,7 +2,7 @@
 <resources>
     <string name="colortools_lut_intro">LUT:en gäller bara det här klippet och läggs sist i noden. Lägg den i en egen nod om du vill färga före eller efter den.</string>
     <string name="colortools_none">Ingen</string>
-    <string name="colortools_import_cube">+ Importera .cube</string>
+    <string name="colortools_import_cube">+ Importera .cube / .zip</string>
     <string name="colortools_lut_missing">LUT:en \"%1$s\" finns inte längre i appen – välj en annan.</string>
     <string name="colortools_lut_strength">LUT-styrka</string>
     <string name="colortools_drt_title">Bildomvandling · OpenDRT</string>
@@ -242,4 +242,13 @@
     <string name="colorpage_hsl_lum">Luminans %1$s</string>
     <string name="colorpage_hsl_pick">Pipett</string>
     <string name="colorpage_pick_hint_curve">Tryck på färgen som kurvan ska ändra</string>
+    <string name="lutbrowser_builtin">Inbyggda</string>
+    <string name="lutbrowser_imported">Importerade</string>
+    <string name="lutbrowser_selected">%1$d valda</string>
+    <string name="lutbrowser_select_all">Alla importerade</string>
+    <string name="lutbrowser_delete">Ta bort</string>
+    <string name="lutbrowser_cancel">Avbryt</string>
+    <string name="lutbrowser_delete_title">Ta bort %1$d LUT:ar?</string>
+    <string name="lutbrowser_delete_text">Klipp som använder dem behåller namnet och visar LUT:en som saknad tills den importeras igen.</string>
+    <string name="lutbrowser_hint">Håll på en LUT för att välja flera (tryck sedan på ett gruppnamn för hela gruppen)</string>
 </resources>

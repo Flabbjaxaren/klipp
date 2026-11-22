@@ -85,7 +85,7 @@ import kotlin.math.roundToInt
 
 /** LUT in the selected node (this clip only). The LUT is applied after the node's other adjustments. */
 @Composable
-fun NodeLutEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit, onImport: (((String) -> Unit) -> Unit)?) {
+fun NodeLutEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit, onImport: (((String) -> Unit) -> Unit)?, preview: LutPreview? = null) {
     // the LUT is read (and OpenDRT baked, 33³ points) on a background thread before the node is committed – never on the main thread
     val bake = rememberCoroutineScope()
     val pending = androidx.compose.runtime.remember { arrayOfNulls<kotlinx.coroutines.Job>(1) }
@@ -104,12 +104,14 @@ fun NodeLutEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNod
             stringResource(R.string.colortools_lut_intro),
             color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
         )
-        androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ToggleChip(stringResource(R.string.colortools_none), n.lut == null, { onCommit(n.copy(lut = null)) }, Modifier.testTag("nodeLut:none"))
-            for (name in LutStore.names) ToggleChip(Str.name(name), n.lut == name, { onCommit(n.copy(lut = name, lutMix = if (n.lut == null) 1f else n.lutMix)) }, Modifier.testTag("nodeLut:$name"))
-        }
-        if (onImport != null) PillButton(stringResource(R.string.colortools_import_cube), { onImport { name -> onCommit(n.copy(lut = name, lutMix = 1f)) } },
-            Modifier.padding(horizontal = 14.dp, vertical = 6.dp).testTag("nodeLut:import"), filled = false)
+        // the LUTs as a strip of preview cards in groups, several imported or deleted at once (LutBrowser)
+        LutBrowser(
+            selected = n.lut,
+            onPick = { name -> onCommit(if (name == null) n.copy(lut = null) else n.copy(lut = name, lutMix = if (n.lut == null) 1f else n.lutMix)) },
+            preview = preview,
+            onImport = onImport?.let { imp -> { imp { name -> onCommit(n.copy(lut = name, lutMix = 1f)) } } },
+            modifier = Modifier.padding(vertical = 4.dp),
+        )
         if (n.lut != null) {
             if (n.lut !in LutStore.names) Text(stringResource(R.string.colortools_lut_missing, n.lut.orEmpty()), color = K.Error, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp))
             PropSlider(stringResource(R.string.colortools_lut_strength), n.lutMix, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "nodeLutMix", lane = false,

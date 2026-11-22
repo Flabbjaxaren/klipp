@@ -45,6 +45,7 @@
     <string name="app_mode_audio">Ljud</string>
     <string name="app_lut_imported">LUT importerad: %1$s</string>
     <string name="app_lut_read_failed">Kunde inte läsa LUT:en: %1$s</string>
+    <string name="app_luts_imported">LUT:ar importerade: %1$d (misslyckades: %2$d)</string>
     <string name="app_export_needs_clips">Export kräver riktiga klipp</string>
     <string name="app_timeline_empty">Tidslinjen är tom</string>
     <string name="app_export_saved">Sparad i Filmer/Klipp</string>
