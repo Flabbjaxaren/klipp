@@ -172,8 +172,8 @@ object LayerPlanner {
         val q = s.playable().sequence ?: return null
         val layers = ArrayList<Layer>()
         val overlays = ArrayList<OverlayItem>()
-        // tracks top to bottom: V3, V2, V1
-        for (t in q.video.take(3).reversed()) {
+        // tracks top to bottom (… V3, V2, V1): all of them – the preview keeps its live players to the overlaps it can carry (RenderCache.liveLanes)
+        for (t in q.video.reversed()) {
             if (!t.enabled) continue // hidden track (eye off)
             val clips = t.clips.sortedBy { it.start }
             val byId = clips.associateBy { it.id }

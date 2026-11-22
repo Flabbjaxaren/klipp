@@ -236,7 +236,7 @@ fun LivePreview(
     val w = q.width.coerceAtLeast(2)
     val h = q.height.coerceAtLeast(2)
     // V1 at the bottom; clips covering the playhead (the selected clip is shown even if the playhead is outside it)
-    val layers = q.video.take(3).filter { it.enabled }.mapNotNull { tr ->
+    val layers = q.video.filter { it.enabled }.mapNotNull { tr ->
         tr.clips.firstOrNull { t >= it.start - 5e-4 && t < it.end - 5e-4 } ?: tr.clips.firstOrNull { t >= it.start - 5e-4 && t < it.end + 5e-4 } ?: live?.let { l -> tr.clips.firstOrNull { it.id == l.id } }
     }.map { c -> c.at(t).copy(kf = emptyMap()).let { if (live != null && it.id == live.id) it.withLive(live) else it } }
     // latest frame per clip, with its own source time – shown until the next one is decoded (never black in between)
@@ -448,7 +448,7 @@ private fun DeepPrefetch(controller: ProjectController, state: EditorState) {
     val q = controller.snapshot.playable().sequence ?: return
     val ctx = LocalContext.current
     val t = state.playhead.toDouble()
-    for (tr in q.video.take(3).filter { it.enabled }) {
+    for (tr in q.video.filter { it.enabled }) {
         val c = tr.clips.firstOrNull { it.text == null && t >= it.start - 5e-4 && t < it.end - 5e-4 } ?: continue
         val media = controller.uriOf(c.item) ?: continue
         val uri = se.gendut.klipp.engine.Proxies.videoUri(media)

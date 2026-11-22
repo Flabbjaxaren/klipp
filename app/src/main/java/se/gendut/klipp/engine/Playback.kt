@@ -1033,7 +1033,7 @@ class ProgramPlayback(private val context: Context) {
         val q = s.sequence ?: return ""
         val sb = StringBuilder()
         sb.append(playerLook).append(master).append(hdrCodecFailed).append(LiveGrades.structureKey(grades)).append('#').append(q.width).append('x').append(q.height).append(q.captions).append('#')
-        for (t in q.video.take(3) + q.audio.take(3)) {
+        for (t in q.video + q.audio) {
             sb.append(t.id).append(t.enabled).append(t.muted).append(t.solo).append(t.volumeDb).append(t.transitions).append(t.volKf).append(t.autoMode)
                 .append(t.afx.map { it.copy(params = emptyMap()) }).append('|')
             // the audio effects' values change live in the chains (no rebuild) – only which effects exist counts

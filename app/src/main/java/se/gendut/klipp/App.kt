@@ -577,8 +577,9 @@ private fun KlippAppContent(
             }.getOrNull().orEmpty()
             se.gendut.klipp.engine.RenderCache.states = chunks.map { se.gendut.klipp.engine.RenderCache.ChunkState(it.a, it.b, se.gendut.klipp.engine.RenderCache.isReady(it), it.heavy || se.gendut.klipp.engine.RenderCache.isSlow(it)) }
             // every transition between two clips: playback shows it only pre-rendered (a cut until then, see
-            // RenderCache.playPlan) – they come first, the one nearest the playhead first
-            val windows = se.gendut.klipp.engine.RenderCache.transitionWindows(snap)
+            // RenderCache.playPlan) – they come first, the one nearest the playhead first; so do the spans where more video
+            // layers overlap than live playback carries (RenderCache.LIVE_UPPER_LAYERS: until rendered, the top ones are left out)
+            val windows = se.gendut.klipp.engine.RenderCache.transitionWindows(snap) + se.gendut.klipp.engine.RenderCache.overloadWindows(snap, controller::uriOf)
             val all = se.gendut.klipp.engine.RenderCache.renderAll
             val range = se.gendut.klipp.engine.RenderCache.renderRange
             fun asked(c: se.gendut.klipp.engine.RenderCache.Chunk) = all && (range == null || (c.a < range.endInclusive - 1e-6 && c.b > range.start + 1e-6))
