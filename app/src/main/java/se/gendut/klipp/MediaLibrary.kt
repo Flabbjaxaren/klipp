@@ -80,6 +80,8 @@ interface MediaLibrary {
     val missingFromLibrary: Boolean get() = false
     /** Opens those files again (after the permission was given). */
     fun reopenFromLibrary() {}
+    /** A ProRes file's conversion (null = not ProRes): shown on its card. */
+    fun proRes(item: Long): se.gendut.klipp.engine.ProRes.Status? = null
 
     /** All media in a folder and its subfolders. */
     fun mediaInBin(bin: Long): List<Long> {
@@ -270,7 +272,7 @@ fun MediaSheet(
                         }
                         items(media, key = { it.id }) { m ->
                             val on = m.id in picked
-                            MediaCard(m, lib.uriOf(m.id), lib.usage(m.id), on,
+                            MediaCard(m, lib.uriOf(m.id), lib.usage(m.id), on, proRes = lib.proRes(m.id),
                                 onClick = {
                                     if (selecting) { picked = if (on) picked - m.id else picked + m.id; haptics.tick() } else onOpen(m)
                                 },
@@ -382,7 +384,7 @@ private fun FolderCard(b: BinSnap, count: Int, picked: Boolean, onClick: () -> U
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit, order: Int = 0) {
+private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, proRes: se.gendut.klipp.engine.ProRes.Status? = null, onClick: () -> Unit, onLongClick: () -> Unit, order: Int = 0) {
     val src = remember { MutableInteractionSource() }
     Column(
         Modifier.pressPop(src, 0.93f)
@@ -409,6 +411,21 @@ private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, onCli
             ) { androidx.compose.material3.Icon(Ic.Transcript, stringResource(R.string.medialibrary_has_text), tint = Color.White, modifier = Modifier.size(15.dp)) }
             if (m.markIn != null || m.markOut != null) {
                 Box(Modifier.align(Alignment.TopStart).padding(6.dp).size(10.dp).clip(RoundedCornerShape(5.dp)).background(K.Primary))
+            }
+            // a ProRes file is converted before it can play (engine/ProRes.kt): its progress, or that it failed
+            if (proRes != null && proRes != se.gendut.klipp.engine.ProRes.Status.Ready) {
+                val failed = proRes is se.gendut.klipp.engine.ProRes.Status.Failed
+                Text(
+                    when (proRes) {
+                        is se.gendut.klipp.engine.ProRes.Status.Working -> stringResource(R.string.medialibrary_prores_converting, proRes.percent)
+                        is se.gendut.klipp.engine.ProRes.Status.Failed -> stringResource(R.string.medialibrary_prores_failed)
+                        else -> stringResource(R.string.medialibrary_prores_queued)
+                    },
+                    color = if (failed) K.OnPrimary else Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.align(Alignment.TopStart).padding(start = if (m.markIn != null || m.markOut != null) 20.dp else 6.dp, top = 6.dp)
+                        .clip(RoundedCornerShape(6.dp)).background(if (failed) K.Error else Color(0xAA000000)).padding(horizontal = 6.dp, vertical = 2.dp)
+                        .testTag("prores:${m.name}"),
+                )
             }
             // the file can't be opened (see the missing files' row above): said on the card, where the timeline badge goes
             if (m.offline) Text(
@@ -449,6 +466,7 @@ fun controllerLibrary(c: se.gendut.klipp.engine.ProjectController) = object : Me
     override fun relinkFromFolder(tree: Uri) { c.relinkFromFolder(tree) }
     override val missingFromLibrary get() = c.missingFromLibrary
     override fun reopenFromLibrary() { c.reopenFromLibrary() }
+    override fun proRes(item: Long) = c.proResStatus(item)
 }
 
 /**

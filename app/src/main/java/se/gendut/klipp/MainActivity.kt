@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
         se.gendut.klipp.engine.BlankFrame.init(applicationContext)
         cutDiagnostics(intent)
         se.gendut.klipp.engine.Reversals.init(applicationContext)
+        se.gendut.klipp.engine.ProRes.init(applicationContext)
         se.gendut.klipp.engine.AudioRenders.init(applicationContext)
         se.gendut.klipp.engine.RenderCache.init(applicationContext)
         se.gendut.klipp.engine.Fonts.init(applicationContext)

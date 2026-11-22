@@ -407,7 +407,7 @@ private fun AccentTones() {
 
 /**
  * What Klipp's own files take on the phone and what is left: proxies, node caches, pre-rendered pieces, freeze frames
- * (images and their videos) and reversed clips – all made again when needed – with a warning when space runs low (a
+ * (images and their videos), reversed clips and ProRes clips' intermediates (counted as "other") – all made again when needed – with a warning when space runs low (a
  * proxy or a render that can't be written stops).
  */
 @Composable
@@ -420,7 +420,7 @@ private fun StorageSummary(ctx: android.content.Context) {
             fun dirSize(name: String) = java.io.File(ctx.filesDir, name).walkBottomUp().filter { it.isFile }.sumOf { it.length() }
             Use(
                 se.gendut.klipp.engine.Proxies.size(ctx), se.gendut.klipp.engine.NodeCache.size(ctx), se.gendut.klipp.engine.RenderCache.bytes(),
-                dirSize("holds") + dirSize("reversed"),
+                dirSize("holds") + dirSize("reversed") + dirSize("prores"),
                 runCatching { android.os.StatFs(ctx.filesDir.path).availableBytes }.getOrDefault(0L),
             )
         }

@@ -310,8 +310,8 @@ object Perf {
     }
 
     /**
-     * ADPF for a throughput job (export, pre-render, proxies, reversed clips): the encoding threads (Media3's effect
-     * thread, the decoder and encoder loops, loading) are put in a hint session that keeps reporting that the work takes
+     * ADPF for a throughput job (export, pre-render, proxies, reversed clips, ProRes import): the encoding threads (Media3's
+     * effect thread, the decoder and encoder loops, loading, the ProRes decoder's threads) are put in a hint session that keeps reporting that the work takes
      * longer than the target – then the scheduler keeps them on the big cores at a high clock. Transformer starts the
      * threads gradually, so they are looked up again every 500 ms. Closed when the job is done.
      */
@@ -357,7 +357,7 @@ object Perf {
         private companion object {
             const val TARGET_NS = 8_000_000L
             /** Thread name prefixes (Linux truncates them to 15 characters). */
-            val PREFIXES = listOf("Effect:", "MediaCodec", "CodecLooper", "Transformer", "ExoPlayer:Load", "ExoPlayer:Play")
+            val PREFIXES = listOf("Effect:", "MediaCodec", "CodecLooper", "Transformer", "ExoPlayer:Load", "ExoPlayer:Play", "prores")
 
             fun threads(): IntArray = File("/proc/self/task").listFiles().orEmpty().mapNotNull { t ->
                 val name = runCatching { File(t, "comm").readText().trim() }.getOrNull() ?: return@mapNotNull null

@@ -28,4 +28,11 @@
     <string name="playback_export_size_mismatch">begärt %1$d×%2$d – telefonens kodare klarade inte den storleken</string>
     <string name="playback_create_file_failed">Kunde inte skapa filen i Filmer</string>
     <string name="playback_write_file_failed">Kunde inte skriva filen i Filmer</string>
+    <!-- ProRes import (engine/ProRes.kt) -->
+    <string name="prores_converting">%1$s konverteras från ProRes – telefonen kan inte spela ProRes som den är</string>
+    <string name="prores_ready">%1$s är konverterad och klar att redigera</string>
+    <string name="prores_failed">%1$s kunde inte konverteras från ProRes: %2$s</string>
+    <string name="prores_export_failed">Exporten behöver %1$s, som inte kunde konverteras från ProRes: %2$s</string>
+    <string name="prores_no_decoder">ProRes-avkodaren saknas i det här bygget av Klipp</string>
+    <string name="prores_no_encoder">telefonen har ingen HEVC-kodare för %1$d × %2$d</string>
 </resources>

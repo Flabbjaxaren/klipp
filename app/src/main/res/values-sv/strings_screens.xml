@@ -340,4 +340,7 @@
     <string name="videopicker_partial">Bara de videor du valde visas.</string>
     <string name="videopicker_choose">Välj videor</string>
     <string name="videopicker_none_chosen">Inga videor valda ännu: tryck på Välj videor.</string>
+    <string name="medialibrary_prores_queued">ProRes · väntar</string>
+    <string name="medialibrary_prores_converting">ProRes · %1$d %%</string>
+    <string name="medialibrary_prores_failed">ProRes · misslyckades</string>
 </resources>

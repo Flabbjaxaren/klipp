@@ -349,7 +349,7 @@ fun ProgramMonitor(
                                 "at the playhead: " + (if (rendered) "pre-rendered file" else "live, ${layers.size} video layer(s)") +
                                     layers.joinToString("") { (n, c) -> controller.uriOf(c.item)?.let { u -> "\n  $n: " + if (se.gendut.klipp.engine.Proxies.videoUri(u) != u) "proxy" else "original" } ?: "" } + "\n"
                             }
-                            text = playback.diagnostics() + here + clipInfo + se.gendut.klipp.engine.Proxies.describe() + SyncStats.describe()
+                            text = playback.diagnostics() + here + clipInfo + se.gendut.klipp.engine.Proxies.describe() + se.gendut.klipp.engine.ProRes.describe() + SyncStats.describe()
                             kotlinx.coroutines.delay(250)
                         }
                     }

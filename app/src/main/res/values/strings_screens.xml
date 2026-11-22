@@ -340,4 +340,7 @@
     <string name="videopicker_partial">Only the videos you chose are shown.</string>
     <string name="videopicker_choose">Choose videos</string>
     <string name="videopicker_none_chosen">No videos chosen yet: tap Choose videos.</string>
+    <string name="medialibrary_prores_queued">ProRes · waiting</string>
+    <string name="medialibrary_prores_converting">ProRes · %1$d %%</string>
+    <string name="medialibrary_prores_failed">ProRes · failed</string>
 </resources>
