@@ -256,4 +256,6 @@
     <string name="lutbrowser_delete_title">Delete %1$d LUTs?</string>
     <string name="lutbrowser_delete_text">Clips that use them keep the name and show the LUT as missing until it is imported again.</string>
     <string name="lutbrowser_hint">Hold a LUT to select several (then tap a group name for the whole group)</string>
+    <string name="colortools_log_detected">The camera says it recorded this clip in %1$s.</string>
+    <string name="colortools_log_use">Use %1$s</string>
 </resources>

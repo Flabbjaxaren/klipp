@@ -85,7 +85,8 @@ import kotlin.math.roundToInt
 
 /** LUT in the selected node (this clip only). The LUT is applied after the node's other adjustments. */
 @Composable
-fun NodeLutEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit, onImport: (((String) -> Unit) -> Unit)?, preview: LutPreview? = null) {
+fun NodeLutEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNode) -> Unit, onImport: (((String) -> Unit) -> Unit)?, preview: LutPreview? = null,
+                  logHint: se.gendut.klipp.engine.OpenDrt.Input? = null) {
     // the LUT is read (and OpenDRT baked, 33³ points) on a background thread before the node is committed – never on the main thread
     val bake = rememberCoroutineScope()
     val pending = androidx.compose.runtime.remember { arrayOfNulls<kotlinx.coroutines.Job>(1) }
@@ -118,7 +119,7 @@ fun NodeLutEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNod
                 // with OpenDRT the LUT is baked together with the transform – it is rebuilt when the finger lifts
                 onLive = { if (n.drt == null) onLive(n.copy(lutMix = it)) }) { onCommit(n.copy(lutMix = it)) }
         }
-        DrtEditor(n, onCommit)
+        DrtEditor(n, onCommit, logHint)
     }
 }
 
@@ -127,7 +128,7 @@ fun NodeLutEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNod
  * color rendering. Applied after the node's adjustments and LUT – put it in the last node for an "output transform".
  */
 @Composable
-private fun DrtEditor(n: GradeNode, onCommit: (GradeNode) -> Unit) {
+private fun DrtEditor(n: GradeNode, onCommit: (GradeNode) -> Unit, logHint: se.gendut.klipp.engine.OpenDrt.Input? = null) {
     val d = n.drt
     SectionTitle(stringResource(R.string.colortools_drt_title))
     Text(
@@ -136,8 +137,10 @@ private fun DrtEditor(n: GradeNode, onCommit: (GradeNode) -> Unit) {
     )
     Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ToggleChip(stringResource(R.string.colortools_off), d == null, { onCommit(n.copy(drt = null)) }, Modifier.testTag("drt:off"))
-        ToggleChip(stringResource(R.string.colortools_on), d != null, { if (d == null) onCommit(n.copy(drt = se.gendut.klipp.engine.Drt())) }, Modifier.testTag("drt:on"))
+        // (turned on: from the log curve the camera says it recorded in, when it says one – CameraLog)
+        ToggleChip(stringResource(R.string.colortools_on), d != null, { if (d == null) onCommit(n.copy(drt = se.gendut.klipp.engine.Drt().let { x -> if (logHint != null) x.copy(input = logHint.key) else x })) }, Modifier.testTag("drt:on"))
     }
+    LogSuggestion(logHint, d?.input) { k -> d?.let { onCommit(n.copy(drt = it.copy(input = k))) } }
     if (d == null) return
     fun set(nd: se.gendut.klipp.engine.Drt) = onCommit(n.copy(drt = nd))
     SubLabel(stringResource(R.string.colortools_shot_in))
@@ -174,7 +177,7 @@ private object FilmBake {
 }
 
 @Composable
-fun FilmEditor(n: GradeNode, onCommit: (GradeNode) -> Unit, onLive: ((GradeNode) -> Unit)? = null) {
+fun FilmEditor(n: GradeNode, onCommit: (GradeNode) -> Unit, onLive: ((GradeNode) -> Unit)? = null, logHint: se.gendut.klipp.engine.OpenDrt.Input? = null) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     se.gendut.klipp.engine.Spektra.init(ctx)
     // baking (36,000 points through the whole chain) on a background thread; only the latest is committed. Not tied
@@ -203,9 +206,12 @@ fun FilmEditor(n: GradeNode, onCommit: (GradeNode) -> Unit, onLive: ((GradeNode)
         Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             // off keeps the film's settings in the node; on brings them back (it began from the default film again)
             ToggleChip(stringResource(R.string.colortools_off), f == null, { if (f != null) commit(n.copy(film = null, filmOff = f)) }, Modifier.testTag("film:off"))
-            ToggleChip(stringResource(R.string.colortools_on), f != null, { if (f == null) commit(n.copy(film = n.filmOff ?: se.gendut.klipp.engine.Film(), filmOff = null)) }, Modifier.testTag("film:on"))
+            ToggleChip(stringResource(R.string.colortools_on), f != null, {
+                if (f == null) commit(n.copy(film = n.filmOff ?: se.gendut.klipp.engine.Film().let { x -> if (logHint != null) x.copy(input = logHint.key) else x }, filmOff = null))
+            }, Modifier.testTag("film:on"))
             if (baking) Text(stringResource(R.string.colortools_computing), color = K.Outline, fontSize = 12.sp, modifier = Modifier.testTag("film:baking"))
         }
+        LogSuggestion(logHint, f?.input) { k -> f?.let { commit(n.copy(film = it.copy(input = k))) } }
         if (f != null) {
             val idx = se.gendut.klipp.engine.Spektra.index
             fun set(nf: se.gendut.klipp.engine.Film) = commit(n.copy(film = nf))
@@ -422,6 +428,20 @@ private val FILM_FORMATS get() = listOf(
     52.5f to "65 mm",
     70f to Str.t(R.string.colortools_format_medium),
 )
+
+/**
+ * The log curve the camera's metadata names ([se.gendut.klipp.engine.CameraLog]): said under the on/off switch, and
+ * offered as one tap when the node's input is something else ([current] null = the node is off: only said – turning
+ * it on starts from it).
+ */
+@Composable
+private fun LogSuggestion(log: se.gendut.klipp.engine.OpenDrt.Input?, current: String?, onUse: (String) -> Unit) {
+    if (log == null) return
+    hint(stringResource(R.string.colortools_log_detected, log.label))
+    if (current != null && current != log.key) Row(Modifier.padding(horizontal = 14.dp, vertical = 2.dp)) {
+        ToggleChip(stringResource(R.string.colortools_log_use, log.label), false, { onUse(log.key) }, Modifier.testTag("logHint:use"))
+    }
+}
 
 @Composable
 private fun hint(text: String) = Text(text, color = K.OnSurfaceVar, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))

@@ -618,6 +618,8 @@ private fun NodeTools(
         scope.launch { gs.endLive() }
     }
     var wbPicking by remember { mutableStateOf(false) }
+    // the log curve the clip's camera says it recorded in (e.g. Panasonic V-Log): OpenDRT and film start from it
+    val logHint = se.gendut.klipp.engine.CameraLog.of(current.uri)
     // previews for the LUT browser – the frame at the playhead (small), graded with each LUT in this node
     val lutTick = remember(current) { derivedStateOf { (current.srcAt(state.playhead) * 2).roundToInt() } }.value
     val lutFrame by produceState<Bitmap?>(null, current.uri, lutTick, editor, state.playing) {
@@ -708,8 +710,8 @@ private fun NodeTools(
                             }
                         }
                     })
-                    3 -> NodeLutEditor(node, onLive = ::live, onCommit = ::commit, onImport = onImportLut, preview = lutPreview)
-                    6 -> FilmEditor(node, onCommit = ::commit, onLive = { gs.previewNode(current.id, it) })
+                    3 -> NodeLutEditor(node, onLive = ::live, onCommit = ::commit, onImport = onImportLut, preview = lutPreview, logHint = logHint)
+                    6 -> FilmEditor(node, onCommit = ::commit, onLive = { gs.previewNode(current.id, it) }, logHint = logHint)
                     4 -> QualifierEditor(current.id, node, gs, onLive = ::live, onCommit = ::commit, onPick = {
                         if (gs.pick != null) { gs.pick = null; return@QualifierEditor }
                         val clip = current
