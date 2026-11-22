@@ -313,4 +313,12 @@
     <string name="medialibrary_missing_badge">Saknas</string>
     <string name="settings_render_auto">Rendera automatiskt (alla projekt)</string>
     <string name="settings_delete_renders_all">Ta bort renderingar (alla projekt)</string>
+    <string name="projectsscreen_select">Välj projekt</string>
+    <string name="projectsscreen_select_several">Välj flera</string>
+    <string name="projectsscreen_selected">%1$d valda</string>
+    <string name="projectsscreen_all">Alla</string>
+    <plurals name="projectsscreen_delete_many_title">
+        <item quantity="one">Radera %1$d projekt?</item>
+        <item quantity="other">Radera %1$d projekt?</item>
+    </plurals>
 </resources>
