@@ -83,7 +83,7 @@
     <string name="panels_creative">Creative</string>
     <string name="panels_saturation">Saturation</string>
     <string name="panels_duck_title">Duck music</string>
-    <string name="panels_duck_desc">The music is lowered automatically when someone speaks on the other tracks – with a transcript, exactly under the words</string>
+    <string name="panels_duck_desc">Lowers the music under speech (with a transcript: under the words).</string>
     <string name="panels_duck_music_on">Music on</string>
     <string name="panels_duck_lower">Lower by</string>
     <string name="panels_duck_listening">Listening …</string>
