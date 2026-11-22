@@ -127,6 +127,14 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
     }
     // asked once on opening; after a refusal the page offers it again (or the files app)
     LaunchedEffect(Unit) { if (!access) ask.launch(VideoLibrary.permissions()) }
+    // back from the phone's settings (where Allow access may send, and where the chosen videos can be changed): access
+    // and the list are read anew – the page kept asking for access that had been given there
+    androidx.lifecycle.compose.LifecycleResumeEffect(Unit) {
+        val a = VideoLibrary.hasAccess(ctx)
+        val p = VideoLibrary.isPartial(ctx)
+        if (a != access || p != partial || p) { access = a; partial = p; reload++ }
+        onPauseOrDispose {}
+    }
     val videos by produceState<List<VideoLibrary.Video>?>(null, access, reload) {
         value = if (access) withContext(Dispatchers.IO) { VideoLibrary.query(ctx) } else emptyList()
     }
