@@ -125,10 +125,14 @@ fun LutBrowser(
                 )
             }
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        // the panel beside the tool rail is narrow: the hint goes under the button (beside it, it wrapped a word a line),
+        // and only when there is an imported LUT to select (built-in ones can't be)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
             if (onImport != null) PillButton(stringResource(R.string.colortools_import_cube), onImport, filled = false)
-            Spacer(Modifier.width(10.dp))
-            if (!selecting) Text(stringResource(R.string.lutbrowser_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.weight(1f))
+            if (!selecting && names.any { !LutStore.isBuiltIn(it) }) {
+                Spacer(Modifier.height(6.dp))
+                Text(stringResource(R.string.lutbrowser_hint), color = K.OnSurfaceVar, fontSize = 12.sp)
+            }
         }
     }
 
