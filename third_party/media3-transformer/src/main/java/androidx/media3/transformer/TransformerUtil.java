@@ -260,10 +260,38 @@ public final class TransformerUtil {
    * ColorInfo#SDR_BT709_LIMITED}.
    */
   public static ColorInfo getValidColor(@Nullable ColorInfo colorInfo) {
+    @Nullable ColorInfo untagged = klippUntaggedSdr(colorInfo);
+    if (untagged != null) {
+      return untagged;
+    }
     if (colorInfo == null || !colorInfo.isDataSpaceValid()) {
       return ColorInfo.SDR_BT709_LIMITED;
     }
     return colorInfo;
+  }
+
+  /**
+   * Klipp: a file that gives its matrix and range but no transfer (the Xiaomi 17 Ultra's log video, stock MiLog or a
+   * camera mod's S-Log3: BT.2020, full range, transfer unspecified) is SDR with its own matrix and range – not BT.709
+   * limited, which samples full-range BT.2020 YUV with the wrong range and matrix (contrast and saturation ×1.17).
+   * Null when this doesn't apply.
+   */
+  @Nullable
+  public static ColorInfo klippUntaggedSdr(@Nullable ColorInfo colorInfo) {
+    if (colorInfo == null
+        || colorInfo.isDataSpaceValid()
+        || colorInfo.colorTransfer != Format.NO_VALUE
+        || (colorInfo.colorSpace == Format.NO_VALUE && colorInfo.colorRange == Format.NO_VALUE)) {
+      return null;
+    }
+    return colorInfo
+        .buildUpon()
+        .setColorSpace(
+            colorInfo.colorSpace != Format.NO_VALUE ? colorInfo.colorSpace : C.COLOR_SPACE_BT709)
+        .setColorRange(
+            colorInfo.colorRange != Format.NO_VALUE ? colorInfo.colorRange : C.COLOR_RANGE_LIMITED)
+        .setColorTransfer(C.COLOR_TRANSFER_SDR)
+        .build();
   }
 
   /** Returns the decoder output color taking tone mapping into account. */
