@@ -19,6 +19,13 @@
     <string name="settings_title_length_default">standard · eftertexter dubbelt</string>
     <string name="settings_caption_length">Nya undertexters längd</string>
     <string name="settings_default">standard</string>
+    <string name="settings_wave_detail">Vågformens detaljrikedom</string>
+    <string name="settings_wave_normal">Normal</string>
+    <string name="settings_wave_normal_hint">En stapel varannan dp – lugnt, som förut</string>
+    <string name="settings_wave_detailed">Detaljerad</string>
+    <string name="settings_wave_detailed_hint">En stapel per dp</string>
+    <string name="settings_wave_max">Max</string>
+    <string name="settings_wave_max_hint">Ett värde per pixel, ritat som en fylld kontur</string>
     <string name="settings_group_pipeline">Videokedja</string>
     <string name="settings_float_pipeline">Flyttal (RGBA16F) i hela kedjan</string>
     <string name="settings_float_pipeline_hint">varje steg – avkodning, noder, film, look, titlar – räknar i 16-bitars flyttal i stället för 8 bitar. Gäller direkt för export och proxyfiler, i uppspelningen nästa gång appen startar</string>

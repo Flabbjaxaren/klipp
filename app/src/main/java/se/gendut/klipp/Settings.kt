@@ -116,12 +116,17 @@ object AppPrefs {
     fun addOnImport(c: Context): Boolean = p(c).getBoolean("addOnImport", false)
     fun setAddOnImport(c: Context, on: Boolean) { p(c).edit().putBoolean("addOnImport", on).apply() }
 
-    /** Loads what applies to the whole app (theme, haptics) – when the app starts. */
+    /** How fine the timeline draws waveforms. */
+    fun waveDetail(c: Context): WaveDetail = runCatching { WaveDetail.valueOf(p(c).getString("waveDetail", null) ?: "") }.getOrDefault(WaveDetail.NORMAL)
+    fun setWaveDetail(c: Context, d: WaveDetail) { p(c).edit().putString("waveDetail", d.name).apply(); WaveDetail.current = d }
+
+    /** Loads what applies to the whole app (theme, haptics, waveforms) – when the app starts. */
     fun apply(c: Context) {
         K.customSeed = customSeed(c)
         K.accent = accent(c)
         K.base = base(c)
         Haptics.enabled = haptics(c)
+        WaveDetail.current = waveDetail(c)
     }
 }
 
@@ -222,6 +227,11 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             var capSec by remember { mutableStateOf(AppPrefs.captionSeconds(ctx)) }
             DropField(stringResource(R.string.settings_caption_length), CAPTION_SECONDS.map { Opt(it, secLabel(it), if (it == 2f) defaultHint else null, key = "c$it") },
                 capSec, "set:capSec") { capSec = it; AppPrefs.setCaptionSeconds(ctx, it) }
+            DropField(stringResource(R.string.settings_wave_detail), listOf(
+                Opt(WaveDetail.NORMAL, stringResource(R.string.settings_wave_normal), stringResource(R.string.settings_wave_normal_hint), key = "waveNormal"),
+                Opt(WaveDetail.DETAILED, stringResource(R.string.settings_wave_detailed), stringResource(R.string.settings_wave_detailed_hint), key = "waveDetailed"),
+                Opt(WaveDetail.MAX, stringResource(R.string.settings_wave_max), stringResource(R.string.settings_wave_max_hint), key = "waveMax"),
+            ), WaveDetail.current, "set:waveDetail") { AppPrefs.setWaveDetail(ctx, it) }
 
                 }
                 2 -> PanelCard(Modifier.padding(top = 8.dp)) {

@@ -19,6 +19,13 @@
     <string name="settings_title_length_default">default · credits get double</string>
     <string name="settings_caption_length">Default caption length</string>
     <string name="settings_default">default</string>
+    <string name="settings_wave_detail">Waveform detail</string>
+    <string name="settings_wave_normal">Normal</string>
+    <string name="settings_wave_normal_hint">A bar every 2 dp – calm, as before</string>
+    <string name="settings_wave_detailed">Detailed</string>
+    <string name="settings_wave_detailed_hint">A bar every dp</string>
+    <string name="settings_wave_max">Max</string>
+    <string name="settings_wave_max_hint">A value per pixel, drawn as a filled outline</string>
     <string name="settings_group_pipeline">Video pipeline</string>
     <string name="settings_float_pipeline">Floating point (RGBA16F) throughout the pipeline</string>
     <string name="settings_float_pipeline_hint">every stage – decoding, nodes, film, look, titles – computes in 16-bit floating point instead of 8 bits. Applies right away to export and proxy files, to playback the next time the app starts</string>

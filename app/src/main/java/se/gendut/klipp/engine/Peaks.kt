@@ -9,23 +9,51 @@ import java.io.File
 import java.nio.ByteOrder
 
 /**
- * Waveforms: audio is decoded once per file (MediaCodec) into peak values, [RATE] per second, and
- * stored in the app's cache. The timeline draws from them.
+ * Waveforms: audio is decoded once per file (MediaCodec) into peak values, [FINE_RATE] per second, and stored in the
+ * app's cache (one byte per value). The timeline draws from a pyramid of them ([PeakLevels]: the fine values and
+ * coarser ones, so a long clip zoomed out reads a few values per bar); [load] gives [RATE] per second to the others
+ * (beat markers).
  */
 object Peaks {
+    /** The values [load] and [cached] give (per second). */
     const val RATE = 100
+    /** The values stored and drawn when zoomed in (per second): one per millisecond – a bar per pixel at the deepest zoom. */
+    const val FINE_RATE = 1000
+    /** The stored format: a new one makes every file be decoded again (the older files are removed when seen). */
+    private const val VERSION = 2
+    /** The waveforms kept in memory (bytes, all levels; ~4.8 MB per hour of audio); the newest one is always kept. */
+    private const val MEM_BYTES = 48L shl 20
 
-    private val mem = object : LinkedHashMap<String, FloatArray>(8, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FloatArray>?) = size > 24
-    }
+    private val mem = LinkedHashMap<String, PeakLevels>(8, 0.75f, true)
     private val running = HashSet<String>()
 
-    fun cached(uri: Uri): FloatArray? = synchronized(mem) { mem[uri.toString()] }
+    private fun keep(key: String, p: PeakLevels) = synchronized(mem) {
+        mem[key] = p
+        var total = mem.values.sumOf { it.bytes }
+        val it = mem.entries.iterator()
+        while (total > MEM_BYTES && it.hasNext()) {
+            val e = it.next()
+            if (e.key == key) continue
+            total -= e.value.bytes
+            it.remove()
+        }
+    }
 
-    private fun file(context: Context, uri: Uri) = File(File(context.cacheDir, "peaks").apply { mkdirs() }, uri.toString().hashCode().toUInt().toString(16) + "_" + uri.toString().length + ".pk")
+    /** The waveform at all its levels if it is in memory (the timeline draws from it right away). */
+    fun cachedLevels(uri: Uri): PeakLevels? = synchronized(mem) { mem[uri.toString()] }
 
-    /** Peak values for a file (0..1), or null if it has no audio. Blocks – run on a background thread. */
-    fun load(context: Context, uri: Uri): FloatArray? {
+    /** [RATE] values per second if the waveform is in memory. */
+    fun cached(uri: Uri): FloatArray? = cachedLevels(uri)?.coarse()
+
+    private fun dir(context: Context) = File(context.cacheDir, "peaks").apply { mkdirs() }
+    private fun name(uri: Uri) = uri.toString().hashCode().toUInt().toString(16) + "_" + uri.toString().length
+    private fun file(context: Context, uri: Uri) = File(dir(context), name(uri) + "_v$VERSION.pk")
+
+    /** Peak values for a file (0..1, [RATE] per second), or null if it has no audio. Blocks – run on a background thread. */
+    fun load(context: Context, uri: Uri): FloatArray? = loadLevels(context, uri)?.coarse()
+
+    /** The waveform at all its levels, or null if the file has no audio. Blocks – run on a background thread. */
+    fun loadLevels(context: Context, uri: Uri): PeakLevels? {
         val key = uri.toString()
         synchronized(mem) { mem[key]?.let { return it } }
         // another thread is already decoding the same file: wait for it
@@ -37,31 +65,31 @@ object Peaks {
         }
         try {
             val f = file(context, uri)
-            val p = (if (f.exists()) runCatching { read(f) }.getOrNull() else null) ?: decode(context, uri)?.also { runCatching { write(f, it) } }
-            if (p != null) synchronized(mem) { mem[key] = p }
+            // the older format (100 values per second) is not read: the file is decoded again
+            runCatching { File(dir(context), name(uri) + ".pk").delete() }
+            val b = (if (f.exists()) runCatching { f.readBytes() }.getOrNull() else null)
+                ?: decode(context, uri)?.let { quantize(it) }?.also { runCatching { write(f, it) } }
+            val p = b?.let { PeakLevels(it) }
+            if (p != null) keep(key, p)
             return p
         } finally {
             synchronized(running) { running.remove(key) }
         }
     }
 
-    private fun write(f: File, p: FloatArray) {
-        val b = ByteArray(p.size)
-        for (i in p.indices) b[i] = (p[i].coerceIn(0f, 1f) * 255f + 0.5f).toInt().toByte()
+    /** 0..1 → one byte (0..255). */
+    fun quantize(p: FloatArray): ByteArray = ByteArray(p.size) { (p[it].coerceIn(0f, 1f) * 255f + 0.5f).toInt().toByte() }
+
+    private fun write(f: File, b: ByteArray) {
         // via a temp file: an interrupted write never leaves a shorter waveform that looks valid
         val tmp = File(f.path + ".tmp")
         tmp.writeBytes(b)
         if (!tmp.renameTo(f)) { tmp.delete(); throw java.io.IOException("could not save the waveform") }
     }
 
-    private fun read(f: File): FloatArray {
-        val b = f.readBytes()
-        return FloatArray(b.size) { (b[it].toInt() and 255) / 255f }
-    }
-
     private val decodeLock = Any()
 
-    /** Decodes the audio track into peak values per 1/RATE second – one file at a time (saves memory and decoders). */
+    /** Decodes the audio track into peak values per 1/FINE_RATE second – one file at a time (saves memory and decoders). */
     private fun decode(context: Context, uri: Uri): FloatArray? = synchronized(decodeLock) { decodeNow(context, uri) }
 
     private fun decodeNow(context: Context, uri: Uri): FloatArray? {
@@ -74,7 +102,7 @@ object Peaks {
             val fmt = ex.getTrackFormat(track)
             val mime = fmt.getString(MediaFormat.KEY_MIME)!!
             val durUs = if (fmt.containsKey(MediaFormat.KEY_DURATION)) fmt.getLong(MediaFormat.KEY_DURATION) else 0L
-            val acc = PeakAccumulator(fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE), fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT), durUs)
+            val acc = PeakAccumulator(fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE), fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT), durUs, FINE_RATE)
             val c = MediaCodec.createDecoderByType(mime)
             codec = c
             c.configure(fmt, null, null, 0)
@@ -126,9 +154,9 @@ object Peaks {
     }
 }
 
-/** Collects peak values per 1/RATE s from PCM blocks (pure logic, testable). */
-class PeakAccumulator(private var rate: Int, private var channels: Int, durUs: Long) {
-    private var out = FloatArray(((durUs / 1e6) * Peaks.RATE).toInt().coerceAtLeast(16) + 2)
+/** Collects peak values per 1/[perSecond] s from PCM blocks (pure logic, testable). */
+class PeakAccumulator(private var rate: Int, private var channels: Int, durUs: Long, private val perSecond: Int = Peaks.RATE) {
+    private var out = FloatArray(((durUs / 1e6) * perSecond).toInt().coerceAtLeast(16) + 2)
     private var n = 0
 
     fun reformat(r: Int, ch: Int) { rate = r; channels = ch.coerceAtLeast(1) }
@@ -160,7 +188,71 @@ class PeakAccumulator(private var rate: Int, private var channels: Int, durUs: L
         }
     }
 
-    private fun binOf(ptsUs: Long, frame: Int): Int = ((ptsUs / 1e6 + frame.toDouble() / rate) * Peaks.RATE).toInt()
+    private fun binOf(ptsUs: Long, frame: Int): Int = ((ptsUs / 1e6 + frame.toDouble() / rate) * perSecond).toInt()
 
     fun result(): FloatArray = out.copyOf(n)
+}
+
+/**
+ * A file's waveform at several resolutions: level 0 is [Peaks.FINE_RATE] values per second (one byte each, 0..255),
+ * each next level [FACTOR] times coarser (the largest of the values it covers). A bar reads the coarsest level that
+ * still has several values for it: drawing costs the same at any zoom, and a long file zoomed out reads little.
+ * Pure logic (testable).
+ */
+class PeakLevels(fine: ByteArray) {
+    companion object {
+        const val FACTOR = 4
+        /** A bar reads a level with at least this many values for it (fewer: the values' edges blur into the neighbours). */
+        private const val PER_BAR = 8
+    }
+
+    private val levels: List<ByteArray> = buildList {
+        add(fine)
+        var cur = fine
+        while (cur.size > 64) {
+            val next = ByteArray((cur.size + FACTOR - 1) / FACTOR)
+            for (i in next.indices) {
+                var m = 0
+                for (k in i * FACTOR until minOf(cur.size, i * FACTOR + FACTOR)) { val v = cur[k].toInt() and 255; if (v > m) m = v }
+                next[i] = m.toByte()
+            }
+            add(next)
+            cur = next
+        }
+    }
+
+    /** Memory taken (all levels). */
+    val bytes: Long = levels.sumOf { it.size.toLong() }
+
+    /** How many resolutions there are (the fine one first). */
+    val levelCount: Int get() = levels.size
+
+    /** The source's length the values cover (s). */
+    val seconds: Double get() = levels[0].size.toDouble() / Peaks.FINE_RATE
+
+    /** The highest peak (0..1) between source times [t0] and [t1] (s); 0 outside the file. */
+    fun peak(t0: Double, t1: Double): Float {
+        val span = (t1 - t0).coerceAtLeast(0.0)
+        // the coarsest level that still has PER_BAR values in the span
+        var lv = 0
+        var rate = Peaks.FINE_RATE.toDouble()
+        while (lv + 1 < levels.size && span * rate / FACTOR >= PER_BAR) { lv++; rate /= FACTOR }
+        val p = levels[lv]
+        val a = kotlin.math.floor(t0 * rate).toInt().coerceAtLeast(0)
+        val b = kotlin.math.ceil(t1 * rate).toInt().coerceAtLeast(a + 1).coerceAtMost(p.size)
+        var m = 0
+        for (k in a until b) { val v = p[k].toInt() and 255; if (v > m) m = v }
+        return m / 255f
+    }
+
+    /** [Peaks.RATE] values per second (the largest of the fine ones each covers). */
+    fun coarse(): FloatArray {
+        val f = levels[0]
+        val per = Peaks.FINE_RATE / Peaks.RATE
+        return FloatArray((f.size + per - 1) / per) { i ->
+            var m = 0
+            for (k in i * per until minOf(f.size, i * per + per)) { val v = f[k].toInt() and 255; if (v > m) m = v }
+            m / 255f
+        }
+    }
 }

@@ -133,6 +133,11 @@ private class ClipAnim(start: Float, len: Float, track: Float, appear: Float) {
     val pulse = Animatable(1f)
     /** 1 = the clip is dragged out of the timeline and will be deleted on release. */
     val doom = Animatable(0f)
+    /**
+     * The clip's start edge is being trimmed (or was, until the engine's reply): what is cut off is at the start, so the
+     * waveform and filmstrip keep their material where it is while [len] changes (see liveSourceSpan).
+     */
+    var leftEdge by mutableStateOf(false)
 }
 
 private sealed interface Hit {
@@ -1309,11 +1314,13 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                             ?.let { l -> TrimView(l.item, (l.srcIn + l.length * l.speed - FRAME).coerceAtLeast(l.srcIn).toDouble()) },
                                         pairLeft = true)
                                     val spec = if (snap != null) Springs.snap() else Springs.follow()
+                                    a.leftEdge = true
                                     // ripple: the clip stays put and only the start is shortened (the rest moves in) – as when released
                                     if (tool == Tool.RIPPLE) scope.launch { a.start.animateTo(orig.start, spec) }
                                     else scope.launch { a.start.animateTo(s, spec) }
                                     scope.launch { a.len.animateTo(orig.end - s, spec) }
                                     for ((pc, pa) in partners) if (abs(pc.start - orig.start) < 0.02f) {
+                                        pa.leftEdge = true
                                         if (tool == Tool.RIPPLE) scope.launch { pa.len.animateTo(pc.length - (s - orig.start), spec) }
                                         else {
                                             scope.launch { pa.start.animateTo(s, spec) }
@@ -1339,8 +1346,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                             ?.let { r -> TrimView(r.item, r.srcIn.toDouble()) },
                                         pairLeft = false)
                                     val spec = if (snap != null) Springs.snap() else Springs.follow()
+                                    a.leftEdge = false
                                     scope.launch { a.len.animateTo(e - orig.start, spec) }
-                                    for ((pc, pa) in partners) if (abs(pc.end - orig.end) < 0.02f) scope.launch { pa.len.animateTo(e - pc.start, spec) }
+                                    for ((pc, pa) in partners) if (abs(pc.end - orig.end) < 0.02f) { pa.leftEdge = false; scope.launch { pa.len.animateTo(e - pc.start, spec) } }
                                 }
                                 hit is Hit.TransEdge -> {
                                     val tr = state.transitions.firstOrNull { it.id == hit.id }
@@ -1757,6 +1765,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     }
                     LaunchedEffect(c) {
                         if (dragId == c.id) return@LaunchedEffect
+                        // the engine's reply to a trim: the clip's own source start now holds what was cut
+                        a.leftEdge = false
                         val d = state.rippleDelay.remove(c.id) ?: 0
                         if (d > 0) delay(d.toLong())
                         launch { a.start.animateTo(c.start, Springs.settle()) }
@@ -2097,9 +2107,12 @@ private fun ClipView(
             // dragged out of the timeline: red (released now, it is deleted)
             .drawWithContent { drawContent(); val d = anim.doom.value; if (d > 0.01f) drawRect(Color(0xFFE5484D).copy(alpha = 0.6f * d)) }
     ) {
+        // the source the box shows now: while an edge is dragged the material stays where it is (nothing stretches)
+        val leftCut = { if (anim.leftEdge) clip.length - anim.len.value else 0f }
+        val span = { liveSourceSpan(clip.srcIn, clip.length, clip.speed, clip.reverse, clip.hold, anim.len.value, leftCut()) }
         if (clip.kind == ClipKind.AUDIO || clip.kind == ClipKind.MUSIC) {
-            Waveform(clip, uri, Modifier.fillMaxSize(), level)
-        } else if (uri != null) Filmstrip(clip, uri, pps, Modifier.fillMaxSize())
+            Waveform(clip, uri, span, { f -> clip.start + leftCut() + f * anim.len.value }, pps, Modifier.fillMaxSize(), level)
+        } else if (uri != null) Filmstrip(clip, uri, span, pps, Modifier.fillMaxSize())
         Text(
             (if (clip.enabled) "" else stringResource(R.string.timeline_clip_off_prefix)) + (if (clip.hold) "❄ " else "") + (if (clip.reverse) "◀◀ " else "") + (if (clip.group != null) "⧉ " else "") + (if (clip.kind == ClipKind.TITLE) "T  ${clip.name}" else clip.name) +
                 if (!clip.hold && kotlin.math.abs(clip.speed - 1f) > 0.001f) "  ${(clip.speed * 100).roundToInt()}%" else "",
@@ -2168,15 +2181,19 @@ private fun VolumeLine(clip: Clip, level: ClipLevel, edit: Boolean, modifier: Mo
 }
 
 /**
- * The waveform from the file's real audio (peak values, see Peaks), for the clip's part of the source. Without a file
- * (prototype mode) or while it decodes: a calm placeholder.
+ * The waveform from the file's real audio (peak values, see Peaks), for the part of the source the box shows now
+ * ([span], source seconds at its left and right edge – it follows a trim live). The bars sit on a fixed grid of source
+ * time (a bar per [WaveDetail] step at the timeline's zoom), so the peaks under the finger stand still while an edge is
+ * dragged. Without a file (prototype mode) or while it decodes: a calm placeholder.
  */
 @Composable
-private fun Waveform(clip: Clip, uri: android.net.Uri?, modifier: Modifier, level: ClipLevel? = null) {
+private fun Waveform(clip: Clip, uri: android.net.Uri?, span: () -> Pair<Double, Double>, timeAt: (Float) -> Float, pps: () -> Float, modifier: Modifier, level: ClipLevel? = null) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val peaks by androidx.compose.runtime.produceState(uri?.let { se.gendut.klipp.engine.Peaks.cached(it) }, uri) {
-        if (uri != null && value == null) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.Peaks.load(ctx, uri) }
+    val peaks by androidx.compose.runtime.produceState(uri?.let { se.gendut.klipp.engine.Peaks.cachedLevels(it) }, uri) {
+        if (uri != null && value == null) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.Peaks.loadLevels(ctx, uri) }
     }
+    val detail = WaveDetail.current
+    val outline = remember { Path() }
     Canvas(modifier.testTag(if (peaks != null) "wave:${clip.id}" else "wavePending:${clip.id}")) {
         val mid = size.height * 0.6f
         val maxH = size.height * 0.36f
@@ -2186,66 +2203,156 @@ private fun Waveform(clip: Clip, uri: android.net.Uri?, modifier: Modifier, leve
             drawLine(clip.kind.fg.copy(alpha = 0.25f), Offset(0f, mid), Offset(size.width, mid), 1.dp.toPx())
             return@Canvas
         }
-        // one bar per 2 dp; each bar = the highest peak in its time interval in the source
-        val step = 2.dp.toPx()
-        val bars = (size.width / step).toInt().coerceAtLeast(1)
-        val secPerBar = clip.length / bars * clip.speed
-        for (i in 0 until bars) {
-            val t0 = clip.srcIn + i * secPerBar
-            val a = (t0 * se.gendut.klipp.engine.Peaks.RATE).toInt()
-            val b = ((t0 + secPerBar) * se.gendut.klipp.engine.Peaks.RATE).toInt().coerceAtLeast(a + 1)
-            var m = 0f
-            for (k in a until b) if (k in p.indices && p[k] > m) m = p[k]
-            if (m <= 0.002f) continue
-            val x = i * step + step / 2
-            // dB scale (−48 … 0 dBFS) so speech shows even when it's quiet; with the clip's level (as it plays)
-            val gain = level?.at(clip.start + x / size.width * clip.length) ?: 0f
-            val v = ((20f * kotlin.math.log10(m) + gain + 48f) / 48f).coerceIn(0.03f, 1f)
-            drawLine(col, Offset(x, mid - maxH * v), Offset(x, mid + maxH * v * 0.55f), strokeWidth = step * 0.7f)
+        val step = if (detail == WaveDetail.MAX) 1f else detail.stepDp.dp.toPx()
+        val (from, to) = span()
+        // dB scale (−48 … 0 dBFS) so speech shows even when it's quiet; with the clip's level (as it plays)
+        fun height(m: Float, x: Float): Float {
+            if (m <= 0.002f) return 0f
+            val gain = level?.at(timeAt(x / size.width)) ?: 0f
+            return ((20f * kotlin.math.log10(m) + gain + 48f) / 48f).coerceIn(0.03f, 1f)
+        }
+        val dSrc = waveBarSource(step, pps(), clip.speed)
+        if (detail == WaveDetail.MAX) {
+            // one value per pixel: a filled outline (separate lines would be a pixel wide each)
+            outline.reset()
+            val ys = ArrayList<Pair<Float, Float>>()
+            forEachWaveBar(from, to, size.width, dSrc) { x, t0 -> ys += x to height(p.peak(t0, t0 + dSrc), x) }
+            if (ys.isEmpty()) return@Canvas
+            ys.sortBy { it.first }
+            outline.moveTo(ys.first().first, mid)
+            for ((x, v) in ys) outline.lineTo(x, mid - maxH * v)
+            outline.lineTo(ys.last().first, mid)
+            for (i in ys.indices.reversed()) outline.lineTo(ys[i].first, mid + maxH * ys[i].second * 0.55f)
+            outline.close()
+            drawPath(outline, col)
+            return@Canvas
+        }
+        forEachWaveBar(from, to, size.width, dSrc) { x, t0 ->
+            val v = height(p.peak(t0, t0 + dSrc), x)
+            if (v > 0f) drawLine(col, Offset(x, mid - maxH * v), Offset(x, mid + maxH * v * 0.55f), strokeWidth = step * 0.7f)
         }
     }
 }
 
-/** Filmstrip: frames from the clip's source, one per ~64 dp, at most 8 decodes per clip. */
+/** How fine the timeline draws waveforms (Settings → Timeline). [stepDp]: a bar per this many dp (MAX: one per pixel). */
+enum class WaveDetail(val stepDp: Float) {
+    NORMAL(2f),
+    DETAILED(1f),
+    MAX(0f);
+
+    companion object {
+        /** The detail in use (set from the settings when the app starts and when it is changed). */
+        var current by mutableStateOf(NORMAL)
+    }
+}
+
+/**
+ * Which part of its source a clip box shows while its edges may be dragged: the source time (s) at the box's left and
+ * at its right edge (reversed: the left is the later one; a freeze frame: its first frame throughout). [liveLen] is the
+ * box's length now (s on the timeline) and [leftCut] how much of the clip's committed start is trimmed away right now
+ * (< 0: extended). The material stays anchored where it was: a trim shows more or less of it, never stretches it.
+ */
+internal fun liveSourceSpan(srcIn: Float, length: Float, speed: Float, reverse: Boolean, hold: Boolean, liveLen: Float, leftCut: Float): Pair<Double, Double> {
+    if (hold) return srcIn.toDouble() to srcIn.toDouble()
+    val s = abs(speed).toDouble()
+    val a = leftCut.toDouble()
+    val b = (leftCut + liveLen).toDouble()
+    if (!reverse) return (srcIn + a * s) to (srcIn + b * s)
+    // reversed: the clip's start shows the end of its source (as the engine's source time)
+    val end = srcIn + length * s
+    return (end - a * s) to (end - b * s)
+}
+
+/** Source seconds per waveform bar: a bar per [stepPx] at [pps] (pixels per timeline second), at the clip's speed. */
+internal fun waveBarSource(stepPx: Float, pps: Float, speed: Float): Double = stepPx.toDouble() / pps.coerceAtLeast(1e-3f) * abs(speed).coerceAtLeast(1e-3f)
+
+/**
+ * The bars of a box [width] px wide showing source [from]..[to] (s; reversed: from > to): bars on a fixed grid of
+ * source time, [dSrc] s each – (the bar's middle in the box, the bar's source start). The grid doesn't move with the
+ * box's edges, so the bars stand still while one is dragged.
+ */
+internal inline fun forEachWaveBar(from: Double, to: Double, width: Float, dSrc: Double, f: (x: Float, t0: Double) -> Unit) {
+    if (dSrc <= 0.0 || width <= 0f || from == to) return
+    val lo = minOf(from, to)
+    val hi = maxOf(from, to)
+    val scale = width / (to - from)
+    var k = kotlin.math.floor(lo / dSrc).toLong()
+    while (k * dSrc < hi) {
+        val t0 = k * dSrc
+        val x = ((t0 + dSrc / 2 - from) * scale).toFloat()
+        if (x >= 0f && x <= width) f(x, t0)
+        k++
+    }
+}
+
+/**
+ * Filmstrip: frames from the clip's source, on a fixed grid of source time (one tile per ~64 dp, at most ~8 per clip,
+ * as a power of two of seconds so zooming reuses the frames). The tiles stay where their frames are while an edge is
+ * trimmed ([span], as the waveform): extending shows the new frames, nothing stretches.
+ */
 @Composable
-private fun Filmstrip(clip: Clip, uri: android.net.Uri, pps: () -> Float, modifier: Modifier) {
+private fun Filmstrip(clip: Clip, uri: android.net.Uri, span: () -> Pair<Double, Double>, pps: () -> Float, modifier: Modifier) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val density = LocalDensity.current
     val tileW = with(density) { 64.dp.toPx() }
-    // the tile count is read in derivedStateOf: the clip recomposes only when the count changes, not per pinch frame
-    val n by remember(clip.length, tileW) { androidx.compose.runtime.derivedStateOf { (clip.length * pps() / tileW).toInt().coerceIn(1, 8) } }
-    // quantize to whole seconds so the cache is reused when zooming; source time = timeline time × speed
-    val times = remember(n, clip.srcIn, clip.length, clip.speed, clip.hold, clip.reverse) {
-        // freeze frame: the same frame in all tiles; reverse: the end of the source first
-        (0 until n).map { i ->
-            val f = if (clip.hold) 0f else (if (clip.reverse) (n - i - 0.5f) / n else (i + 0.5f) / n)
-            kotlin.math.floor(clip.srcIn + clip.length * clip.speed * f).toDouble()
+    // source seconds per tile and the tiles in view, read in derivedStateOf: the clip recomposes only when they change,
+    // not per pinch or drag frame
+    val dSrc by remember(clip.length, clip.speed, tileW) {
+        androidx.compose.runtime.derivedStateOf { filmTileSource(tileW, pps(), clip.speed, clip.length) }
+    }
+    val tiles by remember(clip.hold) {
+        androidx.compose.runtime.derivedStateOf {
+            val (a, b) = span()
+            if (clip.hold) listOf(Long.MIN_VALUE) else {
+                val d = dSrc
+                (kotlin.math.floor(minOf(a, b) / d).toLong() until kotlin.math.ceil(maxOf(a, b) / d).toLong()).toList()
+            }
         }
     }
-    // loaded frames per source time: a changed tile count loads only the new ones, old ones show meanwhile
+    // the frame each tile shows: its middle, in whole seconds (the cache is reused while zooming); freeze frame: the first
+    fun frameOf(k: Long): Double = if (k == Long.MIN_VALUE) kotlin.math.floor(clip.srcIn.toDouble()) else kotlin.math.floor((k + 0.5) * dSrc)
+    val times = remember(tiles, dSrc) { tiles.map { frameOf(it) }.distinct() }
+    // loaded frames per source time: a changed tile set loads only the new ones, old ones show meanwhile
     val frames = remember(uri) { androidx.compose.runtime.mutableStateMapOf<Double, androidx.compose.ui.graphics.ImageBitmap>() }
     LaunchedEffect(uri, times) {
         for (t in times) if (t !in frames) Thumbs.load(ctx, uri, t)?.let { frames[t] = it }
         if (frames.size > 24) frames.keys.retainAll(times.toSet())
     }
     Canvas(modifier.graphicsLayer { alpha = 0.55f }) {
-        val w = size.width / times.size
-        times.forEachIndexed { i, t ->
-            val img = frames[t] ?: frames.keys.minByOrNull { abs(it - t) }?.let { frames[it] }
-            if (img != null) {
-                val scale = maxOf(w / img.width, size.height / img.height)
-                val sw = (w / scale).toInt().coerceAtMost(img.width)
-                val sh = (size.height / scale).toInt().coerceAtMost(img.height)
-                drawImage(
-                    img,
-                    srcOffset = androidx.compose.ui.unit.IntOffset((img.width - sw) / 2, (img.height - sh) / 2),
-                    srcSize = androidx.compose.ui.unit.IntSize(sw, sh),
-                    dstOffset = androidx.compose.ui.unit.IntOffset((i * w).roundToInt(), 0),
-                    dstSize = androidx.compose.ui.unit.IntSize(w.roundToInt() + 1, size.height.roundToInt()),
-                )
-            }
+        val (from, to) = span()
+        val d = dSrc
+        fun xOf(t: Double): Float = if (from == to) 0f else ((t - from) / (to - from) * size.width).toFloat()
+        // the tiles' edges in the box (a freeze frame: the same frame every tileW px)
+        val rects: List<Pair<Long, Pair<Float, Float>>> = if (clip.hold) List(kotlin.math.ceil(size.width / tileW).toInt().coerceIn(1, 64)) { i -> Long.MIN_VALUE to (i * tileW to (i + 1) * tileW) }
+            else tiles.map { k -> k to xOf(k * d).let { a -> xOf((k + 1) * d).let { b -> minOf(a, b) to maxOf(a, b) } } }
+        for ((k, edges) in rects) {
+            val t = frameOf(k)
+            val img = frames[t] ?: frames.keys.minByOrNull { abs(it - t) }?.let { frames[it] } ?: continue
+            val (x0, x1) = edges
+            val w = x1 - x0
+            if (w < 1f || x1 < 0f || x0 > size.width) continue
+            val scale = maxOf(w / img.width, size.height / img.height)
+            val sw = (w / scale).toInt().coerceIn(1, img.width)
+            val sh = (size.height / scale).toInt().coerceIn(1, img.height)
+            drawImage(
+                img,
+                srcOffset = androidx.compose.ui.unit.IntOffset((img.width - sw) / 2, (img.height - sh) / 2),
+                srcSize = androidx.compose.ui.unit.IntSize(sw, sh),
+                dstOffset = androidx.compose.ui.unit.IntOffset(x0.roundToInt(), 0),
+                dstSize = androidx.compose.ui.unit.IntSize(w.roundToInt() + 1, size.height.roundToInt()),
+            )
         }
     }
+}
+
+/**
+ * Source seconds per filmstrip tile: one per [tileW] px at [pps], at least an eighth of the clip (at most ~8 decodes per
+ * clip), rounded up to a power of two of seconds so a pinch doesn't change it every frame.
+ */
+internal fun filmTileSource(tileW: Float, pps: Float, speed: Float, length: Float): Double {
+    val s = abs(speed).coerceAtLeast(1e-3f).toDouble()
+    val raw = maxOf(tileW / pps.coerceAtLeast(1e-3f) * s, length * s / 8.0, 1.0 / 64)
+    return Math.pow(2.0, kotlin.math.ceil(kotlin.math.log2(raw)))
 }
 
 /** Small button in the track header: [off] = off state (red). */
