@@ -271,7 +271,9 @@ private fun KlippAppContent(
     // release the source decoder only when the source is actually closed (not when the phone rotates)
     LaunchedEffect(sourceMedia) { if (sourceMedia == null) sourcePlayback?.close() }
     val picker = rememberVideoPicker { uris -> controller?.import(uris); if (uris.isNotEmpty()) mediaOpen = true }
-    fun openImport() { picker.launch(videoRequest()) }
+    // Klipp's own video picker (previews of log video, newest first); its "Files app" opens the system one
+    var videoPicker by remember { mutableStateOf(false) }
+    fun openImport() { videoPicker = true }
     // an imported LUT goes into the timeline look, or into a node if the import was started from there
     var lutTarget by remember { mutableStateOf<((String) -> Unit)?>(null) }
     val lutPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
@@ -1164,6 +1166,23 @@ private fun KlippAppContent(
                 onClose = { showAppSettings = false },
                 onCenterDefault = { state.centerPlayhead = it },
                 onMagnetDefault = { state.magnet = it },
+            )
+        }
+
+        AnimatedVisibility(
+            videoPicker,
+            enter = slideInVertically(spring(0.8f, 380f)) { it / 4 } + fadeIn(),
+            exit = slideOutVertically(spring(1f, 500f)) { it / 4 } + fadeOut(),
+        ) {
+            androidx.activity.compose.BackHandler { videoPicker = false }
+            VideoPickerScreen(
+                onImport = { uris ->
+                    videoPicker = false
+                    controller?.import(uris)
+                    if (uris.isNotEmpty()) mediaOpen = true
+                },
+                onFilesApp = { videoPicker = false; picker.launch(videoRequest()) },
+                onClose = { videoPicker = false },
             )
         }
 
