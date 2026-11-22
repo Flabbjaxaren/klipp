@@ -58,8 +58,9 @@ object BeatNet {
                     }
                 } finally { t.close() }
             }
-            val beats = peaks(b)
-            Result(beats, snap(peaks(d), beats))
+            // a beat right at the start is the edge of the analysed piece (its padding), not the music
+            val beats = peaks(b).filter { it >= 0.06 }
+            Result(beats, snap(peaks(d).filter { it >= 0.06 }, beats))
         }
     }
 
