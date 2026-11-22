@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- the video picker lists the phone's videos (MediaStore) to show their previews -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <!-- only to download the speech recognition model (automatic captions); the audio never leaves the phone -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- voice-over: record speech directly to an audio track -->

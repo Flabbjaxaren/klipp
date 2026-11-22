@@ -324,4 +324,13 @@
         <item quantity="one">Delete %1$d project?</item>
         <item quantity="other">Delete %1$d projects?</item>
     </plurals>
+    <string name="videopicker_title">Videos</string>
+    <string name="videopicker_close">Close</string>
+    <string name="videopicker_all">All</string>
+    <string name="videopicker_files_app">Files app</string>
+    <string name="videopicker_import">Import %1$d</string>
+    <string name="videopicker_access">Allow access to your videos to see them here with previews, newest first. Or use the files app.</string>
+    <string name="videopicker_allow">Allow access</string>
+    <string name="videopicker_none">No videos found on the phone.</string>
+    <string name="videopicker_clear">Clear</string>
 </resources>
