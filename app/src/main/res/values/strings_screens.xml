@@ -333,6 +333,8 @@
     <string name="videopicker_access">Allow access to your videos to see them here with previews, newest first. Or use the files app.</string>
     <string name="videopicker_allow">Allow access</string>
     <string name="videopicker_none">No videos found on the phone.</string>
+    <string name="videopicker_limited">Only the videos you chose are shown.</string>
+    <string name="videopicker_more">Choose more</string>
     <string name="videopicker_clear">Clear</string>
     <string name="exportui_note_hlg">HLG (Rec.2100, 1000 nits) rendered by each clip\'s last OpenDRT node; 10-bit HEVC. The preview stays SDR.</string>
     <string name="exportui_hlg_why_not">HLG · OpenDRT: %1$s</string>
