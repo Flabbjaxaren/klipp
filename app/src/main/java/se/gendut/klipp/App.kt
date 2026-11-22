@@ -885,7 +885,10 @@ private fun KlippAppContent(
         // the program monitor's height in portrait (drag the handle under the transport; double tap = 16:9 again)
         val defaultMonitorH = maxWidth * 9f / 16f
         val maxMonitorH = maxHeight * 0.55f
-        var monitorH by remember { mutableStateOf(AppPrefs.monitorHeight(context).takeIf { it > 0f }?.dp ?: defaultMonitorH) }
+        // the height the user dragged to (kept), else the default for the window as it is now – a default remembered
+        // once was the landscape one when the app started on its side, and the portrait picture was then twice as tall
+        var userMonitorH by remember { mutableStateOf(AppPrefs.monitorHeight(context).takeIf { it > 0f }?.dp) }
+        val monitorH = userMonitorH ?: defaultMonitorH
         // the picture's scrub speed while it is dragged (shown as a badge on the picture)
         var monitorTier by remember { mutableIntStateOf(0) }
         /** The clips the color page grades: the video clips of the three lowest tracks, in timeline order. */
@@ -1052,9 +1055,9 @@ private fun KlippAppContent(
             topBar()
             TopArea(fill = false, monitorMod = Modifier.fillMaxWidth().height(monitorH.coerceIn(MIN_MONITOR_H, maxMonitorH.coerceAtLeast(MIN_MONITOR_H))))
             if (sourceMedia == null && !state.typingInPanel) MonitorHandle(
-                onDrag = { dy -> monitorH = (monitorH + with(density) { dy.toDp() }).coerceIn(MIN_MONITOR_H, maxMonitorH.coerceAtLeast(MIN_MONITOR_H)) },
-                onEnd = { AppPrefs.setMonitorHeight(context, monitorH.value) },
-                onReset = { haptics.tick(); monitorH = defaultMonitorH; AppPrefs.setMonitorHeight(context, 0f) },
+                onDrag = { dy -> userMonitorH = ((userMonitorH ?: defaultMonitorH) + with(density) { dy.toDp() }).coerceIn(MIN_MONITOR_H, maxMonitorH.coerceAtLeast(MIN_MONITOR_H)) },
+                onEnd = { AppPrefs.setMonitorHeight(context, (userMonitorH ?: defaultMonitorH).value) },
+                onReset = { haptics.tick(); userMonitorH = null; AppPrefs.setMonitorHeight(context, 0f) },
             )
             Pages(Modifier.weight(1f).fillMaxWidth())
         }
