@@ -245,6 +245,6 @@
     <string name="colortools_track_follow">Följ</string>
     <string name="colortools_follow_object">Objekt</string>
     <string name="colortools_follow_face">Ansikte</string>
-    <string name="colortools_follow_face_hint">Lägg den på ett ansikte: ansiktet hittas på nytt i varje bildruta, så den hänger med när huvudet vrids eller nickar.</string>
+    <string name="colortools_follow_face_hint">Hittas på nytt i varje bildruta – hänger med när huvudet vrids.</string>
     <string name="colortools_track_face">Följ ansiktet</string>
 </resources>

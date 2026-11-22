@@ -139,10 +139,12 @@
     <string name="panels_faders_scope">A1–A3: track volume (the whole track). Mix: the whole sound. A clip\'s own volume is set on the clip in Edit.</string>
     <string name="panels_auto_meaning">AUTO: the track has volume automation – moving its fader sets the keyframe at the playhead, not one level for the track.</string>
     <string name="reframe_btn">Follow face · fill frame</string>
-    <string name="reframe_hint">Zooms the clip to fill the frame and pans with the face nearest the middle – for a landscape clip in a portrait sequence (and the other way round).</string>
+    <string name="reframe_hint">Fills the frame and pans with the face.</string>
     <string name="reframe_done">Follows the face (%1$d keyframes) – adjust Position like any keyframes.</string>
     <string name="reframe_failed">Couldn\'t reframe: %1$s</string>
     <string name="reframe_no_face">no face found in the clip</string>
     <string name="reframe_no_picture">the clip\'s picture size is unknown</string>
     <string name="reframe_undo">Follow face</string>
+    <string name="reframe_short">Follow face</string>
+    <string name="reframe_working">Following the face …</string>
 </resources>

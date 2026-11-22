@@ -232,7 +232,7 @@
     <string name="titleui_caps_write_inside">Spelhuvudet står i en undertext på spåret – flytta det till en tom plats.</string>
     <string name="titleui_caps_write_no_room">Ingen plats före nästa undertext på spåret – flytta spelhuvudet.</string>
     <string name="speech_word_edges">Exakta ordgränser</string>
-    <string name="speech_word_edges_off">Av: klipp använder Whispers ordtider (ungefär ±40 ms).</string>
-    <string name="speech_word_edges_ready">En svensk talmodell hittar var varje ord börjar och slutar, på några ms när. Tar lite extra tid efter lyssningen.</string>
-    <string name="speech_word_edges_needs">Behöver en svensk talmodell (KBLab, 1,3 GB) en gång. Körs på telefonen.</string>
+    <string name="speech_word_edges_off">Av: Whispers ordtider (±40 ms).</string>
+    <string name="speech_word_edges_ready">Varje ord klipps där ljudet börjar och slutar.</string>
+    <string name="speech_word_edges_needs">Behöver en svensk talmodell (1,3 GB), en gång.</string>
 </resources>

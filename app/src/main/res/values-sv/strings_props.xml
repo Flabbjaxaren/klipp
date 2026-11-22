@@ -139,10 +139,12 @@
     <string name="panels_faders_scope">A1–A3: spårvolym (hela spåret). Mix: hela ljudet. Ett klipps egen volym ställs på klippet i Redigera.</string>
     <string name="panels_auto_meaning">AUTO: spåret har volymautomation – reglaget ändrar nyckelrutan vid spelhuvudet, inte en nivå för hela spåret.</string>
     <string name="reframe_btn">Följ ansikte · fyll bild</string>
-    <string name="reframe_hint">Zoomar klippet så att det fyller bilden och panorerar med ansiktet närmast mitten – för ett liggande klipp i en stående sekvens (och tvärtom).</string>
+    <string name="reframe_hint">Fyller bilden och panorerar med ansiktet.</string>
     <string name="reframe_done">Följer ansiktet (%1$d nyckelbilder) – justera Position som vanliga nyckelbilder.</string>
     <string name="reframe_failed">Kunde inte omkomponera: %1$s</string>
     <string name="reframe_no_face">inget ansikte hittades i klippet</string>
     <string name="reframe_no_picture">klippets bildstorlek är okänd</string>
     <string name="reframe_undo">Följ ansikte</string>
+    <string name="reframe_short">Följ ansikte</string>
+    <string name="reframe_working">Följer ansiktet …</string>
 </resources>

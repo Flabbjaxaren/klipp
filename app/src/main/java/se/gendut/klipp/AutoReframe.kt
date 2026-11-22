@@ -23,13 +23,15 @@ object AutoReframe {
     private val scope = kotlinx.coroutines.MainScope()
     private var job: kotlinx.coroutines.Job? = null
 
-    fun start(ctx: Context, controller: ProjectController, clipId: Long) {
+    /** [notify]: the result also as a toast (started from the clip's menu, where the card isn't open). */
+    fun start(ctx: Context, controller: ProjectController, clipId: Long, notify: ((String) -> Unit)? = null) {
         val (c, _, _) = controller.find(clipId) ?: return
         val uri = controller.uriOf(c.item) ?: run { message = Str.t(R.string.masktrack_file_missing); return }
         cancel()
         target = clipId
         progress = 0f
         message = null
+        notify?.invoke(Str.t(R.string.reframe_working))
         job = scope.launch {
             try {
                 val speed = kotlin.math.abs(c.speed).coerceAtLeast(0.01)
@@ -52,11 +54,13 @@ object AutoReframe {
                     ?: error(Str.t(R.string.reframe_no_face))
                 controller.applyReframe(clipId, plan)
                 message = Str.t(R.string.reframe_done, plan.keys.size)
+                notify?.invoke(message!!)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 message = Str.t(R.string.masktrack_canceled)
                 throw e
             } catch (e: Throwable) {
                 message = Str.t(R.string.reframe_failed, e.message ?: e.javaClass.simpleName)
+                notify?.invoke(message!!)
             } finally {
                 progress = null
                 target = null

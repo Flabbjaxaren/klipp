@@ -404,6 +404,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
     /** Speed ramp on a clip (set when the engine is attached). */
     var onSpeedRamp: ((Long, se.gendut.klipp.engine.SpeedRamp) -> Unit)? by mutableStateOf(null)
     var onBeatMarkers: ((Long) -> Unit)? by mutableStateOf(null)
+    /** Follow face · fill frame (auto reframe) on a video clip. */
+    var onReframe: ((Long) -> Unit)? by mutableStateOf(null)
     /** Linked selection (as in other editing programs): video and audio follow each other. */
     var linkedSelection by mutableStateOf(true)
     var onLinkedSelection: ((Boolean) -> Unit)? by mutableStateOf(null)

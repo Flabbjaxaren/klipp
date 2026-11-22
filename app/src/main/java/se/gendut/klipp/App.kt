@@ -666,6 +666,7 @@ private fun KlippAppContent(
         state.onClearMarkers = { controller.clearMarkers(); toaster.show(Str.t(R.string.app_markers_removed)) }
         state.onSpeed = { id, p -> CrashReport.note("speed $p % on clip $id"); controller.setSpeed(id, p) }
         state.onBeatMarkers = { controller.addBeatMarkers(it) }
+        state.onReframe = { id -> AutoReframe.start(context, controller, id) { m -> toaster.show(m) } }
         state.onSpeedRamp = { id, r -> CrashReport.note("speed ramp ${r.name} on clip $id"); controller.speedRamp(id, r) }
         state.onLinkedSelection = { controller.setLinkedSelection(it) }
         state.onCaptionsVisible = { controller.setCaptionsVisible(it) }

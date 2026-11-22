@@ -784,6 +784,7 @@ private fun ClipDock(state: EditorState) {
                     add(DockItem(Ic.Reverse, stringResource(if (c.reverse) R.string.app_forward else R.string.app_reverse)) { state.toggleReverse(c.id) })
                 }
                 if (!isTitle) state.onBeatMarkers?.let { beats -> add(DockItem(Ic.Bolt, stringResource(R.string.beats_btn), "ctx:beats") { state.selected?.let { beats(it) } }) }
+                if (sel?.kind == ClipKind.VIDEO) state.onReframe?.let { rf -> add(DockItem(Ic.Face, stringResource(R.string.reframe_short), "ctx:reframe") { state.selected?.let { rf(it) } }) }
                 add(labelItem)
                 add(powerItem)
             }
