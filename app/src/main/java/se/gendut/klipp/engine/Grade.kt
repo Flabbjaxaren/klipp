@@ -1544,6 +1544,13 @@ object LiveGrades {
     fun structure(grades: Map<Long, ClipGrade>): Map<Long, List<Int>> = grades.mapValues { (_, g) -> structureOf(g) }.filterValues { it.isNotEmpty() }
 
     /**
+     * [structure] written out in full, for the player's rebuild key – not its hashCode: a map's hash is the sum of
+     * key xor value per entry, and clip 32 with node 1 hashes to 0 (32L ^ listOf(1)'s 32), the same as no grade at all,
+     * so grading that clip (or taking its grade off) never rebuilt the player and the picture didn't change.
+     */
+    fun structureKey(grades: Map<Long, ClipGrade>): String = structure(grades).toSortedMap().toString()
+
+    /**
      * A clip's structure: the nodes with a shader pass and the stabilization (fixed in the pass). Tracking doesn't change
      * it – playback always gives the passes the frame's source time, so a newly tracked window follows without a rebuild.
      */
