@@ -1065,15 +1065,32 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             val capTop = rulerBasePx
                             val capBottom = rulerPx
                             var aborted = false
+                            // with the finger near the lane's left or right edge the timeline scrolls on its own
+                            // (faster the closer it is), so the box can reach clips off screen; checked every frame,
+                            // also while the finger rests there
+                            val edgeZone = 44.dp.toPx()
+                            val edgeStep = 22.dp.toPx()
+                            var last: Offset? = null
                             while (true) {
-                                val ev = awaitPointerEvent()
-                                val p = ev.changes.filter { it.pressed }
-                                if (p.isEmpty()) break
-                                if (p.size >= 2 || ev.changes.any { it.isConsumed }) { aborted = true; break }
-                                val ch = p[0]
-                                ch.consume()
+                                val ev = withTimeoutOrNull(16L) { awaitPointerEvent() }
+                                if (ev != null) {
+                                    val p = ev.changes.filter { it.pressed }
+                                    if (p.isEmpty()) break
+                                    if (p.size >= 2 || ev.changes.any { it.isConsumed }) { aborted = true; break }
+                                    val ch = p[0]
+                                    ch.consume()
+                                    last = ch.position
+                                }
+                                val pos = last ?: continue
+                                val push = when {
+                                    pos.x < edgeZone -> -(edgeZone - pos.x) / edgeZone
+                                    pos.x > laneWidth - edgeZone -> (pos.x - (laneWidth - edgeZone)) / edgeZone
+                                    else -> 0f
+                                }.coerceIn(-1f, 1f)
+                                if (push != 0f) setScroll(sx() + push * edgeStep)
+                                if (ev == null && push == 0f) continue
                                 // selection box: from where the finger was held to where it is now
-                                val q = content(ch.position)
+                                val q = content(pos)
                                 val o = pts[0]
                                 val box = listOf(o, Offset(q.x, o.y), q, Offset(o.x, q.y))
                                 lassoPts = box
