@@ -844,7 +844,12 @@ data class ClipGrade(
                 }
                 if (j == keyIdx) break
                 // the film after the node, on the whole image (stills: the same grain every time)
-                p.film?.let { f -> img = FilmFx.applyEncoded(FilmFx.setup(f), img, w, h, 0L) }
+                // (blended with the node's output by the node's mix, as the GPU's last film pass does)
+                p.film?.let { f ->
+                    val before = img
+                    val filmed = FilmFx.applyEncoded(FilmFx.setup(f), img, w, h, 0L)
+                    img = if (p.mix >= 0.9999f) filmed else FloatArray(filmed.size) { i -> before[i] + (filmed[i] - before[i]) * p.mix }
+                }
             }
             for (i in px.indices) {
                 px[i] = (px[i] and -0x1000000) or ((img[i * 3].coerceIn(0f, 1f) * 255f + 0.5f).toInt() shl 16) or
@@ -867,7 +872,7 @@ data class ClipGrade(
         chain.filter { !it.isNeutral }.flatMapIndexed<GradeNode, androidx.media3.common.Effect> { i, n ->
             val p = n.params()
             val key = clip?.let { c -> c to n.id }
-            listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key, main, filmRef) })
+            listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key, main, filmRef, p.mix) })
         } +
             // stabilization last (the windows are in the source image's coordinates)
             listOfNotNull(stab?.takeIf { clock != null }?.let { StabMatrix(it, clock!!) }) +

@@ -129,4 +129,24 @@ class GradeTest {
         assertEquals(structure.hashCode(), emptyMap<Long, List<Int>>().hashCode())
         assertTrue(se.gendut.klipp.engine.LiveGrades.structureKey(graded) != se.gendut.klipp.engine.LiveGrades.structureKey(emptyMap()))
     }
+
+    /** The node's mix covers its film too: halfway, the picture lies halfway between the input and the full film. */
+    @Test fun nodeMixBlendsTheFilm() {
+        val w = 48; val h = 27
+        val px = IntArray(w * h) { i -> val v = 30 + (i % w) * 190 / (w - 1); val r = (v * 1.1).toInt().coerceAtMost(255); (0xFF shl 24) or (r shl 16) or (v shl 8) or (v * 3 / 4) }
+        val src = android.graphics.Bitmap.createBitmap(px, w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        se.gendut.klipp.engine.Spektra.open = { java.io.File("src/main/assets/spektrafilm/$it").inputStream() }
+        val film = se.gendut.klipp.engine.Film(grainAmount = 0f)
+        fun graded(mix: Float) = se.gendut.klipp.engine.ClipGrade(listOf(se.gendut.klipp.engine.GradeNode(1, film = film, mix = mix))).applyTo(src)
+        val full = graded(1f); val half = graded(0.5f)
+        fun ch(b: android.graphics.Bitmap, i: Int, c: Int) = (b.getPixel(i % w, i / w) shr (16 - 8 * c)) and 255
+        var worst = 0; var moved = 0
+        for (i in 0 until w * h) for (c in 0..2) {
+            val s0 = ch(src, i, c); val f = ch(full, i, c); val m = ch(half, i, c)
+            if (kotlin.math.abs(f - s0) > 8) moved++
+            worst = kotlin.math.max(worst, kotlin.math.abs(m - (s0 + f) / 2))
+        }
+        assertTrue("the film changes the picture ($moved)", moved > w * h / 4)
+        assertTrue("mix 50 % lies halfway (worst $worst)", worst <= 2)
+    }
 }
