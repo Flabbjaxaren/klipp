@@ -348,7 +348,9 @@ object CompositionBuilder {
                 val g = grades[cl.id] ?: return@let null
                 if (cachedPoint >= 0) g.effectsAfter(cachedPoint, if (liveGrades) cl.id else null, clock, main = liveGrades, filmRef = filmRef)
                 else g.effects(if (liveGrades) cl.id else null, main = liveGrades, clock = clock, filmRef = filmRef, hlg = hlg)
-            }.orEmpty()
+            }.orEmpty() +
+                // in the HLG export a clip whose grade doesn't end in OpenDRT (ungraded) is SDR: to HLG (BT.2408)
+                listOfNotNull(if (hlg && c != null && grades[c.id]?.hlgReady != true) GradeNodeEffect(GradeNode(Int.MIN_VALUE + 1, sdrToHlg = true).params()) else null)
             // playback: 4K material is downscaled to the preview size before the nodes and the film (same
             // image on screen, a fraction of the work). The size of the file being played: the original (the node cache
             // has its size) or the proxy (its short side)
@@ -629,10 +631,12 @@ object CompositionBuilder {
                 // titles and captions as separate overlays (they can show at the same time); captions on top
                 val tb = TimeBase(plan.total).also { times += it }
                 // titles that overlap (a dissolve between two) each in their own overlay
-                val titles = overlayLanes(plan.overlays.filter { it.overlay !is Overlay.Caption }).map { TimedOverlay(it, false, plan.width, plan.height, tb) }
+                // (in the HLG export, the titles' and captions' SDR colours as HLG – SdrHlg)
+                val toHlg = output?.hlg == true
+                val titles = overlayLanes(plan.overlays.filter { it.overlay !is Overlay.Caption }).map { TimedOverlay(it, false, plan.width, plan.height, tb, toHlg) }
                 // captions of several tracks at the same time: each in its own overlay too (one overlay draws one item at a
                 // time – with a single one, only one of two simultaneous captions was played and exported)
-                val captions = overlayLanes(plan.overlays.filter { it.overlay is Overlay.Caption }).map { TimedOverlay(it, true, plan.width, plan.height, tb) }
+                val captions = overlayLanes(plan.overlays.filter { it.overlay is Overlay.Caption }).map { TimedOverlay(it, true, plan.width, plan.height, tb, toHlg) }
                 fx += androidx.media3.effect.OverlayEffect(titles + captions)
             }
             // the timeline's frame rate in the preview too: a slowed 120 fps clip (30 frames a second at 25 %) played every

@@ -336,7 +336,7 @@
     <string name="videopicker_limited">Only the videos you chose are shown.</string>
     <string name="videopicker_more">Choose more</string>
     <string name="videopicker_clear">Clear</string>
-    <string name="exportui_note_hlg">HLG (Rec.2100, 1000 nits) rendered by each clip\'s last OpenDRT node; 10-bit HEVC. The preview stays SDR.</string>
+    <string name="exportui_note_hlg">HLG (Rec.2100, 1000 nits) rendered by each clip\'s last OpenDRT node; ungraded clips, titles and captions are converted from SDR (BT.2408, white at 75 %). 10-bit HEVC. The preview stays SDR.</string>
     <string name="exportui_hlg_why_not">HLG · OpenDRT: %1$s</string>
     <string name="exportplan_hlg_not_ready">HLG needs every graded clip to end in an OpenDRT node (whole image, full mix, no film after it) and an HDR encoder – exporting SDR.</string>
 </resources>

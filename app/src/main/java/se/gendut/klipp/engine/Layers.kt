@@ -812,6 +812,8 @@ class TimedOverlay(
     private val w: Int,
     private val h: Int,
     val time: TimeBase,
+    /** The HLG export – the images' SDR colours as HLG ([SdrHlg]). */
+    private val hlg: Boolean = false,
 ) : BitmapOverlay() {
     private val empty: Bitmap by lazy { Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.TRANSPARENT) } }
     private val cache = object : LinkedHashMap<Overlay, Bitmap>(8, 0.75f, true) {
@@ -829,11 +831,11 @@ class TimedOverlay(
     override fun getBitmap(presentationTimeUs: Long): Bitmap {
         val t = time.seconds(presentationTimeUs) ?: return empty
         val item = at(t) ?: return empty
-        val pin = pinArtOf(item, t, w, h) ?: return cache.getOrPut(item.overlay) { OverlayRenderer.draw(item.overlay, w, h) }
+        val pin = pinArtOf(item, t, w, h) ?: return cache.getOrPut(item.overlay) { OverlayRenderer.draw(item.overlay, w, h).let { if (hlg) SdrHlg.bitmap(it) else it } }
         val out = warped?.takeIf { it.width == w && it.height == h } ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { warped = it }
         out.eraseColor(Color.TRANSPARENT)
         android.graphics.Canvas(out).drawBitmap(pin.first, pin.second, warpPaint)
-        return out
+        return if (hlg) SdrHlg.bitmap(out) else out
     }
 
     override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
