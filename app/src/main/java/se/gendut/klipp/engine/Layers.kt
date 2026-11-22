@@ -827,6 +827,8 @@ class TimedOverlay(
     /** A pinned title drawn in perspective into a frame-size image (redrawn per frame, reused). */
     private var warped: Bitmap? = null
     private val warpPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG or android.graphics.Paint.ANTI_ALIAS_FLAG)
+    /** HLG: the last pinned title's art (PinArt's, shared with the preview – not changed) and its HLG copy. */
+    private var hlgArt: Pair<Bitmap, Bitmap>? = null
 
     override fun getBitmap(presentationTimeUs: Long): Bitmap {
         val t = time.seconds(presentationTimeUs) ?: return empty
@@ -834,8 +836,11 @@ class TimedOverlay(
         val pin = pinArtOf(item, t, w, h) ?: return cache.getOrPut(item.overlay) { OverlayRenderer.draw(item.overlay, w, h).let { if (hlg) SdrHlg.bitmap(it) else it } }
         val out = warped?.takeIf { it.width == w && it.height == h } ?: Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { warped = it }
         out.eraseColor(Color.TRANSPARENT)
-        android.graphics.Canvas(out).drawBitmap(pin.first, pin.second, warpPaint)
-        return if (hlg) SdrHlg.bitmap(out) else out
+        // HLG: the title's own art converted once (a copy), not the whole frame every frame
+        val art = if (!hlg) pin.first else hlgArt?.takeIf { it.first === pin.first }?.second
+            ?: SdrHlg.bitmap(pin.first.copy(Bitmap.Config.ARGB_8888, true)).also { hlgArt = pin.first to it }
+        android.graphics.Canvas(out).drawBitmap(art, pin.second, warpPaint)
+        return out
     }
 
     override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
