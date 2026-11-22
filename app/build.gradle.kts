@@ -45,8 +45,8 @@ android {
         applicationId = "se.gendut.klipp"
         minSdk = 29
         targetSdk = 36
-        versionCode = 101
-        versionName = "0.21.0-beta.1"
+        versionCode = 102
+        versionName = "0.21.0-beta.2"
         ndk { abiFilters += "arm64-v8a" }
         // speech recognition is always built optimized (the debug build's -O0 would be tens of times slower)
         externalNativeBuild { cmake { arguments += listOf("-DCMAKE_BUILD_TYPE=Release", "-DANDROID_STL=c++_shared") } }
