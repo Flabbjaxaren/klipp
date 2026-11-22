@@ -35,5 +35,11 @@ class ReframeTest {
         assertEquals(103.0, p.keys.last().first, 0.05)
     }
 
+    @Test fun aFaceOffCentreVerticallyKeepsTheFilledAxisStill() {
+        // the clip fills the height exactly: y can't move (the limits meet – rounding must not throw)
+        val p = Reframe.plan(listOf(Triple(0.0, 0.5f, 0.2f), Triple(1.0, 0.5f, 0.3f)), wide, 1080, 1920, { it })!!
+        assertTrue(p.keys.all { kotlin.math.abs(it.third - 960) < 1e-6 })
+    }
+
     @Test fun nothingToFollow() = assertNull(Reframe.plan(emptyList(), wide, 1080, 1920, { it }))
 }

@@ -49,8 +49,10 @@ object Reframe {
         }
         val sx = gauss(fx, sigma * RATE); val sy = gauss(fy, sigma * RATE)
         // the clip's centre that puts the face in the middle, held so no edge shows
-        fun cx(f: Double) = (w / 2.0 + dw * (0.5 - f)).coerceIn(w - dw / 2, dw / 2)
-        fun cy(f: Double) = (h / 2.0 + dh * (0.5 - f)).coerceIn(h - dh / 2, dh / 2)
+        // (when the clip fills an axis exactly, the two limits are the same point – rounding must not swap them)
+        fun hold(v: Double, a: Double, b: Double) = v.coerceIn(min(a, b), max(a, b))
+        fun cx(f: Double) = hold(w / 2.0 + dw * (0.5 - f), w - dw / 2, dw / 2)
+        fun cy(f: Double) = hold(h / 2.0 + dh * (0.5 - f), h - dh / 2, dh / 2)
         val pts = (0 until n).map { i -> Triple(toTimeline(t0 + i / RATE), cx(sx[i]), cy(sy[i])) }
         return Plan(100.0 * k, simplify(pts, tolerance))
     }
