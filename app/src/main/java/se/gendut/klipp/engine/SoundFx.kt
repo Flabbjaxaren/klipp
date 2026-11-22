@@ -379,11 +379,14 @@ object SoundFx {
     }
 
     /**
-     * The audio track for a sound effect at [at] lasting [dur] s: the first of A2, A3, A1 with nothing there (A1 is
-     * usually the dialogue), else A3 (the sound is placed over what is there). [busy] = each track's clips (start, end).
+     * The audio track for a sound effect at [at] lasting [dur] s: the first of A2, A3 … (every audio track the sequence
+     * has), then A1, with nothing there (A1 is usually the dialogue), else the last one (the sound is placed
+     * over what is there). [busy] = each track's clips (start, end).
      */
-    fun freeTrack(busy: List<List<Pair<Double, Double>>>, at: Double, dur: Double): Int =
-        listOf(1, 2, 0).firstOrNull { i -> busy.getOrNull(i).orEmpty().none { (a, b) -> a < at + dur - 1e-6 && b > at + 1e-6 } } ?: 2
+    fun freeTrack(busy: List<List<Pair<Double, Double>>>, at: Double, dur: Double): Int {
+        val n = busy.size.coerceAtLeast(1)
+        return ((1 until n) + 0).firstOrNull { i -> busy.getOrNull(i).orEmpty().none { (a, b) -> a < at + dur - 1e-6 && b > at + 1e-6 } } ?: (n - 1)
+    }
 
     /** "footstep_carpet_000" → "Footstep carpet 000", "highUp" → "High up". */
     fun humanize(base: String): String {

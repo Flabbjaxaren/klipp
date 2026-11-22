@@ -1766,7 +1766,7 @@ class ProjectController(
 
     /** Places a sound effect ([seconds] long) at [atSec] on the first free audio track (see SoundFx.freeTrack). */
     fun placeSound(file: File, atSec: Double, seconds: Double, name: String) {
-        val busy = snapshot.sequence?.audio.orEmpty().take(3).map { t -> t.clips.map { it.start to it.end } }
+        val busy = snapshot.sequence?.audio.orEmpty().map { t -> t.clips.map { it.start to it.end } }
         placeAudio(file, atSec, SoundFx.freeTrack(busy, atSec, seconds), name, Str.t(R.string.projectcontroller_undo_sound),
             { Str.t(R.string.projectcontroller_sound_placed, it + 1) }, { Str.t(R.string.projectcontroller_sound_failed, it) })
     }

@@ -604,7 +604,7 @@ object CompositionBuilder {
         plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, workW = ew, workH = eh, fps =  output?.outputFps(s.fps)?.takeIf { it > 0.0 } ?: s.fps, fillSlots = output != null, realStarts = realStarts, oneRenderer = output == null && LiveCuts.oneRenderer, hlg = output?.hlg == true)?.let { seqs += it } }
         val hasVideo = seqs.isNotEmpty()
         // export without audio (and pre-render): no audio sequences
-        val audio = if (output?.audio == false || range != null) emptyList() else q.audio.take(3)
+        val audio = if (output?.audio == false || range != null) emptyList() else q.audio
         val anySolo = audio.any { it.solo }
         for ((ti, t) in audio.withIndex()) {
             if (t.muted || (anySolo && !t.solo)) continue

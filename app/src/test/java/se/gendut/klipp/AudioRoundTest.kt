@@ -231,10 +231,10 @@ class AudioRoundTest {
         assertEquals("lowers a mix that is too loud", -6.0, normalizeDb(-8.0, -0.5, 0.0, -14.0), 1e-9)
         // the master's dB matches the gain it applies
         val m = AudioMix()
-        kotlinx.coroutines.runBlocking { m.gains[3].snapTo(0.9f) }
-        assertEquals(20.0 * kotlin.math.log10(mixMaster(m).toDouble()), m.db(3), 1e-4)
+        kotlinx.coroutines.runBlocking { m.gains[AudioMix.MASTER].snapTo(0.9f) }
+        assertEquals(20.0 * kotlin.math.log10(mixMaster(m).toDouble()), m.db(AudioMix.MASTER), 1e-4)
         m.normDb = 4f
-        assertEquals(m.db(3) + 4.0, 20.0 * kotlin.math.log10(mixMaster(m).toDouble()), 1e-4)
+        assertEquals(m.db(AudioMix.MASTER) + 4.0, 20.0 * kotlin.math.log10(mixMaster(m).toDouble()), 1e-4)
         // saved and read back (does not restart playback)
         val o = gradeToJson(ColorGrade(), m)
         assertEquals(mixMaster(m), masterFromJson(o), 1e-6f)
@@ -316,7 +316,7 @@ class AudioRoundTest {
             trackFx = { i -> AfxRackOps({ log += "trackfx $i $it" }, { log += "toggle $i $it" }, { log += "remove $i $it" }, { _, _, _ -> }, { _, _ -> }, { _, _, _ -> }, max = 5) },
         )
         var commits = 0
-        mix.onCommit = { if (it == 3) commits++ }
+        mix.onCommit = { if (it == AudioMix.MASTER) commits++ }
         rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { AudioPanel(mix, st, tools) } } }
         rule.waitForIdle()
         // the old track automation is gone from the mixer (volume is drawn on the clips in the timeline)

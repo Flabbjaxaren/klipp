@@ -483,7 +483,7 @@ private fun KlippAppContent(
     val audioTools = remember(controller) {
         controller?.let { c ->
             AudioTools(
-                tracks = { c.snapshot.sequence?.audio?.take(3).orEmpty() },
+                tracks = { c.snapshot.sequence?.audio?.take(MAX_AUDIO_TRACKS).orEmpty() },
                 toggleKf = { i, at, db -> c.toggleTrackKeyframe(i, at, db) },
                 clearKf = { i -> c.clearTrackKeyframes(i) },
                 measure = { c.measureLoudness() },
@@ -691,10 +691,10 @@ private fun KlippAppContent(
         // the master (fader and normalization) lives in the app, not the engine: to playback and saved – and an undo step
         // of its own, in the same history as the timeline (it used to be left out: undo took the latest cut instead)
         fun applyMaster() { playback?.master = mixMaster(mix); playback?.refresh(state.playhead.toDouble()); controller.requestSave() }
-        fun restoreMaster(v: MasterValues) { masterMark[0] = v; mix.normDb = v.norm; scope.launch { mix.gains[3].snapTo(v.fader); applyMaster() } }
+        fun restoreMaster(v: MasterValues) { masterMark[0] = v; mix.normDb = v.norm; scope.launch { mix.gains[AudioMix.MASTER].snapTo(v.fader); applyMaster() } }
         masterMark[0] = MasterValues.of(mix)
         mix.onCommit = { i ->
-            if (i == 3) {
+            if (i == AudioMix.MASTER) {
                 applyMaster()
                 val now = MasterValues.of(mix)
                 val before = masterMark[0] ?: now
@@ -717,7 +717,10 @@ private fun KlippAppContent(
     // the mixer shows the engine's track settings (after restore, undo etc.)
     LaunchedEffect(controller?.revision) {
         val q = controller?.snapshot?.sequence ?: return@LaunchedEffect
-        q.audio.take(3).forEachIndexed { i, t ->
+        // the voice-over can go on any audio track the sequence has
+        voice.tracks = q.audio.size.coerceIn(1, MAX_AUDIO_TRACKS)
+        if (voice.track >= voice.tracks) voice.track = 0
+        q.audio.take(MAX_AUDIO_TRACKS).forEachIndexed { i, t ->
             mix.mute[i] = t.muted
             mix.solo[i] = t.solo
             // with automation the playhead drives the fader (see AudioPanel)
@@ -1086,7 +1089,7 @@ private fun KlippAppContent(
                 UndoRedo(state, ::undo, ::redo)
                 Spacer(Modifier.width(8.dp))
                 Dock(state, { page.value }, audioTabs(mix, audioTools != null, audioTools?.trackFx != null,
-                    controller?.let { c -> c.revision; c.snapshot.sequence?.audio?.take(3)?.any { t -> t.afx.any { it.on } } } == true), Modifier.weight(1f))
+                    controller?.let { c -> c.revision; c.snapshot.sequence?.audio?.any { t -> t.afx.any { it.on } } } == true), Modifier.weight(1f))
             }
         }
         }
@@ -1367,7 +1370,7 @@ private fun MonitorHandle(onDrag: (Float) -> Unit, onEnd: () -> Unit, onReset: (
 /** The master fader (0..1, where it is going) and the normalization (dB) as values (for the undo history). */
 data class MasterValues(val fader: Float, val norm: Float) {
     companion object {
-        fun of(m: AudioMix) = MasterValues(m.gains[3].targetValue, m.normDb)
+        fun of(m: AudioMix) = MasterValues(m.gains[AudioMix.MASTER].targetValue, m.normDb)
     }
 }
 
@@ -1427,7 +1430,7 @@ fun gradeToJson(g: ColorGrade, m: AudioMix): org.json.JSONObject = org.json.JSON
     .put("exposure", g.exposure.value.toDouble()).put("contrast", g.contrast.value.toDouble())
     .put("temp", g.temp.value.toDouble()).put("tint", g.tint.value.toDouble()).put("sat", g.sat.value.toDouble())
     .put("lut", g.lutName ?: org.json.JSONObject.NULL).put("lutMix", g.lutMix.value.toDouble()).put("tetra", g.tetra)
-    .put("master", m.gains[3].targetValue.toDouble()).put("norm", m.normDb.toDouble())
+    .put("master", m.gains[AudioMix.MASTER].targetValue.toDouble()).put("norm", m.normDb.toDouble())
 
 suspend fun gradeFromJson(o: org.json.JSONObject, g: ColorGrade, m: AudioMix) {
     g.exposure.snapTo(o.optDouble("exposure", 0.0).toFloat()); g.contrast.snapTo(o.optDouble("contrast", 0.0).toFloat())
@@ -1435,12 +1438,12 @@ suspend fun gradeFromJson(o: org.json.JSONObject, g: ColorGrade, m: AudioMix) {
     g.sat.snapTo(o.optDouble("sat", 0.0).toFloat())
     g.lutName = if (o.isNull("lut")) null else o.optString("lut").takeIf { se.gendut.klipp.engine.LutStore.get(it) != null }
     g.lutMix.snapTo(o.optDouble("lutMix", 1.0).toFloat()); g.tetra = o.optBoolean("tetra", true)
-    m.gains[3].snapTo(o.optDouble("master", 0.75).toFloat())
+    m.gains[AudioMix.MASTER].snapTo(o.optDouble("master", 0.75).toFloat())
     m.normDb = o.optDouble("norm", 0.0).toFloat().let { if (it.isNaN()) 0f else it }
 }
 
 /** Master: the fader's gain (where it is going – it springs after the finger) × the normalization (dB, from the loudness measurement). */
-fun mixMaster(m: AudioMix): Float = masterOf(m.gains[3].targetValue) * Math.pow(10.0, m.normDb / 20.0).toFloat()
+fun mixMaster(m: AudioMix): Float = masterOf(m.gains[AudioMix.MASTER].targetValue) * Math.pow(10.0, m.normDb / 20.0).toFloat()
 private fun masterOf(v: Float): Float = if (v < 0.001f) 0f else (v / 0.75f).let { it * it }.coerceIn(0f, 4f)
 
 /** The same look and master that [gradeFromJson] + [lookOf] give – directly, so the first playback is built with them. */
