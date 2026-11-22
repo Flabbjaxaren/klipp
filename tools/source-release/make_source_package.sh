@@ -1,7 +1,8 @@
 #!/bin/bash
 # The Corresponding Source of a Klipp release as one archive: the repository at the release's commit, the source of
 # every Rust crate linked into libklipp_bridge.so (vendored, so it builds offline), the source jars of the Maven
-# libraries in the APK, the build scripts, and instructions. See docs/source-release.md.
+# libraries in the APK, FFmpeg's release tarball (libklipp_prores.so), the build scripts, and instructions. See
+# docs/source-release.md.
 #
 #   tools/source-release/make_source_package.sh <git ref, e.g. v0.20.0-beta.1> <output dir>
 #
@@ -121,6 +122,21 @@ EOF
 
 # the dependency listing above leaves Gradle's own folders behind: not source
 rm -rf "$PKG/.gradle" "$PKG/build" "$PKG/app/build" "$PKG/third_party/"*/build "$PKG/local.properties"
+
+echo "== FFmpeg release tarball (libklipp_prores.so, LGPL-2.1-or-later: its source + the build script = relinkable)"
+# the version, hash and address the archived build script pins (a release without tools/ffmpeg has none)
+if [ -f "$PKG/tools/ffmpeg/build.sh" ]; then
+  FF_VERSION=$(sed -n 's/^FFMPEG_VERSION=//p' "$PKG/tools/ffmpeg/build.sh")
+  FF_SHA=$(sed -n 's/^FFMPEG_SHA256=//p' "$PKG/tools/ffmpeg/build.sh")
+  FF_TAR="ffmpeg-$FF_VERSION.tar.xz"
+  mkdir -p "$PKG/third_party-sources/ffmpeg"
+  # (the copy a local build already downloaded and checked, else the release site)
+  if [ -f "$ROOT/tools/ffmpeg/build/$FF_TAR" ]; then cp "$ROOT/tools/ffmpeg/build/$FF_TAR" "$PKG/third_party-sources/ffmpeg/"
+  else curl -sSfL -o "$PKG/third_party-sources/ffmpeg/$FF_TAR" "https://ffmpeg.org/releases/$FF_TAR"; fi
+  GOT=$( (command -v sha256sum >/dev/null && sha256sum "$PKG/third_party-sources/ffmpeg/$FF_TAR" || shasum -a 256 "$PKG/third_party-sources/ffmpeg/$FF_TAR") | cut -d' ' -f1)
+  [ "$GOT" = "$FF_SHA" ] || { echo "FFmpeg tarball hash $GOT, expected $FF_SHA" >&2; exit 1; }
+  echo "$FF_TAR  (sha256 $FF_SHA)"
+fi
 
 echo "== instructions"
 cp "$ROOT/tools/source-release/BUILDING-FROM-SOURCE.md" "$PKG/BUILDING-FROM-SOURCE.md"

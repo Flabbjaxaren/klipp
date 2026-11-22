@@ -59,11 +59,34 @@ The release APK contains, under `assets/licenses/` (copied from `LICENSES/` at b
 - the GPL-3.0 text, Apache-2.0, MPL-2.0 and the other license texts in `LICENSES/texts/`;
 - every Rust crate's own license files (`LICENSES/third-party/rust/<crate>-<version>/`), FilmCraft's and
   craft-libs' `NOTICE`, the engine's font licenses, whisper.cpp's `LICENSE`/`AUTHORS` and the notice embedded in a
-  compiled ggml file, libc++'s LLVM notice;
+  compiled ggml file, FFmpeg's `COPYING.LGPLv2.1`, `LICENSE.md` and `SOURCE.txt` (with the IJG credit), libc++'s LLVM
+  notice;
 - `inventory.json`, which the app's license screen reads.
 
 The fonts' and spektrafilm's license files ship in their own asset folders. Symphonia (MPL-2.0): the APK says where
 its source is (crates.io, and Klipp's source package) – MPL-2.0 §3.2(a).
+
+## FFmpeg (LGPL) in the ProRes import
+
+`lib/arm64-v8a/libklipp_prores.so` is Klipp's ProRes import: Klipp's JNI wrapper (`tools/ffmpeg/klipp_prores.c`,
+`prores_core.h` – Klipp's own code) linked statically with a minimal FFmpeg (only the ProRes decoder, the PCM decoders,
+the MOV demuxer and the MOV muxer). FFmpeg is **LGPL-2.1-or-later**; it is configured without `--enable-gpl`,
+`--enable-nonfree` and `--enable-version3`, so no GPL or non-free FFmpeg code is in it. LGPL-2.1-or-later code may be
+combined with Klipp's GPL-3.0 (LGPL-2.1 §3 lets it be used under the GPL; version 3 of the GPL is compatible), and the
+whole stays offered under GPL-3.0-only.
+
+What the LGPL asks of a statically linked binary, and how it is met:
+
+- **The library's source**: the unmodified release tarball `ffmpeg-9.0.2.tar.xz`, pinned by SHA-256 in
+  `tools/ffmpeg/build.sh`, is put in every source package (`third_party-sources/ffmpeg/`) together with the build script.
+- **Relinking with a modified FFmpeg** (LGPL-2.1 §6): Klipp's complete source is published, and
+  `tools/ffmpeg/build.sh` rebuilds `libklipp_prores.so` from any FFmpeg tree (`FFMPEG_TARBALL`, or edit
+  `FFMPEG_VERSION`/`FFMPEG_SHA256`). A user can replace the library in their own build of the app; it is reached only
+  through its JNI functions (`engine/ProResNative.kt`).
+- **Notices**: `COPYING.LGPLv2.1`, FFmpeg's `LICENSE.md` and `CREDITS`, and `SOURCE.txt` (version, configuration, where
+  the source is, the Independent JPEG Group credit that `libavcodec/jrevdct.c` asks for) ship in the APK under
+  `assets/licenses/third-party/ffmpeg/`; the About screen lists FFmpeg from the inventory.
+- `inventory.py check` fails when `tools/ffmpeg/build.sh` builds another FFmpeg version than the reviewed entry.
 
 ## Keeping it right
 

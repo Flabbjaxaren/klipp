@@ -2,7 +2,8 @@
 
 This archive is the Corresponding Source of one Klipp release: the repository at the commit in `SOURCE_COMMIT`,
 the source of every Rust crate linked into `libklipp_bridge.so` (`rust/vendor/`, with `rust/.cargo/config.toml`
-pointing Cargo at it), and the source jars of the Maven libraries in the APK (`third_party-sources/maven/`).
+pointing Cargo at it), the source jars of the Maven libraries in the APK (`third_party-sources/maven/`), and FFmpeg's
+release tarball for the ProRes import (`third_party-sources/ffmpeg/`, LGPL-2.1-or-later).
 Klipp is free software under the GNU GPL v3 (`LICENSE`); third-party parts keep their own licenses
 (`THIRD_PARTY.md`, `LICENSES/`).
 
@@ -24,7 +25,16 @@ Klipp is free software under the GNU GPL v3 (`LICENSE`); third-party parts keep 
    cd ..
    ```
 
-2. Build the APK. Gradle downloads the Maven libraries (their sources are in `third_party-sources/maven/`) and builds
+2. Build the ProRes import's library (`libklipp_prores.so`: FFmpeg + Klipp's wrapper) from the included FFmpeg
+   tarball (no network needed; a few minutes). To use a modified FFmpeg, point `FFMPEG_TARBALL` at your own tarball and
+   change `FFMPEG_SHA256` in the script:
+
+   ```
+   export ANDROID_NDK_HOME=<sdk>/ndk/29.0.14206865
+   FFMPEG_TARBALL=third_party-sources/ffmpeg/ffmpeg-9.0.2.tar.xz tools/ffmpeg/build.sh
+   ```
+
+3. Build the APK. Gradle downloads the Maven libraries (their sources are in `third_party-sources/maven/`) and builds
    whisper.cpp from `third_party/whisper.cpp` with CMake:
 
    ```

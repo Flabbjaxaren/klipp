@@ -51,3 +51,8 @@ https://github.com/androidx/media), with a few changes. The module replaces the 
   silence track) is made at the mix's rate when `KlippAudio.playbackMixSampleRate` is set; Media3's
   `SilenceMediaSource` is always 44.1 kHz and was resampled to the mix at every item. A copy of `SilenceMediaSource`
   (Apache 2.0) with the sample rate as a parameter.
+- `TransformerUtil.java` (`getValidColor`, new `klippUntaggedSdr`), `VideoSampleExporter.java`: a file that gives its
+  matrix and range but no transfer (the Xiaomi 17 Ultra's log video, stock MiLog or a camera mod's S-Log3: BT.2020,
+  full range, transfer unspecified) is SDR with its own matrix and range instead of BT.709 limited – sampled as BT.709
+  limited, full-range BT.2020 YUV came out with contrast and saturation ×1.17 (measured against the source). Its
+  output is BT.709 limited like other SDR.

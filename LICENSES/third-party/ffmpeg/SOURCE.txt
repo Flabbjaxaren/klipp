@@ -1,0 +1,21 @@
+FFmpeg in Klipp (lib/arm64-v8a/libklipp_prores.so – the ProRes import)
+
+Version: FFmpeg 9.0.2, the release tarball https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz
+         (SHA-256 8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e), unmodified.
+License: GNU Lesser General Public License, version 2.1 or later (COPYING.LGPLv2.1 in this folder). FFmpeg's own
+         summary of its licensing is LICENSE.md in this folder; its authors are listed in its git history (CREDITS).
+
+What is built: only FFmpeg's ProRes decoder, its PCM audio decoders, its MOV/MP4 demuxer and its MOV muxer (with the
+small parts of libavcodec, libavformat and libavutil they need). Configured with --disable-everything and without
+--enable-gpl, --enable-nonfree or --enable-version3: no GPL or non-free part of FFmpeg is in the library. The exact
+configuration and build steps are tools/ffmpeg/build.sh in Klipp's source.
+
+How it is linked: FFmpeg is linked statically, together with Klipp's own wrapper (tools/ffmpeg/klipp_prores.c and
+prores_core.h, part of Klipp and under Klipp's GPL), into the one library libklipp_prores.so. Klipp's complete source,
+FFmpeg's unmodified source tarball and the build script are published with every release (Klipp's source package,
+docs/source-release.md), so anyone can change FFmpeg, rebuild the library with tools/ffmpeg/build.sh and replace it in
+the app (LGPL-2.1 section 6). The library loads only through its JNI functions; nothing else of Klipp depends on its
+internals.
+
+Independent JPEG Group: libavcodec's jrevdct.c (an inverse DCT the IDCT selection code references) is IJG code.
+This software is based in part on the work of the Independent JPEG Group. The file is unchanged.

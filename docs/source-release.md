@@ -36,6 +36,7 @@ is made from `git archive` of the tag plus downloaded third-party source, never 
 | Rust crates linked into `libklipp_bridge.so` (FilmCraft, craft-libs, Symphonia …) | `rust/vendor/` | statically linked into the binary; also satisfies MPL-2.0 for Symphonia |
 | Git dependencies' whole repositories (FilmCraft, craft-libs) at the pinned commits | `third_party-sources/git/` | their license files, NOTICE and the files their crates include from outside the crate folder |
 | Maven libraries in the dex (AndroidX, Compose, Kotlin, Guava …) | source jars, `third_party-sources/maven/` | bundled in the APK; their source is also public on Google Maven / Maven Central |
+| FFmpeg in `libklipp_prores.so` (LGPL-2.1-or-later, statically linked) | the release tarball, `third_party-sources/ffmpeg/`, plus `tools/ffmpeg/build.sh` in the repository | LGPL-2.1 §6: the library's source and what is needed to relink it with a modified FFmpeg (docs/licensing.md) |
 | `libc++_shared.so` (NDK) | not included – the NDK version is named | arguably a System Library of the compiler (GPL-3.0 §1). Edge case: see `docs/licensing-open-questions.md`. Its source is LLVM's, public |
 | Assets (fonts, spektrafilm tables, Silero VAD) | in the repository | not covered by the GPL (own licenses), shipped as they are |
 | Build tools (JDK, SDK, NDK, CMake, Rust, cargo-ndk, Gradle's plugins) | named with versions | generally available tools, not part of the Corresponding Source |
