@@ -180,4 +180,16 @@
     <string name="app_net_timeout">The connection timed out</string>
     <string name="app_render_defaults_hint">Rendering automatically, deleting renders, proxies and caches apply to all projects</string>
     <string name="app_clip_volume_keyframe">Clip volume · keyframe at the playhead</string>
+    <string name="app_hlg_no_encoder">no HEVC encoder for HDR on this phone</string>
+    <string name="app_hlg_look">the timeline has a look (Look tab) – it would work on the HLG values</string>
+    <string name="app_hlg_none_graded">no clip is graded – add an OpenDRT node to the clips</string>
+    <string name="app_hlg_no_drt">its last active node (%1$s) has no OpenDRT</string>
+    <string name="app_hlg_node_n">node %1$d</string>
+    <string name="app_hlg_film">its OpenDRT node has a film</string>
+    <string name="app_hlg_key">its OpenDRT node has a qualifier or window</string>
+    <string name="app_hlg_mix">its OpenDRT node\'s mix is under 100%</string>
+    <plurals name="app_hlg_bad">
+        <item quantity="one">%1$d graded clip doesn\'t end in OpenDRT – %2$s</item>
+        <item quantity="other">%1$d graded clips don\'t end in OpenDRT – e.g. %2$s</item>
+    </plurals>
 </resources>

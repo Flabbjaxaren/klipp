@@ -72,6 +72,8 @@ data class ExportPlan(
     val hdr: Boolean,
     val errors: List<Issue>,
     val warnings: List<Issue>,
+    /** HLG made from the grades' OpenDRT (10-bit HEVC, BT.2020) – see [ExportSettings.hlg]. */
+    val hlg: Boolean = false,
 ) {
     val ok: Boolean get() = errors.isEmpty()
 
@@ -95,6 +97,8 @@ data class ExportPlan(
         HDR_TO_SDR,
         /** HDR wanted, but grading is done in SDR: the file is SDR. */
         HDR_GRADED,
+        /** HLG from OpenDRT wanted, but not every graded clip ends in OpenDRT (or the phone can't encode HDR): SDR. */
+        HLG_NOT_READY,
     }
 
     companion object {
@@ -105,6 +109,8 @@ data class ExportPlan(
         fun resolve(
             s: ExportSettings, projectW: Int, projectH: Int, projectFps: Double,
             anyHdr: Boolean, anyTenBit: Boolean?, graded: Boolean, caps: EncoderInfo,
+            /** Every graded clip ends in OpenDRT and nothing else colors (see [ClipGrade.hlgReady]). */
+            hlgReady: Boolean = false,
         ): ExportPlan {
             val errors = ArrayList<Issue>()
             val warnings = ArrayList<Issue>()
@@ -112,6 +118,15 @@ data class ExportPlan(
             val fps = s.outputFps(projectFps)
             if (s.height > 0 && minOf(w, h) > minOf(projectW, projectH)) warnings += Issue(Kind.UPSCALED)
 
+            // HLG from the grades' OpenDRT: HEVC Main10, BT.2020 / HLG
+            if (s.hlg) {
+                if (hlgReady && caps.hdr != Support.NO) {
+                    val st = s.copy(hdr = false, codec = MimeTypes.VIDEO_H265, bitDepth = 10)
+                    if (caps.size(st.codec, w, h) == Support.NO) errors += Issue(Kind.SIZE_NONE, st.codec)
+                    return ExportPlan(st, w, h, fps, tenBit = true, hdr = false, errors, warnings, hlg = true)
+                }
+                warnings += Issue(Kind.HLG_NOT_READY)
+            }
             // HDR
             var hdr = false
             if (s.hdr && anyHdr) {
@@ -122,7 +137,7 @@ data class ExportPlan(
                 }
             }
             if (hdr) {
-                val st = s.copy(codec = MimeTypes.VIDEO_H265)
+                val st = s.copy(hlg = false, codec = MimeTypes.VIDEO_H265)
                 if (caps.size(st.codec, w, h) == Support.NO) errors += Issue(Kind.SIZE_NONE, st.codec)
                 return ExportPlan(st, w, h, fps, tenBit = false, hdr = true, errors, warnings)
             }
@@ -131,7 +146,7 @@ data class ExportPlan(
             val wantTen = s.bitDepth == 10 || (s.bitDepth == 0 && anyTenBit == true)
             val tenCodec = if (wantTen) tenBitCodec(s.codec, caps) else null
             if (wantTen && tenCodec == null) warnings += Issue(Kind.TEN_BIT_NONE)
-            var st = s.copy(hdr = false, codec = tenCodec ?: s.codec)
+            var st = s.copy(hdr = false, hlg = false, codec = tenCodec ?: s.codec)
             val tenBit = tenCodec != null
 
             // the size

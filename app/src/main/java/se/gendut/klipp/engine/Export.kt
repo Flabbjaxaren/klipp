@@ -24,6 +24,8 @@ import kotlin.math.roundToInt
  * @param highProfile H.264 High / HEVC Main – more efficient than Baseline/Main when the phone supports it
  * @param hdr keep HDR (HLG/PQ, 10-bit HEVC) – only when the sources are HDR and the phone can encode it
  * @param bitDepth bit depth of an SDR file: 0 = same as the sources (10 if any clip is 10-bit), 8 or 10 (HEVC/AV1 Main10)
+ * @param hlg HDR made from the grade: every graded clip ends in OpenDRT, rendered as Rec.2100 HLG (10-bit HEVC) –
+ *   see [ClipGrade.hlgReady]
  */
 data class ExportSettings(
     val height: Int = 0,
@@ -39,10 +41,11 @@ data class ExportSettings(
     val sampleRate: Int = 0,
     val mono: Boolean = false,
     val bitDepth: Int = 0,
+    val hlg: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject().put("h", height).put("fps", fps).put("codec", codec).put("mbps", bitrateMbps.toDouble())
         .put("cbr", cbr).put("key", keyframeSec.toDouble()).put("high", highProfile).put("hdr", hdr)
-        .put("audio", audio).put("akbps", audioKbps).put("sr", sampleRate).put("mono", mono).put("bits", bitDepth)
+        .put("audio", audio).put("akbps", audioKbps).put("sr", sampleRate).put("mono", mono).put("bits", bitDepth).put("hlg", hlg)
 
     /** Output frame size for a [w]×[h] project (even dimensions, as encoders require). */
     fun outputSize(w: Int, h: Int): Pair<Int, Int> {
@@ -86,6 +89,7 @@ data class ExportSettings(
                 o.optBoolean("hdr", false), o.optBoolean("audio", true), o.optInt("akbps", 192).coerceIn(32, 512),
                 o.optInt("sr", 0).coerceIn(0, 192_000), o.optBoolean("mono", false),
                 o.optInt("bits", 0).let { if (it == 8 || it == 10) it else 0 },
+                o.optBoolean("hlg", false),
             )
         }
 

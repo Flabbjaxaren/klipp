@@ -25,7 +25,7 @@ notices are in **`LICENSES/`** and ship inside the app (Settings → About → L
 | **AndroidX / Jetpack Compose / Media3 common** (Maven), **Kotlin**, **kotlinx.coroutines**, **Guava** | classes.dex | Apache-2.0 | None |
 | **Checker Framework qualifiers** 3.43.0 – © the Checker Framework developers | classes.dex | MIT (`LICENSES/third-party/maven/checker-qual-LICENSE.txt`) | None |
 | **spektrafilm** (code) – © Andrea Volpato et al. | ported to `engine/Spektra.kt`, `engine/FilmFx.kt`, `engine/FilmGl.kt` | GPL v3 ("GPLv3"; its CITATION.cff says or-later; Klipp uses it under version 3) | Ported to Kotlin/GLSL |
-| **OpenDRT** v1.1.0 – Jed Smith | ported to `engine/OpenDrt.kt` | GPL v3 ("License: GPLv3" in its notice; Klipp uses it under version 3) | Ported; SDR only, two inputs added |
+| **OpenDRT** v1.1.0 – Jed Smith | ported to `engine/OpenDrt.kt` | GPL v3 ("License: GPLv3" in its notice; Klipp uses it under version 3) | Ported; SDR and its Rec.2100 HLG encoding, two inputs added |
 
 ## Data and fonts in the app (assets)
 

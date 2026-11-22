@@ -121,6 +121,23 @@ class ExportPlanTest {
         assertEquals(Kind.HDR_TO_SDR, plan(s, Fake(mapOf(H264 to 2160)), anyHdr = true).warnings.single().kind)
     }
 
+    @Test fun hlgFromOpenDrtOnlyWhenTheGradeEndsInIt() {
+        val s = ExportSettings(hlg = true, height = 1080, codec = H264)
+        val caps = Fake(mapOf(H264 to 2160, HEVC to 2160), hdr = Support.YES)
+        val p = ExportPlan.resolve(s, 3840, 2160, 30.0, false, false, graded = true, caps = caps, hlgReady = true)
+        assertTrue(p.hlg)
+        assertTrue(p.tenBit)
+        assertFalse(p.hdr)
+        assertEquals(HEVC, p.effective.codec)
+        assertTrue(p.warnings.isEmpty())
+        // not every grade ends in OpenDRT, or no HDR encoder: SDR, with a warning
+        val no = ExportPlan.resolve(s, 3840, 2160, 30.0, false, false, graded = true, caps = caps, hlgReady = false)
+        assertFalse(no.hlg)
+        assertFalse(no.effective.hlg)
+        assertEquals(Kind.HLG_NOT_READY, no.warnings.first().kind)
+        assertFalse(ExportPlan.resolve(s, 3840, 2160, 30.0, false, false, true, Fake(mapOf(H264 to 2160)), hlgReady = true).hlg)
+    }
+
     @Test fun aRateTheEncoderDoesNotListIsAWarning() {
         val p = ExportPlan.resolve(ExportSettings(height = 1080), 1920, 1080, 120.0, false, false, false, Fake(mapOf(H264 to 2160), maxFps = 60.0))
         assertTrue(p.ok)

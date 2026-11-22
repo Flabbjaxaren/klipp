@@ -44,6 +44,7 @@ private val KEYFRAMES = listOf(0f, 0.5f, 1f, 2f, 5f)
  * bitrate (levels or custom), CBR/VBR, keyframes, profile, SDR/HDR and audio.
  *
  * @param hdrPossible the sources are HDR and the phone can encode HDR; [hdrBlocked] = why it still isn't possible (grade)
+ * @param hlgReady every graded clip ends in OpenDRT (HLG can be made from the grade, see ClipGrade.hlgReady)
  */
 @Composable
 fun ExportOptions(
@@ -54,10 +55,13 @@ fun ExportOptions(
     caps: se.gendut.klipp.engine.EncoderInfo = se.gendut.klipp.engine.PhoneEncoders,
     /** The project's length (s): the presets show their estimated size (0 = not shown). */
     seconds: Double = 0.0,
+    hlgReady: Boolean = false,
+    /** Why HLG can't be made (shown under the choices). */
+    hlgWhyNot: String? = null,
     onChange: (ExportSettings) -> Unit,
 ) {
     // the same plan the export itself follows: what is made, what is refused, what to know
-    fun planOf(x: ExportSettings) = se.gendut.klipp.engine.ExportPlan.resolve(x, seqW, seqH, projectFps, hdrPossible, anyTenBit, hdrBlocked != null, caps)
+    fun planOf(x: ExportSettings) = se.gendut.klipp.engine.ExportPlan.resolve(x, seqW, seqH, projectFps, hdrPossible, anyTenBit, hdrBlocked != null, caps, hlgReady)
     val plan = planOf(s)
     val (ow, oh) = s.outputSize(seqW, seqH)
     val outFps = s.outputFps(projectFps)
@@ -113,11 +117,11 @@ fun ExportOptions(
     DropField(stringResource(R.string.exportui_frame_rate), fpsOpts, fpsSel, "exp:fps") { onChange(s.copy(fps = it)) }
 
     DropField(stringResource(R.string.exportui_codec), EncoderCaps.codecs.map { c ->
-        Opt(c.mime, c.label.substringBefore(" · "), c.label.substringAfter(" · ", ""), enabled = !s.hdr || c.mime == MimeTypes.VIDEO_H265, key = c.mime.substringAfter('/'))
+        Opt(c.mime, c.label.substringBefore(" · "), c.label.substringAfter(" · ", ""), enabled = !(s.hdr || s.hlg) || c.mime == MimeTypes.VIDEO_H265, key = c.mime.substringAfter('/'))
     }, s.codec, "exp:codec") { onChange(s.copy(codec = it)) }
 
     // bit depth (SDR): Auto follows the sources – 10-bit is encoded as HEVC/AV1 Main10 (H.264 is then swapped for HEVC)
-    if (!s.hdr) {
+    if (!s.hdr && !s.hlg) {
         // (follows the codec: not remembered)
         val tenCodec = se.gendut.klipp.engine.ExportPlan.tenBitCodec(s.codec, caps)
         val tenHint = when {
@@ -164,7 +168,7 @@ fun ExportOptions(
         Opt(k, if (k == 0f) auto else stringResource(R.string.exportui_keyframe_every, if (k % 1f == 0f) k.toInt().toString() else "%.1f".format(k)),
             if (k == 0f) keyAutoHint else if (k <= 0.5f) keyDenseHint else null, key = "k$k")
     }, s.keyframeSec, "exp:key") { onChange(s.copy(keyframeSec = it)) }
-    if (s.codec == MimeTypes.VIDEO_H264 && !s.hdr) {
+    if (s.codec == MimeTypes.VIDEO_H264 && !s.hdr && !s.hlg) {
         SectionLabel(stringResource(R.string.exportui_profile))
         Chips {
             Choice(stringResource(R.string.exportui_profile_high), s.highProfile, true, "exp:high") { onChange(s.copy(highProfile = true)) }
@@ -175,15 +179,18 @@ fun ExportOptions(
         }
         2 -> {
     Chips {
-        Choice("SDR · Rec.709", !s.hdr, true, "exp:sdr") { onChange(s.copy(hdr = false)) }
-        Choice(stringResource(R.string.exportui_hdr_keep), s.hdr, hdrPossible && hdrBlocked == null, "exp:hdr") { onChange(s.copy(hdr = true, codec = MimeTypes.VIDEO_H265)) }
+        Choice("SDR · Rec.709", !s.hdr && !s.hlg, true, "exp:sdr") { onChange(s.copy(hdr = false, hlg = false)) }
+        Choice(stringResource(R.string.exportui_hdr_keep), s.hdr, hdrPossible && hdrBlocked == null, "exp:hdr") { onChange(s.copy(hdr = true, hlg = false, codec = MimeTypes.VIDEO_H265)) }
+        Choice("HLG · OpenDRT", s.hlg, hlgReady && se.gendut.klipp.engine.EncoderCaps.hdrSupported, "exp:hlg") { onChange(s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265)) }
     }
     Note(when {
+        s.hlg -> stringResource(R.string.exportui_note_hlg)
         s.hdr -> stringResource(R.string.exportui_note_hdr)
         hdrBlocked != null -> hdrBlocked
         !hdrPossible -> stringResource(R.string.exportui_note_hdr_impossible)
         else -> stringResource(R.string.exportui_note_sdr)
     })
+    if (!s.hlg && hlgWhyNot != null) Note(stringResource(R.string.exportui_hlg_why_not, hlgWhyNot))
 
         }
         else -> {
@@ -220,11 +227,14 @@ fun ExportDialog(
     hdrPossible: Boolean, hdrBlocked: String?,
     anyTenBit: Boolean? = null,
     caps: se.gendut.klipp.engine.EncoderInfo = se.gendut.klipp.engine.PhoneEncoders,
+    /** Every graded clip ends in OpenDRT (see [ExportOptions]). */
+    hlgReady: Boolean = false,
+    hlgWhyNot: String? = null,
     onDismiss: () -> Unit, onExport: (ExportSettings, String) -> Unit,
 ) {
     var s by remember { mutableStateOf(initial) }
     var name by remember { mutableStateOf(defaultName) }
-    val plan = se.gendut.klipp.engine.ExportPlan.resolve(s, seqW, seqH, projectFps, hdrPossible, anyTenBit, hdrBlocked != null, caps)
+    val plan = se.gendut.klipp.engine.ExportPlan.resolve(s, seqW, seqH, projectFps, hdrPossible, anyTenBit, hdrBlocked != null, caps, hlgReady)
     val ow = plan.width
     val oh = plan.height
     // the estimate and the summary are for what is actually made (the codec may have been swapped)
@@ -237,11 +247,11 @@ fun ExportDialog(
                 // the same height on every tab, so the dialog stays where it is when the tab changes; the summary is always in view
                 Column(Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
                     TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
-                    ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps, seconds) { s = it }
+                    ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps, seconds, hlgReady, hlgWhyNot) { s = it }
                 }
                 Text(
                     "${ow}×$oh · ${stringResource(R.string.exportui_fps_value, fpsLabel(plan.fps))} · ${codecName(plan.effective.codec)}" +
-                        (if (plan.hdr) " HDR" else if (plan.tenBit) " 10-bit" else "") + " · " +
+                        (if (plan.hlg) " HLG" else if (plan.hdr) " HDR" else if (plan.tenBit) " 10-bit" else "") + " · " +
                         (if (s.bitrateMbps > 0f) mbpsLabel(s.bitrateMbps.toDouble()) else stringResource(R.string.exportui_auto_lower)) + " · ≈ ${sizeLabel(mb)}",
                     color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).testTag("exp:summary"),
@@ -282,6 +292,7 @@ fun exportIssueText(i: se.gendut.klipp.engine.ExportPlan.Issue, plan: se.gendut.
         se.gendut.klipp.engine.ExportPlan.Kind.TEN_BIT_NONE -> Str.t(R.string.exportplan_ten_none)
         se.gendut.klipp.engine.ExportPlan.Kind.HDR_TO_SDR -> Str.t(R.string.exportplan_hdr_sdr)
         se.gendut.klipp.engine.ExportPlan.Kind.HDR_GRADED -> Str.t(R.string.app_hdr_blocked)
+        se.gendut.klipp.engine.ExportPlan.Kind.HLG_NOT_READY -> Str.t(R.string.exportplan_hlg_not_ready)
     }
 }
 
