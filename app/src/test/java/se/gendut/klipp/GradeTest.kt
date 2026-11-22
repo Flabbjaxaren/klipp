@@ -149,4 +149,21 @@ class GradeTest {
         assertTrue("the film changes the picture ($moved)", moved > w * h / 4)
         assertTrue("mix 50 % lies halfway (worst $worst)", worst <= 2)
     }
+
+    /** A node's window holds its film too: the film changes the picture inside the window only. */
+    @Test fun nodeWindowHoldsTheFilm() {
+        val w = 48; val h = 27
+        val px = IntArray(w * h) { i -> val v = 30 + (i % w) * 190 / (w - 1); (0xFF shl 24) or ((v * 1.1).toInt().coerceAtMost(255) shl 16) or (v shl 8) or (v * 3 / 4) }
+        val src = Bitmap.createBitmap(px, w, h, Bitmap.Config.ARGB_8888)
+        se.gendut.klipp.engine.Spektra.open = { java.io.File("src/main/assets/spektrafilm/$it").inputStream() }
+        val film = se.gendut.klipp.engine.Film(grainAmount = 0f)
+        // a hard-edged rectangle over the left half
+        val win = se.gendut.klipp.engine.Window(shape = 2, cx = 0.25f, cy = 0.5f, rx = 0.25f, ry = 0.6f, soft = 0f)
+        val out = ClipGrade(listOf(GradeNode(1, film = film, win = win))).applyTo(src)
+        fun diff(x: Int, y: Int): Int { val a = src.getPixel(x, y); val b = out.getPixel(x, y); return (0..2).maxOf { c -> kotlin.math.abs(((a shr (8 * c)) and 255) - ((b shr (8 * c)) and 255)) } }
+        val inside = (2 until w / 2 - 2).count { x -> diff(x, h / 2) > 8 }
+        val outside = (w / 2 + 3 until w).maxOf { x -> diff(x, h / 2) }
+        assertTrue("the film inside the window ($inside of ${w / 2 - 4})", inside > (w / 2 - 4) / 2)
+        assertTrue("nothing outside the window (worst $outside)", outside <= 1)
+    }
 }

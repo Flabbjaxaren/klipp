@@ -836,6 +836,8 @@ data class ClipGrade(
                     p.blur > 0f || p.pixel > 0f -> Blur.apply(img, w, h, p.blur * w, p.pixel * w)
                     else -> Denoise.apply(img, w, h, p.denoise)
                 }
+                // a node with film: its key per pixel, so the film applies only inside the window/qualifier
+                val keys = if (p.film != null && j != keyIdx && (p.qual != null || p.win != null)) FloatArray(w * h) else null
                 for (i in 0 until w * h) {
                     rgb[0] = img[i * 3]; rgb[1] = img[i * 3 + 1]; rgb[2] = img[i * 3 + 2]
                     val x = ((i % w) + 0.5f) / w; val y = ((i / w) + 0.5f) / h
@@ -845,16 +847,18 @@ data class ClipGrade(
                         continue
                     }
                     if (blurred != null) { ci[0] = blurred[i * 3]; ci[1] = blurred[i * 3 + 1]; ci[2] = blurred[i * 3 + 2] }
-                    GradeNode.apply(p, rgb, x, y, aspect, if (blurred != null) ci else null)
+                    val k = GradeNode.apply(p, rgb, x, y, aspect, if (blurred != null) ci else null)
+                    if (keys != null) keys[i] = k
                     img[i * 3] = rgb[0]; img[i * 3 + 1] = rgb[1]; img[i * 3 + 2] = rgb[2]
                 }
                 if (j == keyIdx) break
                 // the film after the node, on the whole image (stills: the same grain every time)
-                // (blended with the node's output by the node's mix, as the GPU's last film pass does)
+                // (blended with the node's output by the node's mix × key, as the GPU's last film pass does)
                 p.film?.let { f ->
                     val before = img
                     val filmed = FilmFx.applyEncoded(FilmFx.setup(f), img, w, h, 0L)
-                    img = if (p.mix >= 0.9999f) filmed else FloatArray(filmed.size) { i -> before[i] + (filmed[i] - before[i]) * p.mix }
+                    img = if (p.mix >= 0.9999f && keys == null) filmed
+                        else FloatArray(filmed.size) { i -> before[i] + (filmed[i] - before[i]) * p.mix * (keys?.get(i / 3) ?: 1f) }
                 }
             }
             for (i in px.indices) {
@@ -881,7 +885,9 @@ data class ClipGrade(
         chain.filter { !it.isNeutral }.flatMapIndexed<GradeNode, androidx.media3.common.Effect> { i, n ->
             val p = n.params(hlg)
             val key = clip?.let { c -> c to n.id }
-            listOf(GradeNodeEffect(p, key, clock, main = main && i == 0)) + listOfNotNull(p.film?.let { FilmEffect(it, key, main, filmRef, p.mix) })
+            // a node with film: its key (window, qualifier) is handed to the film pass, which applies only there
+            val link = if (p.film != null) NodeKeyLink() else null
+            listOf(GradeNodeEffect(p, key, clock, main = main && i == 0, link)) + listOfNotNull(p.film?.let { FilmEffect(it, key, main, filmRef, p.mix, link) })
         } +
             // stabilization last (the windows are in the source image's coordinates)
             listOfNotNull(stab?.takeIf { clock != null }?.let { StabMatrix(it, clock!!) }) +
@@ -1292,6 +1298,8 @@ uniform float uSat;
 uniform float uDensity;
 uniform mat3 uHue;
 uniform float uMix;
+// 1: write the node's key (window × qualifier) instead of the color – handed to the node's film pass (NodeKeyLink)
+uniform float uKeyOut;
 uniform float uUseCurves;
 uniform float uUseLut;
 uniform float uLutSize;
@@ -1535,7 +1543,7 @@ void main() {
     c = mix(c, clamp(lut3(c), 0.0, 1.0), uLutMix);
   }
   float k = keyOf(src.rgb);
-  gl_FragColor = vec4(mix(src.rgb, c, uMix * k), src.a);
+  gl_FragColor = uKeyOut > 0.5 ? vec4(k, k, k, 1.0) : vec4(mix(src.rgb, c, uMix * k), src.a);
 }
 """
 }
@@ -1593,6 +1601,44 @@ object LiveGrades {
     private const val FILM_KEY = -3
 }
 
+/**
+ * A node's key (window × qualifier, 0..1) handed from its color pass ([GradeNodeEffect]) to its film pass ([FilmEffect]):
+ * the film is a separate effect after the node, and the qualifier needs the node's input, which the film pass doesn't
+ * have. The color pass draws the key into a texture here every frame; the film pass right after it (same chain, same
+ * GL thread) blends by mix × key. Per GL context – two players never share textures. No key this frame: null.
+ */
+class NodeKeyLink {
+    private class Target(val tex: Int, val fbo: Int, val w: Int, val h: Int) { var valid = false }
+    private val byContext = java.util.concurrent.ConcurrentHashMap<Long, Target>()
+    private fun ctx(): Long = android.opengl.EGL14.eglGetCurrentContext().nativeHandle
+
+    /** The framebuffer to draw this frame's key into ([w]×[h], made or remade as needed). */
+    fun target(w: Int, h: Int): Int {
+        val c = ctx()
+        var t = byContext[c]
+        if (t == null || t.w != w || t.h != h) {
+            t?.let { free(it) }
+            val tex = GlUtil.createTexture(w, h, false)
+            t = Target(tex, GlUtil.createFboForTexture(tex), w, h)
+            byContext[c] = t
+        }
+        t.valid = true
+        return t.fbo
+    }
+
+    /** No window or qualifier this frame: the film applies everywhere. */
+    fun clear() { byContext[ctx()]?.valid = false }
+
+    /** This frame's key texture on the current context, or null (no key: everywhere). */
+    fun key(): Int? = byContext[ctx()]?.takeIf { it.valid }?.tex
+
+    fun release() { byContext.remove(ctx())?.let { free(it) } }
+
+    private fun free(t: Target) {
+        runCatching { GLES20.glDeleteFramebuffers(1, intArrayOf(t.fbo), 0); GLES20.glDeleteTextures(1, intArrayOf(t.tex), 0) }
+    }
+}
+
 /** A node as a Media3 effect (one shader pass). [live] = (clip, node) whose values are read from [LiveGrades]. */
 @OptIn(UnstableApi::class)
 class GradeNodeEffect(
@@ -1602,10 +1648,13 @@ class GradeNodeEffect(
     val clock: ((Long) -> Double?)? = null,
     /** In the main player's chain (counts the clip's frames for [Occlusion]). */
     val main: Boolean = false,
+    /** The node has film: its key is drawn here for the film pass (see [NodeKeyLink]). */
+    val link: NodeKeyLink? = null,
 ) : GlEffect {
-    override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(p, live, clock, useHdr, main)
+    override fun toGlShaderProgram(context: Context, useHdr: Boolean): GlShaderProgram = Program(p, live, clock, useHdr, main, link)
 
-    private class Program(private val initial: GradeNode.Params, private val live: Pair<Long, Int>?, private val clock: ((Long) -> Double?)?, useHdr: Boolean, private val main: Boolean = false) : BaseGlShaderProgram(useHdr, 1) {
+    private class Program(private val initial: GradeNode.Params, private val live: Pair<Long, Int>?, private val clock: ((Long) -> Double?)?, useHdr: Boolean, private val main: Boolean = false,
+                          private val link: NodeKeyLink? = null) : BaseGlShaderProgram(useHdr, 1) {
         private val program: GlProgram
         private val curveTex: Int
         private val lutTex: Int
@@ -1724,9 +1773,26 @@ class GradeNodeEffect(
                 program.setFloatUniform("uDenoise", p.denoise)
                 program.setFloatsUniform("uTexel", floatArrayOf(1f / texW, 1f / texH))
                 program.setFloatUniform("uPixel", p.pixel)
+                program.setFloatUniform("uKeyOut", 0f)
                 program.bindAttributesAndUniforms()
                 GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
                 GlUtil.checkGlError()
+                // the node has film and a window or qualifier: the key once more, into the film pass's texture
+                if (link != null) {
+                    if (p.qual != null || w != null) {
+                        val prevFbo = IntArray(1); GLES20.glGetIntegerv(GLES20.GL_FRAMEBUFFER_BINDING, prevFbo, 0)
+                        val vp = IntArray(4); GLES20.glGetIntegerv(GLES20.GL_VIEWPORT, vp, 0)
+                        val fbo = link.target(texW, texH)
+                        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, fbo)
+                        GLES20.glViewport(0, 0, texW, texH)
+                        program.setFloatUniform("uKeyOut", 1f)
+                        program.bindAttributesAndUniforms()
+                        GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
+                        GLES20.glBindFramebuffer(GLES20.GL_FRAMEBUFFER, prevFbo[0])
+                        GLES20.glViewport(vp[0], vp[1], vp[2], vp[3])
+                        GlUtil.checkGlError()
+                    } else link.clear()
+                }
             } catch (e: Exception) {
                 throw VideoFrameProcessingException(e, presentationTimeUs)
             }
@@ -1760,6 +1826,7 @@ class GradeNodeEffect(
             try {
                 program.delete()
                 GLES20.glDeleteTextures(3, intArrayOf(curveTex, lutTex, hslTex), 0)
+                link?.release()
             } catch (e: Exception) {
                 throw VideoFrameProcessingException(e)
             }
