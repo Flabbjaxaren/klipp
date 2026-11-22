@@ -312,6 +312,7 @@
         <item quantity="one">%d fil saknas</item>
         <item quantity="other">%d filer saknas</item>
     </plurals>
+    <string name="medialibrary_allow_videos">Ge åtkomst till videor</string>
     <string name="medialibrary_find_in_folder">Hitta i mapp</string>
     <string name="medialibrary_missing_badge">Saknas</string>
     <string name="settings_render_auto">Rendera automatiskt (alla projekt)</string>

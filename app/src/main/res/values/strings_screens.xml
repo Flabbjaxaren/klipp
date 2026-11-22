@@ -312,6 +312,7 @@
         <item quantity="one">%d file is missing</item>
         <item quantity="other">%d files are missing</item>
     </plurals>
+    <string name="medialibrary_allow_videos">Allow videos</string>
     <string name="medialibrary_find_in_folder">Find in folder</string>
     <string name="medialibrary_missing_badge">Missing</string>
     <string name="settings_render_auto">Render automatically (all projects)</string>

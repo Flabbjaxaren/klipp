@@ -76,6 +76,10 @@ interface MediaLibrary {
     fun relinkFromFolder(tree: Uri) {}
     /** The clips at the end of the timeline, in this order. */
     fun appendToTimeline(items: List<Long>) {}
+    /** Some missing files came from Klipp's video picker: they need the videos read permission back, not a folder. */
+    val missingFromLibrary: Boolean get() = false
+    /** Opens those files again (after the permission was given). */
+    fun reopenFromLibrary() {}
 
     /** All media in a folder and its subfolders. */
     fun mediaInBin(bin: Long): List<Long> {
@@ -142,10 +146,21 @@ fun MediaSheet(
                 val pickFolder = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { tree ->
                     if (tree != null) lib.relinkFromFolder(tree)
                 }
+                // files from Klipp's video picker went missing because the videos permission is gone (denied, withdrawn
+                // in the phone's settings): they come back by themselves once it is there – asked for here
+                val ctx = androidx.compose.ui.platform.LocalContext.current
+                val fromLibrary = missing > 0 && lib.missingFromLibrary
+                val askVideos = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()) {
+                    if (VideoLibrary.hasAccess(ctx)) lib.reopenFromLibrary()
+                }
+                // (given in the phone's settings meanwhile: picked up when the panel opens)
+                LaunchedEffect(visible, fromLibrary) { if (visible && fromLibrary && VideoLibrary.hasAccess(ctx)) lib.reopenFromLibrary() }
                 if (missing > 0 && !selecting) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("media:missing"), verticalAlignment = Alignment.CenterVertically) {
                         Text(pluralStringResource(R.plurals.medialibrary_missing, missing, missing), color = K.Error, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        PillButton(stringResource(R.string.medialibrary_find_in_folder), { haptics.confirm(); pickFolder.launch(null) }, Modifier.testTag("media:relink"), icon = Ic.Folder, filled = false)
+                        if (fromLibrary && !VideoLibrary.hasAccess(ctx))
+                            PillButton(stringResource(R.string.medialibrary_allow_videos), { haptics.confirm(); askVideos.launch(VideoLibrary.permissions()) }, Modifier.testTag("media:allowVideos"), filled = true)
+                        else PillButton(stringResource(R.string.medialibrary_find_in_folder), { haptics.confirm(); pickFolder.launch(null) }, Modifier.testTag("media:relink"), icon = Ic.Folder, filled = false)
                     }
                 }
                 if (selecting) {
@@ -432,6 +447,8 @@ fun controllerLibrary(c: se.gendut.klipp.engine.ProjectController) = object : Me
     override fun renameBin(bin: Long, name: String) { c.renameBin(bin, name) }
     override fun delete(items: List<Long>, bins: List<Long>) { c.deleteMedia(items, bins) }
     override fun relinkFromFolder(tree: Uri) { c.relinkFromFolder(tree) }
+    override val missingFromLibrary get() = c.missingFromLibrary
+    override fun reopenFromLibrary() { c.reopenFromLibrary() }
 }
 
 /**

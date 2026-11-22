@@ -144,6 +144,36 @@ class ProjectController(
         }
     }
 
+    /**
+     * Missing files that came from Klipp's own video picker (MediaStore addresses): they are readable only with the
+     * videos read permission, not a permission of their own – denied or withdrawn, they go offline. They come back as
+     * they were once the permission is there again ([reopenFromLibrary]).
+     */
+    val missingFromLibrary: Boolean get() = offline.values.any { it.authority == android.provider.MediaStore.AUTHORITY }
+
+    /** Opens the missing MediaStore files again at their own addresses (after the videos permission was given). */
+    fun reopenFromLibrary() = scope.launch {
+        val todo = offline.filterValues { it.authority == android.provider.MediaStore.AUTHORITY }
+        if (todo.isEmpty()) return@launch
+        busy = true
+        try {
+            var found = 0
+            editLock.withLock {
+                for ((id, u) in todo) {
+                    val pfd = withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { context.contentResolver.openFileDescriptor(u, "r") }.getOrNull() } ?: continue
+                    val ok = engine.tryExec("media.relink", JSONObject().put("item", id)
+                        .put("path", FdPath.of(pfd.fd, displayName(u), context.contentResolver.getType(u))).put("force", true)).isSuccess
+                    if (ok) { fds += pfd; uris[id] = u; offline.remove(id); found++ } else runCatching { pfd.close() }
+                }
+                refresh()
+                saveLocked()
+            }
+            if (found > 0) onMessage(Str.t(R.string.projectcontroller_relinked, found, todo.size))
+        } finally {
+            busy = false
+        }
+    }
+
     private fun folderFiles(tree: Uri): Map<String, Uri> {
         val out = HashMap<String, Uri>()
         val cr = context.contentResolver
