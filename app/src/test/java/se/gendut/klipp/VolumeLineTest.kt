@@ -151,7 +151,7 @@ class VolumeLineTest {
             down(pt(4f, closedY)); up()
         }
         rule.waitForIdle()
-        assertEquals(setOf(3), st.volTracks)
+        assertEquals(setOf(st.tracks[3].id), st.openTracks)
         assertTrue(st.volOn(3) && !st.volOn(4))
         assertTrue(props.log.toString(), props.log.isEmpty())
         // open: the line takes a tap (a keyframe)
@@ -163,6 +163,6 @@ class VolumeLineTest {
         rule.onNodeWithTag("trackHeader:A1").performTouchInput { down(center); up(); advanceEventTime(100); down(center); up() }
         rule.waitForIdle()
         rule.mainClock.advanceTimeBy(1000)
-        assertTrue(st.volTracks.isEmpty())
+        assertTrue(st.openTracks.isEmpty())
     }
 }

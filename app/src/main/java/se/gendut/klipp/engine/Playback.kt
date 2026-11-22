@@ -605,7 +605,7 @@ object CompositionBuilder {
         plan?.layers?.forEach { l -> layerSequence(l, plan, videoUriOf, mdVideo, multi, clipTime, grades, liveGrades, nodeCache, uriOf, md, pw, ph, workW = ew, workH = eh, fps =  output?.outputFps(s.fps)?.takeIf { it > 0.0 } ?: s.fps, fillSlots = output != null, realStarts = realStarts, oneRenderer = output == null && LiveCuts.oneRenderer, hlg = output?.hlg == true)?.let { seqs += it } }
         val hasVideo = seqs.isNotEmpty()
         // export without audio (and pre-render): no audio sequences
-        val audio = if (output?.audio == false || range != null) emptyList() else q.audio.take(3)
+        val audio = if (output?.audio == false || range != null) emptyList() else q.audio
         val anySolo = audio.any { it.solo }
         for ((ti, t) in audio.withIndex()) {
             if (t.muted || (anySolo && !t.solo)) continue
@@ -1034,7 +1034,7 @@ class ProgramPlayback(private val context: Context) {
         val q = s.sequence ?: return ""
         val sb = StringBuilder()
         sb.append(playerLook).append(master).append(hdrCodecFailed).append(LiveGrades.structureKey(grades)).append('#').append(q.width).append('x').append(q.height).append(q.captions).append('#')
-        for (t in q.video.take(3) + q.audio.take(3)) {
+        for (t in q.video + q.audio) {
             sb.append(t.id).append(t.enabled).append(t.muted).append(t.solo).append(t.volumeDb).append(t.transitions).append(t.volKf).append(t.autoMode)
                 .append(t.afx.map { it.copy(params = emptyMap()) }).append('|')
             // the audio effects' values change live in the chains (no rebuild) – only which effects exist counts

@@ -26,19 +26,6 @@ fun snapFrame(t: Float): Float = (Math.round(t * projectFps) / projectFps).toFlo
  */
 fun playheadSec(t: Float, fps: Double = projectFps): Double = Math.round(t * fps) / fps
 
-enum class TrackKind { VIDEO, AUDIO }
-
-data class TrackDef(val name: String, val kind: TrackKind, val heightDp: Int)
-
-val TRACKS = listOf(
-    TrackDef("V3", TrackKind.VIDEO, 40),
-    TrackDef("V2", TrackKind.VIDEO, 40),
-    TrackDef("V1", TrackKind.VIDEO, 52),
-    TrackDef("A1", TrackKind.AUDIO, 44),
-    TrackDef("A2", TrackKind.AUDIO, 44),
-    TrackDef("A3", TrackKind.AUDIO, 44),
-)
-
 enum class ClipKind(val bg: Color, val fg: Color, val track: TrackKind) {
     VIDEO(Color(0xFF4F6B82), Color(0xFFFFFFFF), TrackKind.VIDEO),
     TITLE(Color(0xFF2F2850), Color(0xFFD2C6FF), TrackKind.VIDEO),
@@ -170,6 +157,10 @@ interface EditBackend {
     fun roll(left: Clip, right: Clip, dt: Float) {}
     /** Track setting: "locked", "enabled", "muted", "solo" or "syncLock". */
     fun setTrackFlag(track: Int, flag: String, on: Boolean) {}
+    /** A new track of [kind]: video above the others, audio below them. One undo step. */
+    fun addTrack(kind: TrackKind) {}
+    /** Delete the (empty) track at row [row]. One undo step. */
+    fun deleteTrack(row: Int) {}
     /** Disable/enable the clips (each one toggled separately, linked audio follows), one undo. */
     fun toggleEnabled(ids: List<Long>) {}
     /** Color label on the clips (null = none), one undo. */
@@ -429,7 +420,7 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var openTab by mutableStateOf<String?>(null)
     /** The audio and text pages' current tab (the dock at the bottom shows and changes it). */
     var audioTab by mutableStateOf(0)
-    /** The track whose effects the sound page's Effects tab shows (0–2 = A1–A3). */
+    /** The track whose effects the sound page's Effects tab shows (0 = A1, 1 = A2 …). */
     var audioFxTrack by mutableStateOf(0)
     /**
      * Draw a box on the picture (what a title should follow): the box as center and half sides (fractions of the
@@ -453,15 +444,25 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var clipLevels by mutableStateOf<Map<Long, ClipLevel>>(emptyMap())
     /** The volume lines on the audio clips can be edited (taller audio tracks, the line takes touches). */
     var volLines by mutableStateOf(false)
-    /** Audio tracks opened for their volume lines one by one (a double tap on the track): taller, the line takes touches. */
-    var volTracks by mutableStateOf<Set<Int>>(emptySet())
-    /** Track [track]'s volume lines can be edited (all of them, or that track opened). */
-    fun volOn(track: Int) = volLines || track in volTracks
-    /** Open or close audio track [track] for its volume lines. */
-    fun toggleVolTrack(track: Int) { volTracks = if (track in volTracks) volTracks - track else volTracks + track }
+    /**
+     * Tracks opened one by one with a double tap (their track ids, so they stay open when rows shift): taller – an audio
+     * track as much as for its volume lines (the line then takes touches), a video track to the same height.
+     */
+    var openTracks by mutableStateOf<Set<Long>>(emptySet())
+    /** Row [track] is opened by a double tap. */
+    fun isOpen(track: Int) = tracks.getOrNull(track)?.id?.let { it in openTracks } == true
+    /** Audio track [track]'s volume lines can be edited (all of them, or that track opened). */
+    fun volOn(track: Int) = tracks.getOrNull(track)?.kind == TrackKind.AUDIO && (volLines || isOpen(track))
+    /** Some audio track's volume lines can be edited. */
+    val anyVolOn: Boolean get() = volLines || tracks.audioRows.any { isOpen(it) }
+    /** Open or close track [track] (a double tap): audio for its volume lines, video taller. */
+    fun toggleOpen(track: Int) {
+        val id = tracks.getOrNull(track)?.id ?: return
+        openTracks = if (id in openTracks) openTracks - id else openTracks + id
+    }
     /** While a volume line is dragged: how much (dB) the level at the playhead changes – heard right away. */
     var liveLevelDelta by mutableStateOf<Float?>(null)
-    /** Track volume automation per audio track (A1–A3): (time, dB). Drawn as a line in the timeline. */
+    /** Track volume automation per audio track (A1, A2 …): (time, dB). Drawn as a line in the timeline. */
     var trackVolKf by mutableStateOf<List<List<Pair<Float, Float>>>>(emptyList())
     /** An audio effect slider is being dragged: (clip, effect index, parameter, value) to the playback chains. */
     var onFxLive: ((Long, Int, String, Double) -> Unit)? = null
@@ -490,6 +491,11 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var safeZoneAlpha by mutableFloatStateOf(0.45f)
     /** A caption track exists (even hidden) – the timeline then shows its caption lane. */
     var hasCaptionLane by mutableStateOf(false)
+    /**
+     * The timeline shows the TXT lane (pinned under the ruler, above the video tracks): there are captions (on a shown or
+     * hidden caption track). Without any captions it disappears entirely; captions are added from Add › Captions.
+     */
+    val showCaptionLane: Boolean get() = hasCaptionLane && captions.isNotEmpty()
     /** Captions are visible (some caption track is on). */
     var captionsOn by mutableStateOf(true)
     /** Show/hide the captions (the eye on the TXT lane). */
@@ -510,8 +516,53 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var playhead by mutableFloatStateOf(14f)
     var playing by mutableStateOf(false)
     var selected by mutableStateOf<Long?>(null)
-    /** Track states, V3 V2 V1 A1 A2 A3 (indexed like TRACKS). */
-    var trackStates by mutableStateOf(List(TRACKS.size) { TrackState() })
+    /** The sequence's tracks as the timeline's rows (see Tracks.kt): V_n … V1, A1 … A_m. Set with [setTrackRows]. */
+    var tracks by mutableStateOf(DEFAULT_TRACKS)
+        private set
+    /** Track states per row of [tracks]. */
+    var trackStates by mutableStateOf(List(DEFAULT_TRACKS.size) { TrackState() })
+
+    /**
+     * New rows (the engine's tracks changed: one added or deleted): what is kept per row follows its track – the target
+     * tracks and the track states (the engine's snapshot sets these again right after). Call before clips with the new
+     * rows arrive.
+     */
+    fun setTrackRows(next: List<TrackDef>) {
+        if (next == tracks) return
+        val old = tracks
+        targetVideo = remapRow(targetVideo, old, next)?.takeIf { next[it].kind == TrackKind.VIDEO } ?: next.v1Row
+        targetAudio = remapRow(targetAudio, old, next)?.takeIf { next[it].kind == TrackKind.AUDIO } ?: next.a1Row
+        val states = trackStates
+        trackStates = List(next.size) { r -> old.indexOfFirst { it.id == next[r].id }.let { states.getOrNull(it) } ?: TrackState() }
+        openTracks = openTracks.filter { id -> next.any { it.id == id } }.toSet()
+        tracks = next
+    }
+
+    /** Add a track of [kind] (video on top, audio at the bottom) – up to MAX_VIDEO_TRACKS / MAX_AUDIO_TRACKS. One undo step. */
+    fun addTrack(kind: TrackKind) {
+        if (if (kind == TrackKind.VIDEO) !tracks.canAddVideo else !tracks.canAddAudio) return
+        backend?.let { it.addTrack(kind); return }
+        // without the engine (prototype): a new top video track pushes every row down one
+        val v = tracks.videoCount + if (kind == TrackKind.VIDEO) 1 else 0
+        val a = tracks.audioCount + if (kind == TrackKind.AUDIO) 1 else 0
+        val next = trackRows(v, a)
+        val shift = if (kind == TrackKind.VIDEO) 1 else 0
+        setTrackRows(next)
+        if (shift != 0) commit(clips.map { it.copy(track = it.track + shift) })
+    }
+
+    /** Delete the empty track at row [row] (see canDelete). One undo step. */
+    fun deleteTrack(row: Int) {
+        if (!tracks.canDelete(row, clips.filter { it.id !in removing }, transitions)) return
+        backend?.let { it.deleteTrack(row); return }
+        val t = tracks[row]
+        val next = trackRows(tracks.videoCount - if (t.kind == TrackKind.VIDEO) 1 else 0, tracks.audioCount - if (t.kind == TrackKind.AUDIO) 1 else 0)
+        // (stand-in ids follow the place: the rows below keep their states by place)
+        val states = trackStates.filterIndexed { i, _ -> i != row }
+        setTrackRows(next)
+        trackStates = states
+        commit(clips.map { if (it.track > row) it.copy(track = it.track - 1) else it })
+    }
     /** Short message to the user (set by the app to a toast). */
     var onNotice: ((String) -> Unit)? = null
     fun locked(track: Int) = trackStates.getOrNull(track)?.locked == true
@@ -959,10 +1010,12 @@ class EditorState(initial: List<Clip> = initialClips()) {
         commit(placeWithRipple(clips.filter { it.id != orig.id }, orig.copy(start = start, track = track)))
     }
 
-    /** How far out from the middle a track is: V1/A1 = 0, V2/A2 = 1, V3/A3 = 2. */
-    private fun levelOf(track: Int): Int = if (TRACKS[track].kind == TrackKind.VIDEO) 2 - track else track - 3
+    /** How far out from the middle a track is: V1/A1 = 0, V2/A2 = 1, V3/A3 = 2 … */
+    private fun levelOf(track: Int): Int = tracks.engineIndex(track)
     /** The track of the same kind as [like] at [level] (clamped to the tracks there are). */
-    private fun trackAtLevel(like: Int, level: Int): Int = level.coerceIn(0, 2).let { if (TRACKS[like].kind == TrackKind.VIDEO) 2 - it else 3 + it }
+    private fun trackAtLevel(like: Int, level: Int): Int =
+        if (tracks.getOrNull(like)?.kind == TrackKind.AUDIO) tracks.audioRow(level.coerceIn(0, tracks.audioCount - 1))
+        else tracks.videoRow(level.coerceIn(0, tracks.videoCount - 1))
     /** Where linked [partner] goes when [orig] moves to [track]: as many tracks out from the middle. */
     fun partnerTrack(orig: Clip, track: Int, partner: Clip): Int = trackAtLevel(partner.track, levelOf(partner.track) + levelOf(track) - levelOf(orig.track))
 
@@ -980,7 +1033,7 @@ class EditorState(initial: List<Clip> = initialClips()) {
         // new clips: a split pops in sideways, everything else drops in from above
         for (c in next) if (c.id !in old) {
             val wasSplit = clips.any { it.track == c.track && it.start < c.start && it.end >= c.start - 0.001f && it.kind == c.kind && it.name == c.name }
-            popFrom[c.id] = if (wasSplit) Pair(c.start + 0.6f, c.track.toFloat()) else Pair(c.start, if (c.track <= 2) -3f else 8f)
+            popFrom[c.id] = if (wasSplit) Pair(c.start + 0.6f, c.track.toFloat()) else Pair(c.start, if (tracks.getOrNull(c.track)?.kind != TrackKind.AUDIO) -3f else tracks.size + 2f)
         }
         clips = next
         engineDriven = true

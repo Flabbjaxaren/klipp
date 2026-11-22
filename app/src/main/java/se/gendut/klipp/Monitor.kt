@@ -62,9 +62,9 @@ private fun gradeMatrix(g: ColorGrade): ColorMatrix {
 @Composable
 fun Monitor(state: EditorState, grade: ColorGrade, title: TitleState, modifier: Modifier = Modifier) {
     val t = state.playhead
-    val base = state.clips.firstOrNull { it.track == 2 && it.start <= t && it.end > t && it.id !in state.removing }
-    val titleClip = state.clips.firstOrNull { it.track == 0 && it.kind == ClipKind.TITLE && it.start <= t && it.end > t }
-    val adjust = state.clips.any { it.track == 1 && it.kind == ClipKind.ADJUST && it.start <= t && it.end > t }
+    val base = state.clips.firstOrNull { it.track == state.tracks.v1Row && it.start <= t && it.end > t && it.id !in state.removing }
+    val titleClip = state.clips.firstOrNull { it.track in state.tracks.videoRows && it.kind == ClipKind.TITLE && it.start <= t && it.end > t }
+    val adjust = state.clips.any { it.track in state.tracks.videoRows && it.kind == ClipKind.ADJUST && it.start <= t && it.end > t }
     val scene = base?.let { SCENES[it.scene % SCENES.size] }
     val sky by animateColorAsState(scene?.first ?: Color.Black, tween(260), label = "sky")
     val ground by animateColorAsState(scene?.second ?: Color.Black, tween(260), label = "ground")

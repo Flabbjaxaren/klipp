@@ -9,65 +9,61 @@ import se.gendut.klipp.engine.TitlePlace
 import se.gendut.klipp.engine.TitlePlaceProblem
 import se.gendut.klipp.engine.titlePlace
 
-/** A new title goes where the timeline shows it (V1–V3), above the picture, never over a clip – or not at all, and why. */
+/**
+ * A new title always goes on the topmost video track (nothing covers it): there when it is free for the whole title, else on
+ * a new track added on top – up to MAX_VIDEO_TRACKS; at the limit, nothing is made, and why.
+ */
 class TitlePlaceTest {
     private fun s(a: Long, b: Long) = FrameSpan(a, b)
     private val none = emptyList<Boolean>()
+    private val max = MAX_VIDEO_TRACKS
 
-    @Test fun aboveThePictureOnTheFirstFreeTrack() {
-        // only V1, a clip under the playhead: the engine makes V2
-        assertEquals(TitlePlace(1, true, null), titlePlace(listOf(listOf(s(0, 250))), none, 50, 125))
-        // V1 and V2 busy at the playhead, V3 free: V3
-        assertEquals(TitlePlace(2, false, null), titlePlace(listOf(listOf(s(0, 250)), listOf(s(25, 100)), emptyList()), none, 50, 125))
-        // nothing under the playhead: V1 (as the engine does), right after the clip that ends there
-        assertEquals(TitlePlace(0, false, null), titlePlace(listOf(listOf(s(0, 50)), emptyList(), emptyList()), none, 50, 125))
+    @Test fun onTheTopTrackWhenItIsFree() {
+        // a new project's three tracks, a clip on V1 only: V3 (index 2), even though V2 is free
+        assertEquals(TitlePlace(2, false, null), titlePlace(listOf(listOf(s(0, 250)), emptyList(), emptyList()), none, 50, 125, max))
+        // only V1, busy: a new V2 on top
+        assertEquals(TitlePlace(1, true, null), titlePlace(listOf(listOf(s(0, 250))), none, 50, 125, max))
+        // only V1, free for the title: V1 is the top track
+        assertEquals(TitlePlace(0, false, null), titlePlace(listOf(listOf(s(0, 50))), none, 50, 125, max))
     }
 
-    @Test fun freeForTheWholeTitleNotJustAtThePlayhead() {
-        // V2 free at the playhead but a clip starts there 2 s later: V3
-        val t = listOf(listOf(s(0, 500)), listOf(s(100, 200)), emptyList())
-        assertEquals(TitlePlace(2, false, null), titlePlace(t, none, 50, 125))
-        // V3 busy later too: no room – and nothing is made
-        val full = listOf(listOf(s(0, 500)), listOf(s(100, 200)), listOf(s(150, 160)))
-        assertEquals(TitlePlace(null, false, TitlePlaceProblem.NO_ROOM), titlePlace(full, none, 50, 125))
-        // a title short enough fits before the clip on V2
-        assertEquals(TitlePlace(1, false, null), titlePlace(t, none, 50, 50))
+    @Test fun aBusyTopTrackGetsANewTrackAboveIt() {
+        // V3 free at the playhead but a clip starts there 2 s later: a new V4
+        val t = listOf(listOf(s(0, 500)), emptyList(), listOf(s(100, 200)))
+        assertEquals(TitlePlace(3, true, null), titlePlace(t, none, 50, 125, max))
+        // a title short enough fits before the clip on V3
+        assertEquals(TitlePlace(2, false, null), titlePlace(t, none, 50, 50, max))
+        // an existing title on the top track at the playhead: the new one goes above it
+        assertEquals(TitlePlace(4, true, null), titlePlace(List(3) { emptyList<FrameSpan>() } + listOf(listOf(s(0, 100))), none, 50, 125, max))
     }
 
-    @Test fun v3InUseOrAHiddenTrackAbove() {
-        // a clip on V3 at the playhead: a title over it would need V4, which the timeline doesn't show
-        assertEquals(TitlePlaceProblem.COVERED, titlePlace(listOf(listOf(s(0, 250)), emptyList(), listOf(s(0, 100))), none, 50, 125).problem)
-        // a V4 left over from before (made by the engine) with a clip at the playhead
-        assertEquals(TitlePlaceProblem.COVERED, titlePlace(listOf(emptyList(), emptyList(), emptyList(), listOf(s(40, 60))), none, 50, 125).problem)
-        // … but elsewhere V4's clip doesn't matter
-        assertEquals(TitlePlace(0, false, null), titlePlace(listOf(emptyList(), emptyList(), emptyList(), listOf(s(400, 600))), none, 50, 125))
+    @Test fun atTheLimitItSaysWhy() {
+        val six = List(5) { emptyList<FrameSpan>() } + listOf(listOf(s(0, 100)))
+        assertEquals(TitlePlace(null, false, TitlePlaceProblem.NO_ROOM), titlePlace(six, none, 50, 125, max))
+        // free but locked at the limit
+        val free = List(6) { emptyList<FrameSpan>() }
+        assertEquals(TitlePlace(null, false, TitlePlaceProblem.LOCKED), titlePlace(free, List(6) { it == 5 }, 50, 125, max))
+        // locked below the limit: a new track above it
+        assertEquals(TitlePlace(3, true, null), titlePlace(List(3) { emptyList<FrameSpan>() }, listOf(false, false, true), 50, 125, max))
     }
 
-    @Test fun aLockedTrackIsNotUsed() {
-        val t = listOf(listOf(s(0, 250)), listOf(s(0, 250)), emptyList())
-        assertEquals(TitlePlace(null, false, TitlePlaceProblem.LOCKED), titlePlace(t, listOf(false, false, true), 50, 125))
-        // V2 free but locked, V3 free: V3
-        assertEquals(TitlePlace(2, false, null), titlePlace(listOf(listOf(s(0, 250)), emptyList(), emptyList()), listOf(false, true, false), 50, 125))
-    }
-
-    @Test fun neverOverAClipAndAlwaysShown() {
+    @Test fun alwaysOnTopAndNeverOverAClip() {
         val r = java.util.Random(7)
         repeat(4000) {
-            val n = 1 + r.nextInt(4)
+            val n = 1 + r.nextInt(6)
             val tracks = List(n) { List(r.nextInt(3)) { val a = r.nextInt(300).toLong(); s(a, a + 1 + r.nextInt(120)) }.sortedBy { it.start } }
             val locked = List(n) { r.nextInt(5) == 0 }
             val at = r.nextInt(300).toLong(); val len = 1L + r.nextInt(150)
-            val p = titlePlace(tracks, locked, at, len)
+            val p = titlePlace(tracks, locked, at, len, max)
             if (p.ok) {
                 val i = p.track!!
-                assertTrue("shown: $p", i in 0..2)
-                if (p.create) assertEquals(tracks.size, i)
+                if (p.create) { assertEquals(tracks.size, i); assertTrue(i < max) }
                 else {
+                    assertEquals("the top track: $p", tracks.lastIndex, i)
                     assertFalse("over a clip: $tracks $at $len $p", tracks[i].any { it.start < at + len && at < it.end })
                     assertFalse("locked: $p", locked[i])
                 }
-                assertFalse("under the picture at the playhead: $p", tracks.drop(i).any { t -> t.any { at >= it.start && at < it.end } })
-            }
+            } else assertEquals(max, tracks.size)
         }
     }
 }

@@ -136,7 +136,7 @@ class TogglesAndSettingsTest {
     // ------------------------------------------------------------------ track buttons
 
     @Test fun headerButtonsHideVideoMuteAudioAndHideCaptions() {
-        val st = EditorState().apply { playhead = 30f; hasCaptionLane = true }
+        val st = EditorState().apply { playhead = 30f; hasCaptionLane = true; captions = listOf(UiCaption(101, 2f, 4f, "ett", 1)) }
         st.onCaptionsVisible = { st.captionsOn = it }
         rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { Timeline(st, Tool.SELECT, Modifier.fillMaxSize()) } } }
         rule.waitForIdle()

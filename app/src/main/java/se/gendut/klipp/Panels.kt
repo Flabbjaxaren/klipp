@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -85,26 +86,35 @@ class ColorGrade {
     var tetra by mutableStateOf(true)
 }
 
+/**
+ * The mixer: a strip per audio track (index 0 = A1 … up to MAX_AUDIO_TRACKS; the sequence's tracks are shown) and the
+ * master ([MASTER], after them).
+ */
 class AudioMix {
-    val gains = List(4) { Animatable(0.75f) } // 0.75 = 0 dB
-    val levels = List(4) { Animatable(0f) }
+    companion object {
+        /** The master strip's index (after every possible audio track). */
+        const val MASTER = MAX_AUDIO_TRACKS
+        private const val STRIPS = MASTER + 1
+    }
+    val gains = List(STRIPS) { Animatable(0.75f) } // 0.75 = 0 dB
+    val levels = List(STRIPS) { Animatable(0f) }
     /** The fader is held by a finger right now – automation must not yank it then. */
-    val dragging = BooleanArray(4)
-    val mute = mutableStateListOf(false, false, false, false)
-    val solo = mutableStateListOf(false, false, false, false)
+    val dragging = BooleanArray(STRIPS)
+    val mute = mutableStateListOf(*Array(STRIPS) { false })
+    val solo = mutableStateListOf(*Array(STRIPS) { false })
     var role by mutableIntStateOf(0)
-    /** Called when a track has finished changing (fader released, mute/solo) – index 0..2 = A1..A3, 3 = mix. */
+    /** Called when a strip has finished changing (fader released, mute/solo) – index 0 = A1, 1 = A2 …, [MASTER] = mix. */
     var onCommit: (Int) -> Unit = {}
     /** Mix normalization (dB), set by the loudness measurement; applied on top of the master fader. */
     var normDb by mutableFloatStateOf(0f)
     /**
-     * Fader 0..1 where 0.75 = 0 dB. The master fader (3) has a square law (reaches +5 dB). (Where the fader is going:
+     * Fader 0..1 where 0.75 = 0 dB. The master fader ([MASTER]) has a square law (reaches +5 dB). (Where the fader is going:
      * it springs after the finger, and a release must save where it was let go, not where the spring had got to.)
      */
     fun db(i: Int): Double {
         val g = gains[i].targetValue
         if (g < 0.001f) return -60.0
-        return (if (i == 3) 40.0 else 20.0) * log10((g / 0.75f).toDouble())
+        return (if (i == MASTER) 40.0 else 20.0) * log10((g / 0.75f).toDouble())
     }
 }
 
@@ -269,7 +279,7 @@ fun SectionLabel(text: String) {
 
 /** The mixer's hooks into the project (null in prototype mode). */
 class AudioTools(
-    /** Tracks A1–A3 (for automation). */
+    /** The audio tracks A1, A2 … (strips, automation, effects). */
     val tracks: () -> List<se.gendut.klipp.engine.TrackSnap>,
     /** Keyframe on/off at the playhead for track i (value = the fader's). */
     val toggleKf: (Int, Double, Double) -> Unit,
@@ -283,9 +293,23 @@ class AudioTools(
     val unduck: suspend (Int) -> Result<Int> = { Result.success(0) },
     /** Place a sound effect (file, name, seconds) at the playhead (SoundFxSheet). */
     val addSound: ((java.io.File, String, Double) -> Unit)? = null,
-    /** The effects on track i (A1–A3): the same rack as a clip's. */
+    /** The effects on track i (0 = A1): the same rack as a clip's. */
     val trackFx: ((Int) -> AfxRackOps)? = null,
 )
+
+/**
+ * A choice of audio track (A1 …) among [count] (none known: the three a new project has): up to three share the row,
+ * more wrap. [tag] = each chip's test tag.
+ */
+@Composable
+internal fun AudioTrackChips(count: Int, selected: Int, onSelect: (Int) -> Unit, label: (Int) -> String = { "A${it + 1}" }, tag: (Int) -> String) {
+    val n = if (count <= 0) DEFAULT_AUDIO_TRACKS else count
+    if (n <= DEFAULT_AUDIO_TRACKS) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (i in 0 until n) SpringChip(label(i), selected == i, { onSelect(i) }, Modifier.weight(1f).testTag(tag(i)))
+    } else androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (i in 0 until n) SpringChip(label(i), selected == i, { onSelect(i) }, Modifier.testTag(tag(i)))
+    }
+}
 
 /**
  * Automatic ducking: pick the music track and how much it is lowered; it is lowered wherever something is heard on the
@@ -303,9 +327,7 @@ private fun DuckingCard(tools: AudioTools, /** The result has been written last 
         Text(stringResource(R.string.panels_duck_desc), color = K.OnSurfaceVar, fontSize = 12.sp)
         // the choices share the row (a row that scrolled sideways hid its last choice on a narrow phone)
         Text(stringResource(R.string.panels_duck_music_on), color = K.OnSurfaceVar, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (i in 0..2) SpringChip("A${i + 1}", track == i, { track = i }, Modifier.weight(1f).testTag("duck:track:$i"))
-        }
+        AudioTrackChips(tools.tracks().size, track, { track = it }) { "duck:track:$it" }
         Text(stringResource(R.string.panels_duck_lower), color = K.OnSurfaceVar, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             for (db in listOf(-6.0, -12.0, -18.0)) SpringChip("%.0f dB".format(db).replace('-', '−'), reduce == db, { reduce = db }, Modifier.weight(1f).testTag("duck:db:${db.toInt()}"))
@@ -343,6 +365,8 @@ class VoiceOverUi {
     /** 0 = off, 3..1 = countdown, -1 = recording */
     var phase by mutableIntStateOf(0)
     var track by mutableIntStateOf(1)
+    /** How many audio tracks the sequence has (the tracks to record on). */
+    var tracks by mutableIntStateOf(DEFAULT_AUDIO_TRACKS)
     var startedAt by mutableStateOf(0L)
     var onStart: () -> Unit = {}
     var onStop: () -> Unit = {}
@@ -387,8 +411,8 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
             return@LaunchedEffect
         }
         while (isActive && state.playing) {
-            for (i in 0..3) {
-                val pk = if (i == 3) se.gendut.klipp.engine.Meters.master().let { maxOf(it.first, it.second) } else se.gendut.klipp.engine.Meters.read(i)
+            for (i in (0 until AudioMix.MASTER) + AudioMix.MASTER) {
+                val pk = if (i == AudioMix.MASTER) se.gendut.klipp.engine.Meters.master().let { maxOf(it.first, it.second) } else se.gendut.klipp.engine.Meters.read(i)
                 val db = if (pk <= 1e-6f) -60f else (20f * log10(pk)).coerceIn(-60f, 6f)
                 val target = ((db + 60f) / 60f).coerceIn(0f, 1.1f)
                 val a = mix.levels[i]
@@ -402,7 +426,7 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
     // automation: the fader shows the track's value at the playhead (read in snapshotFlow, not in composition)
     LaunchedEffect(tracks) {
         snapshotFlow { state.playhead }.collect { ph ->
-            tracks.take(3).forEachIndexed { i, t ->
+            tracks.take(AudioMix.MASTER).forEachIndexed { i, t ->
                 if (t.hasAutomation && !mix.dragging[i]) mix.gains[i].snapTo(dbToFader(t.volumeAt(ph.toDouble())))
             }
         }
@@ -420,7 +444,7 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
         // the tab lives in the editor state: in the app the dock at the bottom shows the tabs (dockTabs) and the top
         // bar names the page; on its own the page does both itself
         var tab by state::audioTab
-        val tabs = audioTabs(mix, tools != null, tools?.trackFx != null, tracks.take(3).any { t -> t.afx.any { it.on } })
+        val tabs = audioTabs(mix, tools != null, tools?.trackFx != null, tracks.any { t -> t.afx.any { it.on } })
         LaunchedEffect(state.openTab) { tabs.indexOfFirst { it.tag == state.openTab }.takeIf { it >= 0 }?.let { tab = it; state.openTab = null } }
         if (!dockTabs) {
             PanelTitle(stringResource(R.string.panels_audio))
@@ -432,32 +456,38 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
                 // the strips take the room above the dock, so the values and M/S under the faders show without scrolling
                 val above = if (dockTabs) 10.dp else 122.dp
                 val stripHeight = (pageHeight - above - (if (bar > 0.dp) bar + 8.dp else 12.dp)).coerceIn(216.dp, 280.dp)
+                // a strip per audio track and the mix; more than three tracks: their strips scroll sideways, the mix stays
+                val strips = (if (tracks.isEmpty()) DEFAULT_AUDIO_TRACKS else tracks.size).coerceAtMost(AudioMix.MASTER)
                 Row(Modifier.padding(horizontal = 12.dp).fillMaxWidth().height(stripHeight), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("A1", "A2", "A3", "Mix").forEachIndexed { i, n ->
-                        ChannelStrip(n, i, mix, scope, Modifier.weight(1f).fillMaxHeight(), auto = tracks.getOrNull(i)?.takeIf { i < 3 }?.volKf?.size ?: 0)
+                    if (strips <= DEFAULT_AUDIO_TRACKS) for (i in 0 until strips) {
+                        ChannelStrip("A${i + 1}", i, mix, scope, Modifier.weight(1f).fillMaxHeight(), auto = tracks.getOrNull(i)?.volKf?.size ?: 0)
+                    } else Row(Modifier.weight(3f).fillMaxHeight().horizontalScroll(rememberScrollState()).testTag("mixer:strips"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        for (i in 0 until strips) ChannelStrip("A${i + 1}", i, mix, scope, Modifier.width(76.dp).fillMaxHeight(), auto = tracks.getOrNull(i)?.volKf?.size ?: 0)
                     }
+                    ChannelStrip("Mix", AudioMix.MASTER, mix, scope, Modifier.weight(1f).fillMaxHeight())
                 }
                 // what each fader is: the tracks' volume and the whole mix; the clip's own volume is on the clip
                 Text(stringResource(R.string.panels_faders_scope), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("mixer:scope"))
-                if (tracks.take(3).any { it.volKf.isNotEmpty() }) Text(stringResource(R.string.panels_auto_meaning), color = K.OnSurfaceVar, fontSize = 12.sp,
+                if (tracks.any { it.volKf.isNotEmpty() }) Text(stringResource(R.string.panels_auto_meaning), color = K.OnSurfaceVar, fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp).testTag("mixer:auto"))
                 // volume is drawn on each clip in the timeline now (double-tap an audio track); a track that still has
                 // the old track automation can have it taken away here
-                if (tools != null && tracks.take(3).any { it.volKf.isNotEmpty() }) androidx.compose.foundation.layout.FlowRow(
+                if (tools != null && tracks.any { it.volKf.isNotEmpty() }) androidx.compose.foundation.layout.FlowRow(
                     Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    for (i in 0..2) if ((tracks.getOrNull(i)?.volKf?.size ?: 0) > 0)
+                    for (i in tracks.indices) if ((tracks.getOrNull(i)?.volKf?.size ?: 0) > 0)
                         SpringChip(stringResource(R.string.panels_clear_track, i + 1), false, { haptics.heavy(); tools.clearKf(i) }, Modifier.testTag("kfClear:A${i + 1}"))
                 }
             }
             "audioTab:effects" -> if (tools?.trackFx != null) {
                 // the track's own effects: the same rack as a clip's
                 var fxTrack by state::audioFxTrack
-                Row(Modifier.padding(horizontal = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (i in 0..2) {
+                if (fxTrack >= tracks.size && tracks.isNotEmpty()) fxTrack = 0
+                Box(Modifier.padding(horizontal = 12.dp).fillMaxWidth()) {
+                    AudioTrackChips(tracks.size, fxTrack, { haptics.tick(); fxTrack = it }, label = { i ->
                         val n = tracks.getOrNull(i)?.afx?.size ?: 0
-                        SpringChip("A${i + 1}" + if (n > 0) " · $n" else "", fxTrack == i, { haptics.tick(); fxTrack = i }, Modifier.weight(1f).testTag("fxTrack:$i"))
-                    }
+                        "A${i + 1}" + if (n > 0) " · $n" else ""
+                    }) { "fxTrack:$it" }
                 }
                 val t = tracks.getOrNull(fxTrack)
                 val ops = remember(fxTrack, tools) { tools.trackFx.invoke(fxTrack) }
@@ -472,14 +502,14 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
                         Column(Modifier.weight(1f)) {
                             Text(stringResource(R.string.panels_integrated_loudness), color = K.OnSurfaceVar, fontSize = 12.sp)
                             val m = measured
-                            val withMaster = m?.let { it.first + mix.db(3) + mix.normDb }
+                            val withMaster = m?.let { it.first + mix.db(AudioMix.MASTER) + mix.normDb }
                             Text(
                                 when { measuring -> stringResource(R.string.panels_measuring_value); withMaster == null -> "– LUFS"; else -> "%.1f LUFS".format(withMaster).replace('-', '−') },
                                 color = if (withMaster != null && abs(withMaster - target) <= 1.0) Color(0xFF5BC27A) else K.OnSurface,
                                 fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.testTag("lufs"),
                             )
-                            if (m != null) Text(stringResource(R.string.panels_peak_lra, m.second + mix.db(3) + mix.normDb, m.third).replace('-', '−'), color = K.OnSurfaceVar, fontSize = 11.sp)
+                            if (m != null) Text(stringResource(R.string.panels_peak_lra, m.second + mix.db(AudioMix.MASTER) + mix.normDb, m.third).replace('-', '−'), color = K.OnSurfaceVar, fontSize = 11.sp)
                         }
                         if (tools != null) SpringChip(stringResource(if (measuring) R.string.panels_measuring else R.string.panels_measure), false, {
                             if (measuring) return@SpringChip
@@ -502,11 +532,11 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
                             scope.launch {
                                 tools.measure().onSuccess { m ->
                                     measured = m
-                                    val n = normalizeDb(m.first, m.second, mix.db(3), target)
+                                    val n = normalizeDb(m.first, m.second, mix.db(AudioMix.MASTER), target)
                                     mix.normDb = n.toFloat()
-                                    mix.onCommit(3)
+                                    mix.onCommit(AudioMix.MASTER)
                                     haptics.confirm()
-                                    val final = m.first + mix.db(3) + n
+                                    val final = m.first + mix.db(AudioMix.MASTER) + n
                                     message = if (final < target - 0.3) Str.t(R.string.panels_normalize_limited, final).replace('-', '−')
                                     else Str.t(R.string.panels_normalize_done, n, final).replace('-', '−')
                                 }.onFailure { message = it.message }
@@ -517,7 +547,7 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
                         // the normalization stays on the mix until it is taken away (it is not the fader)
                         if (abs(mix.normDb) > 0.05f) SpringChip(stringResource(R.string.panels_normalize_remove), false, {
                             mix.normDb = 0f
-                            mix.onCommit(3)
+                            mix.onCommit(AudioMix.MASTER)
                             message = null
                         }, Modifier.testTag("normalize:remove"))
                     }
@@ -535,8 +565,12 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
 @Composable
 internal fun VoiceOverCard(vo: VoiceOverUi) {
     val haptics = rememberHaptics()
+    // more than three audio tracks: the track choice gets a row of its own (they wrap)
+    if (vo.tracks > DEFAULT_AUDIO_TRACKS) Box(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        AudioTrackChips(vo.tracks, vo.track, { if (vo.phase == 0) vo.track = it }) { "voTrack:$it" }
+    }
     Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        for (i in 0..2) SpringChip("A${i + 1}", vo.track == i, { if (vo.phase == 0) vo.track = i })
+        if (vo.tracks <= DEFAULT_AUDIO_TRACKS) for (i in 0 until vo.tracks) SpringChip("A${i + 1}", vo.track == i, { if (vo.phase == 0) vo.track = i })
         when {
             vo.phase == 0 -> SpringChip(stringResource(R.string.panels_record), false, { haptics.confirm(); vo.onStart() }, Modifier.testTag("voStart"), selectedColor = K.Error)
             vo.phase > 0 -> Text("${vo.phase} …", color = K.Error, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 8.dp))
@@ -579,7 +613,7 @@ private fun ChannelStrip(name: String, i: Int, mix: AudioMix, scope: CoroutineSc
     val g = mix.gains[i]
     var atUnity by remember { mutableStateOf(true) }
     val lastTap = remember { longArrayOf(0L) }
-    val isMix = i == 3
+    val isMix = i == AudioMix.MASTER
     Column(
         // the mix is set apart by its tone only (the accent is for what is switched on)
         modifier.clip(RoundedCornerShape(20.dp)).background(if (isMix) K.SurfaceHigh else K.Surface).padding(vertical = 10.dp),

@@ -83,7 +83,7 @@ fun TranscriptView(controller: ProjectController, state: EditorState, modifier: 
             if (sel != null) {
                 // what the delete does, before it is done
                 val cut = transcriptCut(t.words[sel.first].start.toFloat(), t.words[sel.last].end.toFloat(), FRAME,
-                    state.clips, state.trackStates, state.targetVideo, state.targetAudio, state.captions)
+                    state.clips, state.trackStates, state.targetVideo, state.targetAudio, state.captions, state.tracks)
                 TranscriptCutInfo(cut)
                 FlowRow(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     PillButton(pluralStringResource(R.plurals.transcript_delete_words, sel.count(), sel.count()), {

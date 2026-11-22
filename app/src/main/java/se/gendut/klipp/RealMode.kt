@@ -344,7 +344,7 @@ fun ProgramMonitor(
                             val here = run {
                                 val t = state.playhead.toDouble()
                                 val q = controller.snapshot.playable().sequence
-                                val layers = q?.video?.take(3)?.filter { it.enabled }?.mapNotNull { tr -> tr.clips.firstOrNull { it.text == null && t >= it.start && t < it.end }?.let { tr.name to it } }.orEmpty()
+                                val layers = q?.video?.filter { it.enabled }?.mapNotNull { tr -> tr.clips.firstOrNull { it.text == null && t >= it.start && t < it.end }?.let { tr.name to it } }.orEmpty()
                                 val rendered = playback.renderedRanges.any { t >= it.start && t < it.endInclusive }
                                 "at the playhead: " + (if (rendered) "pre-rendered file" else "live, ${layers.size} video layer(s)") +
                                     layers.joinToString("") { (n, c) -> controller.uriOf(c.item)?.let { u -> "\n  $n: " + if (se.gendut.klipp.engine.Proxies.videoUri(u) != u) "proxy" else "original" } ?: "" } + "\n"

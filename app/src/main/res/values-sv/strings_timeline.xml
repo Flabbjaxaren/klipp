@@ -28,6 +28,12 @@
     <string name="timeline_mute">Tysta</string>
     <string name="timeline_solo">Solo</string>
     <string name="timeline_sync_lock">Synk-lås (följer ripple)</string>
+    <string name="timeline_add_video_track">Lägg till videospår</string>
+    <string name="timeline_add_audio_track">Lägg till ljudspår</string>
+    <string name="timeline_delete_track_menu">Ta bort spår…</string>
+    <string name="timeline_delete_track">Ta bort</string>
+    <string name="timeline_delete_track_title">Ta bort spår %1$s?</string>
+    <string name="timeline_delete_track_text">Spåret är tomt. Spåren ovanför eller under numreras om. Ångra tar tillbaka det.</string>
     <string name="timeline_release_to_delete">Släpp för att radera</string>
     <string name="keyframeui_interp_title">Interpolering</string>
     <string name="keyframeui_linear">Linjär</string>

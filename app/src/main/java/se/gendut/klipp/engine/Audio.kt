@@ -199,13 +199,13 @@ class GainRampProcessor(
 }
 
 /**
- * The level meters: peak per track (A1–A3) and the program's left/right, kept as short blocks stamped with their
+ * The level meters: peak per track (A1–A10) and the program's left/right, kept as short blocks stamped with their
  * timeline time and read at the time that is being HEARD right now ([MeterSink]'s output position). The audio is
  * processed well ahead of the loudspeaker (the sink's buffer), so a meter fed straight from the processing runs
  * ahead of the sound.
  */
 object Meters {
-    const val TRACKS = 3
+    const val TRACKS = se.gendut.klipp.MAX_AUDIO_TRACKS
     /** Rings: the tracks, then the program's left and right. */
     private const val LEFT = TRACKS
     private const val RIGHT = TRACKS + 1

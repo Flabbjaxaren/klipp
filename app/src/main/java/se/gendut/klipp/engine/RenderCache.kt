@@ -372,7 +372,7 @@ object RenderCache {
      * (see [playPlan]).
      */
     fun transitionWindows(s: Snapshot): List<ClosedFloatingPointRange<Double>> =
-        s.playable().sequence?.video.orEmpty().take(3).filter { it.enabled }.flatMap { t ->
+        s.playable().sequence?.video.orEmpty().filter { it.enabled }.flatMap { t ->
             val byId = t.clips.associateBy { it.id }
             t.transitions.filter { x ->
                 x.duration > 1e-6 && x.from?.let { byId[it] }?.text == null && x.to?.let { byId[it] }?.text == null &&
@@ -387,7 +387,108 @@ object RenderCache {
      * would jump). The main player and the upper layers both play this, so they always agree.
      */
     fun playPlan(cuts: LayerPlan, chunks: List<Chunk>, windows: List<ClosedFloatingPointRange<Double>>, fps: Double = 0.0): LayerPlan =
-        substituteReady(cuts, playable(chunks, windows), fps)
+        liveLanes(substituteReady(cuts, playable(chunks, windows), fps))
+
+    /**
+     * How many upper video layers (all but the bottom one) live playback carries at once. Each is its own player and
+     * hardware decoder (see UpperLayers), and phones have few: three heavy layers already overload one. The count that
+     * matters is the layers overlapping at a moment, not the tracks: where more overlap, the span is pre-rendered ahead
+     * like a transition ([overloadWindows], always – also when rendering is stopped) and plays from its file; until it is
+     * ready the layers above this many are left out there ([liveLanes]), and the render bar shows the span red. To be
+     * tuned on the phones.
+     */
+    const val LIVE_UPPER_LAYERS = 3
+
+    /** [LIVE_UPPER_LAYERS] in use (diagnostics and tests may change it). */
+    @Volatile var liveUpperLayers = LIVE_UPPER_LAYERS
+
+    /**
+     * The spans of [plan] where more than [live] upper layers (all but the bottom one) have a segment at once, merged.
+     * Playback's plan before substitution: these spans must be pre-rendered for the picture to be whole.
+     */
+    fun overloadWindows(plan: LayerPlan, live: Int = liveUpperLayers): List<ClosedFloatingPointRange<Double>> {
+        val uppers = plan.layers.dropLast(1)
+        if (uppers.size <= live) return emptyList()
+        val out = ArrayList<ClosedFloatingPointRange<Double>>()
+        for ((a, b) in overloadSpans(uppers.map { it.segs }, live)) {
+            val last = out.lastOrNull()
+            if (last != null && kotlin.math.abs(last.endInclusive - a) < 1e-9) out[out.lastIndex] = last.start..b else out += a..b
+        }
+        return out
+    }
+
+    /** [overloadWindows] for a snapshot (playback's plan, transitions as cuts – as the live players see it). */
+    fun overloadWindows(s: Snapshot, uriOf: (Long) -> Uri?): List<ClosedFloatingPointRange<Double>> =
+        runCatching { CompositionBuilder.previewPlan(s, uriOf, transitions = false)?.let { overloadWindows(it) } }.getOrNull().orEmpty()
+
+    /** The elementary spans (between segment edges) where more than [live] of [layers] have a segment. */
+    private fun overloadSpans(layers: List<List<Seg>>, live: Int): List<Pair<Double, Double>> {
+        val edges = layers.flatMap { l -> l.flatMap { listOf(it.start, it.end) } }.distinct().sorted()
+        val out = ArrayList<Pair<Double, Double>>()
+        for (k in 0 until edges.size - 1) {
+            val a = edges[k]; val b = edges[k + 1]
+            if (b - a <= 1e-9) continue
+            val mid = (a + b) / 2
+            if (layers.count { l -> l.any { it.start <= mid && it.end > mid } } > live) out += a to b
+        }
+        return out
+    }
+
+    /**
+     * Playback's plan within what the phone carries live ([live] upper layers, see [LIVE_UPPER_LAYERS]). With up to [live]
+     * upper layers it is returned as it is. Otherwise: in the spans where more than [live] upper layers still overlap (not
+     * pre-rendered yet) the layers above the lowest [live] are left out; then the upper layers are packed into at most
+     * [live] lanes – a lane is one player. A segment goes on the lowest lane above every overlapping segment of a lower
+     * track, free for its whole time: what is higher on the timeline stays on top, and tracks used at different times
+     * share a player. The bottom layer (the main player's) is never touched.
+     */
+    internal fun liveLanes(plan: LayerPlan, live: Int = liveUpperLayers): LayerPlan {
+        val uppers = plan.layers.dropLast(1)
+        if (uppers.size <= live || live < 1) return plan
+        // bottom-up: the track order decides what may share a moment
+        var layers = uppers.reversed().map { it.segs }
+        for ((a, b) in overloadSpans(layers, live)) {
+            val mid = (a + b) / 2
+            val active = layers.indices.filter { i -> layers[i].any { it.start <= mid && it.end > mid } }
+            val drop = active.drop(live).toSet()
+            layers = layers.mapIndexed { i, segs -> if (i in drop) cutOut(segs, a, b) else segs }
+        }
+        // first with a second's room between a lane's segments (back to back they would need two players, see Alternate);
+        // when that takes more lanes than there are, without it
+        val lanes = pack(layers, se.gendut.klipp.Alternate.GAP).takeIf { it.size <= live } ?: pack(layers, 0.0)
+        // (more lanes than carried can only come from an odd arrangement: the top ones wait for the render)
+        val kept = lanes.take(live).filter { it.isNotEmpty() }
+        if (kept.isEmpty()) return plan.copy(layers = listOf(plan.layers.last()))
+        val named = kept.mapIndexed { k, segs -> Layer("live ${k + 1}", segs.sortedBy { it.start }) }
+        return plan.copy(layers = named.reversed() + plan.layers.last())
+    }
+
+    /** [segs] without what lies in [a]–[b] (a segment across an edge keeps its part outside, its source following). */
+    private fun cutOut(segs: List<Seg>, a: Double, b: Double): List<Seg> = segs.flatMap { p ->
+        if (p.end <= a + 1e-9 || p.start >= b - 1e-9) listOf(p)
+        else listOfNotNull(
+            if (a - p.start > 1e-6) p.copy(dur = a - p.start) else null,
+            if (p.end - b > 1e-6) p.copy(start = b, dur = p.end - b, src = shiftSrc(p.src, b - p.start)) else null,
+        )
+    }
+
+    /**
+     * Segments of [layers] (bottom-up) in lanes (bottom-up): each on the lowest lane above every lane holding an overlapping
+     * segment of a lower layer, where nothing lies within [gap] s of it.
+     */
+    private fun pack(layers: List<List<Seg>>, gap: Double): List<List<Seg>> {
+        val lanes = ArrayList<MutableList<Seg>>()
+        val placed = ArrayList<Triple<Seg, Int, Int>>() // segment, lane, layer
+        fun overlaps(x: Seg, y: Seg, g: Double) = x.start < y.end + g - 1e-9 && y.start < x.end + g - 1e-9
+        for ((li, segs) in layers.withIndex()) for (s in segs.sortedBy { it.start }) {
+            var lane = placed.filter { it.third < li && overlaps(it.first, s, 0.0) }.maxOfOrNull { it.second + 1 } ?: 0
+            while (lane < lanes.size && lanes[lane].any { overlaps(it, s, gap) }) lane++
+            if (lane == lanes.size) lanes += ArrayList<Seg>()
+            lanes[lane] += s
+            placed += Triple(s, lane, li)
+        }
+        return lanes
+    }
 
     /** The ready chunks playback may use: none of a transition that isn't ready all over. */
     fun playable(chunks: List<Chunk>, windows: List<ClosedFloatingPointRange<Double>>, ready: (Chunk) -> Boolean = ::isReady): List<Chunk> {
