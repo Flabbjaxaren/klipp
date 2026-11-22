@@ -83,7 +83,7 @@
     <string name="panels_creative">Kreativ</string>
     <string name="panels_saturation">Mättnad</string>
     <string name="panels_duck_title">Ducka musiken</string>
-    <string name="panels_duck_desc">Musiken sänks automatiskt när någon pratar på de andra spåren</string>
+    <string name="panels_duck_desc">Musiken sänks automatiskt när någon pratar på de andra spåren – med transkript precis under orden</string>
     <string name="panels_duck_music_on">Musik på</string>
     <string name="panels_duck_lower">Sänk</string>
     <string name="panels_duck_listening">Lyssnar …</string>

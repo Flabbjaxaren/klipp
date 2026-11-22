@@ -1564,6 +1564,35 @@ class ProjectController(
         if (ids.isEmpty()) return@withLock Result.failure(IllegalStateException(Str.t(R.string.projectcontroller_no_music, track + 1)))
         if (q.audio.withIndex().none { (i, t) -> i != track && t.clips.any { it.enabled } })
             return@withLock Result.failure(IllegalStateException(Str.t(R.string.projectcontroller_no_speech)))
+        // with a transcript: lowered under the words (SpeechDuck), not under every sound on the other tracks
+        val others = q.audio.withIndex().filter { (i, _) -> i != track }.flatMap { (_, t) -> t.clips.filter { it.enabled }.map { it.start to it.start + it.duration } }
+        val words = engine.tryExec("transcript.inspect").getOrNull()?.optJSONArray("words")?.let { a ->
+            (0 until a.length()).map { k -> a.getJSONObject(k).let { it.optLong("start") / TICKS_PER_SECOND.toDouble() to it.optLong("end") / TICKS_PER_SECOND.toDouble() } }
+        }.orEmpty()
+        val spoken = SpeechDuck.speechOnly(words, others)
+        if (spoken.size >= 3) {
+            val regions = SpeechDuck.regions(spoken)
+            var n = 0
+            group(Str.t(R.string.projectcontroller_undo_duck_music)) {
+                for (c in q.audio[track].clips.filter { it.enabled }) {
+                    val keys = SpeechDuck.keys(regions, c.start, c.start + c.duration, c.levelDb, reduceDb)
+                    if (keys.isEmpty()) continue
+                    // earlier ducking (volume keyframes) is replaced
+                    if (c.kf.containsKey(KfKeys.LEVEL)) engine.tryExec("effects.toggleAnimation", JSONObject().put("clip", c.id).put("effect", "volume").put("param", "level"))
+                    var last = Long.MIN_VALUE
+                    for ((t, v) in keys) {
+                        val ticks = frameTicks(t)
+                        if (ticks == last) continue
+                        last = ticks
+                        engine.tryExec("effects.setParam", JSONObject().put("clip", c.id).put("effect", "volume").put("param", "level")
+                            .put("value", v.coerceIn(-60.0, 15.0)).put("time", ticks).put("keyframe", true))
+                    }
+                    n++
+                }
+            }
+            refresh()
+            return@withLock Result.success(n)
+        }
         val arr = JSONArray().apply { ids.forEach { put(it) } }
         var result: Result<Int> = Result.success(0)
         group(Str.t(R.string.projectcontroller_undo_duck_music)) {
