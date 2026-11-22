@@ -977,7 +977,9 @@ private fun KlippAppContent(
             // during the swipe is read in graphicsLayer (drawing), so the whole screen isn't recomposed every frame
             val visiblePages by remember { derivedStateOf { MODES.indices.filter { abs(it - page.value) < 1.1f } } }
             val frontPage by remember { derivedStateOf { page.value.roundToInt() } }
-            BoxWithConstraints(mod) {
+            // clipped: the pages beside the shown one stay composed one page width away – in landscape, where the pages
+            // have the right side only, the one before lay over the picture and the top bar on the left
+            BoxWithConstraints(mod.clipToBounds()) {
                 val pageW = constraints.maxWidth.toFloat()
                 for (i in MODES.indices) {
                     // key: each page keeps its state when an adjacent page enters or leaves during a swipe
