@@ -1087,7 +1087,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     pos.x > laneWidth - edgeZone -> (pos.x - (laneWidth - edgeZone)) / edgeZone
                                     else -> 0f
                                 }.coerceIn(-1f, 1f)
-                                if (push != 0f) setScroll(sx() + push * edgeStep)
+                                // (never past the project's end: the end can come into view, beyond it there is nothing to take in)
+                                val endScroll = if (state.centerPlayhead) state.projectEnd * pps - laneWidth / 2f else state.projectEnd * pps - laneWidth + edgeZone
+                                if (push != 0f) setScroll(min(sx() + push * edgeStep, max(sx(), endScroll)))
                                 if (ev == null && push == 0f) continue
                                 // selection box: from where the finger was held to where it is now
                                 val q = content(pos)
