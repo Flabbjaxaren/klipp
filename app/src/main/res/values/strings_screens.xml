@@ -313,4 +313,12 @@
     <string name="medialibrary_missing_badge">Missing</string>
     <string name="settings_render_auto">Render automatically (all projects)</string>
     <string name="settings_delete_renders_all">Delete renders (all projects)</string>
+    <string name="projectsscreen_select">Select projects</string>
+    <string name="projectsscreen_select_several">Select several</string>
+    <string name="projectsscreen_selected">%1$d selected</string>
+    <string name="projectsscreen_all">All</string>
+    <plurals name="projectsscreen_delete_many_title">
+        <item quantity="one">Delete %1$d project?</item>
+        <item quantity="other">Delete %1$d projects?</item>
+    </plurals>
 </resources>

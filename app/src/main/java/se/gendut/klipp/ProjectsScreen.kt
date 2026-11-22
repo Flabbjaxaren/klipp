@@ -6,6 +6,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -209,6 +210,11 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
     var renaming by remember { mutableStateOf<ProjectCard?>(null) }
     var deleting by remember { mutableStateOf<ProjectCard?>(null) }
     var versionsOf by remember { mutableStateOf<ProjectCard?>(null) }
+    // several projects selected, to delete them at once (the open one can't be: it is left out)
+    var selecting by remember { mutableStateOf(false) }
+    var picked by remember { mutableStateOf(emptySet<String>()) }
+    var deletingMany by remember { mutableStateOf(false) }
+    fun endSelect() { selecting = false; picked = emptySet() }
     // the project and choice waiting for the file picker (kept if the activity is recreated meanwhile)
     var pendingExport by rememberSaveable { mutableStateOf<String?>(null) }
     val createDoc = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -236,6 +242,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
     LaunchedEffect(hero?.id) { if (hero != null && query == null && grid.firstVisibleItemIndex <= 1) grid.scrollToItem(0) }
     val shown = query?.trim().let { q ->
         when {
+            selecting -> projects.filter { !it.current }
             q == null -> projects.filter { it.id != hero?.id }
             q.isEmpty() -> projects
             else -> projects.filter { it.name.contains(q, ignoreCase = true) }
@@ -244,6 +251,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
     fun open(p: ProjectCard) { haptics.confirm(); backend.open(p.id); onClose() }
     // the system back leaves the search before it leaves the page
     androidx.activity.compose.BackHandler(query != null) { query = null }
+    androidx.activity.compose.BackHandler(selecting) { endSelect() }
     // (the empty pointer input keeps touches on the page's bare parts from reaching the editor under it)
     Box(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.testTag("projects")) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
@@ -252,11 +260,18 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 val q = query
-                if (q != null) {
+                if (selecting) {
+                    HeaderButton(Ic.Close, stringResource(R.string.projectsscreen_cancel), Color.Transparent, Modifier.testTag("selectClose")) { endSelect() }
+                    Text(stringResource(R.string.projectsscreen_selected, picked.size), color = K.OnSurface, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f))
+                    PillButton(stringResource(R.string.projectsscreen_all), { picked = shown.map { it.id }.toSet() }, filled = false)
+                    PillButton(stringResource(R.string.projectsscreen_delete), { if (picked.isNotEmpty()) deletingMany = true }, filled = true, enabled = picked.isNotEmpty(),
+                        modifier = Modifier.testTag("deleteSelected"))
+                } else if (q != null) {
                     SearchField(q, { query = it }, Modifier.weight(1f))
                     HeaderButton(Ic.Close, stringResource(R.string.projectsscreen_search_close), Color.Transparent, Modifier.testTag("searchClose")) { query = null }
                 } else {
                     Text("Klipp", color = K.OnSurface, fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold, maxLines = 1, modifier = Modifier.weight(1f))
+                    HeaderButton(Ic.Check, stringResource(R.string.projectsscreen_select), Color.Transparent, Modifier.testTag("selectProjects")) { haptics.tick(); selecting = true }
                     HeaderButton(Ic.Search, stringResource(R.string.projectsscreen_search), Color.Transparent, Modifier.testTag("searchProjects")) { query = "" }
                     if (onSettings != null) HeaderButton(Ic.Gear, stringResource(R.string.app_app_settings), K.SurfaceHigh, Modifier.testTag("appSettings")) { onSettings() }
                 }
@@ -273,7 +288,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                 contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 96.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (query == null) {
+                if (query == null && !selecting) {
                     hero?.let { h ->
                         item(key = "hero", span = { GridItemSpan(maxLineSpan) }) {
                             val b by produceState<BackupInfo?>(null, h.id, backend.revision) { value = withContext(Dispatchers.IO) { backend.backupInfo(h.id) } }
@@ -285,7 +300,10 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                     }
                 }
                 items(shown, key = { it.id }) { p ->
-                    ProjectTile(p, onOpen = { open(p) }, onMenu = { haptics.heavy(); menuFor = p })
+                    if (selecting) {
+                        val toggle = { haptics.tick(); picked = if (p.id in picked) picked - p.id else picked + p.id }
+                        ProjectTile(p, onOpen = toggle, onMenu = toggle, picked = p.id in picked)
+                    } else ProjectTile(p, onOpen = { open(p) }, onMenu = { haptics.heavy(); menuFor = p })
                 }
                 if (query != null && shown.isEmpty()) item(key = "none", span = { GridItemSpan(maxLineSpan) }) {
                     Text(stringResource(R.string.projectsscreen_search_none), color = K.OnSurfaceVar, fontSize = 14.sp,
@@ -293,7 +311,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                 }
             }
         }
-        NewProjectButton(Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 16.dp, bottom = 28.dp)) {
+        if (!selecting) NewProjectButton(Modifier.align(Alignment.BottomEnd).windowInsetsPadding(WindowInsets.safeDrawing).padding(end = 16.dp, bottom = 28.dp)) {
             haptics.confirm(); creating = true
         }
     }
@@ -337,6 +355,8 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                     MenuRow(stringResource(R.string.projectsscreen_versions)) { menuFor = null; versionsOf = p }
                     if (folder != null) MenuRow(stringResource(R.string.projectsscreen_backup_change)) { menuFor = null; pendingBackup = null; pickFolder.launch(null) }
                     if (!p.current) MenuRow(stringResource(R.string.projectsscreen_delete), danger = true) { menuFor = null; deleting = p }
+                    // start selecting with this project, to delete several
+                    if (!p.current) MenuRow(stringResource(R.string.projectsscreen_select_several)) { menuFor = null; selecting = true; picked = setOf(p.id) }
                     Text(stringResource(R.string.projectsscreen_safety_note), color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 16.sp,
                         modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 10.dp).testTag("safetyNote"))
                 }
@@ -388,6 +408,23 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
             } },
             confirmButton = { FlatTextButton(onClick = { renaming = null; backend.rename(p.id, name.ifBlank { p.name }) }) { Text(stringResource(R.string.projectsscreen_save)) } },
             dismissButton = { FlatTextButton(onClick = { renaming = null }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
+            containerColor = K.SurfaceHigh,
+        )
+    }
+    if (deletingMany) {
+        val n = picked.size
+        AlertDialog(
+            onDismissRequest = { deletingMany = false },
+            title = { Text(pluralStringResource(R.plurals.projectsscreen_delete_many_title, n, n)) },
+            text = { Text(stringResource(R.string.projectsscreen_delete_text)) },
+            confirmButton = { FlatTextButton(onClick = {
+                deletingMany = false
+                val gone = picked
+                endSelect()
+                haptics.heavy()
+                for (id in gone) backend.delete(id)
+            }, modifier = Modifier.testTag("deleteSelectedOk")) { Text(stringResource(R.string.projectsscreen_delete), color = K.Error) } },
+            dismissButton = { FlatTextButton(onClick = { deletingMany = false }) { Text(stringResource(R.string.projectsscreen_cancel)) } },
             containerColor = K.SurfaceHigh,
         )
     }
@@ -581,9 +618,15 @@ private fun AllProjectsRow(count: Int, onImport: () -> Unit) {
 }
 
 @Composable
-private fun ProjectTile(p: ProjectCard, onOpen: () -> Unit, onMenu: () -> Unit) {
+private fun ProjectTile(p: ProjectCard, onOpen: () -> Unit, onMenu: () -> Unit, picked: Boolean? = null) {
     Column(Modifier.padding(bottom = 10.dp)) {
-        ProjectPicture(p, 16, Modifier.fillMaxWidth().aspectRatio(1.83f), onOpen, onMenu) {
+        val pic = Modifier.fillMaxWidth().aspectRatio(1.83f).then(if (picked == true) Modifier.border(3.dp, K.Primary, RoundedCornerShape(16.dp)) else Modifier)
+        ProjectPicture(p, 16, pic, onOpen, onMenu) {
+            // selected for deleting
+            if (picked == true) Box(
+                Modifier.align(Alignment.Center).size(32.dp).clip(CircleShape).background(K.Primary),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Ic.Check, null, tint = K.OnPrimary, modifier = Modifier.size(20.dp)) }
             if (p.duration > 0) Text(
                 durLabel(p.duration), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(8.dp).clip(RoundedCornerShape(8.dp)).background(Scrim).padding(horizontal = 7.dp, vertical = 2.dp),
