@@ -346,8 +346,9 @@ private fun KlippAppContent(
         se.gendut.klipp.engine.ExportSettings.save(context, c.currentId, settings)
         lastExportAsk = settings to name
         // color-graded clips always become SDR (grading is done in SDR) – except HLG made from the grades' OpenDRT
-        val graded = gs.grades.values.any { !it.isNeutral } || !lookOf(grade).isNeutral
-        val st = (if (graded) settings.copy(hdr = false) else settings).let { if (it.hlg && !hlgReadyOf(gs.grades.values, lookOf(grade))) it.copy(hlg = false) else it }
+        val inUse = gradesInUse(c.snapshot, gs.grades)
+        val graded = inUse.any { !it.isNeutral } || !lookOf(grade).isNeutral
+        val st = (if (graded) settings.copy(hdr = false) else settings).let { if (it.hlg && !hlgReadyOf(inUse, lookOf(grade))) it.copy(hlg = false) else it }
         // everything the export reads, taken now: the job outlives this screen (and its controller)
         val snap = c.snapshot
         val uris = c.frozenUris()
@@ -414,7 +415,8 @@ private fun KlippAppContent(
     }
     if (exportAsk && controller != null) {
         val q = controller.snapshot.sequence
-        val graded = gs.grades.values.any { !it.isNeutral } || !lookOf(grade).isNeutral
+        val inUse = gradesInUse(controller.snapshot, gs.grades)
+        val graded = inUse.any { !it.isNeutral } || !lookOf(grade).isNeutral
         val anyHdr = remember(controller.revision) { se.gendut.klipp.engine.CompositionBuilder.anyHdr(context, controller.snapshot) { controller.uriOf(it) } }
         // 10-bit sources (Auto bit depth follows them) – read from the files, off the main thread
         val anyTen by androidx.compose.runtime.produceState<Boolean?>(null, controller.revision) {
@@ -430,8 +432,8 @@ private fun KlippAppContent(
             // grading is done in SDR (8 bits, gamma) – in an HDR signal it would look wrong
             hdrBlocked = if (graded) stringResource(R.string.app_hdr_blocked) else null,
             anyTenBit = anyTen,
-            hlgReady = hlgReadyOf(gs.grades.values, lookOf(grade)),
-            hlgWhyNot = hlgWhyNot(gs.grades.values, lookOf(grade)),
+            hlgReady = hlgReadyOf(inUse, lookOf(grade)),
+            hlgWhyNot = hlgWhyNot(inUse, lookOf(grade)),
             onDismiss = { exportAsk = false },
         ) { st, name -> exportAsk = false; runExport(st, name) }
     }
@@ -1382,8 +1384,17 @@ data class LookValues(val exposure: Float, val contrast: Float, val temp: Float,
 }
 
 /**
+ * The grades of the clips the export renders (the sequence's enabled video clips). The project also keeps the grades of
+ * deleted clips (for undo) and of its other sequences – those must not decide what the export can be: one of them
+ * without OpenDRT kept HLG greyed out for good, and one with any grade blocked keeping HDR.
+ */
+fun gradesInUse(s: se.gendut.klipp.engine.Snapshot, grades: Map<Long, se.gendut.klipp.engine.ClipGrade>): List<se.gendut.klipp.engine.ClipGrade> =
+    s.sequence?.video.orEmpty().flatMap { it.clips }.filter { it.enabled }.mapNotNull { grades[it.id] }
+
+/**
  * HLG can be made from the grade: some clip is graded, every graded clip ends in OpenDRT ([ClipGrade.hlgReady]) and
- * the timeline has no look (it would work on the HLG code values). Ungraded clips go into the file unconverted.
+ * the timeline has no look (it would work on the HLG code values). Ungraded clips, titles and captions are converted from
+ * SDR (BT.2408).
  */
 fun hlgReadyOf(grades: Collection<se.gendut.klipp.engine.ClipGrade>, look: se.gendut.klipp.engine.Look): Boolean =
     hlgWhyNot(grades, look) == null
