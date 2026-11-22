@@ -243,9 +243,12 @@ fun ExportDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.exportui_title)) },
         text = { androidx.compose.foundation.layout.Column {
-            Column(Modifier.testTag("exportDialog")) {
+            // a low window (a phone on its side): everything scrolls together – the options' own 420 dp scroll area got
+            // squeezed to a line between the title, the summary and the buttons, so nothing could be chosen
+            val low = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 560
+            Column(Modifier.testTag("exportDialog").then(if (low) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
                 // the same height on every tab, so the dialog stays where it is when the tab changes; the summary is always in view
-                Column(Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
+                Column(if (low) Modifier else Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
                     TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
                     ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps, seconds, hlgReady, hlgWhyNot) { s = it }
                 }
