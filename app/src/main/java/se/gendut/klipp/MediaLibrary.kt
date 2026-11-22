@@ -74,6 +74,8 @@ interface MediaLibrary {
     fun delete(items: List<Long>, bins: List<Long>)
     /** Finds the missing files in a folder (and its subfolders) by name and links them again. */
     fun relinkFromFolder(tree: Uri) {}
+    /** The clips at the end of the timeline, in this order. */
+    fun appendToTimeline(items: List<Long>) {}
 
     /** All media in a folder and its subfolders. */
     fun mediaInBin(bin: Long): List<Long> {
@@ -182,6 +184,12 @@ fun MediaSheet(
                         }, Modifier.testTag("mediaRename"))
                         SpringChip(stringResource(R.string.medialibrary_delete), false, { confirmDelete = true }, Modifier.testTag("mediaDelete"))
                     }
+                    // the selected clips onto the timeline, in the order they were selected (a Set keeps it)
+                    if (picked.isNotEmpty() && pickedBins.isEmpty()) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp)) {
+                        PillButton(stringResource(R.string.medialibrary_add_to_timeline, picked.size), {
+                            haptics.confirm(); lib.appendToTimeline(picked.toList()); clearPick(); onClose()
+                        }, filled = true, modifier = Modifier.fillMaxWidth().testTag("mediaAdd"))
+                    }
                 } else {
                     Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.medialibrary_title), color = K.OnSurface, fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
@@ -252,6 +260,7 @@ fun MediaSheet(
                                     if (selecting) { picked = if (on) picked - m.id else picked + m.id; haptics.tick() } else onOpen(m)
                                 },
                                 onLongClick = { haptics.heavy(); picked = picked + m.id },
+                                order = if (on) picked.indexOf(m.id) + 1 else 0,
                             )
                         }
                         item(span = { GridItemSpan(2) }) {
@@ -358,7 +367,7 @@ private fun FolderCard(b: BinSnap, count: Int, picked: Boolean, onClick: () -> U
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, onClick: () -> Unit, onLongClick: () -> Unit, order: Int = 0) {
     val src = remember { MutableInteractionSource() }
     Column(
         Modifier.pressPop(src, 0.93f)
@@ -399,7 +408,11 @@ private fun MediaCard(m: MediaInfo, uri: Uri?, used: Int, picked: Boolean, onCli
             if (picked) Box(
                 Modifier.align(Alignment.Center).size(30.dp).clip(RoundedCornerShape(15.dp)).background(K.Primary),
                 contentAlignment = Alignment.Center,
-            ) { androidx.compose.material3.Icon(Ic.Check, null, tint = K.OnPrimary, modifier = Modifier.size(18.dp)) }
+            ) {
+                // the place in the selection (the order "Add to the timeline" uses) instead of a tick
+                if (order > 0) Text("$order", color = K.OnPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                else androidx.compose.material3.Icon(Ic.Check, null, tint = K.OnPrimary, modifier = Modifier.size(18.dp))
+            }
         }
         Text(m.name, color = K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(10.dp))
     }
@@ -414,6 +427,7 @@ fun controllerLibrary(c: se.gendut.klipp.engine.ProjectController) = object : Me
     override fun usage(item: Long) = c.usage(item)
     override fun newBin(name: String, parent: Long?) { c.newBin(name, parent) }
     override fun moveToBin(items: List<Long>, bin: Long?) { c.moveToBin(items, bin) }
+    override fun appendToTimeline(items: List<Long>) { c.appendToTimeline(items) }
     override fun rename(item: Long, name: String) { c.renameMedia(item, name) }
     override fun renameBin(bin: Long, name: String) { c.renameBin(bin, name) }
     override fun delete(items: List<Long>, bins: List<Long>) { c.deleteMedia(items, bins) }

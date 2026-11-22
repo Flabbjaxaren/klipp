@@ -10,6 +10,11 @@
         <item quantity="one">%1$d klipp importerat</item>
         <item quantity="other">%1$d klipp importerade</item>
     </plurals>
+    <plurals name="projectcontroller_clips_added">
+        <item quantity="one">%1$d klipp lagt på tidslinjen</item>
+        <item quantity="other">%1$d klipp lagda på tidslinjen</item>
+    </plurals>
+    <string name="projectcontroller_undo_add_to_timeline">Lägg på tidslinjen</string>
     <string name="projectcontroller_import_failed">Import misslyckades: %1$s</string>
     <string name="projectcontroller_default_media_name">Klipp</string>
     <string name="projectcontroller_set_marks_failed">Kunde inte sätta in/ut</string>

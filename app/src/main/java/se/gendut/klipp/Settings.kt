@@ -109,6 +109,10 @@ object AppPrefs {
     fun base(c: Context): Base = runCatching { Base.valueOf(p(c).getString("base", null) ?: "") }.getOrDefault(Base.DARK)
     fun setBase(c: Context, b: Base) { p(c).edit().putString("base", b.name).apply(); K.base = b }
 
+    /** Imported clips go straight to the end of the timeline (no source/Insert step). Off: they wait in the media panel. */
+    fun addOnImport(c: Context): Boolean = p(c).getBoolean("addOnImport", false)
+    fun setAddOnImport(c: Context, on: Boolean) { p(c).edit().putBoolean("addOnImport", on).apply() }
+
     /** Loads what applies to the whole app (theme, haptics) – when the app starts. */
     fun apply(c: Context) {
         K.customSeed = customSeed(c)
@@ -198,6 +202,10 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             var magnet by remember { mutableStateOf(AppPrefs.magnetDefault(ctx)) }
             SwitchRow(stringResource(R.string.settings_magnet), stringResource(R.string.settings_magnet_hint), magnet, "set:magnet") {
                 magnet = it; AppPrefs.setMagnetDefault(ctx, it); onMagnetDefault(it)
+            }
+            var addImport by remember { mutableStateOf(AppPrefs.addOnImport(ctx)) }
+            SwitchRow(stringResource(R.string.settings_add_on_import), stringResource(R.string.settings_add_on_import_hint), addImport, "set:addOnImport") {
+                addImport = it; AppPrefs.setAddOnImport(ctx, it)
             }
             var vib by remember { mutableStateOf(AppPrefs.haptics(ctx)) }
             SwitchRow(stringResource(R.string.settings_haptics), stringResource(R.string.settings_haptics_hint), vib, "set:haptics") {

@@ -11,6 +11,8 @@
     <string name="settings_center_playhead_hint">tidslinjen rullar under ett fast spelhuvud när appen startar</string>
     <string name="settings_magnet">Magnetisk fästning</string>
     <string name="settings_magnet_hint">klipp fäster mot kanter, spelhuvud och markörer när appen startar</string>
+    <string name="settings_add_on_import">Lägg importerade klipp på tidslinjen</string>
+    <string name="settings_add_on_import_hint">importerade klipp hamnar i slutet av tidslinjen i den ordning de spelades in, i stället för att vänta i mediapanelen</string>
     <string name="settings_haptics">Vibrationer</string>
     <string name="settings_haptics_hint">kort vibration vid tryck, fästning och val</string>
     <string name="settings_title_length">Nya titlars längd</string>
@@ -217,6 +219,7 @@
     <string name="medialibrary_deselect">Avmarkera</string>
     <string name="medialibrary_selected_count">%1$d markerade</string>
     <string name="medialibrary_move">Flytta</string>
+    <string name="medialibrary_add_to_timeline">Lägg %1$d på tidslinjen, i den här ordningen</string>
     <string name="medialibrary_top_level">Översta nivån</string>
     <string name="medialibrary_rename">Byt namn</string>
     <string name="medialibrary_rename_folder">Byt namn på mappen</string>

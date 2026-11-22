@@ -189,6 +189,7 @@ class ProjectController(
             if (opened.isEmpty()) { onMessage(Str.t(R.string.projectcontroller_files_open_failed)); return@launch }
             val paths = JSONArray().apply { opened.forEach { (u, pfd, name) -> put(FdPath.of(pfd.fd, name, context.contentResolver.getType(u))) } }
             var count = 0
+            var added = 0
             editLock.withLock {
                 // the whole import (files, names, new sequence) is one undo step
                 group(Str.t(R.string.projectcontroller_undo_import)) {
@@ -218,10 +219,17 @@ class ProjectController(
                         }
                         engine.exec("file.newSequence", p)
                     }
+                    // with the setting on, the imported clips go straight to the end of the timeline, in name order
+                    // (a camera's names carry the date and time, so this is the order they were shot in)
+                    if (se.gendut.klipp.AppPrefs.addOnImport(context)) {
+                        val names = snap.media.associate { it.id to it.name }
+                        added = insertAtEnd((0 until items.length()).map { items.getLong(it) }.sortedBy { names[it]?.lowercase() ?: "" })
+                    }
                 }
                 refresh()
+                if (added > 0) state.playhead = snapshot.playhead.toFloat()
             }
-            onMessage(Str.p(R.plurals.projectcontroller_clips_imported, count, count))
+            onMessage(if (added > 0) Str.p(R.plurals.projectcontroller_clips_added, added, added) else Str.p(R.plurals.projectcontroller_clips_imported, count, count))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -332,6 +340,42 @@ class ProjectController(
         val sub = snapshot.bins.filter { it.parent == bin }.map { it.id }
         return snapshot.media.filter { it.bin == bin }.map { it.id } + sub.flatMap { mediaInBin(it) }
     }
+
+    /**
+     * Puts media items at the end of the timeline, in the given order (whole clips, or their marked ranges), and leaves
+     * the engine's playhead on the first of them. Runs inside an undo group under the edit lock. Returns how many went in.
+     */
+    private suspend fun insertAtEnd(ids: List<Long>): Int {
+        val now = engine.snapshot()
+        val fps = now.fps
+        val start = now.sequence?.duration ?: 0.0
+        var at = start
+        var n = 0
+        for (id in ids) {
+            if (engine.tryExec("source.open", JSONObject().put("item", id)).isFailure) continue
+            engine.tryExec("playhead.set", JSONObject().put("time", FrameTime.ticks(at, fps)))
+            if (engine.tryExec("source.insert", JSONObject()).isSuccess) n++
+            at = engine.snapshot().sequence?.duration ?: at
+        }
+        engine.tryExec("playhead.set", JSONObject().put("time", FrameTime.ticks(start, fps)))
+        return n
+    }
+
+    /** The media panel's "Add to timeline" – the selected clips at the end, in the order they were selected. */
+    fun appendToTimeline(items: List<Long>) = scope.launch { editLock.withLock {
+        var n = 0
+        try {
+            group(Str.t(R.string.projectcontroller_undo_add_to_timeline)) {
+                if (snapshot.sequence == null) engine.exec("file.newSequence", newSeqParams())
+                n = insertAtEnd(items)
+            }
+            refresh()
+            if (n > 0) state.playhead = snapshot.playhead.toFloat()
+            onMessage(Str.p(R.plurals.projectcontroller_clips_added, n, n))
+        } catch (e: Exception) {
+            onMessage(e.message ?: Str.t(R.string.projectcontroller_edit_failed))
+        }
+    } }
 
     /** Insert (or overwrite) the source's marked range at the timeline playhead. */
     fun editFromSource(item: Long, atSec: Double, overwrite: Boolean, onDone: () -> Unit = {}) = scope.launch { editLock.withLock {
