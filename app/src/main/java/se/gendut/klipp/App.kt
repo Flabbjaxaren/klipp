@@ -270,7 +270,8 @@ private fun KlippAppContent(
     }
     // release the source decoder only when the source is actually closed (not when the phone rotates)
     LaunchedEffect(sourceMedia) { if (sourceMedia == null) sourcePlayback?.close() }
-    val picker = rememberVideoPicker { uris -> controller?.import(uris); if (uris.isNotEmpty()) mediaOpen = true }
+    // (with "add imported clips to the timeline" the clips are on the timeline already – the media panel stays shut)
+    val picker = rememberVideoPicker { uris -> controller?.import(uris); if (uris.isNotEmpty() && !AppPrefs.addOnImport(context)) mediaOpen = true }
     fun openImport() { picker.launch(videoRequest()) }
     // an imported LUT goes into the timeline look, or into a node if the import was started from there
     var lutTarget by remember { mutableStateOf<((String) -> Unit)?>(null) }

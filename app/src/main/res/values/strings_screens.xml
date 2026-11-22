@@ -11,6 +11,8 @@
     <string name="settings_center_playhead_hint">the timeline scrolls under a fixed playhead when the app starts</string>
     <string name="settings_magnet">Magnetic snapping</string>
     <string name="settings_magnet_hint">clips snap to edges, the playhead and markers when the app starts</string>
+    <string name="settings_add_on_import">Add imported clips to the timeline</string>
+    <string name="settings_add_on_import_hint">imported clips go to the end of the timeline in the order they were shot, instead of waiting in the media panel</string>
     <string name="settings_haptics">Haptics</string>
     <string name="settings_haptics_hint">short vibration on taps, snapping and selection</string>
     <string name="settings_title_length">Default title length</string>
@@ -217,6 +219,7 @@
     <string name="medialibrary_deselect">Deselect</string>
     <string name="medialibrary_selected_count">%1$d selected</string>
     <string name="medialibrary_move">Move</string>
+    <string name="medialibrary_add_to_timeline">Add %1$d to the timeline, in this order</string>
     <string name="medialibrary_top_level">Top level</string>
     <string name="medialibrary_rename">Rename</string>
     <string name="medialibrary_rename_folder">Rename folder</string>
