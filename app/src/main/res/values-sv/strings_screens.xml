@@ -333,10 +333,11 @@
     <string name="videopicker_access">Ge åtkomst till dina videor för att se dem här med förhandsvisning, nyast först. Eller använd filappen.</string>
     <string name="videopicker_allow">Ge åtkomst</string>
     <string name="videopicker_none">Inga videor hittades på telefonen.</string>
-    <string name="videopicker_limited">Bara videorna du valde visas.</string>
-    <string name="videopicker_more">Välj fler</string>
     <string name="videopicker_clear">Rensa</string>
     <string name="exportui_note_hlg">HLG (Rec.2100, 1000 nits) renderat av varje klipps sista OpenDRT-nod; ograderade klipp, titlar och textningar omvandlas från SDR (BT.2408, vitt på 75 %). 10-bitars HEVC. Förhandsvisningen förblir SDR.</string>
     <string name="exportui_hlg_why_not">HLG · OpenDRT: %1$s</string>
     <string name="exportplan_hlg_not_ready">HLG kräver att varje graderat klipp slutar i en OpenDRT-nod (hela bilden, full mix, ingen film efter) och en HDR-kodare – exporterar SDR.</string>
+    <string name="videopicker_partial">Bara de videor du valde visas.</string>
+    <string name="videopicker_choose">Välj videor</string>
+    <string name="videopicker_none_chosen">Inga videor valda ännu: tryck på Välj videor.</string>
 </resources>

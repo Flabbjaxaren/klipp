@@ -79,8 +79,8 @@ object VideoLibrary {
     /** Full access, or (Android 14+) access to the videos the user chose. */
     fun hasAccess(c: Context): Boolean = permissions().any { ContextCompat.checkSelfPermission(c, it) == PackageManager.PERMISSION_GRANTED }
 
-    /** Android 14+: access to the videos the user chose only ("Allow limited access"). */
-    fun limited(c: Context): Boolean = Build.VERSION.SDK_INT >= 34 &&
+    /** Android 14+ "select some": only the videos the user chose are visible (asking again lets them choose more). */
+    fun isPartial(c: Context): Boolean = Build.VERSION.SDK_INT >= 34 &&
         ContextCompat.checkSelfPermission(c, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED &&
         ContextCompat.checkSelfPermission(c, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED
 
@@ -115,10 +115,16 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
     val ctx = LocalContext.current
     val haptics = rememberHaptics()
     var access by remember { mutableStateOf(VideoLibrary.hasAccess(ctx)) }
-    var asked by remember { mutableStateOf(false) }
+    var partial by remember { mutableStateOf(VideoLibrary.isPartial(ctx)) }
     var reload by remember { mutableIntStateOf(0) }
-    // (asked again with limited access, the system shows its selection: the list is read again after it)
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { asked = true; access = VideoLibrary.hasAccess(ctx); reload++ }
+    // when the Allow access button asked (0 = the request on opening): an answer within a moment came without a dialog
+    val tapped = remember { longArrayOf(0L) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        access = VideoLibrary.hasAccess(ctx); partial = VideoLibrary.isPartial(ctx); reload++
+        // refused for good (or "Allow none" in the selection), the system no longer shows its dialog: the app's settings
+        if (!access && tapped[0] > 0 && android.os.SystemClock.elapsedRealtime() - tapped[0] < 500) openAppSettings(ctx)
+        tapped[0] = 0L
+    }
     // asked once on opening; after a refusal the page offers it again (or the files app)
     LaunchedEffect(Unit) { if (!access) ask.launch(VideoLibrary.permissions()) }
     val videos by produceState<List<VideoLibrary.Video>?>(null, access, reload) {
@@ -136,26 +142,25 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
             Text(stringResource(R.string.videopicker_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
             PillButton(stringResource(R.string.videopicker_files_app), { onFilesApp() }, icon = Ic.Folder, filled = false, modifier = Modifier.padding(end = 8.dp).testTag("videoPicker:files"))
         }
-        val list = videos
-        // limited access: the chosen videos only – with a way to choose more (else only the system settings could)
-        if (access && VideoLibrary.limited(ctx)) Row(
-            Modifier.fillMaxWidth().padding(start = 16.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(stringResource(R.string.videopicker_limited), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.weight(1f))
-            PillButton(stringResource(R.string.videopicker_more), { ask.launch(VideoLibrary.permissions()) }, filled = false,
-                modifier = Modifier.testTag("videoPicker:more"))
+        // with "select some" (Android 14+) only the chosen videos are listed; asking again opens the system's
+        // selection, where more can be chosen
+        if (access && partial) Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.videopicker_partial), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            PillButton(stringResource(R.string.videopicker_choose), { ask.launch(VideoLibrary.permissions()) }, filled = false,
+                modifier = Modifier.padding(start = 8.dp).testTag("videoPicker:choose"))
         }
+        val list = videos
         when {
             !access -> Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(stringResource(R.string.videopicker_access), color = K.OnSurfaceVar, fontSize = 15.sp)
                 PillButton(stringResource(R.string.videopicker_allow), {
-                    // after "don't ask again" the system answers at once without a dialog: the app's settings then
-                    if (asked && permissionsBlocked(ctx)) openAppSettings(ctx) else ask.launch(VideoLibrary.permissions())
+                    // asks again; when the system answers at once without a dialog, the app's settings open (above)
+                    tapped[0] = android.os.SystemClock.elapsedRealtime(); ask.launch(VideoLibrary.permissions())
                 }, filled = true)
             }
             list == null -> Box(Modifier.fillMaxWidth().weight(1f))
             list.isEmpty() -> Box(Modifier.fillMaxWidth().weight(1f).padding(24.dp)) {
-                Text(stringResource(R.string.videopicker_none), color = K.OnSurfaceVar, fontSize = 15.sp)
+                Text(stringResource(if (partial) R.string.videopicker_none_chosen else R.string.videopicker_none), color = K.OnSurfaceVar, fontSize = 15.sp)
             }
             else -> {
                 // folders, the most used first (Camera usually); "All" = every video, newest first
@@ -215,12 +220,6 @@ private fun VideoCard(v: VideoLibrary.Video, order: Int, onClick: () -> Unit) {
         ).joinToString(" · ")
         Text(meta, color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 2.dp, bottom = 8.dp))
     }
-}
-
-/** True when every permission is refused for good (the system no longer shows its dialog). */
-private fun permissionsBlocked(c: Context): Boolean {
-    val a = c as? android.app.Activity ?: return false
-    return VideoLibrary.permissions().none { a.shouldShowRequestPermissionRationale(it) } && !VideoLibrary.hasAccess(c)
 }
 
 private fun openAppSettings(c: Context) {
