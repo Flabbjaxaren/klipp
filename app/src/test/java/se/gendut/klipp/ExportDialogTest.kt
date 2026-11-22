@@ -5,6 +5,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -53,4 +55,19 @@ class ExportDialogTest {
         rule.onNodeWithTag("exp:go").assertIsEnabled().performClick()
         assertEquals(MimeTypes.VIDEO_H264, started?.codec)
     }
+
+    /** The colour chips show what will be made: a saved HDR or HLG choice that can't apply to this project shows SDR. */
+    private fun colourChips(saved: ExportSettings, other: String) {
+        rule.setContent {
+            KlippTheme { ExportDialog(saved, "film", 1920, 1080, 30.0, 10.0, hdrPossible = false, hdrBlocked = null, anyTenBit = false,
+                caps = Phone(mapOf(MimeTypes.VIDEO_H264 to 2160, MimeTypes.VIDEO_H265 to 2160)), hlgReady = false, onDismiss = {}) { _, _ -> } }
+        }
+        rule.onNodeWithTag("expTab:2").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("exp:sdr").assertIsSelected()
+        rule.onNodeWithTag(other).assertIsNotSelected()
+    }
+
+    @Test fun savedHdrWithoutHdrClipsShowsSdr() = colourChips(ExportSettings(hdr = true), "exp:hdr")
+    @Test fun savedHlgThatCantBeMadeShowsSdr() = colourChips(ExportSettings(hlg = true), "exp:hlg")
 }

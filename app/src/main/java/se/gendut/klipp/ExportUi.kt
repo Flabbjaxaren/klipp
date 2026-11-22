@@ -23,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -178,19 +180,21 @@ fun ExportOptions(
 
         }
         2 -> {
+    // the chips show what will be made (the plan), not a saved choice that can't apply to this project – a saved
+    // "keep HDR" showed selected in a project without HDR clips while the file was SDR
     Chips {
-        Choice("SDR · Rec.709", !s.hdr && !s.hlg, true, "exp:sdr") { onChange(s.copy(hdr = false, hlg = false)) }
-        Choice(stringResource(R.string.exportui_hdr_keep), s.hdr, hdrPossible && hdrBlocked == null, "exp:hdr") { onChange(s.copy(hdr = true, hlg = false, codec = MimeTypes.VIDEO_H265)) }
-        Choice("HLG · OpenDRT", s.hlg, hlgReady && se.gendut.klipp.engine.EncoderCaps.hdrSupported, "exp:hlg") { onChange(s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265)) }
+        Choice("SDR · Rec.709", !plan.hdr && !plan.hlg, true, "exp:sdr") { onChange(s.copy(hdr = false, hlg = false)) }
+        Choice(stringResource(R.string.exportui_hdr_keep), plan.hdr, hdrPossible && hdrBlocked == null, "exp:hdr") { onChange(s.copy(hdr = true, hlg = false, codec = MimeTypes.VIDEO_H265)) }
+        Choice("HLG · OpenDRT", plan.hlg, hlgReady && se.gendut.klipp.engine.EncoderCaps.hdrSupported, "exp:hlg") { onChange(s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265)) }
     }
     Note(when {
-        s.hlg -> stringResource(R.string.exportui_note_hlg)
-        s.hdr -> stringResource(R.string.exportui_note_hdr)
+        plan.hlg -> stringResource(R.string.exportui_note_hlg)
+        plan.hdr -> stringResource(R.string.exportui_note_hdr)
         hdrBlocked != null -> hdrBlocked
         !hdrPossible -> stringResource(R.string.exportui_note_hdr_impossible)
         else -> stringResource(R.string.exportui_note_sdr)
     })
-    if (!s.hlg && hlgWhyNot != null) Note(stringResource(R.string.exportui_hlg_why_not, hlgWhyNot))
+    if (!plan.hlg && hlgWhyNot != null) Note(stringResource(R.string.exportui_hlg_why_not, hlgWhyNot))
 
         }
         else -> {
@@ -348,6 +352,7 @@ private fun Choice(label: String, on: Boolean, enabled: Boolean, tag: String, on
             .background(if (on) K.PrimaryContainer else K.SurfaceHighest)
             .clickable(enabled = enabled) { haptics.tick(); onClick() }
             .padding(horizontal = 14.dp, vertical = 10.dp)
+            .semantics { selected = on }
             .testTag(tag),
     )
 }
