@@ -38,10 +38,13 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
 
 - **The film as one row.** The strip shows the storyline, the clips on V1, with their frames. Gaps in the storyline
   show as dashed spaces.
-- **Clips on other tracks** (titles, B-roll, sound, music) are not shown. A line under the strip counts them, because
-  they follow their clips.
-- **Selecting.** Tapping a clip selects it, and the dock below acts on it as in advanced mode. Tapping beside the
-  clips moves the playhead there.
+- **Clips on other tracks** are shown as bands under the clips, as the simpler editors show them: *overlays* (video
+  on V2 and up – B-roll, picture over picture), *music and sound* (audio that isn't a video clip's own sound), and
+  *text* (titles). A video clip's own sound is part of the clip, not a band of its own. A tap on a band selects
+  that clip. They follow the storyline clip they hang on (connected clips).
+- **Selecting.** Tapping a clip selects it (and brings the playhead into it), and the bar below acts on it. A tap
+  beside the clips deselects; in the ruler and the clips' row it also moves the playhead there. The strip takes
+  all the room down to the bar, so a drag anywhere under the clips scrolls it.
 - **The playhead.** A white line over the strip, with the time and the film's length on top. Drag along the time
   ruler above the clips to move it through the film.
 - **Centred playhead** (⋯ menu, as in advanced mode). The line stays in the middle and the strip moves under it, so
@@ -49,7 +52,7 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
 - **Zoom.** Pinch with two fingers, down to the whole film in view however long it is (the overview) and up to
   400 dp a second. The strip starts at a size where clips can be taken hold of; *Show the whole film* returns to
   the overview in one tap. The time under the fingers stays put, or the playhead does when it is centred.
-- **Moving a clip.** Hold a clip and drag it. A lime line shows where it will go in, and it is dropped at the
+- **Moving a clip.** Hold a clip and drag it; held near the strip's edge, the strip scrolls that way. A lime line shows where it will go in, and it is dropped at the
   storyline's edit point nearest to where its start is. This is the magnetic timeline's own reorder
   (`MagTimeline.move`): the gap it leaves closes, nothing is overwritten, its linked sound and connected clips go
   with it, and it is one undo step. A clip joined to a neighbour by a transition is not moved; it explains why and
@@ -66,7 +69,8 @@ The selected clip has a lime handle on each edge, 48 dp to touch.
 
 - **While dragging,** the line over the strip shows the result ("0:06 left (was 0:11)"). The part the drag cuts off is
   striped. Material brought back shows as a pale strip beside the clip. The monitor shows the frame at the new edge
-  when there is one to show.
+  when there is one to show – with the centred playhead it moves to the edit when the finger lifts instead (moving
+  it during the drag moved the strip under the finger).
 - **When the finger lifts,** the drag becomes one trim, the magnetic timeline's `MagTimeline.trim` through
   `EditorState.magTrim`. The engine carries it out as one group, so a whole drag is one undo step however many moves
   it had.
