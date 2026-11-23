@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -115,9 +116,39 @@ public:
         }
     }
 
+    // Each Bayer site's calibrated value (black, range, white balance, exposure, lens shading) once per frame, on
+    // `threads` threads: at() read up to nine neighbours per pixel and worked out each one's shading every time –
+    // about 0.5 s of a 12.5 MP frame's 0.55 s. The values are exactly what sample() gives.
+    void prepare(int threads) {
+        if (rgb_) return;
+        const int w = int(raw_.width), h = int(raw_.height);
+        sites_.resize(size_t(w) * h);
+        std::atomic<int> next{0};
+        auto work = [&] {
+            for (int y; (y = next.fetch_add(1)) < h;) {
+                float* out = sites_.data() + size_t(y) * w;
+                for (int x = 0; x < w; ++x) out[x] = sample(x, y, channel(x, y));
+            }
+        };
+        std::vector<std::jthread> pool;
+        for (int i = 1; i < threads; ++i) pool.emplace_back(work);
+        work();
+    }
+
     Color at(int x, int y) const {
         Color camera{};
-        if (rgb_) {
+        const int w = int(raw_.width), h = int(raw_.height);
+        if (!rgb_ && !sites_.empty() && x > 0 && y > 0 && x < w - 1 && y < h - 1) {
+            // inside the frame: the same averages as the general case below – the 3x3 block's other two colours, from
+            // its horizontal, vertical and diagonal neighbours (on a red or blue site the four sides share a colour)
+            const float* r = sites_.data() + size_t(y) * w + x;
+            const int own = channel(x, y), side = channel(x + 1, y), up = channel(x, y + 1), diag = channel(x + 1, y + 1);
+            camera[own] = r[0];
+            const float horizontal = r[-1] + r[1], vertical = r[-w] + r[w];
+            if (side == up) camera[side] = (horizontal + vertical) * .25f;
+            else { camera[side] = horizontal * .5f; camera[up] = vertical * .5f; }
+            if (diag != own) camera[diag] = (r[-w - 1] + r[-w + 1] + r[w - 1] + r[w + 1]) * .25f;
+        } else if (rgb_) {
             for (int c : rgbPlanes) camera[c] = sample(x * 2 + (c == 1), y * 2 + (c == 2), c);
         } else {
             int count[3]{};
@@ -127,7 +158,7 @@ public:
                 for (int xx = std::max(0, x - 1); xx <= std::min(int(raw_.width) - 1, x + 1); ++xx) {
                     const int c = channel(xx, yy);
                     if (c == own) continue;
-                    camera[c] += sample(xx, yy, c);
+                    camera[c] += sites_.empty() ? sample(xx, yy, c) : sites_[size_t(yy) * w + xx];
                     ++count[c];
                 }
             }
@@ -185,6 +216,7 @@ private:
     std::array<float, 4> inverseRange_{};
     Color whiteBalance_{};
     std::vector<GridPoint> xShading_, yShading_;
+    std::vector<float> sites_;
 };
 
 // How the phone was held, from the accelerometer (IMU_ chunks, type 2, Android device axes) over the take's first
@@ -318,6 +350,7 @@ Java_se_gendut_klipp_engine_CrawImport_decode(JNIEnv* env, jobject, jlong handle
         if (w < 2 || h < 2 || (w & 1) || (h & 1)) throw std::runtime_error("Invalid CRAW output size");
         if (!source(handle).encoding) throw std::runtime_error("CRAW log encoding not configured");
         const auto raw = c.frameRaw(frame, std::clamp(std::thread::hardware_concurrency(), 1u, 4u));
+
         const unsigned scale = c.isRgb() ? 2 : 1;
         if (raw.width / scale < unsigned(w) || raw.height / scale < unsigned(h) ||
             (raw.cfa == int(craw::Cfa::RGB)) != c.isRgb()) {
@@ -326,7 +359,10 @@ Java_se_gendut_klipp_engine_CrawImport_decode(JNIEnv* env, jobject, jlong handle
         const auto yPlane = plane(env, yBuffer, yRow, yPixel, w, h);
         const auto uPlane = plane(env, uBuffer, uRow, uPixel, w / 2, h / 2);
         const auto vPlane = plane(env, vBuffer, vRow, vPixel, w / 2, h / 2);
-        const Develop develop(raw, source(handle));
+        // every core, rows handed out as they finish (big and little cores take different times)
+        const int workers = int64_t(w) * h < 1'000'000 ? 1 : int(std::clamp(std::thread::hardware_concurrency(), 1u, 8u));
+        Develop develop(raw, source(handle));
+        develop.prepare(workers);
         const int sourceW = raw.width / scale, sourceH = raw.height / scale;
         struct AxisSample { int first, second; float weight; };
         const auto sampling = [](int from, int to) {
@@ -392,14 +428,16 @@ Java_se_gendut_klipp_engine_CrawImport_decode(JNIEnv* env, jobject, jlong handle
                 }
             }
         };
-        const int workers = int64_t(w) * h < 1'000'000 ? 1 :
-            int(std::clamp(std::thread::hardware_concurrency(), 1u, 4u));
         std::vector<std::array<std::vector<Color>, 4>> rowCaches(workers);
         if (resize) for (auto& cache : rowCaches) for (auto& row : cache) row.resize(sourceW);
-        const auto row = [&](int part) { return 2 * ((h / 2) * part / workers); };
+        constexpr int band = 32;  // rows per hand-out (even: 4:2:0 writes row pairs)
+        std::atomic<int> nextBand{0};
+        auto bands = [&](int k) {
+            for (int b; (b = nextBand.fetch_add(1)) * band < h;) writeRows(b * band, std::min(h, (b + 1) * band), rowCaches[k]);
+        };
         std::vector<std::jthread> tasks;
-        for (int part = 1; part < workers; ++part) tasks.emplace_back(writeRows, row(part), row(part + 1), std::ref(rowCaches[part]));
-        writeRows(0, row(1), rowCaches[0]);
+        for (int k = 1; k < workers; ++k) tasks.emplace_back(bands, k);
+        bands(0);
         tasks.clear(); // Join before the encoder receives the image.
         return raw.timestampNs;
     } catch (const std::exception& e) {
