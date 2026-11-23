@@ -152,4 +152,12 @@
     <string name="simple_text_5s">5 sec</string>
     <string name="simple_text_clip">Whole clip</string>
     <string name="simple_text_add">Add text</string>
+    <!-- the Filter sheet -->
+    <string name="simple_filter_this">This clip</string>
+    <string name="simple_filter_all">All clips</string>
+    <string name="simple_filter_compare">Hold to compare</string>
+    <plurals name="simple_filter_skipped">
+        <item quantity="one">%1$d clip has color from advanced mode – it is left as it is</item>
+        <item quantity="other">%1$d clips have color from advanced mode – they are left as they are</item>
+    </plurals>
 </resources>

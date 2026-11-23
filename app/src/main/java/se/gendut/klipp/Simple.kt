@@ -138,6 +138,18 @@ object SimpleGrade {
             g.nodes.count { lookOnly(it) && it.id in afterDrt } <= 1
     }
 
+    /**
+     * *All clips* on simple mode's filter: what simple mode sets on [from] – the look and its strength, exposure,
+     * contrast, warmth, saturation – onto [to]. [to] keeps the rest of its own: its log footage (OpenDRT, with the look
+     * after it) and what Edit › Picture set on it.
+     */
+    fun carry(from: ClipGrade, to: ClipGrade): ClipGrade {
+        val a = adjustNode(from) ?: return to
+        val lk = lookNode(from)
+        val adjusted = adjust(to) { it.copy(gain = it.gain.copy(master = a.gain.master), contrast = a.contrast, temp = a.temp, sat = a.sat) }
+        return withLook(adjusted, lk?.lut, lk?.lutMix)
+    }
+
     /** [g] with its adjust node changed by [f]. */
     fun adjust(g: ClipGrade, f: (GradeNode) -> GradeNode): ClipGrade {
         val a = adjustNode(g) ?: return g

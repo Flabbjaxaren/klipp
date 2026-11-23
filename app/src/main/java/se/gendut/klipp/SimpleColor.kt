@@ -23,6 +23,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -65,7 +72,7 @@ fun SimpleColorPage(
             Column(Modifier.fillMaxSize().verticalScroll(remember(current.id) { androidx.compose.foundation.ScrollState(0) }).padding(bottom = LocalBarSpace.current + 20.dp).testTag("colorScroll")) {
                 // (decided on the stored grade: a drag's live values never switch the page to the advanced card)
                 if (!SimpleGrade.fits(gs.grades[current.id])) AdvancedColorCard(state, gs, current)
-                else SimpleColorTools(state, gs, current, onImportLut)
+                else SimpleColorTools(state, gs, current, onImportLut, clips)
                 if (timelineLook) Text(stringResource(R.string.simple_color_timeline_look), color = K.OnSurfaceVar, fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp).testTag("simpleColor:timelineLook"))
             }
@@ -94,9 +101,22 @@ private fun AdvancedColorCard(state: EditorState, gs: GradeState, clip: ColorCli
 
 /** The look, the adjustments and log footage for a clip whose grade simple mode can show whole. */
 @Composable
-private fun SimpleColorTools(state: EditorState, gs: GradeState, clip: ColorClip, onImportLut: (((String) -> Unit) -> Unit)?) {
+private fun SimpleColorTools(state: EditorState, gs: GradeState, clip: ColorClip, onImportLut: (((String) -> Unit) -> Unit)?, clips: List<ColorClip> = emptyList()) {
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    // this clip, or all clips: then each change also goes to every other clip simple mode can grade (one undo step);
+    // a clip graded in advanced mode is left as it is
+    var all by remember { mutableStateOf(false) }
+    val others = clips.filter { it.id != clip.id && SimpleGrade.fits(gs.grades[it.id]) }.map { it.id }
+    val skipped = clips.count { it.id != clip.id && !SimpleGrade.fits(gs.grades[it.id]) }
+    fun changes(g2: ClipGrade): Map<Long, ClipGrade> =
+        if (!all) mapOf(clip.id to g2) else mapOf(clip.id to g2) + others.associateWith { SimpleGrade.carry(g2, gs.of(it)) }
+    ScopeRow(all, { haptics.tick(); all = it }, onCompare = { held ->
+        // held: the clip without its color (what Edit › Picture set stays), shown live; let go: its grade again
+        if (held) { haptics.press(); gs.setLive(clip.id, gs.of(clip.id).colorReset()) } else { gs.setLive(clip.id, gs.of(clip.id)); scope.launch { gs.endLive() } }
+    })
+    if (all && skipped > 0) Text(pluralStringResource(R.plurals.simple_filter_skipped, skipped, skipped), color = K.OnSurfaceVar, fontSize = 12.sp,
+        modifier = Modifier.padding(horizontal = 24.dp, vertical = 2.dp).testTag("simpleColor:skipped"))
     val g = gs.shown(clip.id) ?: ClipGrade()
     val a = SimpleGrade.adjustNode(g) ?: return
     // the look: in the adjust node, or with log footage in its own node after OpenDRT
@@ -104,14 +124,17 @@ private fun SimpleColorTools(state: EditorState, gs: GradeState, clip: ColorClip
     val log = SimpleGrade.drtNode(g)
     // the advanced page's own writers: a node changed (live while dragging, committed on release)
     fun live(n: GradeNode) = gs.liveNode(clip.id, n)
-    fun commit(n: GradeNode) { gs.commitNode(clip.id, n); scope.launch { gs.endLive() } }
+    fun commit(n: GradeNode) {
+        gs.setAll(changes(gs.of(clip.id).let { cg -> cg.copy(nodes = cg.nodes.map { if (it.id == n.id) n else it }) }))
+        scope.launch { gs.endLive() }
+    }
     // a LUT or OpenDRT is read (and baked, 33³ points) on a background thread before it is committed – the latest only
     var pending by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    fun baked(g2: ClipGrade, then: () -> Unit) {
+    fun setBaked(g2: ClipGrade) {
+        val ch = changes(g2)
         pending?.cancel()
-        pending = scope.launch { withContext(Dispatchers.Default) { g2.nodes.forEach { it.params() } }; then() }
+        pending = scope.launch { withContext(Dispatchers.Default) { ch.values.forEach { g3 -> g3.nodes.forEach { it.params() } } }; gs.setAll(ch) }
     }
-    fun setBaked(g2: ClipGrade) = baked(g2) { gs.set(clip.id, g2) }
 
     PanelCard(Modifier.padding(top = 4.dp), title = stringResource(R.string.simple_color_look)) {
         LutBrowser(
@@ -151,5 +174,32 @@ private fun SimpleColorTools(state: EditorState, gs: GradeState, clip: ColorClip
                 }, Modifier.testTag("simple:logIn:${inp.key}"))
             }
         }
+    }
+}
+
+/**
+ * The filter's scope – this clip or all clips (the mockup's two tabs) – and *Hold to compare*: while it is held the
+ * picture shows the clip without its color.
+ */
+@Composable
+private fun ScopeRow(all: Boolean, onAll: (Boolean) -> Unit, onCompare: (Boolean) -> Unit) {
+    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        SpringChip(stringResource(R.string.simple_filter_this), !all, { onAll(false) }, Modifier.weight(1f).testTag("simpleColor:this"))
+        SpringChip(stringResource(R.string.simple_filter_all), all, { onAll(true) }, Modifier.weight(1f).testTag("simpleColor:all"))
+        val label = stringResource(R.string.simple_filter_compare)
+        Box(
+            Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(22.dp)).background(K.SurfaceHigh)
+                .semantics { contentDescription = label }
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown()
+                        onCompare(true)
+                        waitForUpOrCancellation()
+                        onCompare(false)
+                    }
+                }.testTag("simpleColor:compare"),
+            contentAlignment = androidx.compose.ui.Alignment.Center,
+        ) { Text(label, color = K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
     }
 }

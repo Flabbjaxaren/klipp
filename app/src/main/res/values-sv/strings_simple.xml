@@ -152,4 +152,12 @@
     <string name="simple_text_5s">5 sek</string>
     <string name="simple_text_clip">Hela klippet</string>
     <string name="simple_text_add">Lägg till text</string>
+    <!-- the Filter sheet -->
+    <string name="simple_filter_this">Detta klipp</string>
+    <string name="simple_filter_all">Alla klipp</string>
+    <string name="simple_filter_compare">Håll för att jämföra</string>
+    <plurals name="simple_filter_skipped">
+        <item quantity="one">%1$d klipp har färg från avancerat läge – det lämnas som det är</item>
+        <item quantity="other">%1$d klipp har färg från avancerat läge – de lämnas som de är</item>
+    </plurals>
 </resources>

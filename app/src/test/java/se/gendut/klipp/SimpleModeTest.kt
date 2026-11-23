@@ -405,6 +405,40 @@ class SimpleModeTest {
         assertTrue(SimpleGrade.fits(simple.of(1)))
     }
 
+    @Test fun theFilterGoesOnAllClipsInOneStepAndLeavesAdvancedColorAlone() {
+        val st = EditorState().apply { playhead = 2f; selected = null; switchMode(true) }
+        val gs = GradeState()
+        val steps = mutableListOf<String>()
+        gs.history = { label, _, _ -> steps += label }
+        val three = colorClips + ColorClip(2, "B-roll_hamn", 8f, 13f, null, 0.0, 2) + ColorClip(3, "C012_marknad", 13f, 20f, null, 0.0, 2)
+        // clip 3 was graded with advanced tools (a second node with a curve)
+        val advanced = ClipGrade(listOf(GradeNode(1, "Primär"), GradeNode(2, "Kurva", sat = 1.4f)))
+        gs.set(3, advanced, record = false)
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { SimpleColorPage(st, gs, three) } } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleColor:all").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleColor:skipped").assertExists()
+        toEnd("prop:simple:warmth")
+        rule.waitForIdle()
+        assertEquals(1f, gs.of(1).nodes[0].temp, 0f)
+        assertEquals("the other clip simple mode can grade gets it too", 1f, gs.of(2).nodes[0].temp, 0f)
+        assertEquals("advanced color is left alone", advanced, gs.of(3))
+        assertEquals("one undo step", 1, steps.size)
+        // carried over: the look too, onto each clip's own grade
+        val carried = SimpleGrade.carry(SimpleGrade.withLook(gs.of(1), LutStore.TEAL_ORANGE, 0.7f), ClipGrade())
+        assertEquals(LutStore.TEAL_ORANGE, carried.nodes[0].lut)
+        assertEquals(0.7f, carried.nodes[0].lutMix, 0f)
+        assertEquals(1f, carried.nodes[0].temp, 0f)
+        // this clip only again: the next change is this clip's alone
+        rule.onNodeWithTag("simpleColor:this").performClick()
+        rule.waitForIdle()
+        toEnd("prop:simple:sat")
+        rule.waitForIdle()
+        assertEquals(2f, gs.of(1).nodes[0].sat, 0f)
+        assertEquals(1f, gs.of(2).nodes[0].sat, 0f)
+    }
+
     @Test fun logFootageAddsTheAdvancedOpenDrtNode() {
         val st = EditorState().apply { playhead = 2f; selected = null }
         val advanced = GradeState()
