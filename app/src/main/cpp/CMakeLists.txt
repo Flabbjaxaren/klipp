@@ -32,3 +32,15 @@ target_compile_options(klipp_whisper PRIVATE -O3 -march=armv8.2-a+dotprod+fp16 -
 target_link_options(klipp_whisper PRIVATE -Wl,--gc-sections -Wl,-z,max-page-size=16384)
 find_library(LOG_LIB log)
 target_link_libraries(klipp_whisper ggml ${LOG_LIB} android)
+
+set(CRAW_ROOT ${KLIPP_ROOT}/third_party/craw)
+add_library(klipp_craw SHARED
+    craw_jni.cpp
+    ${CRAW_ROOT}/src/Decoder.cpp
+    ${CRAW_ROOT}/src/Reader.cpp
+    ${CRAW_ROOT}/tools/common/Clip.cpp
+)
+target_compile_features(klipp_craw PRIVATE cxx_std_20)
+target_include_directories(klipp_craw PRIVATE ${CRAW_ROOT}/include ${CRAW_ROOT}/tools)
+target_compile_options(klipp_craw PRIVATE -O3 -fvisibility=hidden)
+target_link_options(klipp_craw PRIVATE -Wl,-z,max-page-size=16384)

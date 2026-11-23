@@ -15,3 +15,5 @@
 
 # ONNX Runtime (exact word edges): its native code finds the Java classes and constructors by name
 -keep class ai.onnxruntime.** { *; }
+
+-keep class se.gendut.klipp.engine.CrawImport { native <methods>; }

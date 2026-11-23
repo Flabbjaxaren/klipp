@@ -332,6 +332,7 @@ data class ColorClip(
     val hold: Double? = null,
     /** Reverse. */
     val reverse: Boolean = false,
+    val item: Long = -1,
 )
 
 /** The clip the color page works on: the selected one, else the topmost under the playhead, else the first. */
@@ -355,6 +356,7 @@ fun ColorPage(
     look: se.gendut.klipp.engine.Look = se.gendut.klipp.engine.Look.NONE,
     /** Import a .cube; calls the callback with the LUT's name. */
     onImportLut: (((String) -> Unit) -> Unit)? = null,
+    rawControls: @Composable (ColorClip) -> Unit = {},
     timeline: @Composable () -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -385,6 +387,7 @@ fun ColorPage(
             state.playing = false
             if (state.playhead < c.start || state.playhead >= c.end) state.playhead = (c.start + c.end) / 2
         }
+        current?.let { rawControls(it) }
         NodeRow(
             current, g, node?.id, more,
             onPick = { haptics.tick(); nodeId = it; more = false },

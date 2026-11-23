@@ -256,4 +256,12 @@
     <string name="lutbrowser_delete_title">Delete %1$d LUTs?</string>
     <string name="lutbrowser_delete_text">Clips that use them keep the name and show the LUT as missing until it is imported again.</string>
     <string name="lutbrowser_hint">Hold a LUT to select several (then tap a group name for the whole group)</string>
+    <string name="craw_develop_settings">CRAW development</string>
+    <string name="craw_develop_log">Log profile</string>
+    <string name="craw_develop_ei">Exposure index (EI)</string>
+    <string name="craw_develop_auto">Auto (as shot)</string>
+    <string name="craw_develop_again">Develop again</string>
+    <string name="craw_developing">Developing CRAW…</string>
+    <string name="craw_developed">CRAW development updated</string>
+    <string name="craw_develop_import">Develop and import</string>
 </resources>

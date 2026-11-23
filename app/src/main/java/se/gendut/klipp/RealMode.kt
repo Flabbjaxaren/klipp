@@ -586,7 +586,8 @@ private class OpenVideos : ActivityResultContracts.OpenMultipleDocuments() {
         }
 }
 
-fun videoRequest() = arrayOf("video/*")
+// Document providers can report .CRAW with an unknown or generic MIME type.
+fun videoRequest() = arrayOf("*/*")
 
 // ------------------------------------------------------------------ source monitor
 

@@ -226,7 +226,7 @@ private fun KlippAppContent(
         gs.siblings = { id -> state.clips.firstOrNull { it.id == id }?.let { c -> state.groupMembers(c).filter { it.kind == ClipKind.VIDEO }.map { it.id } }.orEmpty() }
         gs.clipInfo = { id ->
             controller?.snapshot?.sequence?.video?.firstNotNullOfOrNull { t -> t.clips.firstOrNull { it.id == id } }
-                ?.let { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 0, c.speed, c.hold, c.reverse) }
+                ?.let { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 0, c.speed, c.hold, c.reverse, c.item) }
         }
         onDispose { gs.history = null; gs.siblings = null; gs.clipInfo = null }
     }
@@ -271,7 +271,21 @@ private fun KlippAppContent(
     // release the source decoder only when the source is actually closed (not when the phone rotates)
     LaunchedEffect(sourceMedia) { if (sourceMedia == null) sourcePlayback?.close() }
     // (with "add imported clips to the timeline" the clips are on the timeline already – the media panel stays shut)
-    val picker = rememberVideoPicker { uris -> controller?.import(uris); if (uris.isNotEmpty() && !AppPrefs.addOnImport(context)) mediaOpen = true }
+    fun importPicked(uris: List<android.net.Uri>, raw: se.gendut.klipp.engine.CrawSettings = se.gendut.klipp.engine.CrawSettings()) {
+        controller?.import(uris, raw)
+        if (uris.isNotEmpty() && !AppPrefs.addOnImport(context)) mediaOpen = true
+    }
+    var pendingCrawImport by remember(controller, controller?.currentId) { mutableStateOf<List<android.net.Uri>?>(null) }
+    val picker = rememberVideoPicker { uris ->
+        if (controller != null && uris.isNotEmpty()) scope.launch {
+            if (controller.hasCraw(uris)) pendingCrawImport = uris else importPicked(uris)
+        }
+    }
+    pendingCrawImport?.let { files ->
+        CrawDevelopDialog(se.gendut.klipp.engine.CrawSettings(), importing = true, onClose = { pendingCrawImport = null }) {
+            importPicked(files, it)
+        }
+    }
     // Klipp's own video picker (previews of log video, newest first); its "Files app" opens the system one
     var videoPicker by remember { mutableStateOf(false) }
     fun openImport() { videoPicker = true }
@@ -651,7 +665,20 @@ private fun KlippAppContent(
             .put("safeZone", org.json.JSONObject().put("platform", state.safeZone ?: "").put("alpha", state.safeZoneAlpha.toDouble())) }
         // the pieces get the clip's grade as part of the split (undone with it) – no separate color step
         controller.onSplit = { old, fresh -> gs.grades[old]?.let { g -> gs.setAll(fresh.associateWith { g }, record = false) } }
-        controller.onNewClips = { ids -> ids.filter { gs.grades.containsKey(it) }.takeIf { it.isNotEmpty() }?.let { stale -> gs.setAll(stale.associateWith { se.gendut.klipp.engine.ClipGrade() }, record = false) } }
+        controller.onNewClips = { ids ->
+            val added = ids.toSet()
+            val changes = ids.filter { gs.grades.containsKey(it) }.associateWith { se.gendut.klipp.engine.ClipGrade() }.toMutableMap()
+            controller.snapshot.sequence?.video.orEmpty().forEach { track ->
+                for (clip in track.clips) {
+                    if (clip.id !in added) continue
+                    val raw = controller.crawSettings(clip.item) ?: continue
+                    changes[clip.id] = se.gendut.klipp.engine.ClipGrade(nodes = listOf(
+                        se.gendut.klipp.engine.GradeNode(1, drt = se.gendut.klipp.engine.Drt(input = raw.log.key)),
+                    ))
+                }
+            }
+            gs.setAll(changes, record = false)
+        }
         controller.onExtraRestore = { o ->
             gs.load(o.optJSONObject("grades"))
             se.gendut.klipp.engine.RenderCache.renderAll = false
@@ -897,7 +924,8 @@ private fun KlippAppContent(
         @Composable
         fun colorClips(): List<ColorClip> {
             val q = controller?.snapshot?.sequence
-            return remember(q) {
+            val revision = controller?.revision
+            return remember(q, revision) {
                 q?.video?.take(3)?.flatMapIndexed { k, t ->
                     t.clips.filter { it.text == null }.map { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 2 - k, c.speed, c.hold, c.reverse) }
                 }.orEmpty().sortedBy { it.start }
@@ -1015,7 +1043,17 @@ private fun KlippAppContent(
                                         transcript = controller?.let { c -> { m: Modifier -> TranscriptView(c, state, m) } },
                                     )
                                     1 -> if (controller != null) {
-                                        ColorPage(state, gs, colorClips(), lookOf(grade), onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) }) {
+                                        ColorPage(state, gs, colorClips(), lookOf(grade),
+                                            onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) },
+                                            rawControls = { clip ->
+                                                val raw = controller.crawSettings(clip.item)
+                                                if (raw != null) CrawDevelopButton(raw, controller.busy) { settings ->
+                                                    controller.redevelopCraw(clip.item, settings) { before ->
+                                                        updateCrawGrades(gs, controller.snapshot.sequence, clip.item, before, settings)
+                                                    }
+                                                }
+                                            },
+                                        ) {
                                             ColorPanel(grade, { lutTarget = null; lutPicker.launch(arrayOf("*/*")) }, scroll = false)
                                         }
                                     } else ColorPanel(grade, null)
