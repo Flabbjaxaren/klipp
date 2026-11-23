@@ -71,7 +71,7 @@
         <item quantity="other">%1$d more caption tracks – edit them in advanced mode</item>
     </plurals>
     <!-- Simple mode's clip strip (SimpleStrip.kt) -->
-    <string name="simple_strip_hint">Tap a clip to select it</string>
+    <string name="simple_strip_hint">Tap a clip to select it, hold it to move it</string>
     <string name="simple_trim_hint">Drag the green edges to shorten the clip</string>
     <string name="simple_trim_left">%1$s left (was %2$s)</string>
     <string name="simple_trim_restore_start">Bring back start (+%1$s)</string>
@@ -90,6 +90,13 @@
     <string name="simple_blocked_locked_title">The track is locked</string>
     <string name="simple_blocked_locked">Nothing on a locked track changes. Open advanced mode to unlock it.</string>
     <string name="simple_only_other_tracks">This film is on other tracks than the main one. Simple mode shows the main track only, so it leaves the film as it is – open advanced mode to edit it.</string>
+    <string name="simple_blocked_move_transition">A transition joins this clip to the one beside it, and moving the clip would break it. Simple mode leaves transitions as they are – open advanced mode to move this clip.</string>
+    <string name="simple_move_hint">Drop the clip where it should go</string>
+    <string name="simple_move_earlier">Move earlier</string>
+    <string name="simple_move_later">Move later</string>
+    <string name="simple_ruler">Time ruler – drag along it to move through the film</string>
+    <string name="simple_go_start">Start</string>
+    <string name="simple_go_end">End</string>
     <plurals name="simple_others_follow">
         <item quantity="one">%1$d more on other tracks – it follows its clip</item>
         <item quantity="other">%1$d more on other tracks – they follow their clips</item>

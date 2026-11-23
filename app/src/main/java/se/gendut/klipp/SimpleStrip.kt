@@ -4,6 +4,11 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
@@ -33,9 +38,13 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -106,8 +115,8 @@ object SimpleStripModel {
     /** The clip's length after the trim. */
     fun lengthAfter(c: Clip, startEdge: Boolean, delta: Float): Float = if (startEdge) c.length - delta else c.length + delta
 
-    /** Why simple mode leaves an edge alone (null = it can be trimmed). */
-    enum class Block { TRANSITION, LOCKED }
+    /** Why simple mode leaves an edge or a clip alone (null = it can be trimmed / moved). */
+    enum class Block { TRANSITION, LOCKED, MOVE_TRANSITION }
 
     fun block(state: EditorState, c: Clip, startEdge: Boolean): Block? {
         if (state.locked(c.track)) return Block.LOCKED
@@ -118,6 +127,43 @@ object SimpleStripModel {
                 (t.from == null && t.to == null && t.track == c.track && edge >= t.start - 1e-3f && edge <= t.end + 1e-3f)
         }
         return if (at) Block.TRANSITION else null
+    }
+
+    /** Why [c] can't be moved in simple mode: its track is locked, or a transition joins it to a neighbour. */
+    fun moveBlock(state: EditorState, c: Clip): Block? = when {
+        state.locked(c.track) -> Block.LOCKED
+        block(state, c, true) == Block.TRANSITION || block(state, c, false) == Block.TRANSITION -> Block.MOVE_TRANSITION
+        else -> null
+    }
+
+    /**
+     * Where [c] goes back in when dropped with its start at [toStart]: the magnetic timeline takes it out, closes up and
+     * puts it back at the storyline's edit point nearest to [toStart] ([MagTimeline.move]). That edit point, in the
+     * strip as it is now (with [c] still in it), for the marker shown while dragging.
+     */
+    fun dropPoint(line: List<Clip>, c: Clip, toStart: Float): Float {
+        val rest = line.filter { it.id != c.id }
+        // the storyline closed up without the clip: what came after it moves back by its length
+        val shut = rest.map { if (it.start >= c.end - 1e-3f) it.start - c.length to it.end - c.length else it.start to it.end }
+        val points = (listOf(0f) + shut.flatMap { listOf(it.first, it.second) }).distinct()
+        val b = points.minByOrNull { abs(it - toStart) } ?: 0f
+        // back to the strip as shown (with the clip): points after its old place lie its length later
+        return if (b > c.start + 1e-3f) b + c.length else b
+    }
+
+    /** Moves [c] so that it starts near [toStart] (the nearest edit point), as one undo step; false = nothing changed. */
+    fun move(state: EditorState, c: Clip, toStart: Float): Boolean {
+        if (moveBlock(state, c) != null) return false
+        return state.magMove(c, toStart, c.track, position = false)
+    }
+
+    /** One place earlier ([steps] -1) or later (+1) in the storyline (the screen reader's move). */
+    fun moveBy(state: EditorState, c: Clip, steps: Int): Boolean {
+        val line = storyline(state)
+        val i = line.indexOfFirst { it.id == c.id }
+        val other = line.getOrNull(i + steps) ?: return false
+        // earlier: where the clip before starts; later: after the next one, once the clip is out (the next starts where it did)
+        return move(state, c, if (steps < 0) other.start else c.start + other.length)
     }
 
     /** Trims [c]'s edge by [delta] (clamped) as one undo step; false = nothing changed. */
@@ -158,53 +204,129 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
     // after the edit (set before, the seek ran on the old timeline and the picture stayed from it)
     var landing by remember { mutableStateOf<Float?>(null) }
     LaunchedEffect(state.clips) { landing?.let { state.playhead = it; landing = null } }
+    // a clip held and dragged to a new place (the long press starts it), and how far
+    var movingId by remember { mutableStateOf<Long?>(null) }
+    var movingDx by remember { mutableFloatStateOf(0f) }
+    // the zoom (1 = the whole film fits) and where a pinch is centred (null = keep the playhead in place)
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var pinchAt by remember { mutableStateOf<Float?>(null) }
     Column(modifier.fillMaxSize().testTag("simpleStrip")) {
         // what is going on: the drag's result, the selected clip's choices, or how to start
-        StripInfo(state, selected, dragEdge, dragDelta, onOpenAdvanced = { state.switchMode(false) })
+        StripInfo(state, selected, dragEdge, dragDelta, moving = movingId != null, onOpenAdvanced = { state.switchMode(false) })
         if (line.isEmpty() && others > 0) {
             // the film is only on other tracks: the strip can't show it – left as it is
             AdvancedOnly(stringResource(R.string.simple_only_other_tracks)) { state.switchMode(false) }
             return@Column
         }
-        BoxWithConstraints(Modifier.fillMaxWidth().height(132.dp)) {
-            val side = 24.dp
-            val widthPx = with(density) { (maxWidth - side * 2).toPx() }
-            // the whole film in view when it fits; at least 32 dp a second, then the strip scrolls
-            val pps = maxOf(widthPx / total, with(density) { 32.dp.toPx() })
+        BoxWithConstraints(
+            Modifier.fillMaxWidth().height(132.dp)
+                // two fingers: zoom (the time under them – the playhead when it is centred – stays put)
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        do {
+                            val ev = awaitPointerEvent(PointerEventPass.Initial)
+                            if (ev.changes.count { it.pressed } >= 2) {
+                                val z = ev.calculateZoom()
+                                if (z != 1f) {
+                                    pinchAt = if (state.centerPlayhead) null else ev.calculateCentroid(useCurrent = true).x
+                                    zoom = (zoom * z).coerceIn(1f, 24f)
+                                    ev.changes.forEach { it.consume() }
+                                }
+                            }
+                        } while (ev.changes.any { it.pressed })
+                        pinchAt = null
+                    }
+                }
+                .testTag("simpleStrip:zoomable")
+        ) {
+            val viewPx = with(density) { maxWidth.toPx() }
+            // the centred playhead: the strip moves under a still line in the middle (half a view of room at each end)
+            val centered = state.centerPlayhead
+            val side = if (centered) maxWidth / 2 else 24.dp
+            val sidePx = with(density) { side.toPx() }
+            // zoom 1: the whole film in view when it fits (at least 32 dp a second, then the strip scrolls)
+            val fit = maxOf(with(density) { (maxWidth - 48.dp).toPx() } / total, with(density) { 32.dp.toPx() })
+            val pps = fit * zoom
             val scroll = rememberScrollState()
-            // playing: the playhead stays in view
-            LaunchedEffect(state.playhead, state.playing) {
-                if (!state.playing) return@LaunchedEffect
-                val x = (state.playhead * pps).roundToInt()
-                val view = with(density) { maxWidth.toPx() }.roundToInt()
-                if (x < scroll.value || x > scroll.value + view - with(density) { side.toPx() }.roundToInt() * 2) scroll.scrollTo((x - view / 3).coerceAtLeast(0))
+            // a pinch keeps the time under the fingers (or the playhead) where it was on the screen
+            var lastPps by remember { mutableFloatStateOf(pps) }
+            LaunchedEffect(pps) {
+                if (lastPps != pps) {
+                    val at = pinchAt
+                    val target = if (at == null || centered) state.playhead * pps + (if (centered) 0f else sidePx - viewPx / 2)
+                        else ((scroll.value + at - sidePx) / lastPps) * pps + sidePx - at
+                    scroll.scrollTo(target.roundToInt().coerceAtLeast(0))
+                    lastPps = pps
+                }
             }
-            // a clip selected out of view (the dock, a search, a test) comes into view
-            LaunchedEffect(state.selected, pps) {
-                val c = line.firstOrNull { it.id == state.selected } ?: return@LaunchedEffect
-                val view = with(density) { maxWidth.toPx() }
-                val a = with(density) { side.toPx() } + c.start * pps
-                val b = with(density) { side.toPx() } + c.end * pps
-                if (a < scroll.value || b > scroll.value + view) scroll.animateScrollTo(((a + b) / 2 - view / 2).roundToInt().coerceAtLeast(0))
+            if (centered) {
+                // scrolling the strip is scrubbing: the time under the line is the playhead
+                LaunchedEffect(pps) {
+                    snapshotFlow { scroll.value }.collect { v ->
+                        if (scroll.isScrollInProgress && !state.playing) state.playhead = (v / pps).coerceIn(0f, total)
+                    }
+                }
+                // and the playhead set elsewhere (playing, a tap, Start / End) brings the strip along
+                LaunchedEffect(pps) {
+                    snapshotFlow { state.playhead }.collect { p -> if (!scroll.isScrollInProgress) scroll.scrollTo((p * pps).roundToInt()) }
+                }
+            } else {
+                // playing: the playhead stays in view
+                LaunchedEffect(state.playhead, state.playing) {
+                    if (!state.playing) return@LaunchedEffect
+                    val x = (sidePx + state.playhead * pps).roundToInt()
+                    if (x < scroll.value || x > scroll.value + viewPx - sidePx * 2) scroll.scrollTo((x - viewPx / 3).roundToInt().coerceAtLeast(0))
+                }
+                // a clip selected out of view (the dock, a search, a test) comes into view
+                LaunchedEffect(state.selected, pps) {
+                    val c = line.firstOrNull { it.id == state.selected } ?: return@LaunchedEffect
+                    val a = sidePx + c.start * pps
+                    val b = sidePx + c.end * pps
+                    if (a < scroll.value || b > scroll.value + viewPx) scroll.animateScrollTo(((a + b) / 2 - viewPx / 2).roundToInt().coerceAtLeast(0))
+                }
             }
             val contentW = with(density) { (total * pps).toDp() } + side * 2
             Box(Modifier.fillMaxSize().horizontalScroll(scroll)) {
                 Box(
                     Modifier.width(contentW).fillMaxSize()
                         // a tap beside the clips: the playhead goes there, nothing stays selected
-                        .pointerInput(pps) {
+                        .pointerInput(pps, sidePx) {
                             detectTapGestures { o ->
                                 state.playing = false
                                 state.clearSelection()
-                                state.playhead = ((o.x - side.toPx()) / pps).coerceIn(0f, total)
+                                state.playhead = ((o.x - sidePx) / pps).coerceIn(0f, total)
                             }
                         }
                         .testTag("simpleStrip:track")
                 ) {
+                    // the time ruler over the clips: drag along it to move the playhead through the film
+                    Ruler(state, pps, sidePx, total, scrub = !centered)
                     val count = line.size
                     line.forEachIndexed { i, c ->
                         StripClip(state, c, i, count, pps, side, c.id == state.selected,
-                            dragEdge.takeIf { c.id == state.selected }, if (c.id == state.selected) dragDelta else 0f)
+                            dragEdge.takeIf { c.id == state.selected }, if (c.id == state.selected) dragDelta else 0f,
+                            moving = movingDx.takeIf { movingId == c.id },
+                            onMove = { dx -> movingId = c.id; movingDx = dx },
+                            onDrop = { dx ->
+                                movingId = null; movingDx = 0f
+                                // (the clip as it is now – not as this tile was drawn)
+                                val now = state.clips.firstOrNull { it.id == c.id }
+                                if (now != null && abs(dx) > 1f) {
+                                    val b = SimpleStripModel.moveBlock(state, now)
+                                    if (b != null) { haptics.heavy(); blocked = b }
+                                    else if (SimpleStripModel.move(state, now, now.start + dx / pps)) haptics.confirm()
+                                }
+                            },
+                        )
+                    }
+                    // where a moved clip will go: a lime line at the edit point nearest to where its start is
+                    line.firstOrNull { it.id == movingId }?.let { c ->
+                        val at = SimpleStripModel.dropPoint(line, c, c.start + movingDx / pps)
+                        Box(
+                            Modifier.offset { IntOffset((sidePx + at * pps - 2.dp.toPx()).roundToInt(), 26.dp.roundToPx()) }
+                                .zIndex(3f).width(4.dp).height(80.dp).clip(RoundedCornerShape(2.dp)).background(K.Primary).testTag("simpleStrip:dropPoint")
+                        )
                     }
                     // gaps in the storyline: dashed (the magnetic timeline's gap clips; trimmed in advanced mode for now)
                     var t = 0f
@@ -212,7 +334,7 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
                         if (c.start - t > 0.05f) StripGap(t, c.start - t, pps, side)
                         t = maxOf(t, c.end)
                     }
-                    if (selected != null) {
+                    if (selected != null && movingId == null) {
                         for (startEdge in listOf(true, false)) TrimHandle(
                             state, selected, startEdge, pps, side,
                             onBlocked = { b -> haptics.heavy(); blocked = b },
@@ -221,9 +343,11 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
                             onLanded = { t -> landing = t },
                         )
                     }
-                    Playhead(state, pps, side, total, with(density) { contentW.toPx() })
+                    if (!centered) Playhead(state, pps, side, total, with(density) { contentW.toPx() })
                 }
             }
+            // the centred playhead: a still line in the middle with the time over it
+            if (centered) CenterPlayhead(state, total, Modifier.align(Alignment.TopCenter))
         }
         if (others > 0 && line.isNotEmpty()) Text(
             pluralStringResource(R.plurals.simple_others_follow, others, others),
@@ -233,8 +357,12 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
     blocked?.let { b ->
         AlertDialog(
             onDismissRequest = { blocked = null },
-            title = { Text(stringResource(if (b == SimpleStripModel.Block.TRANSITION) R.string.simple_blocked_transition_title else R.string.simple_blocked_locked_title)) },
-            text = { Text(stringResource(if (b == SimpleStripModel.Block.TRANSITION) R.string.simple_blocked_transition else R.string.simple_blocked_locked)) },
+            title = { Text(stringResource(if (b == SimpleStripModel.Block.LOCKED) R.string.simple_blocked_locked_title else R.string.simple_blocked_transition_title)) },
+            text = { Text(stringResource(when (b) {
+                SimpleStripModel.Block.TRANSITION -> R.string.simple_blocked_transition
+                SimpleStripModel.Block.MOVE_TRANSITION -> R.string.simple_blocked_move_transition
+                SimpleStripModel.Block.LOCKED -> R.string.simple_blocked_locked
+            })) },
             confirmButton = { PillButton(stringResource(R.string.simple_open_advanced), { blocked = null; state.switchMode(false) }, Modifier.testTag("simpleStrip:openAdvanced")) },
             dismissButton = { PillButton(stringResource(android.R.string.cancel), { blocked = null }, filled = false) },
         )
@@ -243,7 +371,7 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
 
 /** The line over the strip: the trim's result while dragging, the selected clip's length and choices, or a hint. */
 @Composable
-private fun StripInfo(state: EditorState, selected: Clip?, dragEdge: Boolean?, dragDelta: Float, onOpenAdvanced: () -> Unit) {
+private fun StripInfo(state: EditorState, selected: Clip?, dragEdge: Boolean?, dragDelta: Float, moving: Boolean, onOpenAdvanced: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -251,6 +379,8 @@ private fun StripInfo(state: EditorState, selected: Clip?, dragEdge: Boolean?, d
     ) {
         Box(Modifier.weight(1f)) {
             when {
+                moving -> Text(stringResource(R.string.simple_move_hint), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.testTag("simpleStrip:moveInfo"))
                 selected != null && dragEdge != null -> {
                     val after = SimpleStripModel.lengthAfter(selected, dragEdge, dragDelta)
                     Text(
@@ -282,20 +412,42 @@ private fun StripInfo(state: EditorState, selected: Clip?, dragEdge: Boolean?, d
 private fun StripClip(
     state: EditorState, c: Clip, index: Int, count: Int, pps: Float, side: androidx.compose.ui.unit.Dp,
     selected: Boolean, dragEdge: Boolean?, dragDelta: Float,
+    moving: Float?, onMove: (Float) -> Unit, onDrop: (Float) -> Unit,
 ) {
     val density = LocalDensity.current
     val haptics = rememberHaptics()
-    val x = with(density) { side.toPx() } + c.start * pps
+    val x = with(density) { side.toPx() } + c.start * pps + (moving ?: 0f)
+    val earlier = stringResource(R.string.simple_move_earlier)
+    val later = stringResource(R.string.simple_move_later)
     val w = with(density) { (c.length * pps).toDp() }
     val desc = stringResource(R.string.simple_clip_desc, index + 1, count, c.name, SimpleStripModel.clock(c.length))
     val uri = state.uriOfItem?.invoke(c.item)
     Box(
-        Modifier.offset { IntOffset(x.roundToInt(), with(density) { 30.dp.roundToPx() }) }
+        Modifier.offset { IntOffset(x.roundToInt(), with(density) { (if (moving != null) 22.dp else 30.dp).roundToPx() }) }
+            .zIndex(if (moving != null) 2f else 0f)
             .width(w).height(72.dp)
+            .then(if (moving != null) Modifier.shadow(12.dp, RoundedCornerShape(12.dp)) else Modifier)
             .clip(RoundedCornerShape(12.dp))
             .background(c.kind.bg)
             .then(if (selected) Modifier.border(3.dp, K.Primary, RoundedCornerShape(12.dp)) else Modifier)
-            .semantics(mergeDescendants = true) { contentDescription = desc; this.selected = selected; role = Role.Button }
+            .semantics(mergeDescendants = true) {
+                contentDescription = desc; this.selected = selected; role = Role.Button
+                customActions = listOf(
+                    CustomAccessibilityAction(earlier) { SimpleStripModel.moveBy(state, c, -1) },
+                    CustomAccessibilityAction(later) { SimpleStripModel.moveBy(state, c, 1) },
+                )
+            }
+            // hold and drag: the clip to another place in the film (dropped, it goes in at the nearest edit point)
+            .pointerInput(c.id, pps) {
+                var dx = 0f
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { dx = 0f; haptics.heavy(); state.playing = false; state.tapSelect(c.id); onMove(0f) },
+                    onDrag = { ch, d -> ch.consume(); dx += d.x; onMove(dx) },
+                    onDragEnd = { onDrop(dx) },
+                    // (cancelled: the clip goes back – nothing moves)
+                    onDragCancel = { onDrop(0f) },
+                )
+            }
             .clickable { haptics.press(); state.playing = false; state.tapSelect(c.id) }
             .testTag("simpleClip:${c.id}")
     ) {
@@ -439,7 +591,7 @@ private fun TrimHandle(
 private fun Playhead(state: EditorState, pps: Float, side: androidx.compose.ui.unit.Dp, total: Float, width: Float) {
     val density = LocalDensity.current
     val x = with(density) { side.toPx() } + state.playhead.coerceIn(0f, total) * pps
-    val text = stringResource(R.string.simple_playhead, SimpleStripModel.clock(state.playhead), SimpleStripModel.clock(total))
+    val text = stringResource(R.string.simple_playhead, SimpleStripModel.clock(state.playhead.coerceIn(0f, total)), SimpleStripModel.clock(total))
     Box(
         Modifier.offset { IntOffset((x - 1.dp.toPx()).roundToInt(), 22.dp.roundToPx()) }.width(2.dp).height(92.dp).background(Color.White)
             .testTag("simplePlayhead")
@@ -454,6 +606,49 @@ private fun Playhead(state: EditorState, pps: Float, side: androidx.compose.ui.u
             .semantics { contentDescription = text }
             .testTag("simplePlayhead:time"),
     )
+}
+
+/** The time ruler over the clips: a tick each second (or more apart when zoomed out); [scrub]: a drag along it moves the playhead. */
+@Composable
+private fun Ruler(state: EditorState, pps: Float, sidePx: Float, total: Float, scrub: Boolean) {
+    val desc = stringResource(R.string.simple_ruler)
+    Canvas(
+        Modifier.fillMaxWidth().height(26.dp)
+            .then(if (!scrub) Modifier else Modifier.pointerInput(pps, sidePx) {
+                // (the monitor shows stills while the playhead moves and seeks when it rests – as the timeline's ruler)
+                detectHorizontalDragGestures(
+                    onDragStart = { o -> state.playing = false; state.playhead = ((o.x - sidePx) / pps).coerceIn(0f, total) },
+                    onHorizontalDrag = { ch, _ -> ch.consume(); state.playhead = ((ch.position.x - sidePx) / pps).coerceIn(0f, total) },
+                )
+            })
+            .semantics { contentDescription = desc }
+            .testTag("simpleStrip:ruler")
+    ) {
+        // a tick every 1, 2, 5, 10 … s: at least 24 dp apart
+        val minGap = 24.dp.toPx()
+        val step = listOf(0.5f, 1f, 2f, 5f, 10f, 30f, 60f).firstOrNull { it * pps >= minGap } ?: 120f
+        var t = 0f
+        while (t <= total + 1e-3f) {
+            val x = sidePx + t * pps
+            val major = (t / step).roundToInt() % 5 == 0
+            drawLine(K.OnSurfaceVar.copy(alpha = if (major) 0.7f else 0.35f), Offset(x, size.height - (if (major) 10.dp else 6.dp).toPx()), Offset(x, size.height), 1.dp.toPx())
+            t += step
+        }
+    }
+}
+
+/** The centred playhead: a line in the middle of the strip (which moves under it) with the time over it. */
+@Composable
+private fun CenterPlayhead(state: EditorState, total: Float, modifier: Modifier) {
+    val text = stringResource(R.string.simple_playhead, SimpleStripModel.clock(state.playhead.coerceIn(0f, total)), SimpleStripModel.clock(total))
+    Column(modifier.testTag("simplePlayhead"), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text, color = K.OnSurface, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
+            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(K.SurfaceHighest).padding(horizontal = 6.dp, vertical = 2.dp)
+                .semantics { contentDescription = text }.testTag("simplePlayhead:time"),
+        )
+        Box(Modifier.width(2.dp).height(92.dp).background(Color.White))
+    }
 }
 
 /** What the strip can't show, said plainly, with the way to advanced mode (the project is left as it is). */
