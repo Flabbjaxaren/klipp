@@ -91,7 +91,7 @@
     <string name="simple_blocked_locked">Inget på ett låst spår ändras. Öppna avancerat läge för att låsa upp det.</string>
     <string name="simple_only_other_tracks">Filmen ligger på andra spår än huvudspåret. Enkelt läge visar bara huvudspåret och lämnar därför filmen som den är – öppna avancerat läge för att redigera den.</string>
     <string name="simple_blocked_move_transition">En övergång binder ihop klippet med det bredvid, och att flytta klippet skulle bryta den. Enkelt läge lämnar övergångar som de är – öppna avancerat läge för att flytta klippet.</string>
-    <string name="simple_move_hint">Släpp klippet där det ska ligga</string>
+    <string name="simple_move_hint">Släpp där det ska ligga – upp i filmen eller på en rad</string>
     <string name="simple_move_earlier">Flytta tidigare</string>
     <string name="simple_move_later">Flytta senare</string>
     <string name="simple_ruler">Tidslinjal – dra längs den för att gå genom filmen</string>
@@ -121,5 +121,17 @@
     <plurals name="simple_others_follow">
         <item quantity="one">%1$d sak till på andra spår – den följer med sitt klipp</item>
         <item quantity="other">%1$d saker till på andra spår – de följer med sina klipp</item>
+    </plurals>
+    <string name="simple_lane_overlay">Lager: %1$s</string>
+    <string name="simple_caption_lane">Undertext: %1$s</string>
+    <string name="simple_lane_new">Släpp här för att lägga det ovanpå filmen</string>
+    <string name="simple_lane_locked">Låst spår</string>
+    <string name="simple_lane_muted">Tystat spår</string>
+    <string name="simple_lane_hidden">Dolt spår</string>
+    <string name="simple_lane_effects">Spåreffekter</string>
+    <string name="simple_lanes_up">Rader ovanför</string>
+    <plurals name="simple_lanes_more">
+        <item quantity="one">+%d rad</item>
+        <item quantity="other">+%d rader</item>
     </plurals>
 </resources>

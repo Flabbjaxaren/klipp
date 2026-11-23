@@ -91,7 +91,7 @@
     <string name="simple_blocked_locked">Nothing on a locked track changes. Open advanced mode to unlock it.</string>
     <string name="simple_only_other_tracks">This film is on other tracks than the main one. Simple mode shows the main track only, so it leaves the film as it is – open advanced mode to edit it.</string>
     <string name="simple_blocked_move_transition">A transition joins this clip to the one beside it, and moving the clip would break it. Simple mode leaves transitions as they are – open advanced mode to move this clip.</string>
-    <string name="simple_move_hint">Drop the clip where it should go</string>
+    <string name="simple_move_hint">Drop it where it should go – up into the film or on a row</string>
     <string name="simple_move_earlier">Move earlier</string>
     <string name="simple_move_later">Move later</string>
     <string name="simple_ruler">Time ruler – drag along it to move through the film</string>
@@ -121,5 +121,17 @@
     <plurals name="simple_others_follow">
         <item quantity="one">%1$d more on other tracks – it follows its clip</item>
         <item quantity="other">%1$d more on other tracks – they follow their clips</item>
+    </plurals>
+    <string name="simple_lane_overlay">Layer: %1$s</string>
+    <string name="simple_caption_lane">Caption: %1$s</string>
+    <string name="simple_lane_new">Drop here to lay it over the film</string>
+    <string name="simple_lane_locked">Locked track</string>
+    <string name="simple_lane_muted">Muted track</string>
+    <string name="simple_lane_hidden">Hidden track</string>
+    <string name="simple_lane_effects">Track effects</string>
+    <string name="simple_lanes_up">Rows above</string>
+    <plurals name="simple_lanes_more">
+        <item quantity="one">+%d row</item>
+        <item quantity="other">+%d rows</item>
     </plurals>
 </resources>
