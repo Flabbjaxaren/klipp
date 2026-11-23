@@ -399,7 +399,7 @@ private fun CategoryRow(title: String, hint: String, icon: androidx.compose.ui.g
 }
 
 @Composable
-private fun SwitchRow(title: String, hint: String, on: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+internal fun SwitchRow(title: String, hint: String, on: Boolean, tag: String, onChange: (Boolean) -> Unit) {
     Row(
         Modifier.fillMaxWidth().clickable(onClickLabel = title) { onChange(!on) }.padding(horizontal = 16.dp, vertical = 10.dp).testTag(tag),
         verticalAlignment = Alignment.CenterVertically,

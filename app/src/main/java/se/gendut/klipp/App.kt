@@ -1212,7 +1212,13 @@ private fun KlippAppContent(
         // a caption or a clip opened in its editor (tapped in the timeline while a sheet is open): the sheet makes way
         LaunchedEffect(state.inspecting, state.editingCaption) { if (state.inspecting || state.editingCaption) addSheet = null }
         when (addSheet) {
-            AddAction.SOUND -> audioTools?.addSound?.let { add -> SoundFxSheet(onDismiss = { addSheet = null }, speech = true) { file, name, secs -> add(file, name, secs); addSheet = null } }
+            AddAction.SOUND -> audioTools?.addSound?.let { add ->
+                // simple mode: Sounds, with the mockup's two switches under the list (ducking, a fade at the film's end)
+                val footer: (@Composable () -> Unit)? = if (state.simple) ({
+                    SimpleSoundSwitches(state, audioTools.duck, audioTools.unduck) { ids, end, on -> controller?.fadeSoundsAtEnd(ids, end, on) ?: Result.success(0) }
+                }) else null
+                SoundFxSheet(onDismiss = { addSheet = null }, speech = true, title = if (state.simple) stringResource(R.string.simple_sounds) else null, footer = footer) { file, name, secs -> add(file, name, secs); addSheet = null }
+            }
             AddAction.VOICE -> VoiceSheet(voice) { addSheet = null }
             AddAction.TITLE -> TitleSheet(state) { addSheet = null }
             AddAction.CAPTIONS -> CaptionsSheet(state) { addSheet = null }

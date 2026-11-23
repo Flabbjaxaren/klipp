@@ -220,9 +220,11 @@ object SimpleStripModel {
     fun block(state: EditorState, c: Clip, startEdge: Boolean): Block? {
         if (state.locked(c.track)) return Block.LOCKED
         val edge = if (startEdge) c.start else c.end
-        // a transition at the edge: the engine's from/to, or (without them) one on the track over the edge
+        // a transition at the edge: the engine's from/to, or (without them) one on the track over the edge. A sound's
+        // own fade in or out (nothing on its other side, e.g. *Fade out at the end*) goes with its edge: not a block
+        val sound = state.tracks.getOrNull(c.track)?.kind == TrackKind.AUDIO
         val at = state.transitions.any { t ->
-            (if (startEdge) t.to == c.id else t.from == c.id) ||
+            (if (startEdge) t.to == c.id && !(sound && t.from == null) else t.from == c.id && !(sound && t.to == null)) ||
                 (t.from == null && t.to == null && t.track == c.track && edge >= t.start - 1e-3f && edge <= t.end + 1e-3f)
         }
         return if (at) Block.TRANSITION else null

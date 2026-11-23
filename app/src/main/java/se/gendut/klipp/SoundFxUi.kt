@@ -62,6 +62,10 @@ fun SoundFxSheet(
     onDismiss: () -> Unit,
     /** As the edit page's Sound: the sheet is titled "Sound" and has text read aloud as a third tab. */
     speech: Boolean = false,
+    /** The sheet's title (simple mode: Sounds); null = the sound library. */
+    title: String? = null,
+    /** Below the list, always in view (simple mode's sound switches). */
+    footer: (@Composable () -> Unit)? = null,
     onAdd: (File, String, Double) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -72,17 +76,20 @@ fun SoundFxSheet(
         Box(Modifier.fillMaxWidth().weight(1f).upwardStaysInside().testTag("sfxSheet")) {
         Column(Modifier.fillMaxSize()) {
             // (Done closes it: a docked sheet isn't swiped away)
-            SheetHeader(stringResource(R.string.sfx_title)) { close() }
+            SheetHeader(title ?: stringResource(R.string.sfx_title)) { close() }
             if (tab < 1) Text(stringResource(R.string.sfx_license_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
             val tabs = listOf(ToolTab(stringResource(R.string.sfx_tab_packs), Ic.Note, "sfxTab:0")) +
                 (if (speech) listOf(ToolTab(stringResource(R.string.sfx_tab_speech), Ic.Mic, "sfxTab:1")) else emptyList()) +
                 ToolTab(stringResource(R.string.sfx_tab_files), Ic.Folder, "sfxTab:${if (speech) 2 else 1}")
             ToolTabs(tabs, tab, { tab = it; preview.stop() }, Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
-            when (tab) {
-                0 -> PacksTab(preview, onAdd)
-                tabs.lastIndex -> FilesTab(onAdd)
-                else -> TextToSpeechCard(onAdd)
+            Column(Modifier.fillMaxWidth().weight(1f)) {
+                when (tab) {
+                    0 -> PacksTab(preview, onAdd)
+                    tabs.lastIndex -> FilesTab(onAdd)
+                    else -> TextToSpeechCard(onAdd)
+                }
             }
+            footer?.invoke()
         }
         MessageHost(Modifier.align(Alignment.TopCenter).padding(top = 6.dp))
         }

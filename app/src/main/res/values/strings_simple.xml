@@ -129,4 +129,15 @@
     <string name="simple_lane_muted">Muted track</string>
     <string name="simple_lane_hidden">Hidden track</string>
     <string name="simple_lane_effects">Track effects</string>
+    <!-- the Sounds sheet's switches (SimpleSounds.kt) -->
+    <string name="simple_duck">Lower the sounds when someone speaks</string>
+    <string name="simple_duck_hint">The voice is always heard clearly</string>
+    <string name="simple_duck_done">The sounds are lowered where someone speaks</string>
+    <string name="simple_duck_off">The sounds play at their own level again</string>
+    <string name="simple_duck_no_sound">Add a sound or music first – then it can be lowered under the speech</string>
+    <string name="simple_fade_end">Fade out at the end</string>
+    <string name="simple_fade_end_hint">The sounds end softly when the film ends</string>
+    <string name="simple_fade_end_none">No sound plays at the film\'s end</string>
+    <string name="simple_undo_fade_end">Fade out at the end</string>
+    <string name="simple_undo_fade_end_off">No fade at the end</string>
 </resources>

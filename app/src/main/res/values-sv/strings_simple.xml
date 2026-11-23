@@ -129,4 +129,15 @@
     <string name="simple_lane_muted">Tystat spår</string>
     <string name="simple_lane_hidden">Dolt spår</string>
     <string name="simple_lane_effects">Spåreffekter</string>
+    <!-- the Sounds sheet's switches (SimpleSounds.kt) -->
+    <string name="simple_duck">Sänk ljudet när någon pratar</string>
+    <string name="simple_duck_hint">Rösten hörs alltid tydligt</string>
+    <string name="simple_duck_done">Ljudet sänks där någon pratar</string>
+    <string name="simple_duck_off">Ljudet spelar på sin egen nivå igen</string>
+    <string name="simple_duck_no_sound">Lägg till ett ljud eller musik först – sedan kan det sänkas under talet</string>
+    <string name="simple_fade_end">Tona ut mot slutet</string>
+    <string name="simple_fade_end_hint">Ljudet slutar mjukt när filmen slutar</string>
+    <string name="simple_fade_end_none">Inget ljud spelar när filmen slutar</string>
+    <string name="simple_undo_fade_end">Tona ut mot slutet</string>
+    <string name="simple_undo_fade_end_off">Ingen toning mot slutet</string>
 </resources>

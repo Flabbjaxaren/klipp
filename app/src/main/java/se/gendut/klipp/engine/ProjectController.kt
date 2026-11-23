@@ -2282,6 +2282,40 @@ class ProjectController(
         Result.success(clips.size)
     }
 
+    /**
+     * Simple mode's *Fade out at the end*: the sound clips [ids] end with the film's picture ([filmEnd], s) – a clip
+     * running on past it is shortened to it – and fade out over their last [seconds] (at most half the clip), the
+     * engine's audio fade (a transition on the clip's out edge only). [on] false takes those fades away again (the
+     * length stays). One undo step. Returns the number of clips changed.
+     */
+    suspend fun fadeSoundsAtEnd(ids: List<Long>, filmEnd: Double, on: Boolean, seconds: Double = 2.0): Result<Int> = editLock.withLock {
+        val q = snapshot.sequence ?: return@withLock Result.success(0)
+        val fps = snapshot.fps.coerceAtLeast(1.0)
+        var n = 0
+        var err: String? = null
+        group(Str.t(if (on) R.string.simple_undo_fade_end else R.string.simple_undo_fade_end_off)) {
+            for (id in ids) {
+                val t = q.audio.firstOrNull { tr -> tr.clips.any { it.id == id } } ?: continue
+                val c = t.clips.first { it.id == id }
+                val fades = t.transitions.filter { it.from == id && it.to == null }
+                if (fades.isNotEmpty()) engine.tryExec("sequence.removeTransition", JSONObject().put("transitions", JSONArray(fades.map { it.id })))
+                if (!on) { if (fades.isNotEmpty()) n++; continue }
+                var end = c.start + c.duration
+                if (end > filmEnd + 0.5 / fps && filmEnd > c.start + 1.0 / fps) {
+                    engine.tryExec("timeline.trim", JSONObject().put("clip", id).put("edge", "out").put("mode", "regular")
+                        .put("delta", frameTicks(filmEnd) - exactTicks(end)).put("linked", false)).complaint()?.let { err = it }
+                    end = filmEnd
+                }
+                val frames = Math.round(minOf(seconds, (end - c.start) / 2) * fps).toInt().coerceAtLeast(1)
+                engine.tryExec("sequence.applyAudioTransition", JSONObject().put("clip", id).put("effect", "constant_power").put("frames", frames).put("edge", "out"))
+                    .onFailure { err = friendly(it.message) }
+                n++
+            }
+        }
+        refresh()
+        err?.let { Result.failure(IllegalStateException(Str.t(R.string.projectcontroller_fade_failed, it))) } ?: Result.success(n)
+    }
+
     suspend fun measureLoudness(): Result<Triple<Double, Double, Double>> {
         if (snapshot.sequence?.audio?.any { it.clips.isNotEmpty() } != true) return Result.failure(IllegalStateException(Str.t(R.string.projectcontroller_no_audio)))
         val wav = File(context.cacheDir, "loudness_${System.currentTimeMillis()}.wav")
