@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -175,6 +176,8 @@ class ProjectsTest {
         val fake = FakeProjects()
         rule.setContent { KlippTheme { ProjectsScreen(fake) {} } }
         rule.waitForIdle()
+        // the list and the backup info load on Dispatchers.IO, which waitForIdle doesn't wait for (failed once on CI)
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("Aldrig säkerhetskopierad", substring = true).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("heroBackup").assertTextContains("Aldrig säkerhetskopierad")
         rule.onNodeWithTag("projectMenu:p1").performClick()
         rule.waitForIdle()
