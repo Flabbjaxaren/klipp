@@ -351,4 +351,85 @@ class SimpleStripTest {
         rule.waitForIdle()
         rule.onNodeWithTag("mode:center").assertIsDisplayed()
     }
+    // ------------------------------------------------------------------ the mockup's layout
+
+    @Test fun aLongFilmCanBeZoomedOutToTheWholeFilm() {
+        val st = simple()
+        // a long film: each storyline clip ten minutes
+        var t = 0f
+        st.commit(st.clips.map { c -> if (c.track == st.tracks.videoRow(0)) c.copy(start = t, length = 600f, srcLen = 606f).also { t += 600f } else c })
+        val undo0 = st.undoCount
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        // at first readable (the strip scrolls); the overview button shows the whole film
+        val w0 = rule.onNodeWithTag("simpleClip:1").fetchSemanticsNode().size.width
+        rule.onNodeWithTag("simpleStrip:overview").performClick()
+        rule.waitForIdle()
+        val w1 = rule.onNodeWithTag("simpleClip:1").fetchSemanticsNode().size.width
+        assertTrue("zoomed out: $w0 → $w1", w1 < w0 / 10)
+        val strip = rule.onNodeWithTag("simpleStrip:zoomable").fetchSemanticsNode().boundsInRoot
+        val last = rule.onNodeWithTag("simpleClip:4").fetchSemanticsNode().boundsInRoot
+        assertTrue("the last clip in view: $last in $strip", last.right <= strip.right + 1f)
+        rule.onNodeWithTag("simpleStrip:overview").assertDoesNotExist()
+        rule.onRoot().captureRoboImage("build/shots/s25_enkel_oversikt.png")
+        assertEquals("zooming is no edit", undo0, st.undoCount)
+    }
+
+    @Test fun musicAndTitlesHaveTheirBandsAndAnAddTile() {
+        val st = simple()
+        var asked: AddAction? = null
+        st.onAddAction = { asked = it }
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleBand:music:11", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("simpleBand:text:6", useUnmergedTree = true).assertExists()
+        // (the title lies past the screen's edge at the first zoom: its click action, as a screen reader would)
+        rule.runOnIdle { rule.onNodeWithTag("simpleBand:text:6").fetchSemanticsNode().config[SemanticsActions.OnClick].action?.invoke() }
+        rule.waitForIdle()
+        assertEquals(6L, st.selected)
+        rule.onNodeWithTag("simpleStrip:add").assertExists()
+        rule.runOnIdle { rule.onNodeWithTag("simpleStrip:add").fetchSemanticsNode().config[SemanticsActions.OnClick].action?.invoke() }
+        assertEquals(AddAction.MEDIA, asked)
+    }
+
+    @Test fun theTipShowsOnceUntilClosed() {
+        val st = simple()
+        val ctx = org.robolectric.RuntimeEnvironment.getApplication()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleTip").assertIsDisplayed()
+        rule.onNodeWithTag("simpleTip:ok").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleTip").assertDoesNotExist()
+        assertTrue(AppPrefs.simpleTipSeen(ctx))
+    }
+
+    @Test fun theMockupsBarsAreTheAdvancedActions() {
+        val st = EditorState().apply { props = FakeProps(); playhead = 3f }
+        rule.setContent { KlippTheme { KlippApp(st) } }
+        rule.waitForIdle()
+        st.switchMode(true)
+        rule.waitForIdle()
+        // the top: the project and Save video, no workspaces
+        rule.onNodeWithTag("simpleTop").assertIsDisplayed()
+        rule.onNodeWithTag("simple:save").assertIsDisplayed()
+        rule.onNodeWithTag("modes").assertDoesNotExist()
+        // the bottom bar with nothing selected: Add, Music, Text, Filter, Format
+        for (t in listOf("add:media", "add:sound", "add:title", "add:filter", "add:format")) rule.onNodeWithTag(t).assertIsDisplayed()
+        rule.onNodeWithTag("add:captions").assertDoesNotExist()
+        // a clip selected: split here, speed, sound, filter, zoom, delete – delete last
+        st.selected = 2L
+        rule.waitForIdle()
+        val tags = listOf("ctx:split", "ctx:speed", "ctx:volume", "ctx:filter", "ctx:picture", "ctx:delete")
+        val xs = tags.map { rule.onNodeWithTag(it).fetchSemanticsNode().boundsInRoot.left }
+        assertEquals("in the mockup's order", xs.sorted(), xs)
+        rule.onRoot().captureRoboImage("build/shots/s26_enkel_klipp.png")
+        // Text: captions from the speech are one tap away
+        st.selected = null
+        rule.waitForIdle()
+        rule.onNodeWithTag("add:title").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("simple:captions").assertExists()
+        rule.onRoot().captureRoboImage("build/shots/s27_enkel_text.png")
+    }
 }
