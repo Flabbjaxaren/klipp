@@ -662,4 +662,73 @@ class SimpleStripTest {
         assertTrue(shown("simpleLaneClip:5"))
         rule.onRoot().captureRoboImage("build/shots/s24_enkel_rader.png")
     }
+
+    // ------------------------------------------------------------------ delete, layers over layers, the magnet
+
+    @Test fun theBarsDeleteTakesTheClipOut() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        // (the bar's Delete: a storyline clip closes up, a layer just goes)
+        st.requestRemove(2L, ripple = true)
+        rule.waitForIdle()
+        assertEquals(listOf(1L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
+        assertEquals(8f, st.clip(3).start, 1e-4f)
+        assertTrue(st.removing.isEmpty())
+        st.requestRemove(5L, ripple = true)
+        rule.waitForIdle()
+        assertFalse(st.clips.any { it.id == 5L })
+        assertEquals(2, st.undoCount)
+    }
+
+    @Test fun aLayerDraggedUpGoesOverTheOthersOnANewTrack() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        // the adjustment clip (V2) held and dragged up past the title's row: a new row opens over them all
+        rule.onNodeWithTag("simpleLaneClip:5").performTouchInput {
+            down(center); advanceEventTime(800)
+            repeat(12) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(0f, -40f)) }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleLane:new").assertExists()
+        rule.onNodeWithTag("simpleLaneClip:5").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(1, st.undoCount)
+        assertEquals("a new track over V3", 4, st.tracks.videoCount)
+        assertEquals(3, st.tracks.engineIndex(st.clip(5).track))
+        assertEquals(4f, st.clip(5).start, 1e-3f)
+    }
+
+    @Test fun aMovedLayerSnapsToTheEdgesOfTheOtherRows() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        // the adjustment clip (4–9 s) dragged about 3.8 s later: its start (and end) catch clip 2's start (8 s)
+        val pps = rule.onNodeWithTag("simpleClip:1").fetchSemanticsNode().size.width / 8f
+        rule.onNodeWithTag("simpleLaneClip:5").performTouchInput {
+            down(center); advanceEventTime(800)
+            repeat(10) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(pps * 0.38f, 0f)) }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleStrip:snap").assertExists()
+        rule.onNodeWithTag("simpleLaneClip:5").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals("snapped", 8f, st.clip(5).start, 1e-4f)
+    }
+
+    @Test fun aTrimmedLayerSnapsToTheEdgesOfTheOtherRows() {
+        val st = simple().apply { selected = 5L }
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        // its end (9 s) dragged about 3.8 s later: it catches 13 s (clip 3's start)
+        val pps = rule.onNodeWithTag("simpleClip:1").fetchSemanticsNode().size.width / 8f
+        rule.onNodeWithTag("simpleHandle:end").performTouchInput {
+            down(center)
+            repeat(10) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(pps * 0.38f + if (it == 0) viewConfiguration.touchSlop else 0f, 0f)) }
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals("snapped", 13f, st.clip(5).end, 1e-4f)
+    }
 }

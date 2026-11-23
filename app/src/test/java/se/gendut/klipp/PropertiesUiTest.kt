@@ -235,6 +235,40 @@ class PropertiesUiTest {
     }
 
     @Test
+    fun aTitleSnapsToTheMiddleOfThePicture() {
+        val fake = FakeProps().apply { p = p.copy(title = "Hej", x = 700f, y = 300f) }
+        val st = state(fake)
+        rule.setContent {
+            KlippTheme {
+                Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.DarkGray)) { MotionOverlay(st) }
+            }
+        }
+        rule.waitForIdle()
+        // dragged to just short of the middle across (and well away from it up and down): held at the middle across
+        rule.onNodeWithTag("motion").performTouchInput {
+            val c = center
+            down(c)
+            for (i in 1..10) moveTo(Offset(c.x + width * (250f / 1920f) * i / 10f, c.y + height * (60f / 1080f) * i / 10f))
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals(1, fake.log.size)
+        assertEquals("held at the middle across", 960f, fake.p.x!!, 0.001f)
+        assertEquals("not up and down (too far)", 360f, fake.p.y!!, 8f)
+        // a clip (not a title) is not held: it goes where it is dragged
+        fake.p = fake.p.copy(title = null, x = 700f, y = 300f)
+        rule.waitForIdle()
+        rule.onNodeWithTag("motion").performTouchInput {
+            val c = center
+            down(c)
+            for (i in 1..10) moveTo(Offset(c.x + width * (250f / 1920f) * i / 10f, c.y))
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals(950f, fake.p.x!!, 8f)
+    }
+
+    @Test
     fun monitorGesturesMoveScaleAndRotateWithSnapping() {
         val fake = FakeProps()
         val st = state(fake)
