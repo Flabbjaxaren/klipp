@@ -28,9 +28,10 @@ data class CrawSettings(val log: OpenDrt.Input = OpenDrt.Input.DI, val ei: Int =
     }
 
     // Invert the input transfer used by OpenDRT so both ends of the workflow share the same curves.
-    fun logLut(): FloatArray = FloatArray(33_280 + 120 * 64 + 1) { i ->
-        // Dense samples around black and midtones, wider spacing in the highlights.
-        val linear = if (i <= 33_280) i / 4096f - .0625f else 8f + (i - 33_280) / 64f
+    fun logLut(): FloatArray = FloatArray(33_024 + 120 * 64 + 1) { i ->
+        // Dense samples around black and midtones, wider spacing in the highlights. The split is linear 8.0 (index 33 024),
+        // the same as craw_jni.cpp – it used to be 8.0625 here and 8.0 there
+        val linear = if (i <= 33_024) i / 4096f - .0625f else 8f + (i - 33_024) / 64f
         var low = 0f
         var high = 1f
         repeat(18) {

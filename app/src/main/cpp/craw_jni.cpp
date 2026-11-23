@@ -74,7 +74,7 @@ Matrix cameraToLogGamut(const craw::tools::ClipInfo& info, const Matrix& xyzToGa
 
 constexpr float logLutMin = -.0625f;
 constexpr int logLutScale = 4096;
-constexpr size_t logLutSplit = 33280; // 8.0
+constexpr size_t logLutSplit = 33024; // 8.0 = (8 + 0.0625) * 4096 (was 33280 = 8.0625: a step just above 8.0)
 constexpr size_t logLutSize = logLutSplit + 120 * 64 + 1;
 
 struct LogEncoding {
