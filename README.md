@@ -1,27 +1,26 @@
 # 🎬 Klipp
-
+ 
 A multi-track video editor for Android phones, built for touch. A Kotlin/Jetpack Compose app on top of the
 [FilmCraft](https://github.com/storytold/filmcraft) editing engine (Rust, via JNI); playback and export with Media3.
-
+ 
 <p align="center">
   <img src="docs/screenshots/edit.png" width="24%" alt="The edit page: a title, captions, video and two audio tracks on the timeline">
   <img src="docs/screenshots/title.png" width="24%" alt="Add › Title: a preview, then the text, then the look">
   <img src="docs/screenshots/captions.png" width="24%" alt="Add › Captions: write a line and it goes in at the playhead">
   <img src="docs/screenshots/color.png" width="24%" alt="The color page: color wheels with the clips of the timeline above">
 </p>
-
 > 🚧 **Status:** a hobby project in active development. Android 10+ (arm64). Tested on a **vivo X300 Ultra** and a
 > **OnePlus 12**. It comes with **no warranty** – keep copies of footage you care about. Issues are welcome; support is
 > best effort.
-
+ 
 ## 📲 Install
-
+ 
 Download `Klipp-<version>.apk` from [Releases](https://github.com/Flabbjaxaren/klipp/releases/latest) and open it on
 the phone (allow installing from your browser or file manager when Android asks). Updates install over the old
 version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
-
+ 
 ## ✨ Features
-
+ 
 - ✂️ **Editing:** three video and three audio tracks, insert/overwrite from a source monitor, ripple, roll, slip,
   razor, linked audio, compound clips, markers, sync by sound (camera + separate recorder), undo/redo for everything.
 - 👆 **Touch first:** swipe down through a clip to cut it, drag a clip up out of the timeline to delete it, drag any
@@ -44,80 +43,81 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
 - ⚡ **Performance:** proxies, pre-rendering of heavy parts, render cache, HDR and 10-bit.
 - 🔒 **Private:** nothing leaves the phone: speech recognition and all processing run locally; the network is only used to
   download speech models and sound packs you ask for.
-
+## 💛 Support Klipp
+ 
+Klipp is free, open source and ad-free, built in my spare time. If you enjoy it and want to support further
+development, any contribution is greatly appreciated!
+ 
+<p>
+<a href="https://www.paypal.me/gendutklipp"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate with PayPal" height="50"></a>
+</p>
 ## 📁 Project layout
-
+ 
 - `app/` – the Android app (Compose, Media3 for playback and export)
 - `rust/` – `klipp-bridge`, the JNI bridge to FilmCraft (`Session::execute`)
 - `third_party/` – Media3 effect (modified), whisper.cpp (trimmed), the Silero VAD model – see `THIRD_PARTY.md`
-
 ## 🌍 Languages
-
+ 
 English (default) and Swedish. Translations live in `app/src/main/res/values-*/` (Swedish in `values-sv/`); the
 app language can be chosen per app in the system settings (Android 13+).
-
+ 
 ## 🎞️ Video layers
-
+ 
 - **Export:** Media3 Transformer with the multi-layer compositor (`LayerCompositor`): V3 → V2 → V1 plus cross dissolve
   layers, titles and captions as overlays (`TimedOverlay`), templates and animations in `Titles.kt`.
 - **Preview:** Media3's CompositionPlayer doesn't support multiple video sequences yet, so the main player shows the
   bottom layer and `UpperLayers` draws the upper layers (their own muted ExoPlayers in a TextureView, synced to the
   playhead), titles and captions on top. While you drag a slider, `LivePreview` draws a still frame.
 - Long-press "Program" in the viewer for a diagnostics view.
-
 ## 🛠️ Building
-
+ 
 Requirements: Android Studio (or SDK + JDK 21), Rust (rustup), Android NDK.
-
+ 
 1. Install the Rust target and cargo-ndk (once):
-
-   ```
-   rustup target add aarch64-linux-android
-   cargo install cargo-ndk
-   ```
-
+```
+rustup target add aarch64-linux-android
+cargo install cargo-ndk
+```
+ 
 2. Build the Rust bridge into `app/src/main/jniLibs` (about 10–20 min the first time). The built library is not in the
    repository; GitHub Actions builds it on every push (`.github/workflows/build.yml`) and keeps the APK as an artifact:
-
-   ```
-   cd rust
-   export ANDROID_NDK_HOME=$HOME/Library/Android/sdk/ndk/<version>
-   RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo ndk -t arm64-v8a --platform 29 -o ../app/src/main/jniLibs build --release
-   ```
-
+```
+cd rust
+export ANDROID_NDK_HOME=$HOME/Library/Android/sdk/ndk/<version>
+RUSTFLAGS="--remap-path-prefix=$HOME=~" cargo ndk -t arm64-v8a --platform 29 -o ../app/src/main/jniLibs build --release
+```
+ 
 3. Open the project in Android Studio and run, or build from the terminal:
-
-   ```
-   ./gradlew assembleDebug
-   ```
-
+```
+./gradlew assembleDebug
+```
+ 
 ### 🔑 Signing
-
+ 
 Android only updates an installed app with an APK signed by the same key. The release build reads its key from
 `~/.klipp/keystore.properties` (outside the repository; or a file named by the `KLIPP_KEYSTORE` environment variable):
-
+ 
 ```
 storeFile=/path/to/klipp-release.jks
 storePassword=…
 keyAlias=klipp
 keyPassword=…
 ```
-
+ 
 Without it (e.g. on CI) the release build is signed with the debug key. `-Pklipp.debugSigned=true` forces the debug key,
 to update an install that was signed with it. Keep the key and its password backed up – without them no update can
 replace an installed Klipp.
-
+ 
 ## ⚠️ Known limitations
-
+ 
 - Clips imported through the system photo picker get generic names (e.g. `28.mp4`) – Android hides the file names.
 - Projects live inside the app: back them up with their media (Projects → long-press → Back up to a folder… or Save a
   project package with media…) before uninstalling Klipp or moving to another phone.
 - vivo Log has no published specification; its curve was measured and its colors fitted to vivo's own vivo Log →
   Rec.709 LUT.
 - Speech recognition runs on the CPU (the GPU path was tried and dropped: unstable drivers, slower on phones).
-
 ## 🧪 Tests
-
+ 
 - Rust (the bridge against real files): `KLIPP_TEST_MEDIA=<folder> cargo test --release` – the folder needs
   `klipp_a.mp4`, `klipp_b.mp4` and `tal.m4a`; the workflow shows how to generate them with ffmpeg.
 - Kotlin (gestures, snapping, ripple, the Rust → Kotlin contract, video layers, properties, screenshots):
@@ -125,20 +125,19 @@ replace an installed Klipp.
 - GPU (on a connected phone): the film and the grade nodes rendered by the phone's GPU, as playback runs them, against
   the CPU path: `./gradlew connectedGpuTestAndroidTest`. They run in their own app (`se.gendut.klipp.gputest`), so
   the installed Klipp and its projects are never touched.
-
 The FilmCraft version is pinned in `rust/Cargo.toml` (`rev`). Update it deliberately.
-
+ 
 ## 📜 License
-
+ 
 Klipp is free software: as distributed, the app and this repository as a whole are offered under the **GNU General
 Public License, version 3 only** (`GPL-3.0-only`, see `LICENSE` and `docs/licensing.md`); the JNI bridge's own code
 (`rust/`) is `GPL-3.0-or-later`. Everything
 it contains or downloads from other projects, with licenses and changes, is listed in **`THIRD_PARTY.md`**; the full
 inventory, license texts and notices are in **`LICENSES/`** and in the app (Settings → About → Licenses and source code).
 Each release's Corresponding Source: `docs/source-release.md`.
-
+ 
 Parts from other projects:
-
+ 
 - **spektrafilm** (Andrea Volpato et al., https://github.com/andreavolpato/spektrafilm) – spectral film simulation,
   GPL-3.0. The color pipeline is ported to `app/src/main/java/se/gendut/klipp/engine/Spektra.kt`; the tables in
   `app/src/main/assets/spektrafilm` are computed with spektrafilm's code (`tools/spektrafilm/export_tables.py`).
@@ -153,15 +152,15 @@ Parts from other projects:
   with one video renderer – see `third_party/media3-transformer/KLIPP.md`.
 - **Media3 ExoPlayer** (Apache-2.0) as source code in `third_party/media3-exoplayer`, modified so a clip ending before an
   open GOP's keyframe keeps its last frames – see `third_party/media3-exoplayer/KLIPP.md`.
-
 ### The spektrafilm tables
-
+ 
 ```
 python -m venv venv && venv/bin/pip install numpy scipy colour-science scikit-image opt-einsum numba matplotlib \
     exiv2 rawpy lensfunpy OpenImageIO pyfftw
 git clone https://github.com/andreavolpato/spektrafilm
 venv/bin/python tools/spektrafilm/export_tables.py spektrafilm/src app/src/main/assets/spektrafilm reference.json
 ```
-
+ 
 `reference.json` (every stage for a few films and settings) is used by `SpektraTest` – copy it to
 `app/src/test/resources/spektrafilm_ref.json`.
+ 
