@@ -266,4 +266,5 @@
     <string name="craw_developing">Developing CRAW…</string>
     <string name="craw_developed">CRAW development updated</string>
     <string name="craw_develop_import">Develop and import</string>
+    <string name="craw_unreadable">The file is damaged or incomplete</string>
 </resources>

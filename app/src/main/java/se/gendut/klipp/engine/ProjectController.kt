@@ -269,7 +269,8 @@ class ProjectController(
     }
 
     fun import(picked: List<Uri>, crawSettings: CrawSettings = CrawSettings()) = scope.launch {
-        if (picked.isEmpty() || busy) return@launch
+        // (no early return while busy: an import picked during another one was silently dropped)
+        if (picked.isEmpty()) return@launch
         busy = true
         val project = currentId
         val opened = mutableListOf<ImportSource>()
@@ -285,6 +286,8 @@ class ProjectController(
                     try {
                         runCatching { context.contentResolver.takePersistableUriPermission(pickedUri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
                         val craw = if (name.endsWith(".craw", ignoreCase = true)) CrawSource(pickedUri, crawSettings) else null
+                        // developing takes a while (seconds per second of 4K): say so, once per import
+                        if (craw != null && developed.isEmpty()) onMessage(Str.t(R.string.craw_developing))
                         val converted = craw?.let {
                             val output = newDevelopedFile(project)
                             developed += output

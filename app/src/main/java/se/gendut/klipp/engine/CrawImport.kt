@@ -1,6 +1,8 @@
 package se.gendut.klipp.engine
 
 import android.content.Context
+import se.gendut.klipp.R
+import se.gendut.klipp.Str
 import android.graphics.ImageFormat
 import android.hardware.HardwareBuffer
 import android.media.ImageWriter
@@ -80,7 +82,8 @@ internal object CrawImport {
                     }
                 }
                 fun transcode(sourceFd: Int) {
-                    val handle = open(sourceFd)
+                    // the decoder's own reasons are for developers: a file it can't read is damaged or not finished
+                    val handle = try { open(sourceFd) } catch (e: IOException) { throw IOException(Str.t(R.string.craw_unreadable), e) }
                     try {
                         val source = Source(handle, metadata(handle))
                         require(source.width >= 2 && source.height >= 2 && source.frames > 0) { "Invalid CRAW dimensions or frame count" }

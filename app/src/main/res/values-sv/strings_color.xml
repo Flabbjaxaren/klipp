@@ -266,4 +266,5 @@
     <string name="craw_developing">Framkallar CRAW…</string>
     <string name="craw_developed">CRAW-framkallningen har uppdaterats</string>
     <string name="craw_develop_import">Framkalla och importera</string>
+    <string name="craw_unreadable">Filen är skadad eller ofullständig</string>
 </resources>
