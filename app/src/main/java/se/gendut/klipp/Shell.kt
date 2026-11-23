@@ -360,10 +360,21 @@ internal fun EditPage(
                 else Tool.RIPPLE to (stringResource(R.string.app_tool_ripple) to Ic.Ripple),
                 Tool.TRIM to (stringResource(R.string.app_tool_trim) to Ic.Trim), Tool.RAZOR to (stringResource(R.string.app_tool_razor) to Ic.Razor),
             )
-            LaunchedEffect(state.magnetic, tool) { if (tools.none { it.first == tool }) setTool(Tool.SELECT) }
-            // the tool: one chip with a menu
+            LaunchedEffect(state.magnetic, tool, state.simple) { if (tools.none { it.first == tool } || state.simple && tool != Tool.SELECT) setTool(Tool.SELECT) }
+            // the tool: one chip with a menu (simple mode moves only: no chip – the transcript's takes its place)
             var toolsOpen by remember { mutableStateOf(false) }
-            Box {
+            if (state.simple) {
+                if (transcript != null) Row(
+                    Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh)
+                        .clickable { haptics.press(); state.playing = false; state.dockRow = DockRow.NONE; state.editView = EditView.TRANSCRIPT }
+                        .padding(start = 12.dp, end = 14.dp).testTag("view:transcript"),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Ic.Transcript, null, tint = K.OnSurface, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.edit_view_transcript), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                }
+            } else Box {
                 val (label, icon) = (tools.firstOrNull { it.first == tool } ?: tools.first()).second
                 Row(
                     Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh)
@@ -388,16 +399,17 @@ internal fun EditPage(
             }
             Spacer(Modifier.weight(1f))
             // the other view: the sequence's transcript (same picture, playhead and selection)
-            if (transcript != null) HeaderToggle(Ic.Transcript, stringResource(R.string.edit_view_transcript), false, "view:transcript") {
+            if (transcript != null && !state.simple) HeaderToggle(Ic.Transcript, stringResource(R.string.edit_view_transcript), false, "view:transcript") {
                 state.playing = false
                 state.dockRow = DockRow.NONE
                 state.editView = EditView.TRANSCRIPT
             }
-            HeaderToggle(Ic.Magnet, stringResource(R.string.app_magnetic_snapping), state.magnet, "mode:magnet") {
+            // (simple mode always snaps; linked selection stays on – shown there only if the project has it off, so it can be turned on)
+            if (!state.simple) HeaderToggle(Ic.Magnet, stringResource(R.string.app_magnetic_snapping), state.magnet, "mode:magnet") {
                 state.magnet = !state.magnet
                 toaster.show(Str.t(if (state.magnet) R.string.app_snapping_on else R.string.app_snapping_off))
             }
-            HeaderToggle(Ic.Link, stringResource(R.string.app_linked_selection), state.linkedSelection, "mode:link") {
+            if (!state.simple || !state.linkedSelection) HeaderToggle(Ic.Link, stringResource(R.string.app_linked_selection), state.linkedSelection, "mode:link") {
                 val on = !state.linkedSelection
                 state.linkedSelection = on
                 state.onLinkedSelection?.invoke(on)
@@ -431,6 +443,14 @@ internal fun EditPage(
                             onClick = { haptics.press(); flip() },
                             modifier = Modifier.testTag(tag),
                         )
+                    // simple or advanced (the same switch as in Settings): the project stays as it is
+                    mode(Ic.Bolt, stringResource(R.string.simple_mode_menu), state.simple, "mode:simple") {
+                        modesOpen = false
+                        val on = !state.simple
+                        state.switchMode(on)
+                        toaster.show(Str.t(if (on) R.string.simple_mode_on else R.string.simple_mode_off))
+                    }
+                    if (!state.simple) {
                     mode(Ic.Center, stringResource(R.string.app_locked_playhead), state.centerPlayhead, "mode:center") { state.centerPlayhead = !state.centerPlayhead }
                     // the magnetic timeline (the same switch as in Settings → Timeline)
                     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -442,6 +462,7 @@ internal fun EditPage(
                         toaster.show(Str.t(if (on) R.string.magnetic_on else R.string.magnetic_off))
                     }
                     mode(Ic.VolLine, stringResource(R.string.app_volume_lines), state.volLines, "mode:vol") { state.volLines = !state.volLines }
+                    }
                     state.onAddAction?.let { add ->
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.design_captions_overview), color = K.OnSurface, fontWeight = FontWeight.Medium) },
@@ -450,7 +471,7 @@ internal fun EditPage(
                             modifier = Modifier.testTag("menu:captions"),
                         )
                     }
-                    val anyMarkers = state.markers.isNotEmpty()
+                    val anyMarkers = state.markers.isNotEmpty() && !state.simple
                     if (anyMarkers || onSettings != null) HorizontalDivider(color = K.OutlineVar, modifier = Modifier.padding(vertical = 4.dp))
                     if (anyMarkers) DropdownMenuItem(
                         text = { Text(stringResource(R.string.app_remove_all_markers), color = K.OnSurface, fontWeight = FontWeight.Medium) },
@@ -732,6 +753,14 @@ private fun ClipDock(state: EditorState) {
     val powerItem = DockItem(Ic.Power, stringResource(if (sel?.enabled == false) R.string.app_enable else R.string.app_disable), "ctx:power") {
         state.selected?.let { state.toggleEnabled(listOf(it)) }
     }
+    // simple mode: what was made for the clip in advanced mode (badges) – one opens its choices, several a row of them
+    val simple = state.simple
+    val gsNow = LocalGradeState.current
+    val badges = if (simple && sel != null) state.badgesOf(sel, gsNow) else emptyList()
+    var badgeOpen by remember(state.selected) { mutableStateOf<Badge?>(null) }
+    badgeOpen?.let { b -> sel?.let { c -> ClipBadgeDialog(state, gsNow, c.id, b) { badgeOpen = null } } }
+    val badgeItem = if (badges.isEmpty()) null else DockItem(Ic.Sliders, stringResource(R.string.simple_dock_advanced), "ctx:badges", marked = true,
+        desc = stringResource(R.string.simple_dock_advanced_desc)) { if (badges.size == 1) badgeOpen = badges[0] else row(DockRow.BADGES) }
     AnimatedContent(
         state.dockRow,
         transitionSpec = { (fadeIn() + scaleIn(spring(0.6f, 500f), initialScale = 0.94f)) togetherWith fadeOut() }, label = "ctx",
@@ -743,8 +772,8 @@ private fun ClipDock(state: EditorState) {
                 val on = abs(cur * 100 - p) < 0.5f
                 DockStep("$p%", on, modifier = Modifier.inViewWhen(on)) { state.selected?.let { state.setSpeed(it, p) } }
             }
-            // ramp: the speed changes smoothly along the clip
-            state.onSpeedRamp?.let { ramp ->
+            // ramp: the speed changes smoothly along the clip (advanced mode: simple mode has the steps)
+            if (!simple) state.onSpeedRamp?.let { ramp ->
                 var open by remember { mutableStateOf(false) }
                 Box {
                     DockStep(stringResource(R.string.app_ramp), false, "speed:ramp") { open = true }
@@ -767,11 +796,12 @@ private fun ClipDock(state: EditorState) {
             if (p != null) Box(Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(24.dp)).background(K.Surface).padding(top = 2.dp).testTag("dockVolume")) {
                 val scope = rememberCoroutineScope()
                 CompositionLocalProvider(LocalSliderInset provides 14.dp) {
-                    // (an animated level: the slider sets the keyframe at the playhead, not one level for the clip – said)
+                    // (an animated level: the slider sets the keyframe at the playhead, not one level for the clip – said;
+                    // simple mode has no keyframes: the slider is off there, and says why)
                     val keyed = p.kf["level"].orEmpty().isNotEmpty()
                     PropSlider(
-                        stringResource(if (keyed) R.string.app_clip_volume_keyframe else R.string.app_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "level",
-                        onLive = { v -> state.setLive(p.copy(levelDb = v)) },
+                        stringResource(if (keyed && simple) R.string.simple_reason_volume_curve else if (keyed) R.string.app_clip_volume_keyframe else R.string.app_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "level",
+                        onLive = { v -> state.setLive(p.copy(levelDb = v)) }, enabled = !(keyed && simple),
                     ) { state.props?.setProps(p.id, levelDb = it); scope.launch { state.endLive() } }
                 }
             }
@@ -788,6 +818,26 @@ private fun ClipDock(state: EditorState) {
             }
         } else if (r == DockRow.MAGNETIC && sel != null) {
             DockItems(listOf(DockItem(Ic.Back, back) { row(DockRow.NONE) }) + magneticItems(state, sel))
+        } else if (r == DockRow.BADGES) {
+            // simple mode: each thing made in advanced mode; a tap opens its choices
+            DockItems(listOf(DockItem(Ic.Back, back) { row(DockRow.NONE) }) + badges.take(5).map { b ->
+                DockItem(b.kind.icon, badgeName(b), "badge:${b.kind.name}", marked = b.on != false) { badgeOpen = b }
+            }, Modifier.testTag("badgeBar"))
+        } else if (r == DockRow.MORE && simple) {
+            // simple mode's More: freeze, reverse, beats, reframe and on/off (no label, copy or storyline commands)
+            val items = buildList {
+                add(DockItem(Ic.Back, back) { row(DockRow.NONE) })
+                // (a sound clip's row is full: its badges are here)
+                if (isSound) badgeItem?.let { add(it) }
+                if (sel?.kind == ClipKind.VIDEO) add(DockItem(Ic.Freeze, stringResource(R.string.app_freeze)) { row(DockRow.FREEZE) })
+                sel?.takeIf { (it.kind == ClipKind.VIDEO || it.kind == ClipKind.AUDIO) && !it.hold }?.let { c ->
+                    add(DockItem(Ic.Reverse, stringResource(if (c.reverse) R.string.app_forward else R.string.app_reverse)) { state.toggleReverse(c.id) })
+                }
+                if (!isTitle) state.onBeatMarkers?.let { beats -> add(DockItem(Ic.Bolt, stringResource(R.string.beats_btn), "ctx:beats") { state.selected?.let { beats(it) } }) }
+                if (sel?.kind == ClipKind.VIDEO) state.onReframe?.let { rf -> add(DockItem(Ic.Face, stringResource(R.string.reframe_short), "ctx:reframe") { state.selected?.let { rf(it) } }) }
+                add(powerItem)
+            }
+            DockItems(items)
         } else if (r == DockRow.MORE) {
             // the rest of the clip's actions, behind More
             val items = buildList {
@@ -824,7 +874,31 @@ private fun ClipDock(state: EditorState) {
                 add(DockItem(Ic.Delete, stringResource(R.string.app_delete), "ctx:delete", tint = K.Error, strong = true,
                     desc = stringResource(if (state.magnetic) R.string.magnetic_ripple_delete else R.string.app_delete_leave_gap)) { state.selected?.let { state.requestRemove(it, state.magnetic) } })
                 val split = DockItem(Ic.Split, stringResource(R.string.app_split), "ctx:split") { state.selected?.let { state.split(it, state.playhead) } }
-                when {
+                // simple mode: the everyday actions of each kind, in the same order; what was made in advanced mode last
+                if (simple) when {
+                    isTitle -> {
+                        if (state.props != null) add(DockItem(Ic.Text, stringResource(R.string.design_edit_short), "ctx:editText", desc = stringResource(R.string.app_edit_text)) { open(0) })
+                        add(split)
+                        add(powerItem)
+                        badgeItem?.let { add(it) }
+                    }
+                    isSound -> {
+                        add(split)
+                        if (state.props != null) {
+                            add(DockItem(Ic.Speaker, stringResource(R.string.app_volume), "ctx:volume") { row(DockRow.VOLUME) })
+                            add(DockItem(Ic.Audio, stringResource(R.string.design_sound_fx), "ctx:afx") { state.openTab = "propTab:afx"; open(0) })
+                        }
+                        add(DockItem(Ic.Speed, stringResource(R.string.app_speed), "ctx:speed") { row(DockRow.SPEED) })
+                        add(DockItem(Ic.More, stringResource(R.string.design_more), "ctx:more", marked = badgeItem != null) { row(DockRow.MORE) })
+                    }
+                    else -> {
+                        if (state.props != null) add(DockItem(Ic.Crop, stringResource(R.string.design_picture), "ctx:picture") { open(GROUP_PICTURE) })
+                        add(split)
+                        add(DockItem(Ic.Speed, stringResource(R.string.app_speed), "ctx:speed") { row(DockRow.SPEED) })
+                        add(DockItem(Ic.More, stringResource(R.string.design_more), "ctx:more") { row(DockRow.MORE) })
+                        badgeItem?.let { add(it) }
+                    }
+                } else when {
                     isTitle -> {
                         // a title has few actions: they are all in its row, nothing behind More
                         if (state.props != null) add(DockItem(Ic.Text, stringResource(R.string.design_edit_short), "ctx:editText", desc = stringResource(R.string.app_edit_text)) { open(0) })
@@ -849,7 +923,7 @@ private fun ClipDock(state: EditorState) {
                         add(DockItem(Ic.Speed, stringResource(R.string.app_speed), "ctx:speed") { row(DockRow.SPEED) })
                     }
                 }
-                if (!isTitle) add(DockItem(Ic.More, stringResource(R.string.design_more), "ctx:more") { row(DockRow.MORE) })
+                if (!isTitle && !simple) add(DockItem(Ic.More, stringResource(R.string.design_more), "ctx:more") { row(DockRow.MORE) })
             }
             DockItems(items)
         }
@@ -904,6 +978,11 @@ private fun MultiDock(state: EditorState) {
         // (delete first, as in a clip's row; six share the dock, so two have short names – the whole ones are read out)
         add(DockItem(Ic.Delete, stringResource(R.string.app_delete), "multi:delete", tint = K.Error, strong = true, desc = stringResource(R.string.app_delete_leave_gap)) { state.removeGroup(false) })
         if (nClips > 0) add(DockItem(Ic.Ripple, stringResource(R.string.design_ripple_short), "multi:ripple", strong = true, desc = stringResource(R.string.app_ripple_delete)) { state.removeGroup(true) })
+        // (simple mode: delete, ripple delete and on/off – grouping, labels and syncing are advanced mode's)
+        if (state.simple) {
+            if (nClips > 0) add(DockItem(Ic.Power, stringResource(R.string.app_toggle_enabled), "multi:power") { state.toggleEnabled(state.multi) })
+            return@buildList
+        }
         // compound clip: selected, moved and graded together
         if (state.props != null && nClips > 0) {
             val groups = state.multi.mapNotNull { id -> state.clips.firstOrNull { it.id == id }?.group }.toSet()
@@ -1099,7 +1178,7 @@ internal fun TransitionCard(state: EditorState, modifier: Modifier) {
                     }
                     if (sub != null) Text(sub, color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (type.directional && between && !audio) {
+                if (type.directional && between && !audio && !state.simple) {
                     val bg by animateColorAsState(if (tr.reverse) K.PrimaryContainer else K.SurfaceHighest, label = "rv")
                     val fg = if (tr.reverse) K.PrimarySoft else K.OnSurface
                     Row(
@@ -1134,7 +1213,8 @@ internal fun TransitionCard(state: EditorState, modifier: Modifier) {
             ) { sec -> haptics.confirm(); state.props?.resizeTransition(tr.id, sec) }
             // how much the picture smears while it moves (the default is 100 %)
             val from = tr.from; val to = tr.to
-            if (type.blurs && from != null && to != null && between && !audio) {
+            // (simple mode: the type and length only – the direction and the blur are advanced mode's)
+            if (type.blurs && from != null && to != null && between && !audio && !state.simple) {
                 PropSlider(
                     stringResource(R.string.design_transition_blur), TransitionLooks.blurOf(from, to) * 100f, 0f, TransitionLooks.MAX_BLUR * 100f, 100f,
                     { "%.0f %%".format(it) }, tag = "transition:blur", onLive = { TransitionLooks.setBlur(from, to, it / 100f) },

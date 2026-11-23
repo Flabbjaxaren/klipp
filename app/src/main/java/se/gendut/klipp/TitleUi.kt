@@ -422,7 +422,7 @@ internal fun CaptionsWrite(state: EditorState, backend: PropsBackend) {
     )
     // which track the line goes to – always said (a new one is made, with a name of its own, when there is none)
     val tracks = backend.captionTracks
-    CaptionTrackPicker(state, backend, tracks, captionShownTrack(tracks, state.captionTrack), stringResource(R.string.captiontracks_target))
+    CaptionTrackPicker(state, backend, tracks, captionEditTrack(state, tracks), stringResource(R.string.captiontracks_target))
     SectionLabel(stringResource(R.string.titleui_caps_import_title))
     Text(stringResource(R.string.titleui_caps_import_hint), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
     PillButton(stringResource(R.string.titleui_import_captions), { haptics.tick(); backend.importCaptions() },
@@ -435,7 +435,7 @@ internal fun CaptionWriteButton(state: EditorState, backend: PropsBackend) {
     val haptics = rememberHaptics()
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val tracks = backend.captionTracks
-    val target = captionShownTrack(tracks, state.captionTrack)
+    val target = captionEditTrack(state, tracks)
     // where the line goes: at the playhead, as long as set, shortened to end where the next caption on the track starts
     val slot = captionWriteSlot(state.captions, target, state.playhead, AppPrefs.captionSeconds(ctx).toFloat(), 0.3f)
     Column(Modifier.fillMaxWidth().background(K.Surface).padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -531,6 +531,8 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
             ColorPicker(p.textColor and 0xFFFFFF, "titleColor",
                 onLive = { c -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textColor = c)) },
             ) { c -> backend.setTitle(p.id, color = c); scope.launch { state.endLive() } }
+            // (simple mode: the template, size, color and font – the rest of the look stays as the template or advanced mode made it)
+            if (state.simple) { TitleFontRow(look.font) { commit(look.copy(font = it)) }; return@PanelCard }
             PropSlider(stringResource(R.string.titleui_text_opacity), look.opacity * 100f, 0f, 100f, 100f, { "%.0f %%".format(it) }, "titleOpacity", lane = false,
                 onLive = { live(look.copy(opacity = it / 100f)) }) { commit(look.copy(opacity = it / 100f)) }
             TitleFontRow(look.font) { commit(look.copy(font = it)) }
@@ -549,6 +551,7 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
                     SpringChip(l, look.align == k, { commit(look.copy(align = k)) }, Modifier.testTag("title:align:$k"))
             }
             }
+            if (state.simple) return
             if (look.template != TitleTemplate.ROLL) PanelCard(Modifier.padding(top = 10.dp)) { TitlePlateSection(look, ::live, ::commit) }
             PanelCard(Modifier.padding(top = 10.dp)) {
             Row(Modifier.fillMaxWidth().padding(end = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -569,7 +572,8 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
             AnimChips(look.template, look.anim) { backend.setTitle(p.id, look = look.copy(anim = it).encode()) }
             if (look.template == TitleTemplate.ROLL) Text(stringResource(R.string.titleui_roll_no_anim), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
         }
-        2 -> LocalGradeState.current?.let { gs -> PanelCard(Modifier.padding(top = 10.dp)) { FollowSection(state, p, gs) }; PanelCard(Modifier.padding(top = 10.dp)) { PinSection(state, p, gs) } }
+        // (simple mode places the title by hand only: following and pinning are advanced mode's – a badge when set)
+        2 -> if (!state.simple) LocalGradeState.current?.let { gs -> PanelCard(Modifier.padding(top = 10.dp)) { FollowSection(state, p, gs) }; PanelCard(Modifier.padding(top = 10.dp)) { PinSection(state, p, gs) } }
         else -> {}
     }
 }

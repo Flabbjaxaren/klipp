@@ -444,7 +444,8 @@ fun AudioPanel(mix: AudioMix, state: EditorState, tools: AudioTools? = null, doc
         // the tab lives in the editor state: in the app the dock at the bottom shows the tabs (dockTabs) and the top
         // bar names the page; on its own the page does both itself
         var tab by state::audioTab
-        val tabs = audioTabs(mix, tools != null, tools?.trackFx != null, tracks.any { t -> t.afx.any { it.on } })
+        // (simple mode: the mixer, loudness and ducking – a track's own effects show as a badge on its header)
+        val tabs = audioTabs(mix, tools != null, tools?.trackFx != null && !state.simple, tracks.any { t -> t.afx.any { it.on } })
         LaunchedEffect(state.openTab) { tabs.indexOfFirst { it.tag == state.openTab }.takeIf { it >= 0 }?.let { tab = it; state.openTab = null } }
         if (!dockTabs) {
             PanelTitle(stringResource(R.string.panels_audio))
