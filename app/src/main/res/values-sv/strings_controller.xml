@@ -26,6 +26,7 @@
     <string name="projectcontroller_edit_failed">Redigeringen misslyckades</string>
     <string name="projectcontroller_generic_failed">Det gick inte</string>
     <string name="projectcontroller_sync_lock_blocks_ripple">Synklåst spår hindrar ripple – lås upp spåret</string>
+    <string name="projectcontroller_gap_left_sync">Tomrummet ligger kvar – ett synklåst spår hindrar ripple</string>
     <string name="projectcontroller_track_locked">Spåret är låst</string>
     <string name="projectcontroller_freeze_failed">Frysbilden gick inte: %1$s</string>
     <string name="projectcontroller_read_project_failed">Kunde inte läsa projektet: %1$s</string>

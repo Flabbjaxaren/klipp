@@ -639,7 +639,7 @@ class ProjectController(
 
     private fun friendly(m: String?): String = when {
         m == null -> Str.t(R.string.projectcontroller_generic_failed)
-        m.contains("sync", true) && m.contains("lock", true) -> Str.t(R.string.projectcontroller_sync_lock_blocks_ripple)
+        syncBlocked(m) -> Str.t(R.string.projectcontroller_sync_lock_blocks_ripple)
         m.contains("locked", true) -> Str.t(R.string.projectcontroller_track_locked)
         else -> m
     }
@@ -748,9 +748,33 @@ class ProjectController(
         } }
     }
 
-    override fun remove(id: Long, ripple: Boolean) {
-        run(if (ripple) "edit.rippleDelete" else "edit.clear", JSONObject().put("clips", JSONArray().put(id)))
+    override fun remove(id: Long, ripple: Boolean) { delete(listOf(id), ripple) }
+
+    /**
+     * Delete clips. A ripple that a sync-locked track blocks (the sound of a clip whose picture stays – a file's second
+     * audio stream, say – has its picture "in the way") deletes them anyway and leaves the gap: refusing left the clips
+     * where they were. Only when something after them on their tracks stays put (a gap that would have closed) is
+     * there a word about it – the sound of a picture that stays leaves just silence under the picture.
+     */
+    private fun delete(ids: List<Long>, ripple: Boolean) = scope.launch {
+        editLock.withLock {
+            val p = JSONObject().put("clips", JSONArray().apply { ids.forEach { put(it) } })
+            if (!ripple) engine.tryExec("edit.clear", p).onFailure { onMessage(friendly(it.message)) }
+            else engine.tryExec("edit.rippleDelete", p).onFailure { e ->
+                if (!syncBlocked(e.message)) { onMessage(friendly(e.message)); return@onFailure }
+                val q = snapshot.sequence
+                val holeLeft = q != null && (q.video + q.audio).any { t ->
+                    val gone = t.clips.filter { it.id in ids }
+                    gone.isNotEmpty() && t.clips.any { c -> c.id !in ids && gone.any { g -> c.start >= g.start + g.duration - 1e-3 } }
+                }
+                engine.tryExec("edit.clear", p).onSuccess { if (holeLeft) onMessage(Str.t(R.string.projectcontroller_gap_left_sync)) }
+                    .onFailure { onMessage(friendly(it.message)) }
+            }
+            refresh()
+        }
     }
+
+    private fun syncBlocked(m: String?) = m != null && m.contains("sync", true) && m.contains("lock", true)
 
     override fun moveMany(moves: List<Triple<Clip, Float, Int>>, insert: Boolean) {
         val arr = JSONArray()
@@ -788,11 +812,7 @@ class ProjectController(
         } }
     }
 
-    override fun removeMany(ids: List<Long>, ripple: Boolean) {
-        val arr = JSONArray()
-        ids.forEach { arr.put(it) }
-        run(if (ripple) "edit.rippleDelete" else "edit.clear", JSONObject().put("clips", arr))
-    }
+    override fun removeMany(ids: List<Long>, ripple: Boolean) { delete(ids, ripple) }
 
     override fun razorTracks(at: Float, tracks: List<Int>) {
         scope.launch {
