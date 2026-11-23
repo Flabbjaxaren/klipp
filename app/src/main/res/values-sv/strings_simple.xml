@@ -129,9 +129,4 @@
     <string name="simple_lane_muted">Tystat spår</string>
     <string name="simple_lane_hidden">Dolt spår</string>
     <string name="simple_lane_effects">Spåreffekter</string>
-    <string name="simple_lanes_up">Rader ovanför</string>
-    <plurals name="simple_lanes_more">
-        <item quantity="one">+%d rad</item>
-        <item quantity="other">+%d rader</item>
-    </plurals>
 </resources>

@@ -129,9 +129,4 @@
     <string name="simple_lane_muted">Muted track</string>
     <string name="simple_lane_hidden">Hidden track</string>
     <string name="simple_lane_effects">Track effects</string>
-    <string name="simple_lanes_up">Rows above</string>
-    <plurals name="simple_lanes_more">
-        <item quantity="one">+%d row</item>
-        <item quantity="other">+%d rows</item>
-    </plurals>
 </resources>
