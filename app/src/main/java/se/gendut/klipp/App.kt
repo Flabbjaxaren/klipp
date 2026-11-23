@@ -226,7 +226,7 @@ private fun KlippAppContent(
         gs.siblings = { id -> state.clips.firstOrNull { it.id == id }?.let { c -> state.groupMembers(c).filter { it.kind == ClipKind.VIDEO }.map { it.id } }.orEmpty() }
         gs.clipInfo = { id ->
             controller?.snapshot?.sequence?.video?.firstNotNullOfOrNull { t -> t.clips.firstOrNull { it.id == id } }
-                ?.let { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 0, c.speed, c.hold, c.reverse, c.item) }
+                ?.let { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 0, c.speed, c.hold, c.reverse) }
         }
         onDispose { gs.history = null; gs.siblings = null; gs.clipInfo = null }
     }
@@ -927,7 +927,7 @@ private fun KlippAppContent(
             val revision = controller?.revision
             return remember(q, revision) {
                 q?.video?.take(3)?.flatMapIndexed { k, t ->
-                    t.clips.filter { it.text == null }.map { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 2 - k, c.speed, c.hold, c.reverse) }
+                    t.clips.filter { it.text == null }.map { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, 2 - k, c.speed, c.hold, c.reverse, item = c.item) }
                 }.orEmpty().sortedBy { it.start }
             }
         }
