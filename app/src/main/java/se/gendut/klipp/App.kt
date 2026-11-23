@@ -269,7 +269,15 @@ private fun KlippAppContent(
         if (!AppPrefs.magnetDefault(context)) state.magnet = false
         // the magnetic timeline (off unless turned on)
         state.magnetic = AppPrefs.magneticTimeline(context)
+        // simple or advanced (app-wide; simple always edits on the magnetic timeline – the setting above stays the advanced mode's)
+        state.simple = AppPrefs.simpleMode(context)
     }
+    androidx.compose.runtime.DisposableEffect(state) {
+        state.onModeChange = { AppPrefs.setSimpleMode(context, it) }
+        onDispose { state.onModeChange = null }
+    }
+    /** A fresh install's first start: simple or advanced (asked once, see AppPrefs.initMode). */
+    var askMode by remember { mutableStateOf(AppPrefs.askMode(context)) }
     // release the source decoder only when the source is actually closed (not when the phone rotates)
     LaunchedEffect(sourceMedia) { if (sourceMedia == null) sourcePlayback?.close() }
     // (with "add imported clips to the timeline" the clips are on the timeline already – the media panel stays shut)
@@ -515,6 +523,8 @@ private fun KlippAppContent(
             )
         }
     }
+    // (simple mode's track badges turn the track's effects on or off, or remove them, with the same operations)
+    androidx.compose.runtime.SideEffect { state.trackFxOps = audioTools?.trackFx }
     // color mode: grades to playback (after a short pause, so drags don't rebuild every time)
     if (playback != null) LaunchedEffect(playback) {
         var lastFollows: Map<Long, se.gendut.klipp.engine.Follow>? = null
@@ -791,6 +801,8 @@ private fun KlippAppContent(
         if (target != page.targetValue.roundToInt()) haptics.press()
         scope.launch { page.animateTo(target.toFloat(), Springs.page()) }
     }
+    // (a badge's "Open in advanced mode" goes to the page of the tool it opens)
+    androidx.compose.runtime.DisposableEffect(state) { state.onShowPage = { goTo(it) }; onDispose { state.onShowPage = null } }
     // the edit page's row for an empty selection: what is added. Each opens its sheet over the edit page (it used to
     // jump to the sound or text page, each time to a different tab); without a project the text page is the prototype's
     androidx.compose.runtime.DisposableEffect(state, controller) {
@@ -836,7 +848,8 @@ private fun KlippAppContent(
     val imeUp = androidx.compose.foundation.layout.WindowInsets.isImeVisible
     LaunchedEffect(imeUp, state.editingCaption, state.inspecting) { state.typingInPanel = imeUp && (state.editingCaption || state.inspecting) }
     CompositionLocalProvider(LocalGradeState provides gs,
-        LocalSafeZone provides se.gendut.klipp.engine.SafeZones.byKey(state.safeZone)) {
+        LocalSafeZone provides se.gendut.klipp.engine.SafeZones.byKey(state.safeZone),
+        LocalSimple provides state.simple) {
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
@@ -1040,7 +1053,10 @@ private fun KlippAppContent(
                                         transcript = controller?.let { c -> { m: Modifier -> TranscriptView(c, state, m) } },
                                     )
                                     1 -> if (controller != null) {
-                                        ColorPage(state, gs, colorClips(), lookOf(grade), onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) }) {
+                                        // simple mode: the look, four adjustments and log footage – on the same nodes
+                                        if (state.simple) SimpleColorPage(state, gs, colorClips(), timelineLook = !lookOf(grade).isNeutral,
+                                            onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) })
+                                        else ColorPage(state, gs, colorClips(), lookOf(grade), onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) }) {
                                             ColorPanel(grade, { lutTarget = null; lutPicker.launch(arrayOf("*/*")) }, scroll = false)
                                         }
                                     } else ColorPanel(grade, null)
@@ -1110,7 +1126,7 @@ private fun KlippAppContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 UndoRedo(state, ::undo, ::redo)
                 Spacer(Modifier.width(8.dp))
-                Dock(state, { page.value }, audioTabs(mix, audioTools != null, audioTools?.trackFx != null,
+                Dock(state, { page.value }, audioTabs(mix, audioTools != null, audioTools?.trackFx != null && !state.simple,
                     controller?.let { c -> c.revision; c.snapshot.sequence?.audio?.any { t -> t.afx.any { it.on } } } == true), Modifier.weight(1f))
             }
         }
@@ -1216,6 +1232,8 @@ private fun KlippAppContent(
             androidx.activity.compose.BackHandler { showAppSettings = false }
             SettingsScreen(
                 onClose = { showAppSettings = false },
+                simple = state.simple,
+                onMode = { on -> state.switchMode(on); toaster.show(Str.t(if (on) R.string.simple_mode_on else R.string.simple_mode_off)) },
                 onCenterDefault = { state.centerPlayhead = it },
                 onMagnetDefault = { state.magnet = it },
                 onMagnetic = { state.magnetic = it; state.selectedGap = null; if (!it && tool == Tool.POSITION) tool = Tool.SELECT },
@@ -1238,6 +1256,12 @@ private fun KlippAppContent(
                 onClose = { videoPicker = false },
             )
         }
+
+        // a fresh install's first start: which mode (over everything; skipped = advanced)
+        if (askMode) ModeChooser(
+            onPick = { on -> AppPrefs.setSimpleMode(context, on); state.switchMode(on); askMode = false; haptics.confirm() },
+            onSkip = { AppPrefs.skipModeAsk(context); askMode = false },
+        )
 
         MessageHost(Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 70.dp), toaster = toaster, layer = 0)
     }

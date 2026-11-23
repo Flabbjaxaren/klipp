@@ -93,15 +93,7 @@ fun ExportOptions(
         }), what + size, enabled = p != se.gendut.klipp.engine.ExportPreset.CUSTOM || preset == p, key = p.name)
     }, preset, "exp:preset") { p -> onChange(p.apply(s, seqW, seqH, projectFps, caps)) }
 
-    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
-    ConnectedToggleGroup(
-        listOf(stringResource(R.string.exportui_tab_video), stringResource(R.string.exportui_tab_quality), stringResource(R.string.exportui_color), stringResource(R.string.exportui_audio)),
-        tab, { tab = it }, Modifier.padding(vertical = 6.dp).fillMaxWidth(), tag = { "expTab:$it" },
-    )
-    ExportIssues(plan, onChange)
-    when (tab) {
-        0 -> {
-    DropField(stringResource(R.string.exportui_resolution), HEIGHTS.map { h ->
+    @Composable fun resolution() = DropField(stringResource(R.string.exportui_resolution), HEIGHTS.map { h ->
         val (w2, h2) = s.copy(height = h).outputSize(seqW, seqH)
         // only a size no encoder can make is closed (one the chosen codec can't make is made in another)
         val p2 = planOf(s.copy(height = h))
@@ -112,6 +104,39 @@ fun ExportOptions(
             else "${w2}×$h2",
             enabled = p2.ok || h == s.height, key = "h$h")
     }, s.height, "exp:res") { onChange(s.copy(height = it)) }
+
+    // simple mode: the preset, the resolution and HDR (HLG) when it can be made – the same settings the tabs write;
+    // what advanced mode set beyond them is kept and said
+    if (LocalSimple.current) {
+        if (preset == se.gendut.klipp.engine.ExportPreset.CUSTOM) Note(stringResource(R.string.simple_export_custom))
+        ExportIssues(plan, onChange)
+        resolution()
+        if (hlgReady && se.gendut.klipp.engine.EncoderCaps.hdrSupported) Row(
+            Modifier.fillMaxWidth().clickable { onChange(if (plan.hlg) s.copy(hdr = false, hlg = false) else s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265)) }
+                .padding(horizontal = 16.dp, vertical = 10.dp).testTag("exp:simpleHlg"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.simple_export_hlg), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.simple_export_hlg_hint), color = K.OnSurfaceVar, fontSize = 12.sp)
+            }
+            androidx.compose.material3.Switch(plan.hlg, { on -> onChange(if (on) s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265) else s.copy(hdr = false, hlg = false)) },
+                colors = androidx.compose.material3.SwitchDefaults.colors(checkedThumbColor = K.PrimarySoft, checkedTrackColor = K.PrimaryContainer))
+        }
+        if (plan.hdr) Note(stringResource(R.string.simple_export_keep_hdr))
+        if (plan.hlg && hlgSdrNote != null) Note(hlgSdrNote)
+        return
+    }
+
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
+    ConnectedToggleGroup(
+        listOf(stringResource(R.string.exportui_tab_video), stringResource(R.string.exportui_tab_quality), stringResource(R.string.exportui_color), stringResource(R.string.exportui_audio)),
+        tab, { tab = it }, Modifier.padding(vertical = 6.dp).fillMaxWidth(), tag = { "expTab:$it" },
+    )
+    ExportIssues(plan, onChange)
+    when (tab) {
+        0 -> {
+    resolution()
 
     // higher than the project isn't possible (frames aren't invented); same as the project = "Project"
     val fpsOpts = listOf(Opt(0.0, projects, stringResource(R.string.exportui_fps_value, fpsLabel(projectFps)), key = "fps0")) +

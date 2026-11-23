@@ -183,6 +183,19 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     val haptics = rememberHaptics()
     val scope = rememberCoroutineScope()
+    // (simple mode: the clips' and tracks' badges – what was made in advanced mode)
+    val gsNow = LocalGradeState.current
+    var trackBadgeOpen by remember { mutableStateOf<Pair<Int, Badge>?>(null) }
+    trackBadgeOpen?.let { (i, b) ->
+        val act = remember(state, gsNow) { BadgeActions(state, gsNow) }
+        val ts = state.trackStates.getOrNull(i) ?: TrackState()
+        val audio = state.tracks.getOrNull(i)?.name?.drop(1)?.toIntOrNull()?.minus(1) ?: 0
+        BadgeDialog(b,
+            onToggle = if (b.canToggle) ({ act.toggleTrack(audio, ts); trackBadgeOpen = null }) else null,
+            onRemove = { act.removeTrack(audio, ts); trackBadgeOpen = null },
+            onOpen = { trackBadgeOpen = null; act.openTrack(audio) },
+            onDismiss = { trackBadgeOpen = null })
+    }
 
     // room for the track name and a button (eye/speaker) right in the header
     val headerW = 68.dp
@@ -602,9 +615,10 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         .testTag("trackHeader:${t.name}")
                         // tap = target track, hold = track states (lock, hide/mute, solo, sync lock, add, delete); a double tap
                         // opens the track (audio: for the clips' volume lines; video: as tall) or closes it
+                        // (simple mode: no track menu – a track's lock, solo and sync lock still apply and show)
                         .then(if (t.kind == TrackKind.AUDIO) Modifier.combinedClickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null,
-                            onLongClick = { haptics.heavy(); menu = true },
+                            onLongClick = if (state.simple) null else ({ haptics.heavy(); menu = true }),
                             onDoubleClick = { haptics.confirm(); state.toggleOpen(i) },
                         ) {
                             haptics.tick()
@@ -618,7 +632,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 if (cb != null) cb(i) else state.targetVideo = i
                             },
                             onDoubleTap = { haptics.confirm(); state.toggleOpen(i) },
-                            onLongPress = { haptics.heavy(); menu = true },
+                            onLongPress = { if (!state.simple) { haptics.heavy(); menu = true } },
                         ))
                         .padding(start = 8.dp, end = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -637,9 +651,13 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     Column {
                         Text(t.name, color = if (ts.enabled && !ts.muted) K.OnSurfaceVar else K.Outline, fontSize = 12.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
                         // the states as small badges under the name
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (ts.locked) androidx.compose.material3.Icon(Ic.Lock, stringResource(R.string.timeline_locked), tint = K.Mark, modifier = Modifier.size(11.dp))
                             if (ts.solo) Text("S", color = K.Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            // simple mode: the track's own effects (made in advanced mode) – a tap offers their choices
+                            if (state.simple) trackBadge(ts)?.let { b ->
+                                BadgeMark(listOf(b), Modifier.clickable(onClickLabel = stringResource(b.kind.label)) { haptics.tick(); trackBadgeOpen = i to b }.testTag("trackBadge:${t.name}"))
+                            }
                         }
                         // the audio track's level while it plays
                         if (t.kind == TrackKind.AUDIO) TrackMeter(t.name.drop(1).toInt() - 1, state.playing, Modifier.padding(top = 2.dp).size(22.dp, 3.dp))
@@ -654,7 +672,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 }
             } }
             // under the last track: add a video track (on top) or an audio track (at the bottom), up to the limits
-            AddTrackRow(state.tracks.canAddVideo, state.tracks.canAddAudio) { kind -> haptics.confirm(); if (kind == TrackKind.VIDEO) addedOnTop = true; state.addTrack(kind) }
+            // (simple mode: the storyline and its connected clips find their tracks themselves)
+            if (!state.simple) AddTrackRow(state.tracks.canAddVideo, state.tracks.canAddAudio) { kind -> haptics.confirm(); if (kind == TrackKind.VIDEO) addedOnTop = true; state.addTrack(kind) }
             }
             }
         }
@@ -2012,6 +2031,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         hOf = ::hOf,
                         level = if (c.kind.track == TrackKind.AUDIO) volEdit?.takeIf { it.first == c.id }?.second ?: state.clipLevels[c.id] else null,
                         editLine = state.volOn(c.track),
+                        // simple mode: a mark on a clip that holds something made in advanced mode (its choices: the dock's Advanced)
+                        badges = if (state.simple) state.badgesOf(c, gsNow) else emptyList(),
                     )
                 }
             }
@@ -2345,6 +2366,8 @@ private fun ClipView(
     level: ClipLevel? = null,
     /** The volume lines can be edited: drawn bolder, with large keyframes. */
     editLine: Boolean = false,
+    /** Simple mode: what the clip holds from advanced mode (a small mark in its corner). */
+    badges: List<Badge> = emptyList(),
 ) {
     val density = LocalDensity.current
     val shape = RoundedCornerShape(10.dp)
@@ -2408,6 +2431,7 @@ private fun ClipView(
             modifier = Modifier.padding(start = if (selected) 14.dp else 8.dp, top = 4.dp, end = 8.dp)
         )
         if (level != null && (editLine || level.animated || abs(level.db) > 0.05f)) VolumeLine(clip, level, editLine, Modifier.fillMaxSize())
+        BadgeMark(badges, Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = if (selected) 13.dp else 4.dp).testTag("badgeMark:${clip.id}"))
         if (selected) {
             Box(
                 Modifier.align(Alignment.CenterStart).width(10.dp).fillMaxHeight()

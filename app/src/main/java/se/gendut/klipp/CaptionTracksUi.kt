@@ -45,6 +45,14 @@ import androidx.compose.ui.unit.sp
 fun captionShownTrack(tracks: List<CaptionTrackUi>, chosen: Long?): Long? =
     tracks.firstOrNull { it.id == chosen }?.id ?: tracks.firstOrNull { it.count > 0 }?.id ?: tracks.firstOrNull()?.id
 
+/**
+ * The caption track the sheet edits: the chosen one ([captionShownTrack]) – in simple mode, which has no track picker,
+ * the visible one (shown with lines, else shown, else as advanced mode would pick).
+ */
+fun captionEditTrack(state: EditorState, tracks: List<CaptionTrackUi>): Long? =
+    if (!state.simple) captionShownTrack(tracks, state.captionTrack)
+    else tracks.firstOrNull { it.enabled && it.count > 0 }?.id ?: tracks.firstOrNull { it.enabled }?.id ?: captionShownTrack(tracks, state.captionTrack)
+
 /** "name · 12 lines", or "name · Empty". */
 @Composable
 fun captionTrackLabel(t: CaptionTrackUi): String =
@@ -60,6 +68,8 @@ fun newCaptionTrackName(tracks: List<CaptionTrackUi>, pattern: (Int) -> String):
  */
 @Composable
 fun CaptionTrackPicker(state: EditorState, backend: PropsBackend, tracks: List<CaptionTrackUi>, current: Long?, label: String = stringResource(R.string.captiontracks_edit)) {
+    // (simple mode edits the visible track: no picker – see captionEditTrack)
+    if (state.simple) return
     val haptics = rememberHaptics()
     var open by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<CaptionTrackUi?>(null) }
@@ -142,10 +152,13 @@ internal fun CaptionsExisting(state: EditorState, backend: PropsBackend, onPart:
         FillButtons(onPart)
         return
     }
-    val current = captionShownTrack(tracks, state.captionTrack)
+    val current = captionEditTrack(state, tracks)
     val t = tracks.firstOrNull { it.id == current } ?: return
     CaptionTrackPicker(state, backend, tracks, current)
-    CaptionTrackVisible(backend, t)
+    if (!state.simple) CaptionTrackVisible(backend, t)
+    // simple mode: the other caption tracks stay as they are, said here (edited in advanced mode)
+    if (state.simple && tracks.size > 1) Text(pluralStringResource(R.plurals.simple_captions_other_tracks, tracks.size - 1, tracks.size - 1),
+        color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).testTag("capOtherTracks"))
     // the style: its name, opens the style view
     val st = backend.captionStyle(t.id)
     if (st != null) Row(
@@ -173,6 +186,8 @@ internal fun CaptionsExisting(state: EditorState, backend: PropsBackend, onPart:
         }
     }
     // empty tracks: removed on request (undo brings them back)
+    // (simple mode: the tracks are advanced mode's – none removed, none shown or hidden all at once from here)
+    if (state.simple) return
     val empty = tracks.filter { it.count == 0 }
     val toaster = LocalToaster.current
     if (empty.isNotEmpty()) PillButton(pluralStringResource(R.plurals.captiontracks_remove_empty, empty.size, empty.size), {
@@ -211,7 +226,7 @@ internal fun CaptionsStylePart(state: EditorState, backend: PropsBackend, onPart
         FillButtons(onPart)
         return
     }
-    val current = captionShownTrack(tracks, state.captionTrack) ?: return
+    val current = captionEditTrack(state, tracks) ?: return
     CaptionTrackPicker(state, backend, tracks, current, stringResource(R.string.captionstyle_applies_to))
     val st = backend.captionStyle(current) ?: se.gendut.klipp.engine.CaptionStyle()
     CaptionStyleContent(backend, current, CaptionStyleTab.STYLES)

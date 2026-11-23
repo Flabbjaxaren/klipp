@@ -68,6 +68,27 @@ object AppPrefs {
     fun magneticTimeline(c: Context): Boolean = p(c).getBoolean("magneticTimeline", false)
     fun setMagneticTimeline(c: Context, on: Boolean) { p(c).edit().putBoolean("magneticTimeline", on).apply() }
 
+    /** Simple mode (see Simple.kt), app-wide; stored as "appMode" = "simple" / "advanced" – missing = advanced. */
+    fun simpleMode(c: Context): Boolean = p(c).getString("appMode", null) == "simple"
+    /** The mode chosen (Settings, the ⋯ menu or the first start's question, which is then answered). */
+    fun setSimpleMode(c: Context, on: Boolean) { p(c).edit().putString("appMode", if (on) "simple" else "advanced").remove("askMode").apply() }
+    /** The first start's question (simple or advanced) is waiting for an answer. */
+    fun askMode(c: Context): Boolean = p(c).getBoolean("askMode", false)
+    /** The question skipped: advanced, as for everyone who used the app before the modes. */
+    fun skipModeAsk(c: Context) = setSimpleMode(c, false)
+
+    /**
+     * At start, once: a phone that has used Klipp before (an update, projects or settings of its own) stays in advanced
+     * mode – nothing changes for it; a fresh install is asked once which mode it wants (see [askMode]).
+     * [updated]: the app was installed earlier and updated; [hasProjects]: there are saved projects.
+     */
+    fun initMode(c: Context, updated: Boolean, hasProjects: Boolean) {
+        val pr = p(c)
+        if (pr.contains("appMode") || pr.contains("askMode")) return
+        if (updated || hasProjects || pr.all.isNotEmpty()) pr.edit().putString("appMode", "advanced").apply()
+        else pr.edit().putBoolean("askMode", true).apply()
+    }
+
     /** Magnetic snapping on when the app starts. */
     fun magnetDefault(c: Context): Boolean = p(c).getBoolean("magnet", true)
     fun setMagnetDefault(c: Context, on: Boolean) { p(c).edit().putBoolean("magnet", on).apply() }
@@ -147,9 +168,13 @@ private fun secLabel(s: Float) = (if (s % 1f == 0f) s.toInt().toString() else "%
  * @param onCenterDefault the playhead's default mode changed (also applies right away)
  * @param onMagnetDefault the snapping default changed (also applies right away)
  * @param onMagnetic the magnetic timeline turned on or off (applies right away)
+ * @param simple simple mode (see Simple.kt): the first page offers what simple mode uses – appearance, the timeline's
+ *   default lengths, help and about – and the timeline page leaves out what simple mode decides itself (snapping, the
+ *   magnetic timeline) or doesn't show (the playhead mode, waveform detail); [onMode] switches it (the row at the top)
  */
 @Composable
-fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {}, onMagnetDefault: (Boolean) -> Unit = {}, onMagnetic: (Boolean) -> Unit = {}) {
+fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {}, onMagnetDefault: (Boolean) -> Unit = {}, onMagnetic: (Boolean) -> Unit = {},
+                   simple: Boolean = false, onMode: ((Boolean) -> Unit)? = null) {
     val ctx = LocalContext.current
     val haptics = rememberHaptics()
     // (the empty parts take the touches too: the editor lies under the page)
@@ -167,15 +192,22 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
         val scroll = remember(page, about.stack.size) { androidx.compose.foundation.ScrollState(0) }
         Column(Modifier.weight(1f).verticalScroll(scroll).padding(bottom = 40.dp)) {
             when (page) {
-                -1 -> PanelCard(Modifier.padding(top = 8.dp)) {
+                -1 -> {
+                    // simple or advanced: the first thing on the page, in both modes
+                    if (onMode != null) PanelCard(Modifier.padding(top = 8.dp)) { ModeRow(simple, onMode) }
+                    PanelCard(Modifier.padding(top = 8.dp)) {
                     CategoryRow(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_cat_appearance), Ic.Eye, "set:cat:appearance") { page = 0 }
-                    CategoryRow(stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_cat_timeline), Ic.Trim, "set:cat:timeline") { page = 1 }
-                    CategoryRow(stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_cat_pipeline), Ic.Film, "set:cat:pipeline") { page = 2 }
-                    CategoryRow(stringResource(R.string.settings_group_playback), stringResource(R.string.settings_cat_playback), Ic.Folder, "set:cat:playback") { page = 3 }
-                    CategoryRow(stringResource(R.string.settings_group_export), stringResource(R.string.settings_cat_export), Ic.Download, "set:cat:export") { page = 4 }
-                    CategoryRow(stringResource(R.string.settings_group_developer), stringResource(R.string.settings_cat_developer), Ic.Gear, "set:cat:developer") { page = 5 }
+                    CategoryRow(stringResource(R.string.settings_group_timeline), stringResource(if (simple) R.string.simple_settings_timeline else R.string.settings_cat_timeline), Ic.Trim, "set:cat:timeline") { page = 1 }
+                    // (the picture pipeline, playback files, export defaults and the developer's tools: advanced mode's)
+                    if (!simple) {
+                        CategoryRow(stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_cat_pipeline), Ic.Film, "set:cat:pipeline") { page = 2 }
+                        CategoryRow(stringResource(R.string.settings_group_playback), stringResource(R.string.settings_cat_playback), Ic.Folder, "set:cat:playback") { page = 3 }
+                        CategoryRow(stringResource(R.string.settings_group_export), stringResource(R.string.settings_cat_export), Ic.Download, "set:cat:export") { page = 4 }
+                        CategoryRow(stringResource(R.string.settings_group_developer), stringResource(R.string.settings_cat_developer), Ic.Gear, "set:cat:developer") { page = 5 }
+                    }
                     CategoryRow(stringResource(R.string.settings_group_help), stringResource(R.string.settings_cat_help), Ic.Bulb, "set:cat:help") { page = 6 }
                     CategoryRow(stringResource(R.string.settings_group_about), stringResource(R.string.settings_cat_about), Ic.Transcript, "set:cat:about") { page = 7 }
+                    }
                 }
                 0 -> PanelCard(Modifier.padding(top = 8.dp)) {
             Text(stringResource(R.string.settings_accent_color), color = K.OnSurfaceVar, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
@@ -208,6 +240,8 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
 
                 }
                 1 -> PanelCard(Modifier.padding(top = 8.dp)) {
+            // (simple mode snaps and edits on the magnetic timeline always – these stay the advanced mode's choices)
+            if (!simple) {
             var center by remember { mutableStateOf(AppPrefs.centerDefault(ctx)) }
             SwitchRow(stringResource(R.string.settings_center_playhead), stringResource(R.string.settings_center_playhead_hint), center, "set:center") {
                 center = it; AppPrefs.setCenterDefault(ctx, it); onCenterDefault(it)
@@ -219,6 +253,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             var magnetic by remember { mutableStateOf(AppPrefs.magneticTimeline(ctx)) }
             SwitchRow(stringResource(R.string.magnetic_setting), stringResource(R.string.magnetic_setting_hint), magnetic, "set:magnetic") {
                 magnetic = it; AppPrefs.setMagneticTimeline(ctx, it); onMagnetic(it)
+            }
             }
             var addImport by remember { mutableStateOf(AppPrefs.addOnImport(ctx)) }
             SwitchRow(stringResource(R.string.settings_add_on_import), stringResource(R.string.settings_add_on_import_hint), addImport, "set:addOnImport") {
@@ -236,7 +271,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             var capSec by remember { mutableStateOf(AppPrefs.captionSeconds(ctx)) }
             DropField(stringResource(R.string.settings_caption_length), CAPTION_SECONDS.map { Opt(it, secLabel(it), if (it == 2f) defaultHint else null, key = "c$it") },
                 capSec, "set:capSec") { capSec = it; AppPrefs.setCaptionSeconds(ctx, it) }
-            DropField(stringResource(R.string.settings_wave_detail), listOf(
+            if (!simple) DropField(stringResource(R.string.settings_wave_detail), listOf(
                 Opt(WaveDetail.NORMAL, stringResource(R.string.settings_wave_normal), stringResource(R.string.settings_wave_normal_hint), key = "waveNormal"),
                 Opt(WaveDetail.DETAILED, stringResource(R.string.settings_wave_detailed), stringResource(R.string.settings_wave_detailed_hint), key = "waveDetailed"),
                 Opt(WaveDetail.MAX, stringResource(R.string.settings_wave_max), stringResource(R.string.settings_wave_max_hint), key = "waveMax"),

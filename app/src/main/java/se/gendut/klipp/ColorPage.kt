@@ -487,13 +487,13 @@ fun ColorPage(
 }
 
 @Composable
-private fun NoClip() {
+internal fun NoClip() {
     Text(stringResource(R.string.colorpage_no_clip), color = K.OnSurfaceVar, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
 }
 
 /** The clips in timeline order: small pictures, a ring around the one being graded and a dot on those with a grade. */
 @Composable
-private fun ClipStrip(clips: List<ColorClip>, current: Long?, gs: GradeState, onPick: (ColorClip) -> Unit) {
+internal fun ClipStrip(clips: List<ColorClip>, current: Long?, gs: GradeState, onPick: (ColorClip) -> Unit) {
     val scroll = rememberScrollState()
     val density = LocalDensity.current
     // the clip being graded stays in view (two clips' room before it)
@@ -621,32 +621,7 @@ private fun NodeTools(
     // the log curve the clip's camera says it recorded in (e.g. Panasonic V-Log): OpenDRT and film start from it
     val logHint = se.gendut.klipp.engine.CameraLog.of(current.uri)
     // previews for the LUT browser – the frame at the playhead (small), graded with each LUT in this node
-    val lutTick = remember(current) { derivedStateOf { (current.srcAt(state.playhead) * 2).roundToInt() } }.value
-    val lutFrame by produceState<Bitmap?>(null, current.uri, lutTick, editor, state.playing) {
-        if (editor != 3 || state.playing) return@produceState
-        val uri = current.uri ?: return@produceState
-        val f = Frames.load(ctx, uri, current.srcAt(state.playhead), exact = false) ?: return@produceState
-        value = withContext(Dispatchers.Default) {
-            val b = f.asAndroidBitmap()
-            Bitmap.createScaledBitmap(b, 192, (192f * b.height / b.width).roundToInt().coerceAtLeast(1), true)
-        }
-    }
-    // the grade without this node's LUT: choosing another LUT doesn't redraw the previews
-    val lutBase = gs.of(current.id).let { g -> g.copy(nodes = g.nodes.map { if (it.id == node.id) it.copy(lut = null, lutMix = 1f) else it }) }
-    val lutPreview: LutPreview? = remember(lutFrame, lutBase, node.id) {
-        val frame = lutFrame ?: return@remember null
-        val sec = current.srcAt(state.playhead)
-        val gate = kotlinx.coroutines.sync.Semaphore(2)
-        val p: LutPreview = { lut ->
-            gate.withPermit {
-                withContext(Dispatchers.Default) {
-                    val g = lutBase.copy(nodes = lutBase.nodes.map { if (it.id == node.id) it.copy(lut = lut, lutMix = 1f) else it })
-                    runCatching { g.at(sec).applyTo(frame).asImageBitmap() }.getOrNull()
-                }
-            }
-        }
-        p
-    }
+    val lutPreview = rememberLutPreview(state, gs, current, node.id, editor == 3)
     // the window can be dragged in the image when the window tab is open; key/dropper apply only to the selected clip and node
     androidx.compose.runtime.DisposableEffect(current.id, node.id, editor) {
         gs.windowEdit = if (editor == 5) current.id to node.id else null
@@ -750,6 +725,41 @@ private fun NodeTools(
                 }
             }
         }
+    }
+}
+
+/**
+ * Previews for the LUT browser: the frame at the playhead (small) graded with each LUT in node [nodeId] of the clip
+ * (null while [active] is false or playback runs). The grade without that node's LUT is the base, so choosing another
+ * LUT doesn't redraw the previews.
+ */
+@Composable
+internal fun rememberLutPreview(state: EditorState, gs: GradeState, current: ColorClip, nodeId: Int, active: Boolean): LutPreview? {
+    val ctx = LocalContext.current
+    val lutTick = remember(current) { derivedStateOf { (current.srcAt(state.playhead) * 2).roundToInt() } }.value
+    val lutFrame by produceState<Bitmap?>(null, current.uri, lutTick, active, state.playing) {
+        if (!active || state.playing) return@produceState
+        val uri = current.uri ?: return@produceState
+        val f = Frames.load(ctx, uri, current.srcAt(state.playhead), exact = false) ?: return@produceState
+        value = withContext(Dispatchers.Default) {
+            val b = f.asAndroidBitmap()
+            Bitmap.createScaledBitmap(b, 192, (192f * b.height / b.width).roundToInt().coerceAtLeast(1), true)
+        }
+    }
+    val lutBase = gs.of(current.id).let { g -> g.copy(nodes = g.nodes.map { if (it.id == nodeId) it.copy(lut = null, lutMix = 1f) else it }) }
+    return remember(lutFrame, lutBase, nodeId) {
+        val frame = lutFrame ?: return@remember null
+        val sec = current.srcAt(state.playhead)
+        val gate = kotlinx.coroutines.sync.Semaphore(2)
+        val p: LutPreview = { lut ->
+            gate.withPermit {
+                withContext(Dispatchers.Default) {
+                    val g = lutBase.copy(nodes = lutBase.nodes.map { if (it.id == nodeId) it.copy(lut = lut, lutMix = 1f) else it })
+                    runCatching { g.at(sec).applyTo(frame).asImageBitmap() }.getOrNull()
+                }
+            }
+        }
+        p
     }
 }
 
@@ -857,8 +867,10 @@ fun ColorViewerTools(
             grabStill(ctx, clip, state.playhead, bare, se.gendut.klipp.engine.Look.NONE)?.let { gs.compareImage = it.asImageBitmap() }
         }
     }
+    // (simple mode: compare and full screen – the scopes are advanced mode's)
+    val simple = state.simple
     Box(modifier.fillMaxSize()) {
-        if (gs.scopeKind > 0 && clip != null) Scopes(clip, state, gs, gs.scopeKind, look, Modifier.align(Alignment.TopStart).padding(8.dp).fillMaxWidth(0.48f).fillMaxHeight(0.62f))
+        if (gs.scopeKind > 0 && clip != null && !simple) Scopes(clip, state, gs, gs.scopeKind, look, Modifier.align(Alignment.TopStart).padding(8.dp).fillMaxWidth(0.48f).fillMaxHeight(0.62f))
         // (the dropper has the whole picture while it picks)
         if (gs.pick == null) {
             Row(Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -868,7 +880,7 @@ fun ColorViewerTools(
                     else if (clip != null) { gs.compareImage = null; gs.wipe = 0.5f; gs.compare = Still(Still.ORIGINAL, clip.name, 0L, ClipGrade()) }
                 }
                 var open by remember { mutableStateOf(false) }
-                Box {
+                if (!simple) Box {
                     ViewerChip(stringResource(R.string.design_color_scope), Ic.Scope, gs.scopeKind > 0 || open, "scopes") { haptics.tick(); open = true }
                     androidx.compose.material3.DropdownMenu(
                         expanded = open, onDismissRequest = { open = false },

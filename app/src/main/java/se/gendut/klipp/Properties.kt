@@ -69,6 +69,7 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -102,6 +103,8 @@ fun PropSlider(
     lane: Boolean = true,
     /** The track's color: on a surface of the track's own color (a menu) another one, or the track can't be seen. */
     trackColor: Color = K.SurfaceHighest,
+    /** Off: shown faded and not moved (simple mode, where the value is keyed – the reason is said beside it). */
+    enabled: Boolean = true,
     onCommit: (Float) -> Unit,
 ) {
     val haptics = rememberHaptics()
@@ -116,7 +119,7 @@ fun PropSlider(
     val current by rememberUpdatedState(value)
     val live by rememberUpdatedState(onLive)
     val grow by animateFloatAsState(if (dragging) 1f else 0f, spring(0.4f, 600f), label = "grow")
-    Column {
+    Column(if (enabled) Modifier else Modifier.graphicsLayer { alpha = 0.45f }.semantics { disabled() }) {
     Column(Modifier.fillMaxWidth().padding(horizontal = LocalSliderInset.current)) {
         // the name on the left and the value on the right, above the track (the track gets the whole width)
         val nav = anim != null && lane && anim.animated
@@ -132,7 +135,9 @@ fun PropSlider(
         }
         Box(
             Modifier.fillMaxWidth().height(44.dp).testTag("prop:$tag")
-                .pointerInput(min, max, default) {
+                .then(if (enabled) Modifier else Modifier.semantics { disabled() })
+                .pointerInput(min, max, default, enabled) {
+                    if (!enabled) return@pointerInput
                     awaitEachGesture {
                         val down = awaitFirstDown(requireUnconsumed = false)
                         // the value when the gesture started: live values can be fed back into [value] during the drag
@@ -260,7 +265,10 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
         // keyframes: stopwatch, lane and ◀ ◆ ▶ per property; one zoom for all the clip's lanes, its bar under the lowest
         val kfView = remember(p.id) { KfView() }
         val lowest = (if (p.isAudio) listOf("level") else listOf("position", "scale", "rotation")).lastOrNull { p.kf[it].orEmpty().isNotEmpty() }
-        fun anim(key: String) = AnimUi(
+        // simple mode: no keyframes (no stopwatches or lanes); a keyed value can't be set there and says why
+        val simple = state.simple
+        fun keyed(vararg keys: String) = keys.any { p.kf[it].orEmpty().isNotEmpty() }
+        fun anim(key: String): AnimUi? = if (simple) null else AnimUi(
             key, p.kf[key].orEmpty(), p.clipStart, p.clipEnd, { state.playhead },
             onToggle = { backend.toggleAnimation(p.id, key, state.playhead) },
             onKey = { backend.toggleKeyframe(p.id, key, state.playhead) },
@@ -307,10 +315,13 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
                 val g = gsNow?.of(p.id)
                 // stabilization and motion blur need moving video from a file (not an adjustment layer or a freeze frame)
                 val camera = state.clips.firstOrNull { it.id == p.id }?.let { it.kind == ClipKind.VIDEO && !it.hold } == true
-                when (state.inspectGroup) {
+                when {
+                    // simple mode's picture: where it sits (and auto reframe), what of it shows, the camera steadied, the fades
+                    simple -> listOf(ToolTab(stringResource(R.string.design_position), Ic.Center, "propTab:motion", moved), crop) +
+                        (if (!camera) emptyList() else listOf(ToolTab(stringResource(R.string.design_stabilize), Ic.Target, "propTab:stab", g?.stab != null))) + fadeTab
                     // the picture: where it sits, what of it shows, how it lies over what is below, and the camera's
                     // movement (stabilized or smeared)
-                    GROUP_PICTURE -> listOf(
+                    state.inspectGroup == GROUP_PICTURE -> listOf(
                         ToolTab(stringResource(R.string.design_position), Ic.Center, "propTab:motion", moved), crop, blend, key, mask,
                     ) + (if (!camera) emptyList() else listOf(
                         ToolTab(stringResource(R.string.design_stabilize), Ic.Target, "propTab:stab", g?.stab != null),
@@ -321,7 +332,7 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
             }
         }
         // (the clip's toolbar can ask for one of the tools: the sheet opens on it)
-        var tab by androidx.compose.runtime.saveable.rememberSaveable(p.isTitle, p.isAudio, state.inspectGroup) {
+        var tab by androidx.compose.runtime.saveable.rememberSaveable(p.isTitle, p.isAudio, state.inspectGroup, simple) {
             mutableStateOf(tabs.indexOfFirst { it.tag == state.openTab }.coerceAtLeast(0))
         }
         LaunchedEffect(state.openTab) { tabs.indexOfFirst { it.tag == state.openTab }.takeIf { it >= 0 }?.let { tab = it; state.openTab = null } }
@@ -331,18 +342,22 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
         @Composable fun motion() = PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_motion), trailing = { SpringChip(stringResource(R.string.properties_reset), false, { haptics.confirm(); backend.resetMotion(p.id) }) }) {
             val w = p.seqW.toFloat()
             val h = p.seqH.toFloat()
+            // simple mode: position and scale (rotation, and a title's opacity, only when they are set – nothing is
+            // hidden); keyed ones can't be set there (the reason under them, the keyframes are a badge on the clip)
+            val moving = simple && keyed("position", "scale", "rotation")
             PropSlider(stringResource(R.string.properties_position_x), p.x ?: w / 2, -w / 2, w * 1.5f, w / 2, { "%.0f".format(it) }, "x", anim = anim("position"), lane = false,
-                onLive = { v -> live { it.copy(x = v) } }) { backend.setProps(p.id, x = it); done() }
+                onLive = { v -> live { it.copy(x = v) } }, enabled = !moving) { backend.setProps(p.id, x = it); done() }
             PropSlider(stringResource(R.string.properties_position_y), p.y ?: h / 2, -h / 2, h * 1.5f, h / 2, { "%.0f".format(it) }, "y", anim = anim("position"),
-                onLive = { v -> live { it.copy(y = v) } }) { backend.setProps(p.id, y = it); done() }
+                onLive = { v -> live { it.copy(y = v) } }, enabled = !moving) { backend.setProps(p.id, y = it); done() }
             PropSlider(stringResource(R.string.properties_scale), p.scale, 0f, 400f, 100f, { fmtNum(it, " %") }, "scale", anim = anim("scale"),
-                onLive = { v -> live { it.copy(scale = v) } }) { backend.setProps(p.id, scale = it); done() }
-            PropSlider(stringResource(R.string.properties_rotation), p.rotation, -180f, 180f, 0f, { fmtNum(it, "°") }, "rotation", anim = anim("rotation"),
-                onLive = { v -> live { it.copy(rotation = v) } }) { backend.setProps(p.id, rotation = it); done() }
+                onLive = { v -> live { it.copy(scale = v) } }, enabled = !moving) { backend.setProps(p.id, scale = it); done() }
+            if (!simple || p.rotation != 0f || keyed("rotation")) PropSlider(stringResource(R.string.properties_rotation), p.rotation, -180f, 180f, 0f, { fmtNum(it, "°") }, "rotation", anim = anim("rotation"),
+                onLive = { v -> live { it.copy(rotation = v) } }, enabled = !moving) { backend.setProps(p.id, rotation = it); done() }
             // (a title's opacity as a clip – keyframes, fades – beside the text's own opacity in Style)
-            if (p.isTitle) PropSlider(stringResource(R.string.properties_clip_opacity), p.opacity, 0f, 100f, 100f, { fmtNum(it, " %") }, "opacity", anim = anim("opacity"),
-                onLive = { v -> live { it.copy(opacity = v) } }) { backend.setProps(p.id, opacity = it); done() }
-            Text(stringResource(R.string.properties_motion_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+            if (p.isTitle && (!simple || p.opacity != 100f)) PropSlider(stringResource(R.string.properties_clip_opacity), p.opacity, 0f, 100f, 100f, { fmtNum(it, " %") }, "opacity", anim = anim("opacity"),
+                onLive = { v -> live { it.copy(opacity = v) } }, enabled = !(simple && keyed("opacity"))) { backend.setProps(p.id, opacity = it); done() }
+            if (moving) DisabledReason(stringResource(R.string.simple_reason_motion_keys), "reason:motion")
+            else Text(stringResource(R.string.properties_motion_hint), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
             // auto reframe: fill the frame and keep the face in the middle (a clip of another shape than the sequence)
             val controller = state.props as? se.gendut.klipp.engine.ProjectController
             val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -371,17 +386,21 @@ fun PropertiesPanel(state: EditorState, onClose: () -> Unit) {
         when {
             p.isAudio -> when (current) {
                 0 -> PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.properties_volume)) {
+                    val curve = simple && keyed("level")
                     PropSlider(stringResource(R.string.properties_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "volume", anim = anim("level"),
-                        onLive = { v -> live { it.copy(levelDb = v) } }) { backend.setProps(p.id, levelDb = it); done() }
+                        onLive = { v -> live { it.copy(levelDb = v) } }, enabled = !curve) { backend.setProps(p.id, levelDb = it); done() }
+                    if (curve) DisabledReason(stringResource(R.string.simple_reason_volume_curve), "reason:volume")
                 }
-                1 -> PanelCard(Modifier.padding(top = 10.dp)) { AudioFxSection(state, p, backend) }
+                // (simple mode: clean speech and remove noise as two switches – the same effects in the same rack)
+                1 -> PanelCard(Modifier.padding(top = 10.dp)) { if (simple) SimpleSoundFx(p, backend) else AudioFxSection(state, p, backend) }
                 else -> fade()
             }
             p.isTitle -> {
                 // placement: the motion, then following an object or a surface; animation: the entrance, then the fades
                 if (current == 2) motion()
                 TitleSection(state, p, backend, current)
-                if (current == 3) fade()
+                // (simple mode: the entrance presets only – a title's fades are its transitions in the timeline)
+                if (current == 3 && !simple) fade()
             }
             else -> when (val t = tabs[current].tag) {
                 "propTab:motion" -> motion()

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the mode -->
+    <string name="simple_mode">Mode</string>
+    <string name="simple_mode_simple">Simple</string>
+    <string name="simple_mode_advanced">Advanced</string>
+    <string name="simple_mode_simple_hint">Quick edits for social media</string>
+    <string name="simple_mode_advanced_hint">Every tool</string>
+    <string name="simple_mode_setting_hint">Simple shows the everyday tools, advanced every tool. Your projects stay the same in both.</string>
+    <string name="simple_mode_menu">Simple mode</string>
+    <string name="simple_mode_on">Simple mode – the everyday tools</string>
+    <string name="simple_mode_off">Advanced mode – every tool</string>
+    <string name="simple_choose_title">How do you want to edit?</string>
+    <string name="simple_choose_text">You can switch any time in Settings or in the timeline\'s ⋯ menu.</string>
+    <string name="simple_choose_skip">Skip</string>
+    <string name="simple_settings_timeline">Default lengths, imports, vibration</string>
+    <!-- badges: what was made in advanced mode -->
+    <string name="simple_badge_color">Advanced color</string>
+    <string name="simple_badge_keyframes">Keyframes</string>
+    <string name="simple_badge_mask">Mask</string>
+    <string name="simple_badge_key">Green screen</string>
+    <string name="simple_badge_blend">Blend</string>
+    <string name="simple_badge_motion_blur">Motion blur</string>
+    <string name="simple_badge_sound_fx">Sound effects</string>
+    <string name="simple_badge_follow">Follows</string>
+    <string name="simple_badge_pin">Pinned</string>
+    <string name="simple_badge_track_fx">Track effects</string>
+    <string name="simple_badge_count">%1$s (%2$d)</string>
+    <string name="simple_badge_color_hint">This clip\'s color was graded with advanced tools.</string>
+    <string name="simple_badge_keyframes_hint">This clip changes over time with keyframes.</string>
+    <string name="simple_badge_mask_hint">Only part of this clip shows, through a mask.</string>
+    <string name="simple_badge_key_hint">A color is keyed out of this clip (green or blue screen).</string>
+    <string name="simple_badge_blend_hint">This clip is see-through or blends with what is below it.</string>
+    <string name="simple_badge_motion_blur_hint">This clip smears with the camera\'s movement.</string>
+    <string name="simple_badge_sound_fx_hint">This clip\'s sound goes through more effects.</string>
+    <string name="simple_badge_follow_hint">This title follows a tracked object.</string>
+    <string name="simple_badge_pin_hint">This title is pinned to a surface by its corners.</string>
+    <string name="simple_badge_track_fx_hint">This track\'s sound goes through its own effects.</string>
+    <string name="simple_badge_mixed">Some are on and some off – turn them on or off in advanced mode.</string>
+    <string name="simple_badge_turn_on">Turn on</string>
+    <string name="simple_badge_turn_off">Turn off</string>
+    <string name="simple_badge_remove">Remove</string>
+    <string name="simple_badge_open">Open in advanced mode</string>
+    <string name="simple_badge_close">Close</string>
+    <string name="simple_badge_off">Off</string>
+    <string name="simple_dock_advanced">Advanced</string>
+    <string name="simple_dock_advanced_desc">Made in advanced mode</string>
+    <!-- a simple control that would clash with advanced content -->
+    <string name="simple_reason_volume_curve">Has a volume curve – edit in advanced mode</string>
+    <string name="simple_reason_motion_keys">Moves over time (keyframes) – edit in advanced mode</string>
+    <string name="simple_reason_color">Graded with advanced tools – edit in advanced mode</string>
+    <!-- the color page -->
+    <string name="simple_color_look">Look</string>
+    <string name="simple_color_adjust">Adjust</string>
+    <string name="simple_color_exposure">Exposure</string>
+    <string name="simple_color_warmth">Warmth</string>
+    <string name="simple_color_log">Log footage</string>
+    <string name="simple_color_log_hint">Turns flat log video into normal colors (OpenDRT)</string>
+    <string name="simple_color_log_detected">The camera says it was shot in %1$s</string>
+    <string name="simple_color_log_shot_in">Shot in</string>
+    <string name="simple_color_log_look_note">With log footage the look is applied before the conversion.</string>
+    <string name="simple_color_timeline_look">This project also has a timeline look (set in advanced mode).</string>
+    <!-- export -->
+    <string name="simple_export_hlg">HDR (HLG)</string>
+    <string name="simple_export_hlg_hint">Brighter highlights on HDR screens</string>
+    <string name="simple_export_custom">The custom settings made in advanced mode are used.</string>
+    <string name="simple_export_keep_hdr">The clips\' HDR is kept (set in advanced mode).</string>
+    <!-- captions -->
+    <plurals name="simple_captions_other_tracks">
+        <item quantity="one">%1$d more caption track – edit it in advanced mode</item>
+        <item quantity="other">%1$d more caption tracks – edit them in advanced mode</item>
+    </plurals>
+</resources>

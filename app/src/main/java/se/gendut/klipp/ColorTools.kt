@@ -108,7 +108,7 @@ fun NodeLutEditor(n: GradeNode, onLive: (GradeNode) -> Unit, onCommit: (GradeNod
         // the LUTs as a strip of preview cards in groups, several imported or deleted at once (LutBrowser)
         LutBrowser(
             selected = n.lut,
-            onPick = { name -> onCommit(if (name == null) n.copy(lut = null) else n.copy(lut = name, lutMix = if (n.lut == null) 1f else n.lutMix)) },
+            onPick = { name -> onCommit(lutPicked(n, name)) },
             preview = preview,
             onImport = onImport?.let { imp -> { imp { name -> onCommit(n.copy(lut = name, lutMix = 1f)) } } },
             modifier = Modifier.padding(vertical = 4.dp),
@@ -138,7 +138,7 @@ private fun DrtEditor(n: GradeNode, onCommit: (GradeNode) -> Unit, logHint: se.g
     Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ToggleChip(stringResource(R.string.colortools_off), d == null, { onCommit(n.copy(drt = null)) }, Modifier.testTag("drt:off"))
         // (turned on: from the log curve the camera says it recorded in, when it says one – CameraLog)
-        ToggleChip(stringResource(R.string.colortools_on), d != null, { if (d == null) onCommit(n.copy(drt = se.gendut.klipp.engine.Drt().let { x -> if (logHint != null) x.copy(input = logHint.key) else x })) }, Modifier.testTag("drt:on"))
+        ToggleChip(stringResource(R.string.colortools_on), d != null, { if (d == null) onCommit(n.copy(drt = SimpleGrade.drtFor(logHint?.key))) }, Modifier.testTag("drt:on"))
     }
     LogSuggestion(logHint, d?.input) { k -> d?.let { onCommit(n.copy(drt = it.copy(input = k))) } }
     if (d == null) return

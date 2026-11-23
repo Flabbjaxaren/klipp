@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the mode -->
+    <string name="simple_mode">Läge</string>
+    <string name="simple_mode_simple">Enkelt</string>
+    <string name="simple_mode_advanced">Avancerat</string>
+    <string name="simple_mode_simple_hint">Snabba klipp för sociala medier</string>
+    <string name="simple_mode_advanced_hint">Alla verktyg</string>
+    <string name="simple_mode_setting_hint">Enkelt visar vardagsverktygen, avancerat alla verktyg. Dina projekt är desamma i båda.</string>
+    <string name="simple_mode_menu">Enkelt läge</string>
+    <string name="simple_mode_on">Enkelt läge – vardagsverktygen</string>
+    <string name="simple_mode_off">Avancerat läge – alla verktyg</string>
+    <string name="simple_choose_title">Hur vill du klippa?</string>
+    <string name="simple_choose_text">Du kan byta när som helst i Inställningar eller i tidslinjens ⋯-meny.</string>
+    <string name="simple_choose_skip">Hoppa över</string>
+    <string name="simple_settings_timeline">Standardlängder, import, vibration</string>
+    <!-- badges: what was made in advanced mode -->
+    <string name="simple_badge_color">Avancerad färg</string>
+    <string name="simple_badge_keyframes">Nyckelrutor</string>
+    <string name="simple_badge_mask">Mask</string>
+    <string name="simple_badge_key">Green screen</string>
+    <string name="simple_badge_blend">Blandning</string>
+    <string name="simple_badge_motion_blur">Rörelseoskärpa</string>
+    <string name="simple_badge_sound_fx">Ljudeffekter</string>
+    <string name="simple_badge_follow">Följer</string>
+    <string name="simple_badge_pin">Fäst</string>
+    <string name="simple_badge_track_fx">Spåreffekter</string>
+    <string name="simple_badge_count">%1$s (%2$d)</string>
+    <string name="simple_badge_color_hint">Klippets färg är graderad med avancerade verktyg.</string>
+    <string name="simple_badge_keyframes_hint">Klippet ändras över tid med nyckelrutor.</string>
+    <string name="simple_badge_mask_hint">Bara en del av klippet syns, genom en mask.</string>
+    <string name="simple_badge_key_hint">En färg är bortnycklad ur klippet (grön eller blå skärm).</string>
+    <string name="simple_badge_blend_hint">Klippet är genomskinligt eller blandas med det under.</string>
+    <string name="simple_badge_motion_blur_hint">Klippet blir suddigt med kamerans rörelse.</string>
+    <string name="simple_badge_sound_fx_hint">Klippets ljud går genom fler effekter.</string>
+    <string name="simple_badge_follow_hint">Titeln följer ett spårat föremål.</string>
+    <string name="simple_badge_pin_hint">Titeln är fäst vid en yta med sina hörn.</string>
+    <string name="simple_badge_track_fx_hint">Spårets ljud går genom egna effekter.</string>
+    <string name="simple_badge_mixed">Några är på och några av – slå på eller av dem i avancerat läge.</string>
+    <string name="simple_badge_turn_on">Slå på</string>
+    <string name="simple_badge_turn_off">Slå av</string>
+    <string name="simple_badge_remove">Ta bort</string>
+    <string name="simple_badge_open">Öppna i avancerat läge</string>
+    <string name="simple_badge_close">Stäng</string>
+    <string name="simple_badge_off">Av</string>
+    <string name="simple_dock_advanced">Avancerat</string>
+    <string name="simple_dock_advanced_desc">Gjort i avancerat läge</string>
+    <!-- a simple control that would clash with advanced content -->
+    <string name="simple_reason_volume_curve">Har en volymkurva – ändra i avancerat läge</string>
+    <string name="simple_reason_motion_keys">Rör sig över tid (nyckelrutor) – ändra i avancerat läge</string>
+    <string name="simple_reason_color">Graderat med avancerade verktyg – ändra i avancerat läge</string>
+    <!-- the color page -->
+    <string name="simple_color_look">Look</string>
+    <string name="simple_color_adjust">Justera</string>
+    <string name="simple_color_exposure">Exponering</string>
+    <string name="simple_color_warmth">Värme</string>
+    <string name="simple_color_log">Loggmaterial</string>
+    <string name="simple_color_log_hint">Gör platt loggvideo till vanliga färger (OpenDRT)</string>
+    <string name="simple_color_log_detected">Kameran säger att det är filmat i %1$s</string>
+    <string name="simple_color_log_shot_in">Filmat i</string>
+    <string name="simple_color_log_look_note">Med loggmaterial läggs looken på före omvandlingen.</string>
+    <string name="simple_color_timeline_look">Projektet har också en tidslinjelook (gjord i avancerat läge).</string>
+    <!-- export -->
+    <string name="simple_export_hlg">HDR (HLG)</string>
+    <string name="simple_export_hlg_hint">Ljusare högdagrar på HDR-skärmar</string>
+    <string name="simple_export_custom">De egna inställningarna från avancerat läge används.</string>
+    <string name="simple_export_keep_hdr">Klippens HDR behålls (inställt i avancerat läge).</string>
+    <!-- captions -->
+    <plurals name="simple_captions_other_tracks">
+        <item quantity="one">%1$d undertextspår till – ändra det i avancerat läge</item>
+        <item quantity="other">%1$d undertextspår till – ändra dem i avancerat läge</item>
+    </plurals>
+</resources>

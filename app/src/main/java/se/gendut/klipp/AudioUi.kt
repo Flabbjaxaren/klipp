@@ -236,7 +236,7 @@ private fun FxCard(e: AfxSnap, place: Int, open: Boolean, ops: AfxRackOps, onOpe
 
 /** A rendered effect's progress under its name: working (with a bar), ready, or failed (it then plays live). */
 @Composable
-private fun RenderLine(st: Float) {
+internal fun RenderLine(st: Float) {
     val failed = st == se.gendut.klipp.engine.AudioRenders.FAILED
     val text = when {
         failed -> stringResource(R.string.audioui_render_failed)
