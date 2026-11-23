@@ -732,7 +732,7 @@ private fun StripInfo(
                     )
                     // what letting go does (the storyline closes up; what is cut off can be brought back)
                     Text(stringResource(if (selected.track == state.tracks.v1Row) R.string.simple_trim_release else R.string.simple_trim_release_row),
-                        color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1, modifier = Modifier.testTag("simpleStrip:releaseHint"))
+                        color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.testTag("simpleStrip:releaseHint"))
                 }
                 selected != null -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     val head = SimpleStripModel.hiddenHead(selected)

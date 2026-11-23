@@ -170,6 +170,6 @@
     <string name="simple_export_share">Save and share …</string>
     <string name="simple_export_keep_editing">You can keep editing while the video is saved.</string>
     <string name="simple_trim_cut_away">Cut away\n%1$s</string>
-    <string name="simple_trim_release">Let go to shorten – the rest of the film moves up</string>
-    <string name="simple_trim_release_row">Let go to shorten – drag back out to bring it back</string>
+    <string name="simple_trim_release">Let go to shorten – the rest moves up</string>
+    <string name="simple_trim_release_row">Let go to shorten it</string>
 </resources>
