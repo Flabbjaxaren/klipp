@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// Modified for Klipp (2026-11-23): the lens shading map is sized from its JSON before allocation – see "Modified for Klipp".
 #include "Clip.h"
 
 #include <thread>
@@ -321,8 +322,11 @@ RawFrame Clip::frameRaw(size_t i, unsigned threads) const {
         const auto cols = static_cast<uint16_t>(fm["lensShadingMapWidth"].num());
         const auto rows = static_cast<uint16_t>(fm["lensShadingMapHeight"].num());
         const size_t pts = size_t{cols} * rows;
-        std::vector<float> g(pts * 4, 1.f);
+        // Modified for Klipp: the map's size is checked against the JSON before it is allocated (the width/height keys
+        // alone could ask for 68 GB)
         bool ok = pts > 0;
+        for (int ch = 0; ch < 4 && ok; ++ch) ok = fm["lensShadingMap"][ch].size() == pts;
+        std::vector<float> g(ok ? pts * 4 : 0, 1.f);
         for (int ch = 0; ch < 4 && ok; ++ch) {
             const auto& plane = fm["lensShadingMap"][ch];
             ok = plane.size() == pts;

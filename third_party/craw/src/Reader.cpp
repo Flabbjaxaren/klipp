@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// Modified for Klipp (2026-11-23): bounds checks in Reader::scanIndex – see the "Modified for Klipp" comments.
 #include <craw/Reader.h>
 
 #include "Crc32c.h"
@@ -174,7 +175,9 @@ bool Reader::crcOk(const ChunkRef& c) const {
 bool Reader::scanIndex() {
     const uint8_t* d = data_;
     const size_t n = size_;
-    if (n < 16 + 16 || std::memcmp(d + n - 8, "CRAWEND\0", 8) != 0) return false;
+    // Modified for Klipp: the smallest closed file (header, INDX chunk with an empty table, trailer) is checked before
+    // the unsigned bound below is formed – a 32–39 byte file wrapped it and the INDX check read outside the mapping.
+    if (n < 16 + kChunkHeader + 4 + kChunkTail + 16 || std::memcmp(d + n - 8, "CRAWEND\0", 8) != 0) return false;
     const uint64_t ix = rd64(d + n - 16);
     if (ix < 16 || ix > n - 16 - kChunkHeader - kChunkTail - 4 || std::memcmp(d + ix, "INDX", 4) != 0) return false;
     const uint64_t ixSize = rd64(d + ix + 8);
@@ -186,7 +189,7 @@ bool Reader::scanIndex() {
     // META is the first chunk.
     if (std::memcmp(d + 16, "META", 4) != 0) return false;
     const uint64_t metaSize = rd64(d + 24);
-    if (metaSize > ix - 16 - kChunkHeader - kChunkTail) return false;
+    if (ix < 16 + kChunkHeader + kChunkTail || metaSize > ix - 16 - kChunkHeader - kChunkTail) return false;  // (Klipp: no wrap)
     std::vector<ChunkRef> chunks;
     std::vector<size_t> frames;
     chunks.reserve(count);
@@ -199,7 +202,9 @@ bool Reader::scanIndex() {
         c.timestampNs = static_cast<int64_t>(rd64(e + 16));
         if (c.offset != expected) return false;  // not contiguous: fall back to the walk
         const uint64_t next = i + 1 < count ? rd64(e + 24 + 8) : ix;
-        if (next < c.offset + kChunkHeader + kChunkTail) return false;
+        // Modified for Klipp: every chunk ends at or before INDX (the addition could wrap and let a forged table point
+        // outside the file)
+        if (next > ix || c.offset > ix || next - c.offset < kChunkHeader + kChunkTail) return false;
         c.size = next - c.offset - kChunkHeader - kChunkTail;
         expected = next;
         if (std::memcmp(c.fourcc.data(), "FRAM", 4) == 0) {

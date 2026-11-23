@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+// Modified for Klipp (2026-11-23): a size limit in probeFrame – see "Modified for Klipp".
 #include <craw/Decoder.h>
 
 #include "Crc32c.h"
@@ -330,6 +331,9 @@ FrameInfo probeFrame(const uint8_t* p, size_t size) {
     if (f.bitDepth < 1 || f.bitDepth > 16 || f.width == 0 || f.height == 0 || f.width % 2 ||
         f.height % 2 || f.tile == 0 || f.width > 65536 || f.height > 65536)
         throw DecodeError("craw: bad frame header");
+    // Modified for Klipp: at most 2^27 samples (134 MP, 256 MB decoded) – a 100-byte payload claiming 65536 x 65536
+    // asked for 8 GB plus the planes per worker
+    if (uint64_t{f.width} * f.height > (uint64_t{1} << 27)) throw DecodeError("craw: frame too large");
     return f;
 }
 
