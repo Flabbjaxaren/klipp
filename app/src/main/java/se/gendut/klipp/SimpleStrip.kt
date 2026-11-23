@@ -1074,7 +1074,7 @@ private fun LaneClip(
     val x = sidePx + a * pps + (moving?.x ?: 0f)
     val desc = stringResource(when (c.kind) {
         ClipKind.TITLE -> R.string.simple_text_band
-        ClipKind.AUDIO, ClipKind.MUSIC -> R.string.simple_music_band
+        ClipKind.AUDIO, ClipKind.MUSIC -> R.string.simple_sound_band
         else -> R.string.simple_lane_overlay
     }, c.name)
     val uri = if (c.kind == ClipKind.VIDEO) state.uriOfItem?.invoke(c.item) else null

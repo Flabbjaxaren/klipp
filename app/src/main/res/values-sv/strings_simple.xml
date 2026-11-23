@@ -98,7 +98,7 @@
     <string name="simple_go_start">Början</string>
     <string name="simple_go_end">Slutet</string>
     <string name="simple_add">Lägg till</string>
-    <string name="simple_music">Musik</string>
+    <string name="simple_sounds">Ljud</string>
     <string name="simple_text">Text</string>
     <string name="simple_filter">Filter</string>
     <string name="simple_format">Format</string>
@@ -108,7 +108,7 @@
     <string name="simple_zoom_clip">Zooma</string>
     <string name="simple_overview">Visa hela filmen</string>
     <string name="simple_add_clips">Lägg till klipp</string>
-    <string name="simple_music_band">Musik: %1$s</string>
+    <string name="simple_sound_band">Ljud: %1$s</string>
     <string name="simple_text_band">Text: %1$s</string>
     <string name="simple_tip">Tryck på ett klipp för att ändra det, håll för att flytta det och nyp för att zooma.</string>
     <string name="simple_tip_ok">Okej</string>

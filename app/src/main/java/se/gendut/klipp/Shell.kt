@@ -778,7 +778,7 @@ private fun AddDock(state: EditorState) {
         DockItems(
             listOf(
                 DockItem(Ic.Media, stringResource(R.string.simple_add), "add:media") { add(AddAction.MEDIA) },
-                DockItem(Ic.Note, stringResource(R.string.simple_music), "add:sound", desc = stringResource(R.string.sfx_title)) { add(AddAction.SOUND) },
+                DockItem(Ic.Note, stringResource(R.string.simple_sounds), "add:sound", desc = stringResource(R.string.sfx_title)) { add(AddAction.SOUND) },
                 DockItem(Ic.Text, stringResource(R.string.simple_text), "add:title") { add(AddAction.TITLE) },
                 DockItem(Ic.Wheels, stringResource(R.string.simple_filter), "add:filter") { add(AddAction.FILTER) },
                 DockItem(Ic.Crop, stringResource(R.string.simple_format), "add:format") { add(AddAction.FORMAT) },

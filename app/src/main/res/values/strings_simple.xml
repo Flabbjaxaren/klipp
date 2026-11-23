@@ -98,7 +98,7 @@
     <string name="simple_go_start">Start</string>
     <string name="simple_go_end">End</string>
     <string name="simple_add">Add</string>
-    <string name="simple_music">Music</string>
+    <string name="simple_sounds">Sounds</string>
     <string name="simple_text">Text</string>
     <string name="simple_filter">Filter</string>
     <string name="simple_format">Format</string>
@@ -108,7 +108,7 @@
     <string name="simple_zoom_clip">Zoom</string>
     <string name="simple_overview">Show the whole film</string>
     <string name="simple_add_clips">Add clips</string>
-    <string name="simple_music_band">Music: %1$s</string>
+    <string name="simple_sound_band">Sound: %1$s</string>
     <string name="simple_text_band">Text: %1$s</string>
     <string name="simple_tip">Tap a clip to change it, hold it to move it, and pinch to zoom.</string>
     <string name="simple_tip_ok">Got it</string>

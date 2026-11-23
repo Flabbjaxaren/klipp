@@ -23,7 +23,7 @@ Every control is an advanced-mode function, reached in fewer steps:
 |---|---|---|
 | Top | The project's name, length and number of clips; **Save video** | The export dialog (its simple form: preset and size) |
 | Bottom, nothing selected | **Add** | The media import |
-| | **Music** | The sound library (packs, text to speech, files from the phone) |
+| | **Sounds** | The sound library (packs, text to speech, files from the phone) |
 | | **Text** | The title sheet, with *Captions from what is said* (the captions sheet) at the top |
 | | **Filter** | The simple colour page (look, exposure, contrast, warmth, saturation – the same nodes as advanced colour), in a sheet |
 | | **Format** | The project's settings (format and size) |
