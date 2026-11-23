@@ -383,6 +383,15 @@ class ProjectController(
         }
     }
 
+    private fun dropDeveloped(old: Uri?, project: String) {
+        val file = old?.takeIf { it.scheme == "file" }?.path?.let(::File) ?: return
+        if (file.parentFile != mediaDirOf(project) || uris.values.any { it == old }) return
+        val path = old.toString()
+        val refs = projectDir.listFiles { f -> f.name.endsWith(".media.json") }.orEmpty().toList() + versionDir(project).listFiles().orEmpty()
+        if (refs.any { runCatching { it.readText().contains(path) }.getOrDefault(true) }) return
+        file.delete()
+    }
+
     /** Replaces the editable file for every timeline occurrence of this source. */
     fun redevelopCraw(item: Long, settings: CrawSettings, onRelink: (CrawSettings) -> Unit) = scope.launch {
         val source = crawSources[item] ?: return@launch
@@ -409,12 +418,16 @@ class ProjectController(
                 engine.exec("media.relink", JSONObject().put("item", item).put("path", path).put("force", true))
                 linked = true
                 fds += pfd
+                val previous = uris[item]
                 uris[item] = Uri.fromFile(file)
                 offline.remove(item)
                 crawSources[item] = source.copy(settings = settings)
                 onRelink(source.settings)
                 refresh(force = true)
                 saveLocked()
+                // the editing copy it replaced (a full-size 10-bit file per development) goes, unless something still
+                // names it: another item, a copy of the project or one of its kept versions
+                withContext(Dispatchers.IO) { dropDeveloped(previous, project) }
             }
             onMessage(Str.t(R.string.craw_developed))
         } catch (e: CancellationException) {
