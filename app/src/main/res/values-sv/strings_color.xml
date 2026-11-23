@@ -258,4 +258,12 @@
     <string name="lutbrowser_hint">Håll på en LUT för att välja flera (tryck sedan på ett gruppnamn för hela gruppen)</string>
     <string name="colortools_log_detected">Kameran säger att klippet spelades in i %1$s.</string>
     <string name="colortools_log_use">Använd %1$s</string>
+    <string name="craw_develop_settings">CRAW-framkallning</string>
+    <string name="craw_develop_log">Loggprofil</string>
+    <string name="craw_develop_ei">Exponeringsindex (EI)</string>
+    <string name="craw_develop_auto">Auto (som filmat)</string>
+    <string name="craw_develop_again">Framkalla igen</string>
+    <string name="craw_developing">Framkallar CRAW…</string>
+    <string name="craw_developed">CRAW-framkallningen har uppdaterats</string>
+    <string name="craw_develop_import">Framkalla och importera</string>
 </resources>

@@ -28,6 +28,23 @@
    "notes": "Klipp's own code and resources, and two small clips Klipp generated (assets/gap: black video for empty stretches; assets/yuvcheck: decoder test clips). The distribution as a whole is offered under GPL-3.0-only; the JNI bridge's own code (rust/) is GPL-3.0-or-later as rust/Cargo.toml says (docs/licensing.md)."
   },
   {
+   "id": "craw-decoder",
+   "component": "Cinematic RAW Studio Decoder",
+   "version": "cff9a90d7ce76daaa190652f9800495a0ce0905e",
+   "kind": "native",
+   "category": "native",
+   "origin": "https://github.com/matthew777777/CinematicRAWStudio-Decoder",
+   "license": "Apache-2.0",
+   "copyright": "© 2026 The Cinematic RAW Studio Authors",
+   "notices": [
+    "LICENSES/repo/third_party/craw/LICENSE",
+    "LICENSES/repo/third_party/craw/NOTICE"
+   ],
+   "included_in": "libklipp_craw.so",
+   "status": "verified",
+   "notes": "Unmodified decoder and clip reader sources from the Cinematic RAW Studio Android app's pinned copy."
+  },
+  {
    "id": "media3-vendored",
    "component": "Media3 effect, transformer, ExoPlayer (modified)",
    "version": "1.11.1",

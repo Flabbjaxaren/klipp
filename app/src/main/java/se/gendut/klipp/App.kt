@@ -281,7 +281,21 @@ private fun KlippAppContent(
     // release the source decoder only when the source is actually closed (not when the phone rotates)
     LaunchedEffect(sourceMedia) { if (sourceMedia == null) sourcePlayback?.close() }
     // (with "add imported clips to the timeline" the clips are on the timeline already – the media panel stays shut)
-    val picker = rememberVideoPicker { uris -> controller?.import(uris); if (uris.isNotEmpty() && !AppPrefs.addOnImport(context)) mediaOpen = true }
+    fun importPicked(uris: List<android.net.Uri>, raw: se.gendut.klipp.engine.CrawSettings = se.gendut.klipp.engine.CrawSettings()) {
+        controller?.import(uris, raw)
+        if (uris.isNotEmpty() && !AppPrefs.addOnImport(context)) mediaOpen = true
+    }
+    var pendingCrawImport by remember(controller, controller?.currentId) { mutableStateOf<List<android.net.Uri>?>(null) }
+    val picker = rememberVideoPicker { uris ->
+        if (controller != null && uris.isNotEmpty()) scope.launch {
+            if (controller.hasCraw(uris)) pendingCrawImport = uris else importPicked(uris)
+        }
+    }
+    pendingCrawImport?.let { files ->
+        CrawDevelopDialog(se.gendut.klipp.engine.CrawSettings(), importing = true, onClose = { pendingCrawImport = null }) {
+            importPicked(files, it)
+        }
+    }
     // Klipp's own video picker (previews of log video, newest first); its "Files app" opens the system one
     var videoPicker by remember { mutableStateOf(false) }
     fun openImport() { videoPicker = true }
@@ -677,7 +691,18 @@ private fun KlippAppContent(
             if (old in state.magSide.disconnected) state.magSide = state.magSide.copy(disconnected = state.magSide.disconnected + fresh)
         }
         controller.onNewClips = { ids ->
-            ids.filter { gs.grades.containsKey(it) }.takeIf { it.isNotEmpty() }?.let { stale -> gs.setAll(stale.associateWith { se.gendut.klipp.engine.ClipGrade() }, record = false) }
+            val added = ids.toSet()
+            val changes = ids.filter { gs.grades.containsKey(it) }.associateWith { se.gendut.klipp.engine.ClipGrade() }.toMutableMap()
+            controller.snapshot.sequence?.video.orEmpty().forEach { track ->
+                for (clip in track.clips) {
+                    if (clip.id !in added) continue
+                    val raw = controller.crawSettings(clip.item) ?: continue
+                    changes[clip.id] = se.gendut.klipp.engine.ClipGrade(nodes = listOf(
+                        se.gendut.klipp.engine.GradeNode(1, drt = se.gendut.klipp.engine.Drt(input = raw.log.key)),
+                    ))
+                }
+            }
+            gs.setAll(changes, record = false)
             // (the engine can reuse an id after an undo: a new clip is not disconnected because an old one was)
             val s = state.magSide
             if (ids.any { it in s.disconnected || it in s.points }) state.magSide = MagSide(s.disconnected - ids.toSet(), s.points - ids.toSet())
@@ -934,9 +959,10 @@ private fun KlippAppContent(
         @Composable
         fun colorClips(): List<ColorClip> {
             val q = controller?.snapshot?.sequence
-            return remember(q) {
+            val revision = controller?.revision
+            return remember(q, revision) {
                 q?.video?.flatMapIndexed { k, t ->
-                    t.clips.filter { it.text == null }.map { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, q.video.size - 1 - k, c.speed, c.hold, c.reverse) }
+                    t.clips.filter { it.text == null }.map { c -> ColorClip(c.id, c.name, c.start.toFloat(), c.end.toFloat(), controller.uriOf(c.item), c.sourceIn, q.video.size - 1 - k, c.speed, c.hold, c.reverse, item = c.item) }
                 }.orEmpty().sortedBy { it.start }
             }
         }
@@ -1056,7 +1082,17 @@ private fun KlippAppContent(
                                         // simple mode: the look, four adjustments and log footage – on the same nodes
                                         if (state.simple) SimpleColorPage(state, gs, colorClips(), timelineLook = !lookOf(grade).isNeutral,
                                             onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) })
-                                        else ColorPage(state, gs, colorClips(), lookOf(grade), onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) }) {
+                                        else ColorPage(state, gs, colorClips(), lookOf(grade),
+                                            onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) },
+                                            rawControls = { clip ->
+                                                val raw = controller.crawSettings(clip.item)
+                                                if (raw != null) CrawDevelopButton(raw, controller.busy) { settings ->
+                                                    controller.redevelopCraw(clip.item, settings) { before ->
+                                                        updateCrawGrades(gs, controller.snapshot.sequence, clip.item, before, settings)
+                                                    }
+                                                }
+                                            },
+                                        ) {
                                             ColorPanel(grade, { lutTarget = null; lutPicker.launch(arrayOf("*/*")) }, scroll = false)
                                         }
                                     } else ColorPanel(grade, null)

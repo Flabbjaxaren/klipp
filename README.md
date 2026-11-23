@@ -116,6 +116,10 @@ replace an installed Klipp.
 
 ## ⚠️ Known limitations
 
+- Cinematic RAW Studio `.CRAW` video opens through **Import → Files app** on devices with a compatible
+  10-bit HEVC encoder. Klipp develops an editable log copy with AAC audio when present and keeps the source
+  linked. The editing copy is scaled to fit the encoder when needed. Use **CRAW development** on the Color
+  page to choose a different log profile or exposure index and develop the clip again in place.
 - Clips imported through the system photo picker get generic names (e.g. `28.mp4`) – Android hides the file names.
 - Projects live inside the app: back them up with their media (Projects → long-press → Back up to a folder… or Save a
   project package with media…) before uninstalling Klipp or moving to another phone.

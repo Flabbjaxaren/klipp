@@ -10,6 +10,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -36,7 +38,7 @@ import kotlin.math.abs
 
 /**
  * Connects the UI to the FilmCraft engine. The engine owns the project; the UI gets snapshots and
- * animates the differences. Video files are read in place via /proc/self/fd – nothing is copied.
+ * animates the differences. Editing media is read through /proc/self/fd.
  */
 /** At most one earlier version of a project per this long of editing … */
 private const val VERSION_EVERY_MS = 10 * 60_000L
@@ -72,6 +74,15 @@ class ProjectController(
         private set
 
     private val uris = mutableMapOf<Long, Uri>()
+    private val crawSources = androidx.compose.runtime.mutableStateMapOf<Long, CrawSource>()
+
+    fun crawSettings(item: Long): CrawSettings? = crawSources[item]?.settings
+
+    private fun newDevelopedFile(project: String): File {
+        val dir = mediaDirOf(project)
+        check(dir.isDirectory || dir.mkdirs()) { "Cannot create project media folder" }
+        return File(dir, "${java.util.UUID.randomUUID()}.mp4")
+    }
     /** Addresses of media that couldn't be opened – saved anyway, otherwise they're gone after the next save. */
     private val offline = mutableMapOf<Long, Uri>()
     private val projectDir = java.io.File(context.filesDir, "projekt").apply { mkdirs() }
@@ -244,25 +255,65 @@ class ProjectController(
 
     // ------------------------------------------------------------------ import
 
-    fun import(picked: List<Uri>) = scope.launch {
-        if (picked.isEmpty()) return@launch
+    private data class ImportSource(
+        val uri: Uri,
+        val fd: ParcelFileDescriptor,
+        val name: String,
+        val path: String,
+        val developed: File?,
+        val craw: CrawSource?,
+    )
+
+    suspend fun hasCraw(files: List<Uri>): Boolean = withContext(Dispatchers.IO) {
+        files.any { displayName(it).endsWith(".craw", ignoreCase = true) }
+    }
+
+    fun import(picked: List<Uri>, crawSettings: CrawSettings = CrawSettings()) = scope.launch {
+        if (picked.isEmpty() || busy) return@launch
         busy = true
-        // the files are opened (and names read) on a background thread – many files at once used to freeze the app
-        val opened = withContext(kotlinx.coroutines.Dispatchers.IO) {
-            picked.mapNotNull { u ->
-                // keep read permission across restarts so the project can be opened again
-                runCatching { context.contentResolver.takePersistableUriPermission(u, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                val pfd = runCatching { context.contentResolver.openFileDescriptor(u, "r") }.getOrNull() ?: return@mapNotNull null
-                Triple(u, pfd, displayName(u))
-            }
-        }
+        val project = currentId
+        val opened = mutableListOf<ImportSource>()
+        val developed = mutableListOf<File>()
         val used = HashSet<Int>()
+        var preparationFailures = 0
+        var firstFailure: String? = null
         try {
-            if (opened.isEmpty()) { onMessage(Str.t(R.string.projectcontroller_files_open_failed)); return@launch }
-            val paths = JSONArray().apply { opened.forEach { (u, pfd, name) -> put(FdPath.of(pfd.fd, name, context.contentResolver.getType(u))) } }
+            withContext(Dispatchers.IO) {
+                for (pickedUri in picked) {
+                    ensureActive()
+                    val name = displayName(pickedUri)
+                    try {
+                        runCatching { context.contentResolver.takePersistableUriPermission(pickedUri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                        val craw = if (name.endsWith(".craw", ignoreCase = true)) CrawSource(pickedUri, crawSettings) else null
+                        val converted = craw?.let {
+                            val output = newDevelopedFile(project)
+                            developed += output
+                            CrawImport.convert(context, pickedUri, output, it.settings)
+                            output
+                        }
+                        val uri = converted?.let(Uri::fromFile) ?: pickedUri
+                        val mime = if (converted != null) "video/mp4" else context.contentResolver.getType(uri)
+                        val fd = context.contentResolver.openFileDescriptor(uri, "r") ?: error("Cannot open $name")
+                        opened += ImportSource(uri, fd, name, FdPath.of(fd.fd, converted?.name ?: name, mime), converted, craw)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        preparationFailures++
+                        if (firstFailure == null) firstFailure = "$name: ${e.message.orEmpty()}"
+                    }
+                }
+            }
+            if (opened.isEmpty()) {
+                onMessage(firstFailure?.let { Str.t(R.string.projectcontroller_import_failed, it) }
+                    ?: Str.t(R.string.projectcontroller_files_open_failed))
+                return@launch
+            }
+            val paths = JSONArray().apply { opened.forEach { put(it.path) } }
+            var errors = preparationFailures
             var count = 0
             var added = 0
             editLock.withLock {
+                if (currentId != project) return@launch
                 // the whole import (files, names, new sequence) is one undo step
                 group(Str.t(R.string.projectcontroller_undo_import)) {
                     val r = engine.exec("file.import", JSONObject().put("paths", paths))
@@ -274,14 +325,15 @@ class ProjectController(
                         val id = items.getLong(i)
                         val k = (0 until paths.length()).firstOrNull { paths.getString(it) == byPath[id] }
                             ?: i.takeIf { items.length() == opened.size } ?: continue
-                        uris[id] = opened[k].first
+                        uris[id] = opened[k].uri
+                        val craw = opened[k].craw
+                        if (craw != null) crawSources[id] = craw else crawSources.remove(id)
                         used += k
-                        engine.tryExec("clip.rename", JSONObject().put("item", id).put("name", opened[k].third))
+                        engine.tryExec("clip.rename", JSONObject().put("item", id).put("name", opened[k].name))
                     }
-                    val errors = r.optJSONArray("errors")
-                    if (errors != null && errors.length() > 0) onMessage(Str.p(R.plurals.projectcontroller_files_import_failed, errors.length(), errors.length()))
+                    errors += r.optJSONArray("errors")?.length() ?: 0
                     // ProRes? (before anything is built from the new files: a ProRes original has no decoder)
-                    probeProRes(used.map { opened[it].first })
+                    probeProRes(used.map { opened[it].uri })
                     val snap = engine.snapshot()
                     if (snap.sequence == null) {
                         val first = snap.media.firstOrNull { it.hasVideo }
@@ -303,14 +355,74 @@ class ProjectController(
                 refresh()
                 if (added > 0) state.playhead = snapshot.playhead.toFloat()
             }
-            onMessage(if (added > 0) Str.p(R.plurals.projectcontroller_clips_added, added, added) else Str.p(R.plurals.projectcontroller_clips_imported, count, count))
+            onMessage(when {
+                errors > 0 -> Str.p(R.plurals.projectcontroller_files_import_failed, errors, errors)
+                added > 0 -> Str.p(R.plurals.projectcontroller_clips_added, added, added)
+                else -> Str.p(R.plurals.projectcontroller_clips_imported, count, count)
+            })
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             onMessage(Str.t(R.string.projectcontroller_import_failed, e.message.orEmpty()))
         } finally {
             // handles to files the engine accepted stay open (it reads through them); the rest are closed
-            opened.forEachIndexed { k, (_, pfd, _) -> if (k in used) fds += pfd else runCatching { pfd.close() } }
+            val retained = mutableSetOf<File>()
+            opened.forEachIndexed { k, source ->
+                if (k in used) {
+                    fds += source.fd
+                    source.developed?.let { retained += it }
+                } else {
+                    runCatching { source.fd.close() }
+                }
+            }
+            developed.filterNot { it in retained }.forEach { it.delete() }
+            busy = false
+        }
+    }
+
+    /** Replaces the editable file for every timeline occurrence of this source. */
+    fun redevelopCraw(item: Long, settings: CrawSettings, onRelink: (CrawSettings) -> Unit) = scope.launch {
+        val source = crawSources[item] ?: return@launch
+        if (busy || settings == source.settings) return@launch
+        val project = currentId
+        var output: File? = null
+        var fd: ParcelFileDescriptor? = null
+        var linked = false
+        busy = true
+        state.playing = false
+        onMessage(Str.t(R.string.craw_developing))
+        try {
+            withContext(Dispatchers.IO) {
+                val file = newDevelopedFile(project)
+                output = file
+                CrawImport.convert(context, source.original, file, settings)
+                fd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            }
+            editLock.withLock {
+                if (currentId != project || crawSources[item] != source || snapshot.media.none { it.id == item }) return@launch
+                val file = requireNotNull(output)
+                val pfd = requireNotNull(fd)
+                val path = FdPath.of(pfd.fd, file.name, "video/mp4")
+                engine.exec("media.relink", JSONObject().put("item", item).put("path", path).put("force", true))
+                linked = true
+                fds += pfd
+                uris[item] = Uri.fromFile(file)
+                offline.remove(item)
+                crawSources[item] = source.copy(settings = settings)
+                onRelink(source.settings)
+                refresh(force = true)
+                saveLocked()
+            }
+            onMessage(Str.t(R.string.craw_developed))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            onMessage(Str.t(R.string.projectcontroller_import_failed, e.message.orEmpty()))
+        } finally {
+            if (!linked) {
+                runCatching { fd?.close() }
+                output?.delete()
+            }
             busy = false
         }
     }
@@ -1141,9 +1253,9 @@ class ProjectController(
         if (!force && snap == snapshot && revision > 0) return
         // new clips from a new edit (not undo/redo): the engine can reuse ids after an undo – a
         // leftover grade on such an id must not follow the new clip (the split's inheritance is set afterwards)
-        val fresh = newClips(snapshot, snap, edited = revision > 0, restoring = restoring)
-        if (fresh.isNotEmpty()) onNewClips(fresh)
+        val fresh = newClips(snapshot, snap, edited = revision > 0 || snap.media.any { it.id in crawSources }, restoring = restoring)
         snapshot = snap
+        if (fresh.isNotEmpty()) onNewClips(fresh)
         se.gendut.klipp.projectFps = snap.fps.takeIf { it.isFinite() && it >= 1.0 } ?: 25.0
         // (no sequence yet, e.g. a new project: not the previous project's line)
         state.subtitle = snap.sequence?.let { q -> "${q.width}×${q.height} · ${"%.2f".format(snap.fps).trimEnd('0').trimEnd('.', ',')}p · ${Str.p(R.plurals.projectcontroller_media_count, snap.media.size, snap.media.size)}" }
@@ -1287,7 +1399,11 @@ class ProjectController(
         val mf = mediaFile
         val links = uris.toMap()
         val arr = JSONArray()
-        for ((item, u) in offline + links) arr.put(JSONObject().put("item", item).put("uri", u.toString()))
+        for ((item, u) in offline + links) {
+            val link = JSONObject().put("item", item).put("uri", u.toString())
+            crawSources[item]?.let { link.put("craw", it.toJson()) }
+            arr.put(link)
+        }
         val q = snap.sequence
         val meta = JSONObject().put("name", currentName.ifBlank { defaultName() }).put("modified", System.currentTimeMillis())
             .put("duration", q?.duration ?: 0.0).put("width", q?.width ?: 0).put("height", q?.height ?: 0).put("fps", snap.fps)
@@ -1394,6 +1510,13 @@ class ProjectController(
         val (side, sideNote) = withContext(kotlinx.coroutines.Dispatchers.IO) { readSide(mediaFile) }
         currentName = side.optJSONObject("meta")?.optString("name").orEmpty().ifBlank { if (currentId == "aktuellt") Str.t(R.string.projectcontroller_my_project) else defaultName() }
         val m = side.optJSONArray("media") ?: JSONArray()
+        crawSources.clear()
+        for (i in 0 until m.length()) {
+            val entry = m.optJSONObject(i) ?: continue
+            val source = entry.optJSONObject("craw")?.let(CrawSource::fromJson) ?: continue
+            val item = entry.optLong("item", -1)
+            if (item >= 0) crawSources[item] = source
+        }
         side.optJSONObject("extra")?.let { runCatching { onExtraRestore(it) } }
         // files are opened on a background thread (one system call per file – not on the main thread)
         val opened = withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -1468,6 +1591,7 @@ class ProjectController(
         engine.tryExec("file.newProject")
         uris.clear()
         offline.clear()
+        crawSources.clear()
         fds.forEach { runCatching { it.close() } }
         fds.clear()
         switchTo(id)

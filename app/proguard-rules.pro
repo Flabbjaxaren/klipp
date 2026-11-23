@@ -29,3 +29,5 @@
 -dontwarn com.google.auto.value.**
 -dontwarn com.google.mediapipe.proto.CalculatorProfileProto$*
 -dontwarn com.google.mediapipe.proto.GraphTemplateProto$*
+
+-keep class se.gendut.klipp.engine.CrawImport { native <methods>; }
