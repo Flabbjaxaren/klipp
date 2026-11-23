@@ -5,6 +5,10 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.click
@@ -46,18 +50,81 @@ class SimpleStripTest {
 
     // ------------------------------------------------------------------ the model
 
-    @Test fun theStripIsTheStorylineWithBandsForTheRest() {
+    @Test fun theStripIsTheStorylineWithARowPerTrack() {
         val st = simple()
         assertEquals(listOf(1L, 2L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
-        // the other tracks in bands: video over the clips (the adjustment clip), sound and music, the title
-        assertEquals(listOf(5L), SimpleStripModel.overlays(st).map { it.id })
-        assertEquals(listOf(7L, 11L, 9L, 8L, 10L), SimpleStripModel.music(st).map { it.id })
-        assertEquals(listOf(6L), SimpleStripModel.texts(st).map { it.id })
+        // a row for each track with something on it, in the timeline's order: V3 (the title), V2 (the adjustment clip),
+        // then A1, A2, A3 (the sound that isn't a video clip's own, and the music)
+        val lanes = SimpleStripModel.lanes(st)
+        assertEquals(listOf(0, 1, 3, 4, 5), lanes.map { it.track })
+        assertEquals(listOf(SimpleStripModel.LaneKind.TEXT, SimpleStripModel.LaneKind.OVERLAY, SimpleStripModel.LaneKind.SOUND,
+            SimpleStripModel.LaneKind.SOUND, SimpleStripModel.LaneKind.SOUND), lanes.map { it.kind })
+        assertEquals(listOf(listOf(6L), listOf(5L), listOf(7L, 8L), listOf(9L, 10L), listOf(11L)), lanes.map { l -> l.clips.map { it.id } })
         assertEquals("nothing left unshown", 0, SimpleStripModel.others(st))
-        // a video clip's own sound goes with it: not in the music band
+        // a video clip's own sound goes with it: not a row's
         st.commit(st.clips.map { if (it.id == 5L) it.copy(kind = ClipKind.VIDEO, link = 77L) else if (it.id == 9L) it.copy(link = 77L) else it })
-        assertFalse(9L in SimpleStripModel.music(st).map { it.id })
+        assertEquals(listOf(10L), SimpleStripModel.lanes(st).first { it.track == 4 }.clips.map { it.id })
         assertEquals(0, SimpleStripModel.others(st))
+        // an emptied track is no row (it stays in the project)
+        st.commit(st.clips.filter { it.id != 11L })
+        assertFalse(SimpleStripModel.lanes(st).any { it.track == 5 })
+        assertEquals(6, st.tracks.size)
+    }
+
+    @Test fun aLayerMovesAlongItsRowAsOneUndoStep() {
+        val st = simple()
+        val undo0 = st.undoCount
+        assertTrue(SimpleStripModel.moveTo(st, st.clip(6), 17f, st.tracks.engineIndex(0)))
+        assertEquals(undo0 + 1, st.undoCount)
+        assertEquals(17f, st.clip(6).start, 1e-4f)
+        assertEquals(0, st.clip(6).track)
+        assertTrue(st.undo())
+        assertEquals(15f, st.clip(6).start, 1e-4f)
+    }
+
+    @Test fun aLayerGoesIntoTheStorylineAndAClipOutOfIt() {
+        val st = simple()
+        // the adjustment clip made a video clip (B-roll over the film)
+        st.commit(st.clips.map { if (it.id == 5L) it.copy(kind = ClipKind.VIDEO) else it })
+        val c5 = st.clip(5)
+        assertTrue(SimpleStripModel.fits(st, c5, null, main = true))
+        assertFalse("a title can't go into the film's row", SimpleStripModel.fits(st, st.clip(6), null, main = true))
+        val sound = SimpleStripModel.lanes(st).first { it.track == 3 }
+        assertFalse("video doesn't go on a sound row", SimpleStripModel.fits(st, c5, sound, main = false))
+        // dropped at 7.5 s: in at the nearest edit point (8 s), what follows makes room
+        assertTrue(SimpleStripModel.moveTo(st, c5, 7.5f, 0))
+        assertEquals(listOf(1L, 5L, 2L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
+        assertEquals(8f, st.clip(5).start, 1e-4f)
+        assertEquals(13f, st.clip(2).start, 1e-4f)
+        // and back out onto a row over the film: the storyline closes up again, one undo step
+        val undo0 = st.undoCount
+        assertTrue(SimpleStripModel.moveTo(st, st.clip(5), 8f, 1))
+        assertEquals(undo0 + 1, st.undoCount)
+        assertEquals(listOf(1L, 2L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
+        assertEquals(8f, st.clip(2).start, 1e-4f)
+        assertTrue(SimpleStripModel.lanes(st).any { l -> l.kind == SimpleStripModel.LaneKind.OVERLAY && l.clips.any { it.id == 5L } })
+    }
+
+    @Test fun musicMovedInSimpleModeStaysWhereItIsInTheFilm() {
+        val st = simple()
+        // the music to 9 s (over clip 2) – then clip 1 made 2 s shorter: clip 2 moves up, the music stays
+        assertTrue(SimpleStripModel.moveTo(st, st.clip(11), 9f, st.tracks.engineIndex(5)))
+        assertTrue(11L in st.magSide.disconnected)
+        assertTrue(SimpleStripModel.trim(st, st.clip(1), false, -2f))
+        assertEquals(6f, st.clip(2).start, 1e-4f)
+        assertEquals(9f, st.clip(11).start, 1e-4f)
+        // a title still hangs on its clip and goes with it
+        assertEquals(13f, st.clip(6).start, 1e-4f)
+    }
+
+    @Test fun aTitleCanBeMadeLongerButNotBroughtBack() {
+        val st = simple()
+        val t = st.clip(6)
+        assertEquals(0f, SimpleStripModel.hiddenHead(t), 0f)
+        assertTrue(SimpleStripModel.hiddenTail(t) > 100f)
+        assertFalse("nothing to bring back", SimpleStripModel.restore(st, t, false))
+        assertTrue(SimpleStripModel.trim(st, t, false, 3f))
+        assertEquals(8f, st.clip(6).length, 1e-4f)
     }
 
     @Test fun whatATrimCanBringBackIsWhatTheFileHas() {
@@ -385,18 +452,19 @@ class SimpleStripTest {
         assertEquals("zooming is no edit", undo0, st.undoCount)
     }
 
-    @Test fun musicAndTitlesHaveTheirBandsAndAnAddTile() {
+    @Test fun theRowsShowEachTracksClipsAndThereIsAnAddTile() {
         val st = simple()
         var asked: AddAction? = null
         st.onAddAction = { asked = it }
         rule.setContent { KlippTheme { SimpleStrip(st) } }
         rule.waitForIdle()
-        rule.onNodeWithTag("simpleBand:music:11", useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("simpleBand:text:6", useUnmergedTree = true).assertExists()
+        for (id in listOf(5L, 6L, 7L, 8L, 9L, 10L, 11L)) rule.onNodeWithTag("simpleLaneClip:$id", useUnmergedTree = true).assertExists()
         // (the title lies past the screen's edge at the first zoom: its click action, as a screen reader would)
-        rule.runOnIdle { rule.onNodeWithTag("simpleBand:text:6").fetchSemanticsNode().config[SemanticsActions.OnClick].action?.invoke() }
+        rule.runOnIdle { rule.onNodeWithTag("simpleLaneClip:6").fetchSemanticsNode().config[SemanticsActions.OnClick].action?.invoke() }
         rule.waitForIdle()
         assertEquals(6L, st.selected)
+        // a selected layer has its handles on its row
+        rule.onNodeWithTag("simpleHandle:end").assertExists()
         rule.onNodeWithTag("simpleStrip:add").assertExists()
         rule.runOnIdle { rule.onNodeWithTag("simpleStrip:add").fetchSemanticsNode().config[SemanticsActions.OnClick].action?.invoke() }
         assertEquals(AddAction.MEDIA, asked)
@@ -496,5 +564,70 @@ class SimpleStripTest {
         rule.waitForIdle()
         assertEquals(1, st.undoCount)
         assertEquals("moved past what was in view", 1L, SimpleStripModel.storyline(st).last().id)
+    }
+
+    // ------------------------------------------------------------------ the rows under the clips
+
+    @Test fun aClipDraggedDownLeavesTheStorylineForARow() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        val undo0 = st.undoCount
+        // clip 2 held and dragged straight down onto the first row
+        rule.onNodeWithTag("simpleClip:2").performTouchInput {
+            down(center); advanceEventTime(800)
+            repeat(10) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(0f, 30f)) }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleLane:target").assertExists()
+        rule.onNodeWithTag("simpleClip:2").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(undo0 + 1, st.undoCount)
+        assertEquals(listOf(1L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
+        assertTrue(SimpleStripModel.lanes(st).any { l -> l.clips.any { it.id == 2L } })
+    }
+
+    @Test fun aLayerDraggedAlongItsRowMoves() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        val s0 = st.clip(5).start
+        rule.onNodeWithTag("simpleLaneClip:5").performTouchInput {
+            down(center); advanceEventTime(800)
+            repeat(6) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(20f, 0f)) }
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals(1, st.undoCount)
+        assertTrue("later: ${st.clip(5).start}", st.clip(5).start > s0 + 0.3f)
+        assertEquals(1, st.clip(5).track)
+    }
+
+    @Test fun aLockedTrackShowsItsMarkAndExplains() {
+        val st = simple()
+        st.trackStates = st.trackStates.mapIndexed { i, t -> if (i == 1) t.copy(locked = true) else t }
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleLane:marks:1").assertExists().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleStrip:openAdvanced").assertExists()
+        assertEquals(SimpleStripModel.Block.LOCKED, SimpleStripModel.moveBlock(st, st.clip(5)))
+    }
+
+    @Test fun moreRowsThanRoomAreAStepAway() {
+        val st = simple()
+        rule.setContent { KlippTheme { androidx.compose.foundation.layout.Box(Modifier.height(380.dp)) { SimpleStrip(st) } } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleLanes:more").assertExists()
+        rule.onNodeWithTag("simpleLaneClip:11", useUnmergedTree = true).assertDoesNotExist()
+        // a page of rows at a time, down to the last one
+        var taps = 0
+        while (rule.onAllNodesWithTag("simpleLanes:more").fetchSemanticsNodes().isNotEmpty() && taps < 6) {
+            rule.onNodeWithTag("simpleLanes:more").performClick(); rule.waitForIdle(); taps++
+        }
+        assertTrue(taps in 1..5)
+        rule.onNodeWithTag("simpleLaneClip:11", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("simpleLanes:up").assertExists()
+        rule.onRoot().captureRoboImage("build/shots/s24_enkel_rader.png")
     }
 }
