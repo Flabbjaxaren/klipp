@@ -24,7 +24,7 @@ Every control is an advanced-mode function, reached in fewer steps:
 | Top | The project's name, length and number of clips; **Save video** | The export dialog (its simple form: preset and size) |
 | Bottom, nothing selected | **Add** | The media import |
 | | **Sounds** | The sound library (packs, text to speech, files from the phone), with two switches under it: *Lower the sounds when someone speaks* (the audio panel's ducking, on the tracks that hold only added sounds, against the speech) and *Fade out at the end* (the sounds still playing when the picture ends end with it and fade out over 2 s – an audio fade on their out edge, which doesn't block trimming or moving them). Each is one undo step |
-| | **Text** | The title sheet, with *Captions from what is said* (the captions sheet) at the top |
+| | **Text** | The title sheet in the mockup's form: the text, a style (*Elegant*, *Bold*, *Box*, *Plain* – font, weight, shadow and plate as the title panel sets them) and how long it shows (3 s or 5 s from the playhead, or the whole storyline clip under it); *Captions from what is said* (the captions sheet) at the top. A title made here is an ordinary free title, one undo step |
 | | **Filter** | The simple colour page (look, exposure, contrast, warmth, saturation – the same nodes as advanced colour), in a sheet |
 | | **Format** | The project's settings (format and size) |
 | Bottom, a clip selected | **Split here, Speed, Sound, Filter, Zoom, Delete** | Razor at the playhead, the speed steps, the clip's volume, the filter sheet, the picture's crop and position, ripple delete; *Advanced* when the clip holds advanced work |

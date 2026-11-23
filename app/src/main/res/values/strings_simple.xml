@@ -140,4 +140,16 @@
     <string name="simple_fade_end_none">No sound plays at the film\'s end</string>
     <string name="simple_undo_fade_end">Fade out at the end</string>
     <string name="simple_undo_fade_end_off">No fade at the end</string>
+    <!-- the Text sheet (SimpleText.kt) -->
+    <string name="simple_text_yours">Your text</string>
+    <string name="simple_text_style">Style</string>
+    <string name="simple_text_elegant">Elegant</string>
+    <string name="simple_text_bold">Bold</string>
+    <string name="simple_text_plate">Box</string>
+    <string name="simple_text_plain">Plain</string>
+    <string name="simple_text_how_long">How long is the text shown?</string>
+    <string name="simple_text_3s">3 sec</string>
+    <string name="simple_text_5s">5 sec</string>
+    <string name="simple_text_clip">Whole clip</string>
+    <string name="simple_text_add">Add text</string>
 </resources>

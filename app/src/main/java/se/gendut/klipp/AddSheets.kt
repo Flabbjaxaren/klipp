@@ -117,15 +117,16 @@ internal fun TitleSheet(state: EditorState, onDismiss: () -> Unit) {
     var tab by remember { mutableStateOf(0) }
     val list = tab == 1 && state.clips.any { it.kind == ClipKind.TITLE }
     AddSheet(
-        stringResource(R.string.design_add_title), "titleSheet", onDismiss,
+        stringResource(if (state.simple) R.string.simple_text else R.string.design_add_title), "titleSheet", onDismiss,
         top = {
             // simple mode: captions from the speech are text too (the mockup's Text sheet) – the captions sheet
             if (state.simple) SimpleCaptionsEntry { onDismiss(); state.onAddAction?.invoke(AddAction.CAPTIONS) }
             TitleTabs(state, tab) { tab = it }
         },
-        bottom = if (list) null else ({ TitleAddButton(state, backend, onDismiss) }),
+        bottom = if (list) null else if (state.simple) ({ SimpleTitleAddButton(state, backend, onDismiss) }) else ({ TitleAddButton(state, backend, onDismiss) }),
     ) {
-        if (list) TitlesOnTimeline(state, onDismiss) else TitleNew(state)
+        // simple mode: the mockup's text, style cards and length (SimpleText.kt)
+        if (list) TitlesOnTimeline(state, onDismiss) else if (state.simple) SimpleTitleNew(state) else TitleNew(state)
     }
 }
 

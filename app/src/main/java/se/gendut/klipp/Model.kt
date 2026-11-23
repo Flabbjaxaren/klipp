@@ -320,7 +320,8 @@ interface PropsBackend {
     /** Save the project soon (something saved with it changed outside the engine, e.g. what gets pre-rendered). */
     fun requestSave() {}
     /** A title at [at]; [onAdded] with its clip once it is on the timeline (not called when it can't be placed – the reason is shown). */
-    fun addTitle(text: String, at: Float, look: String = "", onAdded: (Long) -> Unit = {})
+    /** A title at [at] for [seconds] (null: the default length from settings). */
+    fun addTitle(text: String, at: Float, look: String = "", seconds: Double? = null, onAdded: (Long) -> Unit = {})
     fun setTitle(id: Long, text: String? = null, size: Float? = null, color: Int? = null, look: String? = null)
     fun importCaptions()
     /**
@@ -1313,6 +1314,9 @@ class TitleDraft {
     var template by mutableStateOf(se.gendut.klipp.engine.TitleTemplate.FREE)
     var anim by mutableStateOf(se.gendut.klipp.engine.TitleAnim.NONE)
     var lines by mutableStateOf(listOf<String>())
+    /** Simple mode's Text sheet: the style card and how long the text shows (SimpleText.kt). */
+    var simpleStyle by mutableStateOf(SimpleTitleStyle.ELEGANT)
+    var simpleLength by mutableStateOf(SimpleTitleLength.THREE)
 }
 
 /** The edit page's two views of the sequence: the timeline, or its transcript (same picture, playhead and selection). */

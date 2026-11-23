@@ -1,6 +1,7 @@
 package se.gendut.klipp
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
@@ -72,6 +73,32 @@ class AddSheetsFlowTest {
         assertTrue(fake.log.last(), fake.log.last().startsWith("title Maja Lind @2.0 klipp:mall=kapitel"))
         // added: the next title starts empty
         assertTrue(st.titleDraft.lines.isEmpty())
+    }
+
+    @Test fun simpleModesTextHasStylesAndALength() {
+        val fake = FakeProps()
+        // the prototype's storyline: the playhead at 9 s is in the second clip (8–13 s)
+        val st = EditorState().apply { props = fake; switchMode(true); playhead = 9f }
+        rule.setContent { KlippTheme { Box(Modifier.fillMaxSize().background(K.Bg)) { TitleSheet(st) {} } } }
+        rule.waitForIdle()
+        rule.onNode(hasSetTextAction() and (hasTestTag("titleField:0") or hasAnyAncestor(hasTestTag("titleField:0")))).performTextInput("Sommaren 2026")
+        rule.onNodeWithTag("simple:textStyle:PLATE").performScrollTo().performClick()
+        rule.onNodeWithTag("simple:textLength:FIVE").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onRoot().captureRoboImage("build/shots/simple_text.png")
+        rule.onNodeWithTag("title:add").performClick()
+        rule.waitForIdle()
+        val look = SimpleTitleStyle.PLATE.look.encode()
+        assertEquals("title Sommaren 2026 @9.0 $look 5.0s", fake.log.last())
+        // the whole clip: from its start, its length
+        rule.onNode(hasSetTextAction() and (hasTestTag("titleField:0") or hasAnyAncestor(hasTestTag("titleField:0")))).performTextInput("Hamnen")
+        rule.onNodeWithTag("simple:textLength:CLIP").performScrollTo().performClick()
+        rule.onNodeWithTag("simple:textStyle:ELEGANT").performScrollTo().performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("title:add").performClick()
+        rule.waitForIdle()
+        assertEquals("title Hamnen @8.0 ${SimpleTitleStyle.ELEGANT.look.encode()} 5.0s", fake.log.last())
+        assertTrue(SimpleTitleStyle.ELEGANT.look.encode().contains("font=Playfair Display"))
     }
 
     @Test fun theCaptionPartsAsTheyLook() {

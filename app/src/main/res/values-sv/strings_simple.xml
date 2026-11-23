@@ -140,4 +140,16 @@
     <string name="simple_fade_end_none">Inget ljud spelar när filmen slutar</string>
     <string name="simple_undo_fade_end">Tona ut mot slutet</string>
     <string name="simple_undo_fade_end_off">Ingen toning mot slutet</string>
+    <!-- the Text sheet (SimpleText.kt) -->
+    <string name="simple_text_yours">Din text</string>
+    <string name="simple_text_style">Stil</string>
+    <string name="simple_text_elegant">Elegant</string>
+    <string name="simple_text_bold">Fet</string>
+    <string name="simple_text_plate">Platta</string>
+    <string name="simple_text_plain">Enkel</string>
+    <string name="simple_text_how_long">Hur länge syns texten?</string>
+    <string name="simple_text_3s">3 sek</string>
+    <string name="simple_text_5s">5 sek</string>
+    <string name="simple_text_clip">Hela klippet</string>
+    <string name="simple_text_add">Lägg till text</string>
 </resources>

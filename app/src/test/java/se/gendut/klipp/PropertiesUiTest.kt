@@ -55,8 +55,8 @@ class FakeProps : PropsBackend {
     /** null: the title is added (onAdded with this id); a text: it can't be placed – that message, nothing added. */
     var titleRefusal: String? = null
     var onTitleMessage: ((String) -> Unit)? = null
-    override fun addTitle(text: String, at: Float, look: String, onAdded: (Long) -> Unit) {
-        log += "title $text @$at $look".trimEnd()
+    override fun addTitle(text: String, at: Float, look: String, seconds: Double?, onAdded: (Long) -> Unit) {
+        log += ("title $text @$at $look".trimEnd() + (seconds?.let { " %.1fs".format(java.util.Locale.ROOT, it) } ?: ""))
         titleRefusal?.let { onTitleMessage?.invoke(it); return }
         onAdded(nextTitle)
     }
