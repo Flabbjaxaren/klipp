@@ -281,7 +281,9 @@ internal object CrawImport {
                     if (buffer.capacity() < size) buffer = ByteBuffer.allocateDirect(size)
                     buffer.clear()
                     check(extractor.readSampleData(buffer, 0) == size) { "Short developed video sample" }
-                    sample.set(0, size, extractor.sampleTime, extractor.sampleFlags)
+                    // (the extractor's sync flag is the muxer's key-frame flag – same bit, but lint wants MediaCodec's constant)
+                    val key = if (extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_SYNC != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0
+                    sample.set(0, size, extractor.sampleTime, key)
                     muxer.writeSampleData(videoTrack, buffer, sample)
                     extractor.advance()
                 }
