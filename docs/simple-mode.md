@@ -25,10 +25,22 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
   they follow their clips.
 - **Selecting.** Tapping a clip selects it, and the dock below acts on it as in advanced mode. Tapping beside the
   clips moves the playhead there.
-- **The playhead.** A white line over the strip, with the time and the film's length on top.
+- **The playhead.** A white line over the strip, with the time and the film's length on top. Drag along the time
+  ruler above the clips to move it through the film.
+- **Centred playhead** (⋯ menu, as in advanced mode). The line stays in the middle and the strip moves under it, so
+  scrolling the strip moves through the film.
+- **Zoom.** Pinch with two fingers. Zoom 1 shows the whole film; the time under the fingers stays put, or the
+  playhead does when it is centred.
+- **Moving a clip.** Hold a clip and drag it. A lime line shows where it will go in, and it is dropped at the
+  storyline's edit point nearest to where its start is. This is the magnetic timeline's own reorder
+  (`MagTimeline.move`): the gap it leaves closes, nothing is overwritten, its linked sound and connected clips go
+  with it, and it is one undo step. A clip joined to a neighbour by a transition is not moved; it explains why and
+  offers advanced mode. Screen readers get *Move earlier / later* on each clip.
 - **Advanced.** A button that is always visible switches to advanced mode, the same switch as in the ⋯ menu and
   Settings.
 - **Undo and redo** are the editor's own buttons, always shown.
+- **The transport** under the picture is Start, Play and End only. The frame steps, edit jumps and timecode stay in
+  advanced mode, and so does the transcript view.
 
 ### Trimming
 
