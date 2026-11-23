@@ -125,6 +125,21 @@ class MagneticModelTest {
         assertEquals(listOf(MGap(10f, 15f)), after.gaps())
     }
 
+    @Test fun replaceWithGapTakesJustTheLinkedSoundsAsked() {
+        // a file's second and third audio streams (linked to its picture, on A2 and A3): Delete takes just them – the
+        // picture and its first sound stay, nothing moves (it used to do nothing: the clips came back)
+        val t = MagTimeline(listOf(v(1, 0f, 10f, link = 1), a(101, 0f, 10f, link = 1), a(201, 0f, 10f, level = 1, link = 1),
+            a(301, 0f, 10f, level = 2, link = 1), v(2, 10f, 5f, link = 2), a(102, 10f, 5f, link = 2)))
+        val p = t.replaceWithGap(setOf(201L, 301L)); assertNotNull("Delete does something", p); p!!
+        assertEquals(setOf(201L, 301L), p.removed)
+        near(0f, p.start(1)); near(0f, p.start(101)); near(10f, p.start(2)); near(10f, p.start(102))
+        assertEquals(emptyList<MGap>(), MagTimeline(p.clips).gaps())
+        // and with ripple (delete) the same: a sound alone leaves no hole in the storyline
+        val d = t.delete(setOf(201L, 301L))!!
+        assertEquals(setOf(201L, 301L), d.removed)
+        near(10f, d.start(2))
+    }
+
     // ------------------------------------------------------------------ magnetic moves
 
     @Test fun movingAClipToTheStartReordersAndConnectedClipsFollow() {

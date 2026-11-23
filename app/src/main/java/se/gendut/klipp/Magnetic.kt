@@ -184,13 +184,20 @@ class MagTimeline(
         return if (any) w.finish() else null
     }
 
-    /** Replace with gap: storyline clips become gap clips of their length – nothing moves, connected clips stay. Connected clips in [ids] are deleted. */
+    /**
+     * Replace with gap: storyline clips become gap clips of their length – nothing moves, connected clips stay. Connected
+     * clips in [ids] are deleted, and so are sounds in [ids] linked to a storyline clip that stays (a file's second audio
+     * stream, say): the picture keeps its place.
+     */
     fun replaceWithGap(ids: Set<Long>): MPlan? {
         val w = Work()
         var any = false
         for (e in w.els) {
             val lead = e.lead ?: continue
-            if (lead.id !in ids) continue
+            if (lead.id !in ids) {
+                for (m in e.members.toList()) if (m.clip.id in ids) { e.members.remove(m); w.removed += m.clip.id; any = true }
+                continue
+            }
             for (m in e.members) w.removed += m.clip.id
             e.members.clear(); e.lead = null; e.shift = 0f
             any = true
