@@ -257,7 +257,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     var laneHeight by remember { mutableFloatStateOf(1f) }
     // vertical scrolling (to reach the audio tracks when the source panel takes up space)
     var scrollY by remember { mutableFloatStateOf(0f) }
-    val bottomPadPx = with(density) { 96.dp.toPx() }
+    // room under the last row: the add-track buttons (36 dp) and the floating dock / undo pill (~84 dp) – without it the
+    // +V / +A buttons stayed under the dock and a tap there hit Undo
+    val bottomPadPx = with(density) { 150.dp.toPx() }
     fun maxScrollY() = (topsPx[rows().lastIndex] + heightsPx[rows().lastIndex] + bottomPadPx - (laneHeight - rulerPx)).coerceAtLeast(0f)
     fun clampY(v: Float) = v.coerceIn(0f, maxScrollY())
     // Locked mode: the playhead stays in the center and the timeline slides under it.
