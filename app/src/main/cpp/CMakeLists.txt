@@ -42,5 +42,7 @@ add_library(klipp_craw SHARED
 )
 target_compile_features(klipp_craw PRIVATE cxx_std_20)
 target_include_directories(klipp_craw PRIVATE ${CRAW_ROOT}/include ${CRAW_ROOT}/tools)
-target_compile_options(klipp_craw PRIVATE -O3 -fvisibility=hidden)
-target_link_options(klipp_craw PRIVATE -Wl,-z,max-page-size=16384)
+# +crc: the decoder's CRC32C (every frame payload and decoded frame) uses the instructions instead of a byte table;
+# unused clip-tool code (DNG/WAV writers) is dropped at link time
+target_compile_options(klipp_craw PRIVATE -O3 -march=armv8-a+crc -fvisibility=hidden -ffunction-sections -fdata-sections)
+target_link_options(klipp_craw PRIVATE -Wl,-z,max-page-size=16384 -Wl,--gc-sections)
