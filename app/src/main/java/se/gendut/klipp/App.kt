@@ -465,6 +465,8 @@ private fun KlippAppContent(
                 runCatching { se.gendut.klipp.engine.CompositionBuilder.anyTenBit(context, controller.snapshot) { controller.uriOf(it) } }.getOrNull()
             }
         }
+        // (the dialog is outside the editor's own simple-mode scope: given it here, or it showed advanced mode's form)
+        CompositionLocalProvider(LocalSimple provides state.simple) {
         ExportDialog(
             initial = remember { se.gendut.klipp.engine.ExportSettings.load(context, controller.currentId) },
             defaultName = remember { "Klipp_" + java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.ROOT).format(java.util.Date()) },
@@ -479,6 +481,7 @@ private fun KlippAppContent(
             onDismiss = { exportAsk = false },
             onShare = { st, name -> exportAsk = false; shareNext = true; runExport(st, name) },
         ) { st, name -> exportAsk = false; shareNext = false; runExport(st, name) }
+        }
     }
     if (controller != null && playback != null) PlaybackSync(controller, playback, state) { toaster.show(it) }
     // voice-over: countdown, recording while the timeline plays muted, then the file is placed on the track
