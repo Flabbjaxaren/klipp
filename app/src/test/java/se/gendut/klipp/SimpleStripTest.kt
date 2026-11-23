@@ -7,10 +7,12 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import com.github.takahirom.roborazzi.captureRoboImage
+import kotlin.math.abs
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -44,10 +46,18 @@ class SimpleStripTest {
 
     // ------------------------------------------------------------------ the model
 
-    @Test fun theStripIsTheStorylineAndCountsTheRest() {
+    @Test fun theStripIsTheStorylineWithBandsForTheRest() {
         val st = simple()
         assertEquals(listOf(1L, 2L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
-        assertEquals("title, adjustment, sound and music", 7, SimpleStripModel.others(st))
+        // the other tracks in bands: video over the clips (the adjustment clip), sound and music, the title
+        assertEquals(listOf(5L), SimpleStripModel.overlays(st).map { it.id })
+        assertEquals(listOf(7L, 11L, 9L, 8L, 10L), SimpleStripModel.music(st).map { it.id })
+        assertEquals(listOf(6L), SimpleStripModel.texts(st).map { it.id })
+        assertEquals("nothing left unshown", 0, SimpleStripModel.others(st))
+        // a video clip's own sound goes with it: not in the music band
+        st.commit(st.clips.map { if (it.id == 5L) it.copy(kind = ClipKind.VIDEO, link = 77L) else if (it.id == 9L) it.copy(link = 77L) else it })
+        assertFalse(9L in SimpleStripModel.music(st).map { it.id })
+        assertEquals(0, SimpleStripModel.others(st))
     }
 
     @Test fun whatATrimCanBringBackIsWhatTheFileHas() {
@@ -227,7 +237,7 @@ class SimpleStripTest {
         rule.waitForIdle()
         rule.onNodeWithTag("simpleStrip:advancedOnly").assertIsDisplayed()
         assertEquals(before, st.clips)
-        assertNotEquals(0, SimpleStripModel.others(st))
+        assertTrue(SimpleStripModel.storyline(st).isEmpty())
     }
     // ------------------------------------------------------------------ moving, scrubbing, zoom, the transport
 
@@ -431,5 +441,60 @@ class SimpleStripTest {
         rule.waitForIdle()
         rule.onNodeWithTag("simple:captions").assertExists()
         rule.onRoot().captureRoboImage("build/shots/s27_enkel_text.png")
+    }
+
+    // ------------------------------------------------------------------ the strip's touch
+
+    @Test fun aTapUnderTheClipsDeselectsAndLeavesThePlayhead() {
+        val st = simple().apply { playhead = 4f; selected = 2L }
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleStrip:track").performTouchInput { click(androidx.compose.ui.geometry.Offset(centerX, bottom - 20f)) }
+        rule.waitForIdle()
+        assertNull(st.selected)
+        assertEquals(4f, st.playhead, 0f)
+    }
+
+    @Test fun aDragUnderTheClipsScrollsTheStrip() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        val x0 = rule.onNodeWithTag("simpleClip:3").fetchSemanticsNode().positionInRoot.x
+        rule.onNodeWithTag("simpleStrip:track").performTouchInput { swipeLeft(startX = right - 40f, endX = left + 40f, durationMillis = 300) }
+        rule.waitForIdle()
+        // (the swipe started low in the strip, under the clips)
+        val x1 = rule.onNodeWithTag("simpleClip:3").fetchSemanticsNode().positionInRoot.x
+        assertTrue("scrolled: $x0 → $x1", x1 < x0 - 100f)
+        assertEquals(0, st.undoCount)
+    }
+
+    @Test fun withTheCentredPlayheadATrimMovesItOnlyWhenTheFingerLifts() {
+        val st = simple().apply { centerPlayhead = true; playhead = 10f; selected = 2L }
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleHandle:end").performTouchInput { down(center); repeat(8) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(-12f, 0f)) } }
+        rule.waitForIdle()
+        assertEquals("still while the finger is down", 10f, st.playhead, 0f)
+        rule.onNodeWithTag("simpleHandle:end").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(1, st.undoCount)
+        assertTrue("at the edit afterwards: ${st.playhead}", abs(st.playhead - st.clip(2).end) < 0.1f)
+    }
+
+    @Test fun aClipHeldAtTheEdgeScrollsTheStrip() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        // clip 1 taken to the right edge and held there: the strip scrolls on, the clip goes far along
+        rule.onNodeWithTag("simpleClip:1").performTouchInput {
+            down(center); advanceEventTime(800)
+            repeat(9) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(70f, 0f)) }
+        }
+        rule.mainClock.advanceTimeBy(2500)
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleClip:1").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(1, st.undoCount)
+        assertEquals("moved past what was in view", 1L, SimpleStripModel.storyline(st).last().id)
     }
 }
