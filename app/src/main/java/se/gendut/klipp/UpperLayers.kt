@@ -335,7 +335,10 @@ private fun LayerVideo(
             lastMainMs = mainMs ?: -1L
             // (by the playhead until the main player has been told to play: as playback begins it may still stand where its
             // paused pick left it, before the slot – the layer then took itself for outside its segment, measured)
-            val t = if (mainMs != null && state.playing && main.playWhenReady) mainMs / 1000.0 else se.gendut.klipp.playheadSec(state.playhead)
+            // (paused at the timeline's very end – "go to end", played to the end – the main player shows the last frame
+            // (Playback.inside): so does the layer, or a clip ending there with the timeline vanished and the one under it showed)
+            val t = if (mainMs != null && state.playing && main.playWhenReady) mainMs / 1000.0
+                else se.gendut.klipp.playheadSec(state.playhead).let { p -> lastFrameAt(controller.snapshot)?.let { minOf(p, it) } ?: p }
             var i = if (handoff && !state.playing) -1 else segs.indices.indexOfFirst { k -> t >= segs[k].start - preS(k) && t < segs[k].end }
             if (handoff && !state.playing && handSeg >= 0 && handHid.isNotEmpty() && !handDown) {
                 // paused during the handover: the main player draws its frame again (a seek one millisecond away, as
@@ -1438,4 +1441,11 @@ private fun transitionBlur(shader: android.graphics.RuntimeShader, w: Float, h: 
     shader.setFloatUniform("uMirror", if (mirror) 1f else 0f)
     shader.setFloatUniform("uSoft", soft)
     return android.graphics.RenderEffect.createRuntimeShaderEffect(shader, "content").asComposeRenderEffect()
+}
+
+/** The time of the timeline's last frame (its end less a frame), where the main player stands when paused at the end; null if empty. */
+internal fun lastFrameAt(s: se.gendut.klipp.engine.Snapshot): Double? {
+    val end = s.sequence?.duration ?: return null  // (as Playback: playable() keeps the duration)
+    if (end <= 0.0) return null
+    return (end - 1.0 / s.fps.coerceAtLeast(1.0)).coerceAtLeast(0.0)
 }
