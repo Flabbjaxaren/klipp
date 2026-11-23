@@ -306,6 +306,8 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
     // after the edit (set before, the seek ran on the old timeline and the picture stayed from it)
     var landing by remember { mutableStateOf<Float?>(null) }
     LaunchedEffect(state.clips) { landing?.let { state.playhead = it; landing = null } }
+    // a delete (the bar's Delete): done at once – the timeline's removal animation, which finishes a delete, isn't here
+    LaunchedEffect(Unit) { snapshotFlow { state.removing.toList() }.collect { ids -> ids.forEach { state.finishRemove(it) } } }
     // a clip held and dragged to a new place (the long press starts it), and how far
     var movingId by remember { mutableStateOf<Long?>(null) }
     var movingDx by remember { mutableFloatStateOf(0f) }
