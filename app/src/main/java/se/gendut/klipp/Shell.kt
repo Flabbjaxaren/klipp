@@ -209,9 +209,44 @@ private fun Workspace(name: String, icon: ImageVector, selected: Boolean, first:
     }
 }
 
+/**
+ * Simple mode's transport: to the start, play / pause, to the end – each with its name under it. The frame steps, edit
+ * jumps and timecode confused beginners (the time is over the strip's playhead).
+ */
+@Composable
+private fun SimpleTransport(state: EditorState) {
+    val haptics = rememberHaptics()
+    @Composable
+    fun Labelled(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, tag: String, primary: Boolean = false, onClick: () -> Unit) {
+        Column(
+            Modifier.width(88.dp).clip(RoundedCornerShape(16.dp))
+                .clickable(onClickLabel = label) { haptics.press(); onClick() }.padding(vertical = 2.dp).testTag(tag),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier.size(if (primary) 64.dp else 44.dp, 40.dp).clip(RoundedCornerShape(20.dp)).background(if (primary) K.Primary else K.SurfaceHigh),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, null, tint = if (primary) K.OnPrimary else K.OnSurface, modifier = Modifier.size(if (primary) 24.dp else 20.dp)) }
+            Text(label, color = K.OnSurfaceVar, fontSize = 11.sp, maxLines = 1)
+        }
+    }
+    Row(Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 8.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        Labelled(Ic.Prev, stringResource(R.string.simple_go_start), "simple:start") { state.playing = false; state.playhead = 0f }
+        Spacer(Modifier.width(12.dp))
+        val playing = state.playing
+        Labelled(if (playing) Ic.Pause else Ic.Play, stringResource(if (playing) R.string.app_pause else R.string.app_play), "simple:play", primary = true) {
+            if (!state.playing && state.playhead >= state.projectEnd - 0.05f) state.playhead = 0f
+            state.playing = !state.playing
+        }
+        Spacer(Modifier.width(12.dp))
+        Labelled(Ic.Next, stringResource(R.string.simple_go_end), "simple:end") { state.playing = false; state.playhead = state.projectEnd }
+    }
+}
+
 /** Under the picture: frame steps on the left, play between the previous and next edit in the middle, the time on the right. */
 @Composable
 internal fun Transport(state: EditorState) {
+    if (state.simple) { SimpleTransport(state); return }
     val haptics = rememberHaptics()
     val src = remember { MutableInteractionSource() }
     val playR by animateDpAsState(if (state.playing) 24.dp else 18.dp, spring(0.45f, 500f), label = "pr")
@@ -324,7 +359,8 @@ internal fun EditPage(
     val bar = LocalBarSpace.current
     val barPad = if (bar > 0.dp) bar + 8.dp else 12.dp
     val haptics = rememberHaptics()
-    val inTranscript = transcript != null && state.editView == EditView.TRANSCRIPT
+    // (simple mode has no transcript view: the button confused – the strip is its only view)
+    val inTranscript = transcript != null && state.editView == EditView.TRANSCRIPT && !state.simple
     Column(Modifier.fillMaxSize().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(K.Surface)) {
       // the row's room: on a narrow phone the tool shows its icon only (its name is in its menu and read out)
       // (typing in a panel over the timeline: the row steps aside, the panel's text field gets its room)
@@ -361,20 +397,9 @@ internal fun EditPage(
                 Tool.TRIM to (stringResource(R.string.app_tool_trim) to Ic.Trim), Tool.RAZOR to (stringResource(R.string.app_tool_razor) to Ic.Razor),
             )
             LaunchedEffect(state.magnetic, tool, state.simple) { if (tools.none { it.first == tool } || state.simple && tool != Tool.SELECT) setTool(Tool.SELECT) }
-            // the tool: one chip with a menu (simple mode moves only: no chip – the transcript's takes its place)
+            // the tool: one chip with a menu (simple mode: no chip – its strip moves and trims by itself)
             var toolsOpen by remember { mutableStateOf(false) }
-            if (state.simple) {
-                if (transcript != null) Row(
-                    Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh)
-                        .clickable { haptics.press(); state.playing = false; state.dockRow = DockRow.NONE; state.editView = EditView.TRANSCRIPT }
-                        .padding(start = 12.dp, end = 14.dp).testTag("view:transcript"),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Icon(Ic.Transcript, null, tint = K.OnSurface, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.edit_view_transcript), color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
-            } else Box {
+            if (!state.simple) Box {
                 val (label, icon) = (tools.firstOrNull { it.first == tool } ?: tools.first()).second
                 Row(
                     Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh)
@@ -450,8 +475,9 @@ internal fun EditPage(
                         state.switchMode(on)
                         toaster.show(Str.t(if (on) R.string.simple_mode_on else R.string.simple_mode_off))
                     }
-                    if (!state.simple) {
+                    // the centred playhead: in both modes (in simple mode the strip moves under it)
                     mode(Ic.Center, stringResource(R.string.app_locked_playhead), state.centerPlayhead, "mode:center") { state.centerPlayhead = !state.centerPlayhead }
+                    if (!state.simple) {
                     // the magnetic timeline (the same switch as in Settings → Timeline)
                     val ctx = androidx.compose.ui.platform.LocalContext.current
                     mode(Ic.Storyline, stringResource(R.string.magnetic_setting), state.magnetic, "mode:magnetic") {
