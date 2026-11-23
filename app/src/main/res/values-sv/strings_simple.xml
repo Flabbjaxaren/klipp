@@ -169,4 +169,7 @@
     <string name="simple_export_gallery">Spara i Galleriet</string>
     <string name="simple_export_share">Spara och dela …</string>
     <string name="simple_export_keep_editing">Du kan fortsätta redigera medan videon sparas.</string>
+    <string name="simple_trim_cut_away">Klipps bort\n%1$s</string>
+    <string name="simple_trim_release">Släpp för att korta – resten av filmen flyttar ihop sig</string>
+    <string name="simple_trim_release_row">Släpp för att korta – dra ut kanten igen för att få tillbaka det</string>
 </resources>

@@ -546,6 +546,9 @@ class SimpleStripTest {
         rule.onNodeWithTag("simpleHandle:end").performTouchInput { down(center); repeat(8) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(-12f, 0f)) } }
         rule.waitForIdle()
         assertEquals("still while the finger is down", 10f, st.playhead, 0f)
+        // the line says what letting go does, and the part cut off says how much
+        rule.onNodeWithTag("simpleStrip:releaseHint", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("simpleClip:cut", useUnmergedTree = true).assertExists()
         rule.onNodeWithTag("simpleHandle:end").performTouchInput { up() }
         rule.waitForIdle()
         assertEquals(1, st.undoCount)

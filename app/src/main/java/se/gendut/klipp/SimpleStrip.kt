@@ -724,12 +724,15 @@ private fun StripInfo(
             when {
                 moving -> Text(stringResource(R.string.simple_move_hint), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.testTag("simpleStrip:moveInfo"))
-                selected != null && dragEdge != null -> {
+                selected != null && dragEdge != null -> Column {
                     val after = SimpleStripModel.lengthAfter(selected, dragEdge, dragDelta)
                     Text(
                         stringResource(R.string.simple_trim_left, SimpleStripModel.clock(after), SimpleStripModel.clock(selected.length)),
                         color = K.OnSurface, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.testTag("simpleStrip:trimInfo"),
                     )
+                    // what letting go does (the storyline closes up; what is cut off can be brought back)
+                    Text(stringResource(if (selected.track == state.tracks.v1Row) R.string.simple_trim_release else R.string.simple_trim_release_row),
+                        color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1, modifier = Modifier.testTag("simpleStrip:releaseHint"))
                 }
                 selected != null -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     val head = SimpleStripModel.hiddenHead(selected)
@@ -834,6 +837,13 @@ private fun StripClip(
                     s += step
                 }
             }
+            // what goes, said on it when there is room: "Cut away 0:05"
+            if (cut != null && (cut.second - cut.first) * pps >= with(density) { 56.dp.toPx() }) Text(
+                stringResource(R.string.simple_trim_cut_away, SimpleStripModel.clock(cut.second - cut.first)),
+                color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold, lineHeight = 13.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.offset { IntOffset((cut.first * pps).roundToInt(), 0) }.width(with(density) { ((cut.second - cut.first) * pps).toDp() })
+                    .align(Alignment.CenterStart).testTag("simpleClip:cutLabel"),
+            )
         }
     }
     // brought back while dragging: the material outside the clip, as a pale strip beside it

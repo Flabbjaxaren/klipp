@@ -86,8 +86,8 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
 
 The selected clip has a lime handle on each edge, 48 dp to touch.
 
-- **While dragging,** the line over the strip shows the result ("0:06 left (was 0:11)"). The part the drag cuts off is
-  striped. Material brought back shows as a pale strip beside the clip. The monitor shows the frame at the new edge
+- **While dragging,** the line over the strip shows the result ("0:06 left (was 0:11)") and what letting go does. The
+  part the drag cuts off is striped, with how much ("Cut away 0:05") when there is room. Material brought back shows as a pale strip beside the clip. The monitor shows the frame at the new edge
   when there is one to show – with the centred playhead it moves to the edit when the finger lifts instead (moving
   it during the drag moved the strip under the finger).
 - **When the finger lifts,** the drag becomes one trim, the magnetic timeline's `MagTimeline.trim` through
