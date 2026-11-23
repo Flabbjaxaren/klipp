@@ -85,6 +85,15 @@ object SimpleStripModel {
         return state.clips.filter { it.track == v1 && it.kind.track == TrackKind.VIDEO }.sortedBy { it.start }
     }
 
+    /** The music and sound on their own (not a storyline clip's linked sound): the strip's music band. */
+    fun music(state: EditorState): List<Clip> {
+        val links = storyline(state).mapNotNull { it.link }.toSet()
+        return state.clips.filter { (it.kind == ClipKind.MUSIC || it.kind == ClipKind.AUDIO) && (it.link == null || it.link !in links) }.sortedBy { it.start }
+    }
+
+    /** The titles: the strip's text band. */
+    fun texts(state: EditorState): List<Clip> = state.clips.filter { it.kind == ClipKind.TITLE }.sortedBy { it.start }
+
     /** Clips the strip doesn't show: everything but the storyline and the sound linked to its clips. */
     fun others(state: EditorState): Int {
         val line = storyline(state)
@@ -207,19 +216,30 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
     // a clip held and dragged to a new place (the long press starts it), and how far
     var movingId by remember { mutableStateOf<Long?>(null) }
     var movingDx by remember { mutableFloatStateOf(0f) }
-    // the zoom (1 = the whole film fits) and where a pinch is centred (null = keep the playhead in place)
-    var zoom by remember { mutableFloatStateOf(1f) }
+    // the zoom (1 = the whole film in view; negative = not set yet: at least 32 dp a second) and where a pinch is
+    // centred (null = keep the playhead in place)
+    var zoom by remember { mutableFloatStateOf(-1f) }
+    // the zoom in use and the most it can be (worked out with the strip's width; read by the pinch)
+    var zoomNow by remember { mutableFloatStateOf(1f) }
+    var maxZoom by remember { mutableFloatStateOf(24f) }
     var pinchAt by remember { mutableStateOf<Float?>(null) }
     Column(modifier.fillMaxSize().testTag("simpleStrip")) {
         // what is going on: the drag's result, the selected clip's choices, or how to start
-        StripInfo(state, selected, dragEdge, dragDelta, moving = movingId != null, onOpenAdvanced = { state.switchMode(false) })
+        StripInfo(state, selected, dragEdge, dragDelta, moving = movingId != null, onOpenAdvanced = { state.switchMode(false) },
+            // (only when zoomed in past the whole film – a short film fits from the start)
+            onOverview = if (zoomNow <= 1.01f) null else ({ zoom = 1f }))
+        SimpleTip()
         if (line.isEmpty() && others > 0) {
             // the film is only on other tracks: the strip can't show it – left as it is
             AdvancedOnly(stringResource(R.string.simple_only_other_tracks)) { state.switchMode(false) }
             return@Column
         }
+        // the music and text on other tracks: a band each under the clips (only when there are any)
+        val music = SimpleStripModel.music(state)
+        val texts = SimpleStripModel.texts(state)
+        val bands = (if (music.isNotEmpty()) 30.dp else 0.dp) + (if (texts.isNotEmpty()) 30.dp else 0.dp)
         BoxWithConstraints(
-            Modifier.fillMaxWidth().height(132.dp)
+            Modifier.fillMaxWidth().height(132.dp + bands)
                 // two fingers: zoom (the time under them – the playhead when it is centred – stays put)
                 .pointerInput(Unit) {
                     awaitEachGesture {
@@ -230,7 +250,7 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
                                 val z = ev.calculateZoom()
                                 if (z != 1f) {
                                     pinchAt = if (state.centerPlayhead) null else ev.calculateCentroid(useCurrent = true).x
-                                    zoom = (zoom * z).coerceIn(1f, 24f)
+                                    zoom = (zoomNow * z).coerceIn(1f, maxZoom)
                                     ev.changes.forEach { it.consume() }
                                 }
                             }
@@ -245,9 +265,12 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
             val centered = state.centerPlayhead
             val side = if (centered) maxWidth / 2 else 24.dp
             val sidePx = with(density) { side.toPx() }
-            // zoom 1: the whole film in view when it fits (at least 32 dp a second, then the strip scrolls)
-            val fit = maxOf(with(density) { (maxWidth - 48.dp).toPx() } / total, with(density) { 32.dp.toPx() })
-            val pps = fit * zoom
+            // zoom 1: the whole film in view, however long (the overview); at first at least 32 dp a second, so clips
+            // are big enough to take hold of; zoomed in up to 400 dp a second
+            val fit = with(density) { (maxWidth - 48.dp).toPx() } / total
+            zoomNow = if (zoom > 0f) zoom else maxOf(1f, with(density) { 32.dp.toPx() } / fit)
+            maxZoom = maxOf(1f, with(density) { 400.dp.toPx() } / fit)
+            val pps = fit * zoomNow
             val scroll = rememberScrollState()
             // a pinch keeps the time under the fingers (or the playhead) where it was on the screen
             var lastPps by remember { mutableFloatStateOf(pps) }
@@ -286,7 +309,8 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
                     if (a < scroll.value || b > scroll.value + viewPx) scroll.animateScrollTo(((a + b) / 2 - viewPx / 2).roundToInt().coerceAtLeast(0))
                 }
             }
-            val contentW = with(density) { (total * pps).toDp() } + side * 2
+            // (the add tile after the last clip)
+            val contentW = with(density) { (total * pps).toDp() } + side * 2 + (if (centered) 0.dp else 88.dp)
             Box(Modifier.fillMaxSize().horizontalScroll(scroll)) {
                 Box(
                     Modifier.width(contentW).fillMaxSize()
@@ -319,6 +343,21 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
                                 }
                             },
                         )
+                    }
+                    // the music and the titles: a band each, a tap selects (the bar below then has their actions)
+                    var bandY = 108.dp
+                    if (music.isNotEmpty()) { StripBand(state, music, pps, side, bandY, K.Teal, "simpleBand:music"); bandY += 30.dp }
+                    if (texts.isNotEmpty()) StripBand(state, texts, pps, side, bandY, K.PrimarySoft, "simpleBand:text")
+                    // after the last clip: add more (the media import, as the bar's Add)
+                    if (!centered) state.onAddAction?.let { add ->
+                        val addDesc = stringResource(R.string.simple_add_clips)
+                        Box(
+                            Modifier.offset { IntOffset((sidePx + total * pps + 8.dp.toPx()).roundToInt(), 30.dp.roundToPx()) }
+                                .size(72.dp).clip(RoundedCornerShape(12.dp)).background(K.SurfaceHigh)
+                                .clickable(onClickLabel = addDesc, role = Role.Button) { haptics.press(); add(AddAction.MEDIA) }
+                                .semantics { contentDescription = addDesc }.testTag("simpleStrip:add"),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Ic.Plus, null, tint = K.OnSurface, modifier = Modifier.size(28.dp)) }
                     }
                     // where a moved clip will go: a lime line at the edit point nearest to where its start is
                     line.firstOrNull { it.id == movingId }?.let { c ->
@@ -371,7 +410,11 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
 
 /** The line over the strip: the trim's result while dragging, the selected clip's length and choices, or a hint. */
 @Composable
-private fun StripInfo(state: EditorState, selected: Clip?, dragEdge: Boolean?, dragDelta: Float, moving: Boolean, onOpenAdvanced: () -> Unit) {
+private fun StripInfo(
+    state: EditorState, selected: Clip?, dragEdge: Boolean?, dragDelta: Float, moving: Boolean, onOpenAdvanced: () -> Unit,
+    /** Zoomed in: back to the whole film (null = it is in view). */
+    onOverview: (() -> Unit)?,
+) {
     Row(
         Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -401,6 +444,15 @@ private fun StripInfo(state: EditorState, selected: Clip?, dragEdge: Boolean?, d
                 }
                 else -> Text(stringResource(R.string.simple_strip_hint), color = K.OnSurfaceVar, fontSize = 13.sp)
             }
+        }
+        // zoomed in: the whole film again in one tap (pinching out does the same)
+        if (onOverview != null) {
+            val d = stringResource(R.string.simple_overview)
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh)
+                    .clickable(onClickLabel = d, role = Role.Button) { onOverview() }.semantics { contentDescription = d }.testTag("simpleStrip:overview"),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Ic.Fullscreen, null, tint = K.OnSurface, modifier = Modifier.size(20.dp)) }
         }
         // the way to advanced mode, always in sight (the same switch as the ⋯ menu and Settings)
         PillButton(stringResource(R.string.simple_advanced_button), onOpenAdvanced, Modifier.testTag("simpleStrip:advanced"), filled = false)
@@ -448,7 +500,12 @@ private fun StripClip(
                     onDragCancel = { onDrop(0f) },
                 )
             }
-            .clickable { haptics.press(); state.playing = false; state.tapSelect(c.id) }
+            .clickable {
+                haptics.press(); state.playing = false; state.tapSelect(c.id)
+                // the picture shows the clip chosen: the playhead into it when it stands outside (at the film's end the
+                // monitor was black)
+                if (state.playhead < c.start || state.playhead >= c.end) state.playhead = c.start
+            }
             .testTag("simpleClip:${c.id}")
     ) {
         if (uri != null) Filmstrip(c, uri, { liveSourceSpan(c.srcIn, c.length, c.speed, c.reverse, c.hold, c.length, 0f) }, { pps }, Modifier.fillMaxSize())
@@ -593,7 +650,7 @@ private fun Playhead(state: EditorState, pps: Float, side: androidx.compose.ui.u
     val x = with(density) { side.toPx() } + state.playhead.coerceIn(0f, total) * pps
     val text = stringResource(R.string.simple_playhead, SimpleStripModel.clock(state.playhead.coerceIn(0f, total)), SimpleStripModel.clock(total))
     Box(
-        Modifier.offset { IntOffset((x - 1.dp.toPx()).roundToInt(), 22.dp.roundToPx()) }.width(2.dp).height(92.dp).background(Color.White)
+        Modifier.offset { IntOffset((x - 1.dp.toPx()).roundToInt(), 22.dp.roundToPx()) }.width(2.dp).height(152.dp).background(Color.White)
             .testTag("simplePlayhead")
     )
     // the time sits over the line, kept inside the strip at its ends
@@ -647,7 +704,44 @@ private fun CenterPlayhead(state: EditorState, total: Float, modifier: Modifier)
             modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(K.SurfaceHighest).padding(horizontal = 6.dp, vertical = 2.dp)
                 .semantics { contentDescription = text }.testTag("simplePlayhead:time"),
         )
-        Box(Modifier.width(2.dp).height(92.dp).background(Color.White))
+        Box(Modifier.width(2.dp).height(152.dp).background(Color.White))
+    }
+}
+
+/** A band under the clips (music or titles): each clip a slim bar with its name; a tap selects it. */
+@Composable
+private fun StripBand(state: EditorState, clips: List<Clip>, pps: Float, side: androidx.compose.ui.unit.Dp, y: androidx.compose.ui.unit.Dp, color: Color, tag: String) {
+    val density = LocalDensity.current
+    val haptics = rememberHaptics()
+    for (c in clips) {
+        val desc = stringResource(if (c.kind == ClipKind.TITLE) R.string.simple_text_band else R.string.simple_music_band, c.name)
+        val sel = c.id == state.selected
+        Box(
+            Modifier.offset { IntOffset((side.toPx() + c.start * pps).roundToInt(), y.roundToPx()) }
+                .width(with(density) { (c.length * pps).toDp() }).height(24.dp)
+                .clip(RoundedCornerShape(8.dp)).background(color.copy(alpha = if (sel) 0.55f else 0.28f))
+                .then(if (sel) Modifier.border(2.dp, K.Primary, RoundedCornerShape(8.dp)) else Modifier)
+                .semantics(mergeDescendants = true) { contentDescription = desc; this.selected = sel; role = Role.Button }
+                .clickable { haptics.press(); state.playing = false; state.tapSelect(c.id) }
+                .testTag("$tag:${c.id}"),
+            contentAlignment = Alignment.CenterStart,
+        ) { Text(c.name, color = K.OnSurface, fontSize = 11.sp, maxLines = 1, modifier = Modifier.padding(horizontal = 6.dp)) }
+    }
+}
+
+/** Simple mode's first tip, once: how the strip is used (closed for good with OK). */
+@Composable
+private fun SimpleTip() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    var seen by remember { mutableStateOf(AppPrefs.simpleTipSeen(ctx)) }
+    if (seen) return
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(K.PrimaryContainer)
+            .padding(start = 14.dp, end = 6.dp, top = 8.dp, bottom = 8.dp).testTag("simpleTip"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(stringResource(R.string.simple_tip), color = K.PrimarySoft, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+        PillButton(stringResource(R.string.simple_tip_ok), { AppPrefs.setSimpleTipSeen(ctx); seen = true }, Modifier.testTag("simpleTip:ok"), filled = false)
     }
 }
 

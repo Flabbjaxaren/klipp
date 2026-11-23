@@ -97,6 +97,27 @@
     <string name="simple_ruler">Tidslinjal – dra längs den för att gå genom filmen</string>
     <string name="simple_go_start">Början</string>
     <string name="simple_go_end">Slutet</string>
+    <string name="simple_add">Lägg till</string>
+    <string name="simple_music">Musik</string>
+    <string name="simple_text">Text</string>
+    <string name="simple_filter">Filter</string>
+    <string name="simple_format">Format</string>
+    <string name="simple_save_video">Spara video</string>
+    <string name="simple_split_here">Dela här</string>
+    <string name="simple_sound">Ljud</string>
+    <string name="simple_zoom_clip">Zooma</string>
+    <string name="simple_overview">Visa hela filmen</string>
+    <string name="simple_add_clips">Lägg till klipp</string>
+    <string name="simple_music_band">Musik: %1$s</string>
+    <string name="simple_text_band">Text: %1$s</string>
+    <string name="simple_tip">Tryck på ett klipp för att ändra det, håll för att flytta det och nyp för att zooma.</string>
+    <string name="simple_tip_ok">Okej</string>
+    <string name="simple_captions_from_speech">Undertexter från det som sägs</string>
+    <string name="simple_captions_hint">Klipp lyssnar och skriver texten åt dig</string>
+    <plurals name="simple_clip_count">
+        <item quantity="one">%1$d klipp</item>
+        <item quantity="other">%1$d klipp</item>
+    </plurals>
     <plurals name="simple_others_follow">
         <item quantity="one">%1$d sak till på andra spår – den följer med sitt klipp</item>
         <item quantity="other">%1$d saker till på andra spår – de följer med sina klipp</item>

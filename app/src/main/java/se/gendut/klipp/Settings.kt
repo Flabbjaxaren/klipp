@@ -72,6 +72,10 @@ object AppPrefs {
     fun simpleMode(c: Context): Boolean = p(c).getString("appMode", null) == "simple"
     /** The mode chosen (Settings, the ⋯ menu or the first start's question, which is then answered). */
     fun setSimpleMode(c: Context, on: Boolean) { p(c).edit().putString("appMode", if (on) "simple" else "advanced").remove("askMode").apply() }
+    /** Simple mode's first tip (tap, hold, pinch) has been seen and closed. */
+    fun simpleTipSeen(c: Context): Boolean = p(c).getBoolean("simpleTipSeen", false)
+    fun setSimpleTipSeen(c: Context) { p(c).edit().putBoolean("simpleTipSeen", true).apply() }
+
     /** The first start's question (simple or advanced) is waiting for an answer. */
     fun askMode(c: Context): Boolean = p(c).getBoolean("askMode", false)
     /** The question skipped: advanced, as for everyone who used the app before the modes. */
