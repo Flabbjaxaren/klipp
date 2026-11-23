@@ -1322,4 +1322,5 @@ enum class EditView { TIMELINE, TRANSCRIPT }
 enum class DockRow { NONE, SPEED, FREEZE, VOLUME, LABEL, MORE, MAGNETIC, BADGES }
 
 /** What the row for an empty selection adds. */
-enum class AddAction { MEDIA, SOUND, TITLE, CAPTIONS, VOICE }
+/** (FILTER and FORMAT: simple mode's bottom bar – the simple colour page in a sheet, and the project's format.) */
+enum class AddAction { MEDIA, SOUND, TITLE, CAPTIONS, VOICE, FILTER, FORMAT }

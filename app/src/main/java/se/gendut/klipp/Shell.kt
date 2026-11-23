@@ -115,9 +115,30 @@ internal fun ShellButton(
 
 /** The top bar: the projects, the workspaces and export. */
 @Composable
-internal fun TopBar(pageOf: () -> Float, onPick: (Int) -> Unit, onProjects: () -> Unit, onExport: () -> Unit) {
+internal fun TopBar(
+    pageOf: () -> Float, onPick: (Int) -> Unit, onProjects: () -> Unit, onExport: () -> Unit,
+    /** Simple mode: (the project's name, its length and clips) – shown instead of the workspaces, with Save video in words. */
+    simple: Pair<String, String>? = null,
+) {
     Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         ShellButton(Ic.Folder, stringResource(R.string.app_projects), 22.dp, K.SurfaceHigh, Modifier.testTag("projects:open"), onClick = onProjects)
+        if (simple != null) {
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp).testTag("simpleTop")) {
+                Text(simple.first, color = K.OnSurface, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                Text(simple.second, color = K.OnSurfaceVar, fontSize = 12.sp, maxLines = 1)
+            }
+            val haptics = rememberHaptics()
+            Row(
+                Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(K.Primary)
+                    .clickable(role = Role.Button) { haptics.press(); onExport() }.padding(horizontal = 16.dp).testTag("simple:save"),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Ic.Export, null, tint = K.OnPrimary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.simple_save_video), color = K.OnPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
+            return@Row
+        }
         Workspaces(pageOf, Modifier.weight(1f), onPick)
         ShellButton(Ic.Export, stringResource(R.string.app_export), 14.dp, K.SurfaceHighest, Modifier.testTag("export"), onClick = onExport)
     }
@@ -752,6 +773,20 @@ internal fun Dock(state: EditorState, pageOf: () -> Float, audioTabs: List<ToolT
 @Composable
 private fun AddDock(state: EditorState) {
     val add = state.onAddAction ?: return
+    // simple mode: the mockup's five – add clips, music, text (titles and captions), filter, format
+    if (state.simple) {
+        DockItems(
+            listOf(
+                DockItem(Ic.Media, stringResource(R.string.simple_add), "add:media") { add(AddAction.MEDIA) },
+                DockItem(Ic.Note, stringResource(R.string.simple_music), "add:sound", desc = stringResource(R.string.sfx_title)) { add(AddAction.SOUND) },
+                DockItem(Ic.Text, stringResource(R.string.simple_text), "add:title") { add(AddAction.TITLE) },
+                DockItem(Ic.Wheels, stringResource(R.string.simple_filter), "add:filter") { add(AddAction.FILTER) },
+                DockItem(Ic.Crop, stringResource(R.string.simple_format), "add:format") { add(AddAction.FORMAT) },
+            ),
+            Modifier.testTag("addBar"),
+        )
+        return
+    }
     DockItems(
         listOf(
             DockItem(Ic.Media, stringResource(R.string.design_add_media), "add:media") { add(AddAction.MEDIA) },
@@ -921,10 +956,15 @@ private fun ClipDock(state: EditorState) {
                         add(DockItem(Ic.More, stringResource(R.string.design_more), "ctx:more", marked = badgeItem != null) { row(DockRow.MORE) })
                     }
                     else -> {
-                        if (state.props != null) add(DockItem(Ic.Crop, stringResource(R.string.design_picture), "ctx:picture") { open(GROUP_PICTURE) })
-                        add(split)
+                        // the mockup's clip sheet: split here, speed, sound, filter, zoom (the picture's crop and
+                        // position), delete – each the advanced action of that name
+                        add(DockItem(Ic.Split, stringResource(R.string.simple_split_here), "ctx:split") { state.selected?.let { state.split(it, state.playhead) } })
                         add(DockItem(Ic.Speed, stringResource(R.string.app_speed), "ctx:speed") { row(DockRow.SPEED) })
-                        add(DockItem(Ic.More, stringResource(R.string.design_more), "ctx:more") { row(DockRow.MORE) })
+                        if (state.props != null) add(DockItem(Ic.Speaker, stringResource(R.string.simple_sound), "ctx:volume") { row(DockRow.VOLUME) })
+                        state.onAddAction?.let { a -> add(DockItem(Ic.Wheels, stringResource(R.string.simple_filter), "ctx:filter") { a(AddAction.FILTER) }) }
+                        if (state.props != null) add(DockItem(Ic.Crop, stringResource(R.string.simple_zoom_clip), "ctx:picture") { open(GROUP_PICTURE) })
+                        // (delete last, as in the mockup: the row reads from the gentle actions to the final one)
+                        add(removeAt(0))
                         badgeItem?.let { add(it) }
                     }
                 } else when {

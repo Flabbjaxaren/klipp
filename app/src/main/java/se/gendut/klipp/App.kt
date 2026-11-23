@@ -836,6 +836,10 @@ private fun KlippAppContent(
                 AddAction.MEDIA -> if (controller != null) { if (controller.snapshot.media.isEmpty()) openImport() else mediaOpen = true } else state.addClipAtPlayhead()
                 AddAction.SOUND, AddAction.VOICE -> if (audioTools != null) addSheet = what else toaster.show(Str.t(R.string.app_prototype_mode))
                 AddAction.TITLE, AddAction.CAPTIONS -> if (state.props != null) addSheet = what else toaster.show(Str.t(R.string.app_prototype_mode))
+                // simple mode's Filter: the simple colour page (the same writers as advanced colour) in a sheet over the editor
+                AddAction.FILTER -> if (controller != null) addSheet = what else toaster.show(Str.t(R.string.app_prototype_mode))
+                // simple mode's Format: the project's settings (size and orientation), as the ⋯ menu's Project settings
+                AddAction.FORMAT -> if (controller != null) showSettings = true else toaster.show(Str.t(R.string.app_prototype_mode))
             }
         }
         onDispose { state.onAddAction = null }
@@ -1110,6 +1114,9 @@ private fun KlippAppContent(
                 { page.value }, { goTo(it) },
                 onProjects = { if (controller != null) showProjects = true else toaster.show(Str.t(R.string.app_prototype_mode)) },
                 onExport = ::export,
+                // simple mode: the project's name and length instead of the workspaces, and Save video in words
+                simple = if (!state.simple) null else (controller?.currentName ?: "") to
+                    "${SimpleStripModel.clock(state.projectEnd)} · ${pluralStringResource(R.plurals.simple_clip_count, SimpleStripModel.storyline(state).size, SimpleStripModel.storyline(state).size)}",
             )
         }
 
@@ -1202,6 +1209,13 @@ private fun KlippAppContent(
             AddAction.VOICE -> VoiceSheet(voice) { addSheet = null }
             AddAction.TITLE -> TitleSheet(state) { addSheet = null }
             AddAction.CAPTIONS -> CaptionsSheet(state) { addSheet = null }
+            AddAction.FILTER -> DockSheet("simpleFilter", { addSheet = null }) { close ->
+                SheetHeader(stringResource(R.string.simple_filter)) { close() }
+                Box(Modifier.fillMaxWidth().weight(1f)) {
+                    SimpleColorPage(state, gs, colorClips(), timelineLook = !lookOf(grade).isNeutral,
+                        onImportLut = { cb -> lutTarget = cb; lutPicker.launch(arrayOf("*/*")) })
+                }
+            }
             else -> {}
         }
 

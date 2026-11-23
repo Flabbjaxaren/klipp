@@ -1,6 +1,18 @@
 package se.gendut.klipp
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Alignment
@@ -106,10 +118,33 @@ internal fun TitleSheet(state: EditorState, onDismiss: () -> Unit) {
     val list = tab == 1 && state.clips.any { it.kind == ClipKind.TITLE }
     AddSheet(
         stringResource(R.string.design_add_title), "titleSheet", onDismiss,
-        top = { TitleTabs(state, tab) { tab = it } },
+        top = {
+            // simple mode: captions from the speech are text too (the mockup's Text sheet) – the captions sheet
+            if (state.simple) SimpleCaptionsEntry { onDismiss(); state.onAddAction?.invoke(AddAction.CAPTIONS) }
+            TitleTabs(state, tab) { tab = it }
+        },
         bottom = if (list) null else ({ TitleAddButton(state, backend, onDismiss) }),
     ) {
         if (list) TitlesOnTimeline(state, onDismiss) else TitleNew(state)
+    }
+}
+
+/** Simple mode's way from Text to captions made from what is said (the captions sheet, as advanced mode's Captions). */
+@Composable
+private fun SimpleCaptionsEntry(onClick: () -> Unit) {
+    val haptics = rememberHaptics()
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(16.dp))
+            .border(1.dp, K.Outline.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+            .clickable(role = Role.Button) { haptics.press(); onClick() }.padding(12.dp).testTag("simple:captions"),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Ic.Subs, null, tint = K.PrimarySoft, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.simple_captions_from_speech), color = K.OnSurface, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.simple_captions_hint), color = K.OnSurfaceVar, fontSize = 12.sp)
+        }
     }
 }
 
