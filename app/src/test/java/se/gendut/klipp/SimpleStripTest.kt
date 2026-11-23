@@ -7,7 +7,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.pinch
 import androidx.compose.ui.test.swipeLeft
+import androidx.compose.ui.test.swipeRight
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -226,5 +228,127 @@ class SimpleStripTest {
         rule.onNodeWithTag("simpleStrip:advancedOnly").assertIsDisplayed()
         assertEquals(before, st.clips)
         assertNotEquals(0, SimpleStripModel.others(st))
+    }
+    // ------------------------------------------------------------------ moving, scrubbing, zoom, the transport
+
+    private fun order(st: EditorState) = SimpleStripModel.storyline(st).map { it.id }
+
+    @Test fun aClipMovesAmongTheOthersAsOneUndoStep() {
+        val st = simple()
+        val undo0 = st.undoCount
+        assertTrue(SimpleStripModel.moveBy(st, st.clip(1), 1))
+        assertEquals(listOf(2L, 1L, 3L, 4L), order(st))
+        assertEquals(undo0 + 1, st.undoCount)
+        // no gap: the film is as long as before
+        assertEquals(30f, SimpleStripModel.storyline(st).last().end, 1e-3f)
+        assertTrue(SimpleStripModel.moveBy(st, st.clip(4), -1))
+        assertEquals(listOf(2L, 1L, 4L, 3L), order(st))
+        assertTrue(st.undo()); assertTrue(st.undo())
+        assertEquals(listOf(1L, 2L, 3L, 4L), order(st))
+        // the first can't go earlier, the last can't go later
+        assertFalse(SimpleStripModel.moveBy(st, st.clip(1), -1))
+        assertFalse(SimpleStripModel.moveBy(st, st.clip(4), 1))
+    }
+
+    @Test fun aDroppedClipGoesInAtTheNearestEditPoint() {
+        val st = simple()
+        val line = SimpleStripModel.storyline(st)
+        // clip 1 (0–8) dropped with its start at 15 s: without it the film is 2 (0–5), 3 (5–14), 4 (14–22) – nearest is 14,
+        // shown where 4 starts now (22)
+        assertEquals(22f, SimpleStripModel.dropPoint(line, st.clip(1), 15f), 1e-3f)
+        assertTrue(SimpleStripModel.move(st, st.clip(1), 15f))
+        assertEquals(listOf(2L, 3L, 1L, 4L), order(st))
+    }
+
+    @Test fun aClipJoinedByATransitionIsNotMoved() {
+        val st = simple()
+        st.transitions = listOf(UiTransition(90, 2, 12.5f, 13.5f, from = 2L, to = 3L))
+        val before = st.clips
+        assertEquals(SimpleStripModel.Block.MOVE_TRANSITION, SimpleStripModel.moveBlock(st, st.clip(2)))
+        assertFalse(SimpleStripModel.moveBy(st, st.clip(2), 1))
+        assertEquals(before, st.clips)
+        assertNull(SimpleStripModel.moveBlock(st, st.clip(1)))
+    }
+
+    @Test fun holdingAndDraggingAClipMovesIt() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        val undo0 = st.undoCount
+        // clip 2 (8–13 s, in view) held and dragged to the film's start
+        rule.onNodeWithTag("simpleClip:2").performTouchInput {
+            down(center); advanceEventTime(800); moveBy(androidx.compose.ui.geometry.Offset(-40f, 0f))
+            repeat(10) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(-80f, 0f)) }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleStrip:moveInfo").assertIsDisplayed()
+        rule.onNodeWithTag("simpleStrip:dropPoint").assertExists()
+        rule.onRoot().captureRoboImage("build/shots/s23_enkel_flytta.png")
+        rule.onNodeWithTag("simpleClip:2").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(undo0 + 1, st.undoCount)
+        assertEquals(listOf(2L, 1L, 3L, 4L), order(st))
+    }
+
+    @Test fun draggingAlongTheRulerMovesThePlayhead() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleStrip:ruler").performTouchInput { swipeRight(startX = left + 80f, endX = left + 600f, durationMillis = 300) }
+        rule.waitForIdle()
+        assertTrue("moved through the film: ${st.playhead}", st.playhead > 3f)
+        assertEquals("nothing edited", 0, st.undoCount)
+    }
+
+    @Test fun twoFingersZoomTheStrip() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        val w0 = rule.onNodeWithTag("simpleClip:2").fetchSemanticsNode().size.width
+        rule.onNodeWithTag("simpleStrip:zoomable").performTouchInput {
+            pinch(center - androidx.compose.ui.geometry.Offset(30f, 0f), center - androidx.compose.ui.geometry.Offset(300f, 0f),
+                center + androidx.compose.ui.geometry.Offset(30f, 0f), center + androidx.compose.ui.geometry.Offset(300f, 0f), durationMillis = 300)
+        }
+        rule.waitForIdle()
+        val w1 = rule.onNodeWithTag("simpleClip:2").fetchSemanticsNode().size.width
+        assertTrue("wider after the pinch: $w0 → $w1", w1 > w0 * 2)
+        assertEquals("a zoom is no edit", 0, st.undoCount)
+    }
+
+    @Test fun theCentredPlayheadStaysInTheMiddleAndTheStripScrubs() {
+        val st = simple().apply { centerPlayhead = true }
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simplePlayhead").assertIsDisplayed()
+        rule.onRoot().captureRoboImage("build/shots/s24_enkel_centrerad.png")
+        // the strip dragged left: later in the film
+        rule.onNodeWithTag("simpleStrip:track").performTouchInput { swipeLeft(startX = right - 40f, endX = left + 40f, durationMillis = 400) }
+        rule.waitForIdle()
+        assertTrue("scrubbed: ${st.playhead}", st.playhead > 2f)
+        assertEquals(0, st.undoCount)
+    }
+
+    @Test fun simpleModeHasStartPlayAndEndOnlyAndNoTranscript() {
+        val st = EditorState().apply { props = FakeProps(); playhead = 3f }
+        rule.setContent { KlippTheme { KlippApp(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("timecode").assertExists()
+        st.switchMode(true)
+        rule.waitForIdle()
+        rule.onNodeWithTag("simple:start").assertIsDisplayed()
+        rule.onNodeWithTag("simple:play").assertIsDisplayed()
+        rule.onNodeWithTag("simple:end").assertIsDisplayed()
+        rule.onNodeWithTag("timecode").assertDoesNotExist()
+        rule.onNodeWithTag("view:transcript").assertDoesNotExist()
+        rule.onNodeWithTag("simple:end").performClick()
+        rule.waitForIdle()
+        assertEquals(st.projectEnd, st.playhead, 1e-4f)
+        rule.onNodeWithTag("simple:start").performClick()
+        rule.waitForIdle()
+        assertEquals(0f, st.playhead, 0f)
+        // the centred playhead is offered in simple mode too
+        rule.onNodeWithTag("modes:menu").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("mode:center").assertIsDisplayed()
     }
 }
