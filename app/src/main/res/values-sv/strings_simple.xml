@@ -160,4 +160,13 @@
         <item quantity="one">%1$d klipp har färg från avancerat läge – det lämnas som det är</item>
         <item quantity="other">%1$d klipp har färg från avancerat läge – de lämnas som de är</item>
     </plurals>
+    <!-- the Save sheet -->
+    <string name="simple_export_good">Bra</string>
+    <string name="simple_export_good_hint">%1$s. Lagom stor fil – passar för att dela.</string>
+    <string name="simple_export_best">Bäst</string>
+    <string name="simple_export_best_hint">%1$s. Skarpast, men filen blir flera gånger större.</string>
+    <string name="simple_export_recommended">Rekommenderas</string>
+    <string name="simple_export_gallery">Spara i Galleriet</string>
+    <string name="simple_export_share">Spara och dela …</string>
+    <string name="simple_export_keep_editing">Du kan fortsätta redigera medan videon sparas.</string>
 </resources>

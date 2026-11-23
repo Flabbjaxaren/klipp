@@ -39,6 +39,8 @@ object ExportJobs {
         val message: String? = null,
         /** CANCELLED: by whom. */
         val reason: Reason? = null,
+        /** SAVED: the file made (for sharing it), when known. */
+        val uri: Uri? = null,
     ) {
         val active get() = phase == Phase.STARTING || phase == Phase.RUNNING
     }
@@ -161,7 +163,7 @@ object ExportJobs {
         val published = ExportGuard.isPublished(c)
         val error = result?.exceptionOrNull()
         val end = when {
-            result?.isSuccess == true || published -> Status(p.id, p.name, Phase.SAVED, 100, message = Exporter.lastResult)
+            result?.isSuccess == true || published -> Status(p.id, p.name, Phase.SAVED, 100, message = Exporter.lastResult, uri = result?.getOrNull())
             result != null && error !is CancellationException -> Status(p.id, p.name, Phase.FAILED, message = error?.message ?: "")
             else -> Status(p.id, p.name, Phase.CANCELLED, reason = reason ?: Reason.SERVICE_STOPPED)
         }

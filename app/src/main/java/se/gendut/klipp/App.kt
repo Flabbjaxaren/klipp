@@ -365,6 +365,8 @@ private fun KlippAppContent(
     }
     /** The last export asked for (its settings and name): "Try again" when the foreground was refused. */
     var lastExportAsk by remember { mutableStateOf<Pair<se.gendut.klipp.engine.ExportSettings, String>?>(null) }
+    /** Simple mode's Save and share: the next export that is saved opens the share sheet. */
+    var shareNext by remember { mutableStateOf(false) }
     fun runExport(settings: se.gendut.klipp.engine.ExportSettings, name: String) {
         val c = controller ?: return
         se.gendut.klipp.engine.ExportSettings.save(context, c.currentId, settings)
@@ -409,7 +411,16 @@ private fun KlippAppContent(
     LaunchedEffect(exportJob) {
         val j = exportJob ?: return@LaunchedEffect
         when (j.phase) {
-            se.gendut.klipp.engine.ExportJobs.Phase.SAVED -> { haptics.confirm(); toaster.show(Str.t(R.string.app_export_saved) + (j.message?.let { " · $it" } ?: "")) }
+            se.gendut.klipp.engine.ExportJobs.Phase.SAVED -> {
+                haptics.confirm(); toaster.show(Str.t(R.string.app_export_saved) + (j.message?.let { " · $it" } ?: ""))
+                // simple mode's Save and share: the phone's share sheet for the file
+                if (shareNext) j.uri?.let { u -> runCatching {
+                    context.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND)
+                        .setType("video/*").putExtra(android.content.Intent.EXTRA_STREAM, u).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION), null)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                } }
+                shareNext = false
+            }
             se.gendut.klipp.engine.ExportJobs.Phase.FAILED -> toaster.show(Str.t(R.string.app_export_failed, j.message ?: ""))
             se.gendut.klipp.engine.ExportJobs.Phase.CANCELLED -> toaster.show(Str.t(if (j.reason == se.gendut.klipp.engine.ExportJobs.Reason.TIMEOUT) R.string.app_export_time_limit else R.string.app_export_cancelled))
             else -> return@LaunchedEffect
@@ -466,7 +477,8 @@ private fun KlippAppContent(
             hlgWhyNot = hlgWhyNot(inUse, lookOf(grade)),
             hlgSdrNote = hlgSdrNote(inUse),
             onDismiss = { exportAsk = false },
-        ) { st, name -> exportAsk = false; runExport(st, name) }
+            onShare = { st, name -> exportAsk = false; shareNext = true; runExport(st, name) },
+        ) { st, name -> exportAsk = false; shareNext = false; runExport(st, name) }
     }
     if (controller != null && playback != null) PlaybackSync(controller, playback, state) { toaster.show(it) }
     // voice-over: countdown, recording while the timeline plays muted, then the file is placed on the track

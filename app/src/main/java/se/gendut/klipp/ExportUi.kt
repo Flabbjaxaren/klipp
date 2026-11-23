@@ -3,6 +3,8 @@ package se.gendut.klipp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -72,6 +74,37 @@ fun ExportOptions(
     val auto = stringResource(R.string.exportui_auto)
     val projects = stringResource(R.string.exportui_project_setting)
 
+    // simple mode: the preset, the resolution and HDR (HLG) when it can be made – the same settings the tabs write;
+    // what advanced mode set beyond them is kept and said
+    if (LocalSimple.current) {
+        val preset = se.gendut.klipp.engine.ExportPreset.of(s, seqW, seqH, projectFps, caps)
+        val q = SimpleQuality.of(s, preset)
+        if (q == null) Note(stringResource(R.string.simple_export_custom))
+        ExportIssues(plan, onChange)
+        for (k in SimpleQuality.entries) {
+            val x = k.apply(s, seqW, seqH, projectFps, caps)
+            val px = planOf(x)
+            val (w2, h2) = x.outputSize(seqW, seqH)
+            val size = if (seconds > 0) " · ≈ " + sizeLabel(px.effective.estimateMb(seqW, seqH, projectFps, seconds)) else ""
+            QualityCard(stringResource(k.label), stringResource(k.hint, minOf(w2, h2).let { if (it >= 2160) "4K" else if (it == 1080) "Full HD" else "${it}p" }) + size,
+                q == k, k == SimpleQuality.GOOD, px.ok, "exp:quality:${k.name}") { onChange(x) }
+        }
+        if (hlgReady && se.gendut.klipp.engine.EncoderCaps.hdrSupported) Row(
+            Modifier.fillMaxWidth().clickable { onChange(if (plan.hlg) s.copy(hdr = false, hlg = false) else s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265)) }
+                .padding(horizontal = 16.dp, vertical = 10.dp).testTag("exp:simpleHlg"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.simple_export_hlg), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.simple_export_hlg_hint), color = K.OnSurfaceVar, fontSize = 12.sp)
+            }
+            androidx.compose.material3.Switch(plan.hlg, { on -> onChange(if (on) s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265) else s.copy(hdr = false, hlg = false)) },
+                colors = androidx.compose.material3.SwitchDefaults.colors(checkedThumbColor = K.PrimarySoft, checkedTrackColor = K.PrimaryContainer))
+        }
+        if (plan.hdr) Note(stringResource(R.string.simple_export_keep_hdr))
+        if (plan.hlg && hlgSdrNote != null) Note(hlgSdrNote)
+        return
+    }
     // presets in plain words on top of the tabs: each sets codec, bit depth, bitrate and audio; any other choice = custom
     val preset = se.gendut.klipp.engine.ExportPreset.of(s, seqW, seqH, projectFps, caps)
     DropField(stringResource(R.string.exportui_preset), se.gendut.klipp.engine.ExportPreset.entries.map { p ->
@@ -105,28 +138,6 @@ fun ExportOptions(
             enabled = p2.ok || h == s.height, key = "h$h")
     }, s.height, "exp:res") { onChange(s.copy(height = it)) }
 
-    // simple mode: the preset, the resolution and HDR (HLG) when it can be made – the same settings the tabs write;
-    // what advanced mode set beyond them is kept and said
-    if (LocalSimple.current) {
-        if (preset == se.gendut.klipp.engine.ExportPreset.CUSTOM) Note(stringResource(R.string.simple_export_custom))
-        ExportIssues(plan, onChange)
-        resolution()
-        if (hlgReady && se.gendut.klipp.engine.EncoderCaps.hdrSupported) Row(
-            Modifier.fillMaxWidth().clickable { onChange(if (plan.hlg) s.copy(hdr = false, hlg = false) else s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265)) }
-                .padding(horizontal = 16.dp, vertical = 10.dp).testTag("exp:simpleHlg"),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(R.string.simple_export_hlg), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text(stringResource(R.string.simple_export_hlg_hint), color = K.OnSurfaceVar, fontSize = 12.sp)
-            }
-            androidx.compose.material3.Switch(plan.hlg, { on -> onChange(if (on) s.copy(hdr = false, hlg = true, codec = MimeTypes.VIDEO_H265) else s.copy(hdr = false, hlg = false)) },
-                colors = androidx.compose.material3.SwitchDefaults.colors(checkedThumbColor = K.PrimarySoft, checkedTrackColor = K.PrimaryContainer))
-        }
-        if (plan.hdr) Note(stringResource(R.string.simple_export_keep_hdr))
-        if (plan.hlg && hlgSdrNote != null) Note(hlgSdrNote)
-        return
-    }
 
     var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
     ConnectedToggleGroup(
@@ -264,8 +275,12 @@ fun ExportDialog(
     hlgWhyNot: String? = null,
     /** What HLG makes of the grades (see hlgSdrNote): some or all clips go in as SDR. */
     hlgSdrNote: String? = null,
-    onDismiss: () -> Unit, onExport: (ExportSettings, String) -> Unit,
+    onDismiss: () -> Unit,
+    /** Simple mode's *Save and share*: the same export, then the phone's share sheet for the file (null: not offered). */
+    onShare: ((ExportSettings, String) -> Unit)? = null,
+    onExport: (ExportSettings, String) -> Unit,
 ) {
+    val simple = LocalSimple.current
     var s by remember { mutableStateOf(initial) }
     var name by remember { mutableStateOf(defaultName) }
     val plan = se.gendut.klipp.engine.ExportPlan.resolve(s, seqW, seqH, projectFps, hdrPossible, anyTenBit, hdrBlocked != null, caps, hlgReady)
@@ -275,7 +290,7 @@ fun ExportDialog(
     val mb = plan.effective.estimateMb(seqW, seqH, projectFps, seconds)
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.exportui_title)) },
+        title = { Text(stringResource(if (simple) R.string.simple_save_video else R.string.exportui_title)) },
         text = { androidx.compose.foundation.layout.Column {
             // a low window (a phone on its side): everything scrolls together – the options' own 420 dp scroll area got
             // squeezed to a line between the title, the summary and the buttons, so nothing could be chosen
@@ -283,7 +298,8 @@ fun ExportDialog(
             Column(Modifier.testTag("exportDialog").then(if (low) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
                 // the same height on every tab, so the dialog stays where it is when the tab changes; the summary is always in view
                 Column(if (low) Modifier else Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
-                    TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
+                    // (simple mode: the file gets the date as its name)
+                    if (!simple) TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
                     ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps, seconds, hlgReady, hlgWhyNot, hlgSdrNote) { s = it }
                 }
                 Text(
@@ -294,13 +310,18 @@ fun ExportDialog(
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).testTag("exp:summary"),
                 )
             }
+            if (simple) Text(stringResource(R.string.simple_export_keep_editing), color = K.OnSurfaceVar, fontSize = 12.sp,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp))
             // a message (an action refused, an error) shows in the dialog, not behind it
             MessageHost(inline = true)
         } },
         // a plan that can't be made can't be started (the reason is shown above the options)
         confirmButton = {
+            if (simple && onShare != null) FlatTextButton(onClick = { if (plan.ok) onShare(s, name.ifBlank { defaultName }) }, enabled = plan.ok, modifier = Modifier.testTag("exp:share")) {
+                Text(stringResource(R.string.simple_export_share))
+            }
             FlatTextButton(onClick = { if (plan.ok) onExport(s, name.ifBlank { defaultName }) }, enabled = plan.ok, modifier = Modifier.testTag("exp:go")) {
-                Text(stringResource(R.string.exportui_go))
+                Text(stringResource(if (simple) R.string.simple_export_gallery else R.string.exportui_go))
             }
         },
         dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.exportui_cancel)) } },
@@ -385,4 +406,52 @@ private fun Choice(label: String, on: Boolean, enabled: Boolean, tag: String, on
             .semantics { selected = on }
             .testTag(tag),
     )
+}
+
+/**
+ * Simple mode's two qualities (the mockup's Save sheet), each an export preset at a size: *Good* – the compatible
+ * preset at Full HD, a file of a size to share; *Best* – the quality preset at 4K (or the project's own size when it is
+ * smaller: nothing is blown up).
+ */
+enum class SimpleQuality(val label: Int, val hint: Int) {
+    GOOD(R.string.simple_export_good, R.string.simple_export_good_hint),
+    BEST(R.string.simple_export_best, R.string.simple_export_best_hint);
+
+    fun apply(s: ExportSettings, seqW: Int, seqH: Int, fps: Double, caps: se.gendut.klipp.engine.EncoderInfo): ExportSettings = when (this) {
+        // (the size first: a preset's bitrate is for the size it is made at)
+        GOOD -> se.gendut.klipp.engine.ExportPreset.COMPATIBLE.apply(s.copy(height = 1080), seqW, seqH, fps, caps)
+        BEST -> se.gendut.klipp.engine.ExportPreset.QUALITY.apply(s.copy(height = if (minOf(seqW, seqH) >= 2160) 2160 else 0), seqW, seqH, fps, caps)
+    }
+
+    companion object {
+        /** The quality [s] is (null: neither – a preset or size set in advanced mode). */
+        fun of(s: ExportSettings, preset: se.gendut.klipp.engine.ExportPreset): SimpleQuality? = when {
+            preset == se.gendut.klipp.engine.ExportPreset.COMPATIBLE && s.height == 1080 -> GOOD
+            preset == se.gendut.klipp.engine.ExportPreset.QUALITY && (s.height == 2160 || s.height == 0) -> BEST
+            else -> null
+        }
+    }
+}
+
+/** A quality as a card with a radio: its name, what it makes, and Recommended on Good. */
+@Composable
+private fun QualityCard(label: String, hint: String, on: Boolean, recommended: Boolean, enabled: Boolean, tag: String, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(K.SurfaceHighest)
+            .border(2.dp, if (on) K.Primary else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(16.dp))
+            .selectable(on, enabled = enabled, role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick)
+            .padding(14.dp).testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        androidx.compose.material3.RadioButton(on, null, enabled = enabled,
+            colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = K.Primary))
+        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(label, color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                if (recommended) Text(stringResource(R.string.simple_export_recommended), color = K.OnPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp).clip(RoundedCornerShape(6.dp)).background(K.Primary).padding(horizontal = 6.dp, vertical = 2.dp))
+            }
+            Text(hint, color = K.OnSurfaceVar, fontSize = 12.sp)
+        }
+    }
 }

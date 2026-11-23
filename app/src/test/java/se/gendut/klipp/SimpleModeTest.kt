@@ -586,20 +586,32 @@ class SimpleModeTest {
         rule.onNodeWithTag("set:titleSec").assertExists()
     }
 
-    @Test fun simpleExportHasThePresetAndTheSize() {
+    @Test fun simpleExportIsGoodOrBest() {
+        var s by androidx.compose.runtime.mutableStateOf(se.gendut.klipp.engine.ExportSettings())
         rule.setContent {
             KlippTheme {
                 CompositionLocalProvider(LocalSimple provides true) {
                     androidx.compose.foundation.layout.Column {
-                        ExportOptions(se.gendut.klipp.engine.ExportSettings(), 1920, 1080, 30.0, hdrPossible = false, hdrBlocked = null) {}
+                        ExportOptions(s, 3840, 2160, 30.0, hdrPossible = false, hdrBlocked = null, seconds = 45.0) { s = it }
                     }
                 }
             }
         }
         rule.waitForIdle()
-        rule.onNodeWithTag("exp:preset").assertExists()
-        rule.onNodeWithTag("exp:res").assertExists()
         rule.onNodeWithTag("expTab:0").assertDoesNotExist()
         rule.onNodeWithTag("exp:codec").assertDoesNotExist()
+        rule.onNodeWithTag("exp:preset").assertDoesNotExist()
+        // Good: the compatible preset at Full HD; Best: the quality preset at 4K – the same settings the advanced tabs write
+        rule.onNodeWithTag("exp:quality:GOOD").performClick()
+        rule.waitForIdle()
+        assertEquals(1080, s.height)
+        assertEquals(se.gendut.klipp.engine.ExportPreset.COMPATIBLE, se.gendut.klipp.engine.ExportPreset.of(s, 3840, 2160, 30.0, se.gendut.klipp.engine.PhoneEncoders))
+        assertEquals(SimpleQuality.GOOD, SimpleQuality.of(s, se.gendut.klipp.engine.ExportPreset.COMPATIBLE))
+        rule.onNodeWithTag("exp:quality:BEST").performClick()
+        rule.waitForIdle()
+        assertEquals(2160, s.height)
+        assertEquals(se.gendut.klipp.engine.ExportPreset.QUALITY, se.gendut.klipp.engine.ExportPreset.of(s, 3840, 2160, 30.0, se.gendut.klipp.engine.PhoneEncoders))
+        // a Full HD project's Best is its own size (nothing is blown up)
+        assertEquals(0, SimpleQuality.BEST.apply(s, 1920, 1080, 30.0, se.gendut.klipp.engine.PhoneEncoders).height)
     }
 }

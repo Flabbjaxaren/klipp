@@ -160,4 +160,13 @@
         <item quantity="one">%1$d clip has color from advanced mode – it is left as it is</item>
         <item quantity="other">%1$d clips have color from advanced mode – they are left as they are</item>
     </plurals>
+    <!-- the Save sheet -->
+    <string name="simple_export_good">Good</string>
+    <string name="simple_export_good_hint">%1$s. A file of a good size – fine for sharing.</string>
+    <string name="simple_export_best">Best</string>
+    <string name="simple_export_best_hint">%1$s. Sharpest, but the file is several times bigger.</string>
+    <string name="simple_export_recommended">Recommended</string>
+    <string name="simple_export_gallery">Save to Gallery</string>
+    <string name="simple_export_share">Save and share …</string>
+    <string name="simple_export_keep_editing">You can keep editing while the video is saved.</string>
 </resources>
