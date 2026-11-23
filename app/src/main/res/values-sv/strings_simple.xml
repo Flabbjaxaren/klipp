@@ -58,7 +58,7 @@
     <string name="simple_color_log_hint">Gör platt loggvideo till vanliga färger (OpenDRT)</string>
     <string name="simple_color_log_detected">Kameran säger att det är filmat i %1$s</string>
     <string name="simple_color_log_shot_in">Filmat i</string>
-    <string name="simple_color_log_look_note">Med loggmaterial läggs looken på före omvandlingen.</string>
+    <string name="simple_color_log_look_note">Med loggmaterial läggs looken på efter omvandlingen, så den blir som den är gjord. I en HLG-export läggs klippet då in som SDR (inga ljusare högdagrar).</string>
     <string name="simple_color_timeline_look">Projektet har också en tidslinjelook (gjord i avancerat läge).</string>
     <!-- export -->
     <string name="simple_export_hlg">HDR (HLG)</string>

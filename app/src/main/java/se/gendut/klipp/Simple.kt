@@ -87,8 +87,42 @@ object SimpleGrade {
         n.gain.x == 0f && n.gain.y == 0f && (n.drt == null || plainDrt(n.drt)) &&
             n.copy(label = "", gain = Wheel(), contrast = 1f, temp = 0f, sat = 1f, lut = null, lutMix = 1f, drt = null) == GradeNode(n.id)
 
+    /** A node that only holds a look (a LUT and its strength): with log footage it comes after OpenDRT. */
+    fun lookOnly(n: GradeNode): Boolean = n.lut != null && n.copy(label = "", lut = null, lutMix = 1f) == GradeNode(n.id)
+
     /** The node simple mode adjusts: the first that isn't OpenDRT alone. */
     fun adjustNode(g: ClipGrade): GradeNode? = g.nodes.firstOrNull { !drtOnly(it) } ?: g.nodes.firstOrNull()
+
+    /**
+     * The node that holds the look: with log footage a node of its own after OpenDRT (a look is made for a finished
+     * picture – put on the log signal before the conversion it went wrong), otherwise the adjust node.
+     */
+    fun lookNode(g: ClipGrade): GradeNode? {
+        val d = drtNode(g) ?: return adjustNode(g)
+        val after = g.nodes.drop(g.nodes.indexOfFirst { it.id == d.id } + 1)
+        return after.firstOrNull { lookOnly(it) || empty(it) } ?: adjustNode(g)?.takeIf { it.lut != null && it.id != d.id }
+    }
+
+    /**
+     * A look picked (or its strength changed): with log footage into a node after OpenDRT (made there if missing; a
+     * look still in the adjust node moves there), otherwise into the adjust node. null = no look (the look node goes).
+     */
+    fun withLook(g: ClipGrade, lut: String?, mix: Float? = null): ClipGrade {
+        val d = drtNode(g)
+        if (d == null || adjustNode(g)?.id == d.id) return adjust(g) { n -> lutPicked(n, lut).let { if (mix != null && lut != null) it.copy(lutMix = mix) else it } }
+        val a = adjustNode(g)
+        // the look node after OpenDRT, if there is one
+        val after = g.nodes.drop(g.nodes.indexOfFirst { it.id == d.id } + 1)
+        val l = after.firstOrNull { lookOnly(it) || empty(it) }
+        var nodes = g.nodes.map { if (a != null && it.id == a.id && it.lut != null) it.copy(lut = null, lutMix = 1f) else it }
+        val oldMix = l?.lutMix ?: a?.takeIf { it.lut != null }?.lutMix
+        // no look: the look node stays, empty (it changes nothing, and HLG keeps its full range – OpenDRT is last)
+        if (lut == null) return g.copy(nodes = nodes.map { if (l != null && it.id == l.id) it.copy(lut = null, lutMix = 1f) else it })
+        // the strength: as given, else the look's own (a look picked anew keeps it – the advanced LUT tab's rule), else full
+        val look = (l ?: GradeNode((g.nodes.maxOfOrNull { it.id } ?: 0) + 1, "Look")).copy(lut = lut, lutMix = mix ?: oldMix ?: 1f)
+        nodes = if (l != null) nodes.map { if (it.id == l.id) look else it } else nodes + look
+        return g.copy(nodes = nodes)
+    }
 
     /** The node with OpenDRT (log footage), or null. */
     fun drtNode(g: ClipGrade): GradeNode? = g.nodes.firstOrNull { it.drt != null }
@@ -98,7 +132,10 @@ object SimpleGrade {
         if (g == null) return true
         val a = adjustNode(g) ?: return false
         if (!adjustOnly(a) || g.nodes.count { it.drt != null } > 1) return false
-        return g.nodes.all { it.id == a.id || empty(it) || drtOnly(it) }
+        val d = drtNode(g)
+        val afterDrt = if (d == null) emptySet() else g.nodes.drop(g.nodes.indexOfFirst { it.id == d.id } + 1).map { it.id }.toSet()
+        return g.nodes.all { it.id == a.id || empty(it) || drtOnly(it) || (it.id in afterDrt && lookOnly(it)) } &&
+            g.nodes.count { lookOnly(it) && it.id in afterDrt } <= 1
     }
 
     /** [g] with its adjust node changed by [f]. */
@@ -117,11 +154,19 @@ object SimpleGrade {
         if (on) {
             if (d != null) return g
             val id = (g.nodes.maxOfOrNull { it.id } ?: 0) + 1
-            return g.copy(nodes = g.nodes + GradeNode(id, "OpenDRT", drt = drtFor(input)))
+            // OpenDRT, then an (empty) node for the look – a look already picked moves there, after the conversion
+            val withDrt = g.copy(nodes = g.nodes + GradeNode(id, "OpenDRT", drt = drtFor(input)) + GradeNode(id + 1, "Look"))
+            val a = adjustNode(g)
+            return if (a?.lut != null) withLook(withDrt, a.lut, a.lutMix) else withDrt
         }
         if (d == null) return g
-        return if (drtOnly(d) && g.nodes.size > 1) g.copy(nodes = g.nodes.filter { it.id != d.id })
-        else g.copy(nodes = g.nodes.map { if (it.id == d.id) it.copy(drt = null) else it })
+        // a look after the conversion moves back into the adjust node
+        val look = lookNode(g)?.takeIf { (lookOnly(it) || empty(it)) && it.id != adjustNode(g)?.id }
+        val g1 = if (look == null) g else g.copy(nodes = g.nodes.filter { it.id != look.id }.map { n ->
+            if (n.id == adjustNode(g)?.id && look.lut != null) n.copy(lut = look.lut, lutMix = look.lutMix) else n })
+        val d1 = drtNode(g1) ?: return g1
+        return if (drtOnly(d1) && g1.nodes.size > 1) g1.copy(nodes = g1.nodes.filter { it.id != d1.id })
+        else g1.copy(nodes = g1.nodes.map { if (it.id == d1.id) it.copy(drt = null) else it })
     }
 
     /** The log footage's input (what it was shot in): the advanced LUT tab's "Shot in" chips. */

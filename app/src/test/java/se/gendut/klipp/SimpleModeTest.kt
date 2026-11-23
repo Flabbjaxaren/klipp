@@ -435,14 +435,47 @@ class SimpleModeTest {
         val s = simple.of(1)
         // the same nodes (simple mode names its node, as the advanced node menu's Rename does)
         assertEquals("OpenDRT", s.nodes[1].label)
-        assertEquals(a.copy(nodes = a.nodes.map { it.copy(label = "") }), s.copy(nodes = s.nodes.map { it.copy(label = "") }))
-        assertTrue("last: still HLG-ready", s.hlgReady)
+        assertEquals(a.nodes.map { it.copy(label = "") }, s.nodes.take(2).map { it.copy(label = "") })
+        // then an empty node for the look (the advanced page's new node), which changes nothing
+        assertEquals(3, s.nodes.size)
+        assertTrue(SimpleGrade.empty(s.nodes[2]))
+        assertTrue("OpenDRT is the last node that colours: still HLG-ready", s.hlgReady)
         // what it was shot in: the advanced "Shot in" chips' value
         rule.onNodeWithTag("simple:logIn:${se.gendut.klipp.engine.OpenDrt.Input.VIVO.key}").performScrollTo().performClick()
         rule.waitUntil(8000) { simple.of(1).nodes[1].drt?.input == se.gendut.klipp.engine.OpenDrt.Input.VIVO.key }
         // off again: the node goes
         rule.onNodeWithTag("simple:log").performScrollTo().performClick()
         rule.waitUntil(8000) { simple.of(1).nodes.size == 1 }
+    }
+
+    @Test fun withLogFootageTheLookComesAfterTheConversion() {
+        val lut = LutStore.TEAL_ORANGE
+        val plain = ClipGrade(listOf(GradeNode(1, "Primär", contrast = 1.2f, lut = lut, lutMix = 0.6f)))
+        // log on: OpenDRT, then the look moved into its own node after it, strength kept
+        val log = SimpleGrade.withLog(plain, true, "vlog")
+        assertEquals(listOf(null, null, lut), log.nodes.map { it.lut })
+        assertEquals(0.6f, log.nodes[2].lutMix, 1e-6f)
+        assertEquals(1.2f, log.nodes[0].contrast, 1e-6f)
+        assertTrue(SimpleGrade.fits(log))
+        assertEquals(log.nodes[2].id, SimpleGrade.lookNode(log)!!.id)
+        // a look after the conversion: the clip goes into an HLG export as SDR
+        assertFalse(log.hlgReady)
+        // another look picked: same node, same strength; none: the node stays, empty – HLG-ready again
+        val other = SimpleGrade.withLook(log, LutStore.names.first { it != lut })
+        assertEquals(3, other.nodes.size)
+        assertEquals(0.6f, other.nodes[2].lutMix, 1e-6f)
+        val none = SimpleGrade.withLook(other, null)
+        assertTrue(SimpleGrade.empty(none.nodes[2]))
+        assertTrue(none.hlgReady)
+        // log off: the look goes back into the first node and OpenDRT and the look node go
+        val back = SimpleGrade.withLog(log, false, null)
+        assertEquals(1, back.nodes.size)
+        assertEquals(lut, back.nodes[0].lut)
+        assertEquals(0.6f, back.nodes[0].lutMix, 1e-6f)
+        // without log footage the look stays in the first node
+        val noLog = SimpleGrade.withLook(ClipGrade(listOf(GradeNode(1, "Primär"))), lut)
+        assertEquals(1, noLog.nodes.size)
+        assertEquals(lut, noLog.nodes[0].lut)
     }
 
     @Test fun anAdvancedGradeIsNotTouchedBySimpleMode() {

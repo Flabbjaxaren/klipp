@@ -99,6 +99,8 @@ private fun SimpleColorTools(state: EditorState, gs: GradeState, clip: ColorClip
     val scope = rememberCoroutineScope()
     val g = gs.shown(clip.id) ?: ClipGrade()
     val a = SimpleGrade.adjustNode(g) ?: return
+    // the look: in the adjust node, or with log footage in its own node after OpenDRT
+    val lk = SimpleGrade.lookNode(g) ?: a
     val log = SimpleGrade.drtNode(g)
     // the advanced page's own writers: a node changed (live while dragging, committed on release)
     fun live(n: GradeNode) = gs.liveNode(clip.id, n)
@@ -109,21 +111,20 @@ private fun SimpleColorTools(state: EditorState, gs: GradeState, clip: ColorClip
         pending?.cancel()
         pending = scope.launch { withContext(Dispatchers.Default) { g2.nodes.forEach { it.params() } }; then() }
     }
-    fun commitBaked(n: GradeNode) = baked(gs.of(clip.id).let { cg -> cg.copy(nodes = cg.nodes.map { if (it.id == n.id) n else it }) }) { commit(n) }
     fun setBaked(g2: ClipGrade) = baked(g2) { gs.set(clip.id, g2) }
 
     PanelCard(Modifier.padding(top = 4.dp), title = stringResource(R.string.simple_color_look)) {
         LutBrowser(
-            selected = a.lut,
-            onPick = { name -> haptics.tick(); commitBaked(lutPicked(a, name)) },
-            preview = rememberLutPreview(state, gs, clip, a.id, true),
-            onImport = onImportLut?.let { imp -> { imp { name -> commitBaked(a.copy(lut = name, lutMix = 1f)) } } },
+            selected = lk.lut,
+            onPick = { name -> haptics.tick(); setBaked(SimpleGrade.withLook(gs.of(clip.id), name)) },
+            preview = rememberLutPreview(state, gs, clip, lk.id, true),
+            onImport = onImportLut?.let { imp -> { imp { name -> setBaked(SimpleGrade.withLook(gs.of(clip.id), name, 1f)) } } },
             modifier = Modifier.padding(vertical = 4.dp),
         )
-        if (a.lut != null) PropSlider(stringResource(R.string.colortools_lut_strength), a.lutMix, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "simple:lutMix", lane = false,
+        if (lk.lut != null) PropSlider(stringResource(R.string.colortools_lut_strength), lk.lutMix, 0f, 1f, 1f, { "%.0f %%".format(it * 100) }, "simple:lutMix", lane = false,
             // (with OpenDRT in the node the LUT is baked together with it – rebuilt when the finger lifts)
-            onLive = { if (a.drt == null) live(a.copy(lutMix = it)) }) { commitBaked(a.copy(lutMix = it)) }
-        if (log != null && a.lut != null) Text(stringResource(R.string.simple_color_log_look_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))
+            onLive = { if (lk.drt == null) live(lk.copy(lutMix = it)) }) { setBaked(SimpleGrade.withLook(gs.of(clip.id), lk.lut, it)) }
+        if (log != null && lk.lut != null) Text(stringResource(R.string.simple_color_log_look_note), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp))
     }
     PanelCard(Modifier.padding(top = 10.dp), title = stringResource(R.string.simple_color_adjust)) {
         // exposure = the gain wheel's master (the advanced Wheels tab's "Gain" luminance), the rest as on its Adjust tab

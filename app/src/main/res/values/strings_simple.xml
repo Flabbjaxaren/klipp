@@ -58,7 +58,7 @@
     <string name="simple_color_log_hint">Turns flat log video into normal colors (OpenDRT)</string>
     <string name="simple_color_log_detected">The camera says it was shot in %1$s</string>
     <string name="simple_color_log_shot_in">Shot in</string>
-    <string name="simple_color_log_look_note">With log footage the look is applied before the conversion.</string>
+    <string name="simple_color_log_look_note">With log footage the look comes after the conversion, so it looks as made. In an HLG export this clip then goes in as SDR (no brighter highlights).</string>
     <string name="simple_color_timeline_look">This project also has a timeline look (set in advanced mode).</string>
     <!-- export -->
     <string name="simple_export_hlg">HDR (HLG)</string>
