@@ -26,6 +26,7 @@
     <string name="projectcontroller_edit_failed">The edit failed</string>
     <string name="projectcontroller_generic_failed">That didn\'t work</string>
     <string name="projectcontroller_sync_lock_blocks_ripple">A sync-locked track prevents the ripple – unlock the track</string>
+    <string name="projectcontroller_gap_left_sync">The gap is left: a sync-locked track prevents the ripple</string>
     <string name="projectcontroller_track_locked">The track is locked</string>
     <string name="projectcontroller_freeze_failed">Freeze frame failed: %1$s</string>
     <string name="projectcontroller_read_project_failed">Couldn\'t read the project: %1$s</string>

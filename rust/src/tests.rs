@@ -1496,3 +1496,33 @@ fn rendered_noise_reduction_at_44k_uses_the_network() {
     assert_eq!(lag, 0, "the cleaned sound is shifted by {lag} samples");
     assert!(after > before + 7.0, "SI-SDR {before:.1} → {after:.1} dB");
 }
+
+/// A file with three audio streams (three.mov in KLIPP_TEST_MEDIA) lands as V1 + A1–A3, all linked. With linked selection
+/// off, ripple-deleting the sounds of streams 2 and 3 is refused (the picture on sync-locked V1 is "in the way") and
+/// changes nothing; a plain delete removes just them. The app falls back to the plain delete (ProjectController.delete).
+#[test]
+fn deleting_second_stream_sounds_needs_plain_delete() {
+    let mut b = Bridge::new();
+    ok(&mut b, "file.import", json!({"paths": [media("three.mov")]}));
+    ok(&mut b, "file.newSequence", json!({"width": 1280, "height": 720, "fps": 25.0}));
+    ok(&mut b, "source.open", json!({"item": 1}));
+    ok(&mut b, "source.insert", json!({}));
+    ok(&mut b, "sequence.linkedSelection", json!({"on": false}));
+    let count = |b: &Bridge| -> Vec<usize> {
+        let snap: Value = serde_json::from_str(&b.snapshot()).unwrap();
+        let q = &snap["sequence"];
+        [&q["video"][0]].into_iter().chain(q["audio"].as_array().unwrap().iter())
+            .map(|t| t["clips"].as_array().map(|c| c.len()).unwrap_or(0)).collect()
+    };
+    let snap: Value = serde_json::from_str(&b.snapshot()).unwrap();
+    let audio = snap["sequence"]["audio"].as_array().unwrap();
+    assert_eq!(count(&b), vec![1, 1, 1, 1]);
+    assert_eq!(audio[2]["clips"][0]["audioStream"], 2);
+    let ids: Vec<u64> = audio[1..].iter().map(|t| t["clips"][0]["id"].as_u64().unwrap()).collect();
+    let r: Value = serde_json::from_str(&b.execute("edit.rippleDelete", &json!({"clips": ids}).to_string())).unwrap();
+    assert_eq!(r["ok"], false, "{r}");
+    assert!(r["error"].as_str().unwrap().contains("sync"), "{r}");
+    assert_eq!(count(&b), vec![1, 1, 1, 1], "a refused ripple changes nothing");
+    ok(&mut b, "edit.clear", json!({"clips": ids}));
+    assert_eq!(count(&b), vec![1, 1, 0, 0], "the plain delete takes just the two sounds");
+}
