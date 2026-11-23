@@ -5,6 +5,9 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.height
@@ -568,15 +571,28 @@ class SimpleStripTest {
 
     // ------------------------------------------------------------------ the rows under the clips
 
-    @Test fun aClipDraggedDownLeavesTheStorylineForARow() {
+    @Test fun theVideoRowsAreOverTheStorylineAndTheSoundUnderIt() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        fun top(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().positionInRoot.y
+        // as in the timeline and the picture: V3 (the title) over V2 (the adjustment clip) over the storyline, then A1–A3
+        assertTrue(top("simpleLaneClip:6") < top("simpleLaneClip:5"))
+        assertTrue(top("simpleLaneClip:5") < top("simpleClip:2"))
+        assertTrue(top("simpleClip:2") < top("simpleLaneClip:7"))
+        assertTrue(top("simpleLaneClip:7") < top("simpleLaneClip:9"))
+        assertTrue(top("simpleLaneClip:9") < top("simpleLaneClip:11"))
+    }
+
+    @Test fun aClipDraggedUpLeavesTheStorylineForARowOverIt() {
         val st = simple()
         rule.setContent { KlippTheme { SimpleStrip(st) } }
         rule.waitForIdle()
         val undo0 = st.undoCount
-        // clip 2 held and dragged straight down onto the first row
+        // clip 2 held and dragged straight up onto the row over it (V2)
         rule.onNodeWithTag("simpleClip:2").performTouchInput {
             down(center); advanceEventTime(800)
-            repeat(10) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(0f, 30f)) }
+            repeat(5) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(0f, -30f)) }
         }
         rule.waitForIdle()
         rule.onNodeWithTag("simpleLane:target").assertExists()
@@ -584,7 +600,21 @@ class SimpleStripTest {
         rule.waitForIdle()
         assertEquals(undo0 + 1, st.undoCount)
         assertEquals(listOf(1L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
-        assertTrue(SimpleStripModel.lanes(st).any { l -> l.clips.any { it.id == 2L } })
+        assertTrue(SimpleStripModel.lanes(st).any { l -> l.kind != SimpleStripModel.LaneKind.SOUND && l.clips.any { it.id == 2L } })
+    }
+
+    @Test fun aClipDraggedOntoASoundRowStaysWhereItWas() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleClip:2").performTouchInput {
+            down(center); advanceEventTime(800)
+            repeat(6) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(0f, 30f)) }
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals("video doesn't go on a sound track", 0, st.undoCount)
+        assertEquals(listOf(1L, 2L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
     }
 
     @Test fun aLayerDraggedAlongItsRowMoves() {
@@ -614,20 +644,22 @@ class SimpleStripTest {
         assertEquals(SimpleStripModel.Block.LOCKED, SimpleStripModel.moveBlock(st, st.clip(5)))
     }
 
-    @Test fun moreRowsThanRoomAreAStepAway() {
+    @Test fun moreRowsThanRoomScrollUpAndDown() {
         val st = simple()
-        rule.setContent { KlippTheme { androidx.compose.foundation.layout.Box(Modifier.height(380.dp)) { SimpleStrip(st) } } }
+        rule.setContent { KlippTheme { androidx.compose.foundation.layout.Box(Modifier.height(400.dp)) { SimpleStrip(st) } } }
         rule.waitForIdle()
-        rule.onNodeWithTag("simpleLanes:more").assertExists()
-        rule.onNodeWithTag("simpleLaneClip:11", useUnmergedTree = true).assertDoesNotExist()
-        // a page of rows at a time, down to the last one
-        var taps = 0
-        while (rule.onAllNodesWithTag("simpleLanes:more").fetchSemanticsNodes().isNotEmpty() && taps < 6) {
-            rule.onNodeWithTag("simpleLanes:more").performClick(); rule.waitForIdle(); taps++
-        }
-        assertTrue(taps in 1..5)
-        rule.onNodeWithTag("simpleLaneClip:11", useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("simpleLanes:up").assertExists()
+        // the storyline in view from the start; the rows past the strip's room a scroll away
+        rule.onNodeWithTag("simpleClip:1").assertIsDisplayed()
+        fun shown(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.height > 1f
+        assertFalse("the last sound row is out of view at first", shown("simpleLaneClip:11"))
+        // a swipe up: the rows under the storyline
+        rule.onNodeWithTag("simpleStrip:rows").performTouchInput { swipeUp(startY = bottom - 10f, endY = top + 10f, durationMillis = 300) }
+        rule.waitForIdle()
+        assertTrue(shown("simpleLaneClip:11"))
+        // and down again: the rows over it
+        rule.onNodeWithTag("simpleStrip:rows").performTouchInput { swipeDown(startY = top + 10f, endY = bottom - 10f, durationMillis = 300) }
+        rule.waitForIdle()
+        assertTrue(shown("simpleLaneClip:5"))
         rule.onRoot().captureRoboImage("build/shots/s24_enkel_rader.png")
     }
 }
