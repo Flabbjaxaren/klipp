@@ -80,6 +80,9 @@ data class Clip(
     val group: Long? = null,
     /** Color label (a frame in the timeline); null = none. */
     val label: ClipLabel? = null,
+    /** Audio clips: the file's audio stream and the stream's channels the clip plays (its waveform shows those). */
+    val audioStream: Int = 0,
+    val sourceChannels: List<Int> = emptyList(),
 ) {
     val end: Float get() = start + length
 }

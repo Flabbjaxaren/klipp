@@ -39,22 +39,28 @@ object Peaks {
         }
     }
 
+    /**
+     * The memory and file key: the file, and the channels of its audio track the waveform shows ([channels]: a clip of
+     * one of a camera's microphone tracks, AudioChannels; empty = all).
+     */
+    private fun key(uri: Uri, channels: List<Int>) = uri.toString() + if (channels.isEmpty()) "" else "#ch" + channels.joinToString(",")
+
     /** The waveform at all its levels if it is in memory (the timeline draws from it right away). */
-    fun cachedLevels(uri: Uri): PeakLevels? = synchronized(mem) { mem[uri.toString()] }
+    fun cachedLevels(uri: Uri, channels: List<Int> = emptyList()): PeakLevels? = synchronized(mem) { mem[key(uri, channels)] }
 
     /** [RATE] values per second if the waveform is in memory. */
     fun cached(uri: Uri): FloatArray? = cachedLevels(uri)?.coarse()
 
     private fun dir(context: Context) = File(context.cacheDir, "peaks").apply { mkdirs() }
-    private fun name(uri: Uri) = uri.toString().hashCode().toUInt().toString(16) + "_" + uri.toString().length
-    private fun file(context: Context, uri: Uri) = File(dir(context), name(uri) + "_v$VERSION.pk")
+    private fun name(key: String) = key.hashCode().toUInt().toString(16) + "_" + key.length
+    private fun file(context: Context, key: String) = File(dir(context), name(key) + "_v$VERSION.pk")
 
     /** Peak values for a file (0..1, [RATE] per second), or null if it has no audio. Blocks – run on a background thread. */
     fun load(context: Context, uri: Uri): FloatArray? = loadLevels(context, uri)?.coarse()
 
     /** The waveform at all its levels, or null if the file has no audio. Blocks – run on a background thread. */
-    fun loadLevels(context: Context, uri: Uri): PeakLevels? {
-        val key = uri.toString()
+    fun loadLevels(context: Context, uri: Uri, channels: List<Int> = emptyList()): PeakLevels? {
+        val key = key(uri, channels)
         synchronized(mem) { mem[key]?.let { return it } }
         // another thread is already decoding the same file: wait for it
         while (true) {
@@ -64,11 +70,11 @@ object Peaks {
             synchronized(mem) { mem[key]?.let { return it } }
         }
         try {
-            val f = file(context, uri)
+            val f = file(context, key)
             // the older format (100 values per second) is not read: the file is decoded again
-            runCatching { File(dir(context), name(uri) + ".pk").delete() }
+            runCatching { File(dir(context), name(key) + ".pk").delete() }
             val b = (if (f.exists()) runCatching { f.readBytes() }.getOrNull() else null)
-                ?: decode(context, uri)?.let { quantize(it) }?.also { runCatching { write(f, it) } }
+                ?: decode(context, uri, channels)?.let { quantize(it) }?.also { runCatching { write(f, it) } }
             val p = b?.let { PeakLevels(it) }
             if (p != null) keep(key, p)
             return p
@@ -90,9 +96,9 @@ object Peaks {
     private val decodeLock = Any()
 
     /** Decodes the audio track into peak values per 1/FINE_RATE second – one file at a time (saves memory and decoders). */
-    private fun decode(context: Context, uri: Uri): FloatArray? = synchronized(decodeLock) { decodeNow(context, uri) }
+    private fun decode(context: Context, uri: Uri, channels: List<Int>): FloatArray? = synchronized(decodeLock) { decodeNow(context, uri, channels) }
 
-    private fun decodeNow(context: Context, uri: Uri): FloatArray? {
+    private fun decodeNow(context: Context, uri: Uri, channels: List<Int>): FloatArray? {
         val ex = MediaExtractor()
         var codec: MediaCodec? = null
         try {
@@ -102,7 +108,7 @@ object Peaks {
             val fmt = ex.getTrackFormat(track)
             val mime = fmt.getString(MediaFormat.KEY_MIME)!!
             val durUs = if (fmt.containsKey(MediaFormat.KEY_DURATION)) fmt.getLong(MediaFormat.KEY_DURATION) else 0L
-            val acc = PeakAccumulator(fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE), fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT), durUs, FINE_RATE)
+            val acc = PeakAccumulator(fmt.getInteger(MediaFormat.KEY_SAMPLE_RATE), fmt.getInteger(MediaFormat.KEY_CHANNEL_COUNT), durUs, FINE_RATE, channels)
             val c = MediaCodec.createDecoderByType(mime)
             codec = c
             c.configure(fmt, null, null, 0)
@@ -154,8 +160,8 @@ object Peaks {
     }
 }
 
-/** Collects peak values per 1/[perSecond] s from PCM blocks (pure logic, testable). */
-class PeakAccumulator(private var rate: Int, private var channels: Int, durUs: Long, private val perSecond: Int = Peaks.RATE) {
+/** Collects peak values per 1/[perSecond] s from PCM blocks – of the channels [only], or all (pure logic, testable). */
+class PeakAccumulator(private var rate: Int, private var channels: Int, durUs: Long, private val perSecond: Int = Peaks.RATE, private val only: List<Int> = emptyList()) {
     private var out = FloatArray(((durUs / 1e6) * perSecond).toInt().coerceAtLeast(16) + 2)
     private var n = 0
 
@@ -173,7 +179,7 @@ class PeakAccumulator(private var rate: Int, private var channels: Int, durUs: L
         val frames = s.size / ch
         for (f in 0 until frames) {
             var m = 0
-            for (c in 0 until ch) { val v = kotlin.math.abs(s[f * ch + c].toInt()); if (v > m) m = v }
+            for (c in 0 until ch) { if (only.isNotEmpty() && c !in only) continue; val v = kotlin.math.abs(s[f * ch + c].toInt()); if (v > m) m = v }
             put(binOf(ptsUs, f), m / 32768f)
         }
     }
@@ -183,7 +189,7 @@ class PeakAccumulator(private var rate: Int, private var channels: Int, durUs: L
         val frames = s.size / ch
         for (f in 0 until frames) {
             var m = 0f
-            for (c in 0 until ch) { val v = kotlin.math.abs(s[f * ch + c]); if (v > m) m = v }
+            for (c in 0 until ch) { if (only.isNotEmpty() && c !in only) continue; val v = kotlin.math.abs(s[f * ch + c]); if (v > m) m = v }
             put(binOf(ptsUs, f), m.coerceAtMost(1f))
         }
     }

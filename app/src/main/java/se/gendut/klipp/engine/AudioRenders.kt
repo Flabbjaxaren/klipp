@@ -36,9 +36,15 @@ object AudioRenders {
 
     data class Rendition(val uri: String, val a: Double, val b: Double, val chain: String, val file: File, val id: Long)
 
-    private data class Job(val uri: Uri, val a: Double, val b: Double, val chain: String) {
+    /**
+     * [picks]: the channels of [uri]'s audio the clip plays (AudioChannels: one of a camera's microphone tracks); empty =
+     * all of it. The rendered file then holds just those – the clip's own sound.
+     */
+    private data class Job(val uri: Uri, val a: Double, val b: Double, val chain: String, val picks: List<Int> = emptyList()) {
+        /** The source as the renditions name it: the file, and the channels when picked. */
+        val src: String get() = sourceOf(uri, picks)
         val key: String by lazy {
-            val k = "$uri@${"%.1f".format(java.util.Locale.ROOT, a)}-${"%.1f".format(java.util.Locale.ROOT, b)}#$chain"
+            val k = "$src@${"%.1f".format(java.util.Locale.ROOT, a)}-${"%.1f".format(java.util.Locale.ROOT, b)}#$chain"
             MessageDigest.getInstance("SHA-1").digest(k.toByteArray()).joinToString("") { "%02x".format(it) }
         }
     }
@@ -64,6 +70,10 @@ object AudioRenders {
     private val failed = ConcurrentHashMap<String, String>()
     /** Item → file (set by [ensure]; [rewrite] only has the clips). */
     private val itemUris = ConcurrentHashMap<Long, String>()
+    /** Clip → source, for the clips that play some channels or another stream of their file (see [Job.picks]). */
+    private val clipSources = ConcurrentHashMap<Long, String>()
+
+    private fun sourceOf(uri: Uri, picks: List<Int>) = uri.toString() + if (picks.isEmpty()) "" else "#ch" + picks.joinToString(",")
     /** The job keys the timeline wants now (older queued jobs are dropped when their turn comes). */
     @Volatile private var wanted: Set<String> = emptySet()
     private val main = Handler(Looper.getMainLooper())
@@ -106,10 +116,13 @@ object AudioRenders {
     fun rewrite(c: ClipSnap): ClipSnap {
         if (c.reverse || c.hold != null || c.text != null) return c
         val (pre, rest) = split(c.afx) ?: return c
-        val uri = itemUris[c.item] ?: return c
+        val picked = clipSources[c.id]
+        val uri = picked ?: itemUris[c.item] ?: return c
         val (s0, s1) = rangeOf(c)
         val r = covering(uri, AfxSnap.chainJson(pre), s0, s1) ?: return c
-        return c.copy(item = r.id, sourceIn = (c.sourceIn - r.a).coerceAtLeast(0.0), afx = rest)
+        // a file of picked channels is the clip's own sound: nothing more to pick from it
+        return if (picked != null) c.copy(item = r.id, sourceIn = (c.sourceIn - r.a).coerceAtLeast(0.0), afx = rest, audioStream = 0, sourceChannels = emptyList(), layoutItem = null)
+        else c.copy(item = r.id, sourceIn = (c.sourceIn - r.a).coerceAtLeast(0.0), afx = rest, layoutItem = c.layoutItem ?: c.item)
     }
 
     /**
@@ -130,15 +143,19 @@ object AudioRenders {
             val c = if (c0.reverse) Reversals.rewrite(c0, true) else c0
             if (c.reverse || c.hold != null || c.text != null) continue
             val (pre, _) = split(c.afx) ?: continue
-            val uri = uriOf(c.item) ?: continue
-            itemUris[c.item] = uri.toString()
+            val file = uriOf(c.item) ?: continue
+            // the clip's own stream and channels (a camera's microphone track): rendered from just those
+            val pick = AudioChannels.resolve(file, uriOf(c.layoutItem ?: c.item) ?: file, c.audioStream, c.sourceChannels) ?: continue
+            val uri = pick.uri
+            if (pick.picks.isEmpty() && uri == file) { itemUris[c.item] = uri.toString(); clipSources.remove(c0.id) }
+            else clipSources[c0.id] = sourceOf(uri, pick.picks)
             val chain = AfxSnap.chainJson(pre)
             val (s0, s1) = rangeOf(c)
-            if (covering(uri.toString(), chain, s0, s1) != null) { out += c0.id to null; continue }
+            if (covering(sourceOf(uri, pick.picks), chain, s0, s1) != null) { out += c0.id to null; continue }
             val len = MediaProbe.probe(context, uri)?.duration?.takeIf { it > 0 }
             val a = (Math.floor((s0 - MARGIN) * 10) / 10).coerceAtLeast(0.0)
             val b = (Math.ceil((s1 + MARGIN) * 10) / 10).let { if (len != null) it.coerceAtMost(len) else it }
-            out += c0.id to Job(uri, a, maxOf(b, s1), chain)
+            out += c0.id to Job(uri, a, maxOf(b, s1), chain, pick.picks)
         }
         return out
     }
@@ -198,11 +215,13 @@ object AudioRenders {
         var poll: java.util.concurrent.ScheduledFuture<*>? = null
         try {
             if (!force && j.key !in wanted) { main.post { progress.remove(j.key) }; return }
-            if (covering(j.uri.toString(), j.chain, j.a, j.b) != null) return
+            if (covering(j.src, j.chain, j.a, j.b) != null) return
             se.gendut.klipp.CrashReport.note("afx render: ${j.uri.lastPathSegment} ${"%.1f".format(j.a)}–${"%.1f".format(j.b)} s")
             main.post { progress[j.key] = 0.02f }
             if (!out.exists()) {
-                val (rate, channels) = Reversals.decodePcmRange(c, j.uri, j.a, j.b, raw)
+                val (rate, all) = Reversals.decodePcmRange(c, j.uri, j.a, j.b, raw)
+                // just the clip's channels (the renderer takes mono or stereo)
+                val channels = if (j.picks.isEmpty()) all else { pickChannels(raw, all, j.picks); j.picks.size }
                 // decoding is the first fifth
                 main.post { progress[j.key] = 0.2f }
                 poll = ticker.scheduleWithFixedDelay({
@@ -212,7 +231,7 @@ object AudioRenders {
                 val err = Engine.nativeAfxRender(j.chain, raw.path, rate, channels, out.path, job)
                 if (err != null) error(err)
             }
-            add(Rendition(j.uri.toString(), j.a, j.b, j.chain, out, idOf(j.key)))
+            add(Rendition(j.src, j.a, j.b, j.chain, out, idOf(j.key)))
             MediaProbe.probe(c, Uri.fromFile(out))
             trim(d)
             save(d)
@@ -230,6 +249,28 @@ object AudioRenders {
         }
     }
 
+    /** Keeps only [picks] of raw 16-bit PCM with [channels] channels, in place (the file is rewritten). */
+    internal fun pickChannels(raw: File, channels: Int, picks: List<Int>) {
+        val tmp = File(raw.path + ".pick")
+        val inFrame = 2 * channels
+        val outFrame = 2 * picks.size
+        val at = picks.map { it.coerceIn(0, channels - 1) * 2 }
+        raw.inputStream().buffered(1 shl 16).use { ins ->
+            tmp.outputStream().buffered(1 shl 16).use { os ->
+                val f = ByteArray(inFrame)
+                val o = ByteArray(outFrame)
+                while (true) {
+                    var n = 0
+                    while (n < inFrame) { val r = ins.read(f, n, inFrame - n); if (r < 0) break; n += r }
+                    if (n < inFrame) break
+                    for ((k, b) in at.withIndex()) { o[2 * k] = f[b]; o[2 * k + 1] = f[b + 1] }
+                    os.write(o)
+                }
+            }
+        }
+        if (!tmp.renameTo(raw)) { tmp.delete(); error("could not keep the clip's channels") }
+    }
+
     private val ticker = java.util.concurrent.Executors.newSingleThreadScheduledExecutor { r -> Thread(r, "afx-progress").apply { isDaemon = true } }
 
     private fun idOf(key: String): Long = ID_BASE - key.take(9).toLong(16)
@@ -243,7 +284,7 @@ object AudioRenders {
     private fun trim(d: File) = synchronized(ready) {
         if (ready.size <= KEEP) return@synchronized
         val used = HashSet<Long>()
-        for ((item, uri) in itemUris) ready.filter { it.uri == uri }.forEach { used += it.id }
+        for (uri in itemUris.values + clipSources.values) ready.filter { it.uri == uri }.forEach { used += it.id }
         for (r in ready.toList()) {
             if (ready.size <= KEEP) break
             if (r.id in used) continue
@@ -286,5 +327,5 @@ object AudioRenders {
         return id
     }
 
-    internal fun clearForTest() { synchronized(ready) { ready.clear() }; itemUris.clear() }
+    internal fun clearForTest() { synchronized(ready) { ready.clear() }; itemUris.clear(); clipSources.clear() }
 }

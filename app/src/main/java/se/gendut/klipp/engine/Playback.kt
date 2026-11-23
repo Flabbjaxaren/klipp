@@ -111,8 +111,10 @@ object CompositionBuilder {
     }
 
     /**
-     * Audio sequence of pieces (one track, or the track's cross-dissolve pieces). Per piece: the clip's level and ramps,
-     * the clip's audio effects (the engine's DSP), the track's volume with automation × master, and the level meter.
+     * Audio sequence of pieces (one track, or the track's cross-dissolve pieces). Per piece: the clip's own stream and
+     * channels of its file (AudioChannels – a camera's separate microphone tracks are separate clips), the clip's level
+     * and ramps, the clip's audio effects (the engine's DSP), the track's volume with automation × master, and the level
+     * meter.
      */
     private fun audioSequence(
         pieces: List<AudioPiece>, total: Double, uriOf: (Long) -> Uri?, mediaDur: (Long) -> Double?,
@@ -123,7 +125,11 @@ object CompositionBuilder {
         var any = false
         val trackGain = dbToGain(track.volumeDb) * master
         for (p in pieces.sortedBy { it.start }) {
-            val uri = uriOf(p.item) ?: continue
+            val file = uriOf(p.item) ?: continue
+            // the clip's stream and channels: another file (a stream's stand-in) and/or a channel picker; none = as today
+            val pick = AudioChannels.resolve(file, uriOf(p.layoutItem) ?: file, p.stream, p.channels) ?: continue
+            val uri = pick.uri
+            val select = if (pick.picks.isEmpty()) emptyList() else listOf(AudioChannels.processor(pick.picks))
             if (p.start > t + 0.001) b.addGap(us(p.start - t))
             val speed = if (kotlin.math.abs(p.speed - 1.0) > 0.001) constantSpeed(p.speed.toFloat()) else null
             val chain = fx?.create(p.clip, p.afx) ?: 0L
@@ -147,7 +153,7 @@ object CompositionBuilder {
                 EditedMediaItem.Builder(clipped(uri, p.srcIn, p.dur, p.speed))
                     .setDurationUs(mediaUs(mediaDur(p.item), p.srcIn, p.dur, p.speed))
                     .setRemoveVideo(true)
-                    .setEffects(androidx.media3.transformer.Effects(procs + stereoUpmix(), emptyList()))
+                    .setEffects(androidx.media3.transformer.Effects(select + procs + stereoUpmix(), emptyList()))
                     .apply { if (speed != null) setSpeed(speed) }
                     .build()
             )
@@ -1057,6 +1063,7 @@ class ProgramPlayback(private val context: Context) {
         FrameHolds.ensure(context, FrameHolds.holdsOf(s, uriOf))
         // reversed clips: the files that run backwards, likewise in the background
         Reversals.ensure(context, s, uriOf)
+        AudioStreams.ensure(context, s, uriOf)
         // rendered sound effects (noise reduction, speech enhance): worked out in the background, the cards show it
         AudioRenders.ensure(context, s, uriOf)
         // the clips' first frame times (their in points on their own frames, see FrameSnap), likewise
@@ -1073,7 +1080,7 @@ class ProgramPlayback(private val context: Context) {
         val playable = RenderCache.playable(chunks, windows)
         edges = CutSeek.edgesOf(s, chunks)
         cuts = runCatching { CompositionBuilder.playPlan(s, uriOf, chunks)?.let { CutSeek.cutsOf(it.layers.lastOrNull()) } }.getOrNull() ?: CutSeek.cutsOf(s)
-        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "/" + VideoPipeline.renderFull + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision + "#ar" + AudioRenders.revision +
+        val key = "#render" + RenderCache.usedFiles(playable) + keyOf(s, uriOf) + "#hdr" + hdrMode + "#cache" + cacheUsage + "#preview" + VideoPipeline.previewShort + "/" + VideoPipeline.renderFull + "#dc" + DecodeCalibration.stamp + "#snap" + FrameSnap.revision + "#holds" + FrameHolds.revision + "#hv" + HoldVideos.revision + "#rev" + Reversals.revision + "#ar" + AudioRenders.revision + "#as" + AudioStreams.revision +
             // the film's reference and the preview's downscale follow the sources' sizes: a size that came late rebuilds
             "#sizes" + SourceSizes.revision + (if (CompositionBuilder.testUnscaledFilm) "#unscaled" else "")
         // the grades' values go directly to the shader passes; only which nodes exist requires a rebuild
@@ -1431,6 +1438,8 @@ object Exporter {
         runCatching { FrameHolds.await(context, FrameHolds.holdsOf(s, uriOf)) }.onFailure { return Result.failure(it) }
         // the reversed clips' files likewise (otherwise they played forwards in the file)
         runCatching { Reversals.await(context, s, uriOf) }.onFailure { return Result.failure(it) }
+        // audio clips of a file's second, third … stream: their stand-ins (otherwise they played the first stream)
+        runCatching { AudioStreams.await(context, s, uriOf) }
         // the rendered sound effects likewise (one that can't be made plays live)
         runCatching { AudioRenders.await(context, s, uriOf) }
         // the clips' first frame times in the originals (their in points on their own frames, see FrameSnap)

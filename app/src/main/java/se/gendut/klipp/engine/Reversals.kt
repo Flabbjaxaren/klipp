@@ -110,7 +110,8 @@ object Reversals {
         val uri = itemUris[c.item] ?: return c
         val (s0, s1) = rangeOf(c)
         val r = covering(uri, s0, s1, audio) ?: return c
-        return c.copy(item = if (audio) r.aid else r.vid, sourceIn = (r.b - s1).coerceAtLeast(0.0), speed = kotlin.math.abs(c.speed), reverse = false)
+        return c.copy(item = if (audio) r.aid else r.vid, sourceIn = (r.b - s1).coerceAtLeast(0.0), speed = kotlin.math.abs(c.speed), reverse = false,
+            layoutItem = c.layoutItem ?: c.item)
     }
 
     /** Whether any reversed files exist (otherwise [playable] need not look). */

@@ -929,6 +929,8 @@ class ProjectController(
                 for ((m, u) in todo) {
                     val a = MediaProbe.cached(u) == null
                     val info = MediaProbe.probe(context, u)
+                    // its audio streams (a clip of the second, third … plays from a stand-in, see AudioChannels)
+                    if (m.hasAudio && ProRes.audioSlots(u) == null) AudioStreams.probe(context, u)
                     Proxies.videoUri(u).takeIf { it != u }?.let { MediaProbe.probe(context, it) }
                     if (a && info != null) {
                         any = true
@@ -2692,6 +2694,8 @@ class ProjectController(
             reverse = reverse,
             group = group,
             label = se.gendut.klipp.ClipLabel.of(label),
+            audioStream = audioStream,
+            sourceChannels = sourceChannels,
         )
     }
 
