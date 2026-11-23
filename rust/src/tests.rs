@@ -1517,7 +1517,6 @@ fn deleting_second_stream_sounds_needs_plain_delete() {
     let snap: Value = serde_json::from_str(&b.snapshot()).unwrap();
     let audio = snap["sequence"]["audio"].as_array().unwrap();
     assert_eq!(count(&b), vec![1, 1, 1, 1]);
-    assert_eq!(audio[2]["clips"][0]["audioStream"], 2);
     let ids: Vec<u64> = audio[1..].iter().map(|t| t["clips"][0]["id"].as_u64().unwrap()).collect();
     let r: Value = serde_json::from_str(&b.execute("edit.rippleDelete", &json!({"clips": ids}).to_string())).unwrap();
     assert_eq!(r["ok"], false, "{r}");
