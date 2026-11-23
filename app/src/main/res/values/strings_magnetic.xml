@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="magnetic_setting">Magnetic timeline</string>
+    <string name="magnetic_setting_hint">V1 is the storyline: clips close up and make room, clips on the other tracks follow the clip they hang on</string>
+    <string name="magnetic_on">Magnetic timeline on</string>
+    <string name="magnetic_off">Magnetic timeline off – tracks as before</string>
+    <string name="magnetic_tool_position">Position</string>
+    <string name="magnetic_keep_follow">Connected clips follow</string>
+    <string name="magnetic_keep_stay">Connected clips stay</string>
+    <string name="magnetic_no_free_track">No free track for a connected clip – it stays on its own</string>
+    <string name="magnetic_undo_delete">Delete</string>
+    <string name="magnetic_undo_gap">Gap clip</string>
+    <string name="magnetic_undo_connect">Connect</string>
+    <string name="magnetic_lift">Lift from storyline</string>
+    <string name="magnetic_lift_short">Lift</string>
+    <string name="magnetic_overwrite_primary">Overwrite to storyline</string>
+    <string name="magnetic_overwrite_short">Into storyline</string>
+    <string name="magnetic_replace_gap">Replace with gap</string>
+    <string name="magnetic_replace_gap_short">To gap</string>
+    <string name="magnetic_disconnect">Disconnect</string>
+    <string name="magnetic_reconnect">Reconnect</string>
+    <string name="magnetic_connection_point">Connection point at the playhead</string>
+    <string name="magnetic_connection_point_short">Connect here</string>
+    <string name="magnetic_connect">Connect</string>
+    <string name="magnetic_gap">Gap clip</string>
+    <string name="magnetic_gap_selection">Gap clip · %1$.1f s</string>
+    <string name="magnetic_close_gap">Close gap</string>
+    <string name="magnetic_ripple_delete">Delete (the clips after it close up)</string>
+    <string name="magnetic_storyline_short">Storyline</string>
+</resources>

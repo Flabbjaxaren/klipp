@@ -172,6 +172,11 @@ interface EditBackend {
     fun moveGroup(moves: List<Triple<Clip, Float, Int>>, insert: Boolean, captions: List<Long>, dt: Float) { moveMany(moves, insert) }
     /** Delete captions (one undo step). */
     fun deleteCaptions(ids: List<Long>) {}
+    /**
+     * A magnetic edit (see Magnetic.kt) as one undo step: [plan] is made from the timeline as the engine has it and
+     * carried out with the engine's edits.
+     */
+    fun magnetic(label: String, plan: (MagTimeline) -> MPlan?) {}
 }
 
 /** Track states (as in other editing programs' track headers): lock, sync lock, visible (video) / mute and solo (audio). */
@@ -639,6 +644,17 @@ class EditorState(initial: List<Clip> = initialClips()) {
     val groupSelected: Boolean get() = multi.isNotEmpty() || multiCaptions.isNotEmpty()
     var markers by mutableStateOf(listOf(9f, 31f))
     var magnet by mutableStateOf(true)
+    /**
+     * The magnetic timeline (Settings → Timeline, off by default; see Magnetic.kt): V1 and its sound are the primary
+     * storyline that closes up and makes room, the other tracks hold connected clips that follow it.
+     */
+    var magnetic by mutableStateOf(false)
+    /** While a storyline clip is dragged or trimmed: its connected clips stay where they are (the pill over the timeline). */
+    var keepConnected by mutableStateOf(false)
+    /** What the magnetic timeline keeps with the project: disconnected clips and moved connection points. */
+    var magSide by mutableStateOf(MagSide())
+    /** The selected gap clip (magnetic timeline). */
+    var selectedGap by mutableStateOf<MGap?>(null)
     /** Playhead locked to the center; the timeline is dragged under it. */
     var centerPlayhead by mutableStateOf(false)
     /**
@@ -714,7 +730,7 @@ class EditorState(initial: List<Clip> = initialClips()) {
         if (next.isEmpty()) { multi = emptySet(); selected = null }
     }
 
-    fun clearSelection() { selected = null; multi = emptySet(); multiCaptions = emptySet(); selectedTransition = null; selectedCaption = null; selectedCut = null }
+    fun clearSelection() { selected = null; multi = emptySet(); multiCaptions = emptySet(); selectedTransition = null; selectedCaption = null; selectedCut = null; selectedGap = null }
 
     /**
      * The selection marquee: clips [clipIds] and captions [captionIds]. A lone caption (no clips) becomes a normal
@@ -1134,6 +1150,8 @@ class EditorState(initial: List<Clip> = initialClips()) {
                 removing.remove(id)
                 if (ids.any { it in removing }) return
                 batches.remove(b)
+                // magnetic: storyline clips close up (or become gap clips) and take their connected clips
+                if (magnetic) { magDelete(ids, ripple); return }
                 backend?.let { it.removeMany(ids.toList(), ripple); return }
                 // local: from the back so the ripple shifts don't affect each other
                 var next = clips
@@ -1149,6 +1167,7 @@ class EditorState(initial: List<Clip> = initialClips()) {
         removing.remove(id)
         val ripple = pendingRemove.remove(id) ?: false
         val c = clips.firstOrNull { it.id == id } ?: return
+        if (magnetic) { magDelete(withPartners(listOf(id)), ripple); return }
         backend?.let { it.remove(id, ripple); return }
         var stagger = 0
         val next = clips.filter { it.id != id }.map {
@@ -1257,7 +1276,7 @@ class TitleDraft {
 enum class EditView { TIMELINE, TRANSCRIPT }
 
 /** The rows of steps that can replace the dock's actions for a selection. */
-enum class DockRow { NONE, SPEED, FREEZE, VOLUME, LABEL, MORE }
+enum class DockRow { NONE, SPEED, FREEZE, VOLUME, LABEL, MORE, MAGNETIC }
 
 /** What the row for an empty selection adds. */
 enum class AddAction { MEDIA, SOUND, TITLE, CAPTIONS, VOICE }

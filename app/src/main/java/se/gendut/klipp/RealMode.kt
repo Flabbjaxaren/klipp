@@ -604,6 +604,8 @@ fun SourcePanel(
     setMarks: suspend (Double?, Double?) -> Unit,
     edit: (overwrite: Boolean, onDone: () -> Unit) -> Unit,
     onClose: () -> Unit,
+    /** The magnetic timeline: connect the marked part above the storyline at the playhead (null = no Connect button). */
+    connect: ((onDone: () -> Unit) -> Unit)? = null,
     /** Fill the given height (landscape column): the picture takes what the controls leave. */
     fill: Boolean = false,
     /** The clip's transcript: the Text view picks sentences as in/out (null = no text view). */
@@ -637,13 +639,15 @@ fun SourcePanel(
     }
     fun seek(t: Double) { pos = t.coerceIn(0.0, m.duration); source.seek(pos) }
     fun pushMarks() { scope.launch { setMarks(markIn, markOut) } }
-    fun doEdit(overwrite: Boolean) {
+    fun doEdit(overwrite: Boolean, connecting: Boolean = false) {
         playing = false
         haptics.confirm()
         scope.launch {
             setMarks(markIn, markOut)
             // picking by text: stay in the source for the next sentences (the timeline playhead moved past the new clip)
-            edit(overwrite) { if (textMode) sentencesMarked = null else onClose() }
+            val done = { if (textMode) sentencesMarked = null else onClose() }
+            val c = connect
+            if (connecting && c != null) c(done) else edit(overwrite, done)
         }
     }
 
@@ -707,14 +711,16 @@ fun SourcePanel(
             Text(formatTc(len.toFloat()).substring(3), color = K.OnSurfaceVar, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            EditButton(stringResource(R.string.realmode_insert), Ic.Split, K.SurfaceHighest, K.OnSurface, RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 6.dp, bottomEnd = 6.dp), Modifier.weight(1f)) { doEdit(false) }
-            EditButton(stringResource(R.string.realmode_overwrite), Ic.Edit, K.SurfaceHigh, K.OnSurface, RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 24.dp, bottomEnd = 24.dp), Modifier.weight(1f)) { doEdit(true) }
+            // the magnetic timeline: connect above the storyline first (as its edits go: connect, insert, overwrite)
+            if (connect != null) EditButton(stringResource(R.string.magnetic_connect), Ic.LiftUp, K.SurfaceHighest, K.OnSurface, RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp, topEnd = 6.dp, bottomEnd = 6.dp), Modifier.weight(1f).testTag("source:connect"), compact = true) { doEdit(false, connecting = true) }
+            EditButton(stringResource(R.string.realmode_insert), Ic.Split, K.SurfaceHighest, K.OnSurface, RoundedCornerShape(topStart = if (connect != null) 6.dp else 24.dp, bottomStart = if (connect != null) 6.dp else 24.dp, topEnd = 6.dp, bottomEnd = 6.dp), Modifier.weight(1f), compact = connect != null) { doEdit(false) }
+            EditButton(stringResource(R.string.realmode_overwrite), Ic.Edit, K.SurfaceHigh, K.OnSurface, RoundedCornerShape(topStart = 6.dp, bottomStart = 6.dp, topEnd = 24.dp, bottomEnd = 24.dp), Modifier.weight(1f), compact = connect != null) { doEdit(true) }
         }
     }
 }
 
 @Composable
-private fun EditButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, bg: Color, fg: Color, shape: RoundedCornerShape, modifier: Modifier, onClick: () -> Unit) {
+private fun EditButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, bg: Color, fg: Color, shape: RoundedCornerShape, modifier: Modifier, compact: Boolean = false, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     Row(
         modifier.pressPop(src, 0.92f)
@@ -725,9 +731,10 @@ private fun EditButton(label: String, icon: androidx.compose.ui.graphics.vector.
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, null, tint = fg, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(label, color = fg, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        // (three buttons share the row on the magnetic timeline: smaller)
+        Icon(icon, null, tint = fg, modifier = Modifier.size(if (compact) 18.dp else 22.dp))
+        Spacer(Modifier.width(if (compact) 5.dp else 8.dp))
+        Text(label, color = fg, fontSize = if (compact) 13.sp else 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
 

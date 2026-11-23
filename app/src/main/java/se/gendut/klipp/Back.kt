@@ -78,7 +78,7 @@ fun EditorState.backState(mediaOpen: Boolean, sourceOpen: Boolean, colorGrid: Bo
     editingCaption = editingCaption && selectedCaption != null, dockRow = dockRow != DockRow.NONE, colorGrid = colorGrid, page = page,
     transcript = editView == EditView.TRANSCRIPT,
     transition = selectedTransition != null, cut = selectedCut != null,
-    selection = selected != null || multi.isNotEmpty() || multiCaptions.isNotEmpty() || selectedCaption != null,
+    selection = selected != null || multi.isNotEmpty() || multiCaptions.isNotEmpty() || selectedCaption != null || selectedGap != null,
     exporting = exporting,
 )
 

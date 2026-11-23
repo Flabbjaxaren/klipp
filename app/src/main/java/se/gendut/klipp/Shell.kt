@@ -353,14 +353,18 @@ internal fun EditPage(
             horizontalArrangement = Arrangement.spacedBy(if (narrow && transcript != null) 2.dp else 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // the magnetic timeline's trims ripple anyway: its second tool is Position (overwrite, leave gap clips)
             val tools = listOf(
-                Tool.SELECT to (stringResource(R.string.app_tool_move) to Ic.Select), Tool.RIPPLE to (stringResource(R.string.app_tool_ripple) to Ic.Ripple),
+                Tool.SELECT to (stringResource(R.string.app_tool_move) to Ic.Select),
+                if (state.magnetic) Tool.POSITION to (stringResource(R.string.magnetic_tool_position) to Ic.Position)
+                else Tool.RIPPLE to (stringResource(R.string.app_tool_ripple) to Ic.Ripple),
                 Tool.TRIM to (stringResource(R.string.app_tool_trim) to Ic.Trim), Tool.RAZOR to (stringResource(R.string.app_tool_razor) to Ic.Razor),
             )
+            LaunchedEffect(state.magnetic, tool) { if (tools.none { it.first == tool }) setTool(Tool.SELECT) }
             // the tool: one chip with a menu
             var toolsOpen by remember { mutableStateOf(false) }
             Box {
-                val (label, icon) = tools.first { it.first == tool }.second
+                val (label, icon) = (tools.firstOrNull { it.first == tool } ?: tools.first()).second
                 Row(
                     Modifier.height(44.dp).clip(RoundedCornerShape(14.dp)).background(K.SurfaceHigh)
                         .clickable { haptics.press(); toolsOpen = true }.padding(start = 12.dp, end = 8.dp).testTag("tool:menu"),
@@ -428,6 +432,15 @@ internal fun EditPage(
                             modifier = Modifier.testTag(tag),
                         )
                     mode(Ic.Center, stringResource(R.string.app_locked_playhead), state.centerPlayhead, "mode:center") { state.centerPlayhead = !state.centerPlayhead }
+                    // the magnetic timeline (the same switch as in Settings → Timeline)
+                    val ctx = androidx.compose.ui.platform.LocalContext.current
+                    mode(Ic.Storyline, stringResource(R.string.magnetic_setting), state.magnetic, "mode:magnetic") {
+                        val on = !state.magnetic
+                        state.magnetic = on
+                        AppPrefs.setMagneticTimeline(ctx, on)
+                        state.selectedGap = null
+                        toaster.show(Str.t(if (on) R.string.magnetic_on else R.string.magnetic_off))
+                    }
                     mode(Ic.VolLine, stringResource(R.string.app_volume_lines), state.volLines, "mode:vol") { state.volLines = !state.volLines }
                     state.onAddAction?.let { add ->
                         DropdownMenuItem(
@@ -630,7 +643,7 @@ private fun DockStep(label: String, on: Boolean, tag: String? = null, modifier: 
     ) { Text(label, color = if (on) K.PrimarySoft else K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false) }
 }
 
-private enum class DockKind { NONE, ADD, CLIP, MULTI, CAPTION, TRANSITION, AUDIO }
+private enum class DockKind { NONE, ADD, CLIP, MULTI, CAPTION, TRANSITION, AUDIO, GAP }
 
 /**
  * The dock: on the edit page the actions for what is selected (a clip, several, a caption, a transition) or, with
@@ -650,6 +663,7 @@ internal fun Dock(state: EditorState, pageOf: () -> Float, audioTabs: List<ToolT
         state.groupSelected -> DockKind.MULTI
         state.selectedCaption != null && state.props != null && state.captions.any { it.id == state.selectedCaption } -> DockKind.CAPTION
         state.selectedTransition != null && state.props != null && state.transitions.any { it.id == state.selectedTransition } -> DockKind.TRANSITION
+        state.selectedGap != null && state.magnetic -> DockKind.GAP
         state.onAddAction != null -> DockKind.ADD
         else -> DockKind.NONE
     }
@@ -671,6 +685,7 @@ internal fun Dock(state: EditorState, pageOf: () -> Float, audioTabs: List<ToolT
                 DockKind.MULTI -> MultiDock(state)
                 DockKind.CAPTION -> CaptionDock(state)
                 DockKind.TRANSITION -> TransitionDock(state)
+                DockKind.GAP -> GapDock(state)
                 DockKind.AUDIO -> DockItems(audioTabs.mapIndexed { i, t ->
                     DockItem(t.icon, t.label, t.tag, primary = i == state.audioTab.coerceIn(0, audioTabs.lastIndex), marked = t.marked) { state.audioTab = i }
                 })
@@ -771,6 +786,8 @@ private fun ClipDock(state: EditorState) {
                     state.selected?.let { state.freezeFrame(it, state.playhead, sec); row(DockRow.NONE) }
                 }
             }
+        } else if (r == DockRow.MAGNETIC && sel != null) {
+            DockItems(listOf(DockItem(Ic.Back, back) { row(DockRow.NONE) }) + magneticItems(state, sel))
         } else if (r == DockRow.MORE) {
             // the rest of the clip's actions, behind More
             val items = buildList {
@@ -785,6 +802,8 @@ private fun ClipDock(state: EditorState) {
                 }
                 if (!isTitle) state.onBeatMarkers?.let { beats -> add(DockItem(Ic.Bolt, stringResource(R.string.beats_btn), "ctx:beats") { state.selected?.let { beats(it) } }) }
                 if (sel?.kind == ClipKind.VIDEO) state.onReframe?.let { rf -> add(DockItem(Ic.Face, stringResource(R.string.reframe_short), "ctx:reframe") { state.selected?.let { rf(it) } }) }
+                // the magnetic timeline's storyline commands: a row of their own
+                if (sel != null && state.magnetic) add(DockItem(Ic.Storyline, stringResource(R.string.magnetic_storyline_short), "ctx:magnetic") { row(DockRow.MAGNETIC) })
                 add(labelItem)
                 add(powerItem)
             }
@@ -801,13 +820,16 @@ private fun ClipDock(state: EditorState) {
                 state.inspectGroup = group; state.inspecting = true
             }
             val items = buildList {
-                add(DockItem(Ic.Delete, stringResource(R.string.app_delete), "ctx:delete", tint = K.Error, strong = true, desc = stringResource(R.string.app_delete_leave_gap)) { state.selected?.let { state.requestRemove(it, false) } })
+                // (the magnetic timeline closes up – Replace with gap is behind More)
+                add(DockItem(Ic.Delete, stringResource(R.string.app_delete), "ctx:delete", tint = K.Error, strong = true,
+                    desc = stringResource(if (state.magnetic) R.string.magnetic_ripple_delete else R.string.app_delete_leave_gap)) { state.selected?.let { state.requestRemove(it, state.magnetic) } })
                 val split = DockItem(Ic.Split, stringResource(R.string.app_split), "ctx:split") { state.selected?.let { state.split(it, state.playhead) } }
                 when {
                     isTitle -> {
                         // a title has few actions: they are all in its row, nothing behind More
                         if (state.props != null) add(DockItem(Ic.Text, stringResource(R.string.design_edit_short), "ctx:editText", desc = stringResource(R.string.app_edit_text)) { open(0) })
                         add(split)
+                        if (sel != null && state.magnetic) add(DockItem(Ic.Storyline, stringResource(R.string.magnetic_storyline_short), "ctx:magnetic") { row(DockRow.MAGNETIC) })
                         add(labelItem)
                         add(powerItem)
                     }
@@ -832,6 +854,35 @@ private fun ClipDock(state: EditorState) {
             DockItems(items)
         }
     }
+}
+
+/**
+ * The magnetic timeline's commands for clip [c]: a storyline clip can be lifted out (a connected clip, a gap clip left)
+ * or replaced with a gap clip; a connected clip can go down into the storyline (video), be disconnected or reconnected,
+ * and have its connection point at the playhead.
+ */
+@Composable
+private fun magneticItems(state: EditorState, c: Clip): List<DockItem> {
+    val haptics = rememberHaptics()
+    val m = state.mag()
+    val out = ArrayList<DockItem>()
+    if (m.isPrimary(c.id)) {
+        val lead = m.leadOf(c.id) ?: c.id
+        out += DockItem(Ic.LiftUp, stringResource(R.string.magnetic_lift_short), "mag:lift", desc = stringResource(R.string.magnetic_lift)) { haptics.confirm(); state.liftFromStoryline(lead) }
+        out += DockItem(Ic.Ripple, stringResource(R.string.magnetic_replace_gap_short), "mag:gap", desc = stringResource(R.string.magnetic_replace_gap)) { haptics.confirm(); state.requestRemove(c.id, false) }
+    } else {
+        if (c.kind != ClipKind.AUDIO && c.kind != ClipKind.MUSIC) out += DockItem(Ic.DropDown, stringResource(R.string.magnetic_overwrite_short), "mag:primary", desc = stringResource(R.string.magnetic_overwrite_primary)) {
+            haptics.confirm(); state.overwriteToPrimary(c.id)
+        }
+        val off = c.id in state.magSide.disconnected
+        out += DockItem(if (off) Ic.Link else Ic.Unlink, stringResource(if (off) R.string.magnetic_reconnect else R.string.magnetic_disconnect), "mag:disconnect", primary = off) {
+            haptics.tick(); state.setDisconnected(listOf(c.id), !off)
+        }
+        if (!off) out += DockItem(Ic.Target, stringResource(R.string.magnetic_connection_point_short), "mag:point", desc = stringResource(R.string.magnetic_connection_point)) {
+            haptics.tick(); state.setConnectionPoint(c.id, state.playhead)
+        }
+    }
+    return out
 }
 
 /**
@@ -866,6 +917,23 @@ private fun MultiDock(state: EditorState) {
         if (state.props != null && nClips > 1) add(DockItem(Ic.SyncAudio, stringResource(R.string.design_sync_short), "syncAudio", desc = stringResource(R.string.app_sync_audio)) { state.syncByAudio(state.multi) })
     }
     DockItems(items, Modifier.testTag("multiBar"))
+}
+
+/**
+ * A selected gap clip (magnetic timeline): close it (what follows moves back, its connected clips go with it) or let go.
+ * Its length is dragged at its edges.
+ */
+@Composable
+private fun GapDock(state: EditorState) {
+    val haptics = rememberHaptics()
+    DockItems(listOf(
+        DockItem(Ic.Delete, stringResource(R.string.magnetic_close_gap), "gap:delete", tint = K.Error, strong = true) {
+            val g = state.selectedGap ?: return@DockItem
+            haptics.confirm()
+            state.magDeleteGap(g.start)
+        },
+        DockItem(Ic.Check, stringResource(R.string.properties_done), "gap:done") { state.selectedGap = null },
+    ), Modifier.testTag("gapBar"))
 }
 
 /** A selected transition: remove it, pre-render it (the picture's), or done. Its type, length and blur are in the card above. */
@@ -903,6 +971,7 @@ internal fun SelectionChip(state: EditorState, pageOf: () -> Float, modifier: Mo
             ).joinToString(" · ")
         }
         cap != null && state.props != null -> cap.text.replace('\n', ' ')
+        state.selectedGap != null && state.magnetic -> stringResource(R.string.magnetic_gap_selection, state.selectedGap!!.len)
         else -> null
     }
     // (the last text stays while the chip fades out)
