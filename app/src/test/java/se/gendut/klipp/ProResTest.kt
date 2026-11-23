@@ -215,50 +215,52 @@ class ProResTest {
 
     private fun mono(i: Int, codec: String = "pcm_s24be", rate: Int = 48000) = AudioTrack(i, codec, 1, rate, true)
 
-    @Test fun twoMonoTracksBecomeLeftAndRight() {
-        val p = ProResPlan.audioPlan(listOf(mono(1), mono(2))) as AudioPlan.Mix
-        assertEquals(listOf(1, 2), p.streams)
-        assertEquals(2, p.outChannels)
-        assertEquals(listOf(1f, 0f, 0f, 1f), p.matrix.toList())
-        assertEquals(48000, p.rate)
-    }
+    private fun slot(first: Int, count: Int) = ProResPlan.Slot(first, count)
 
-    @Test fun fourMonoTracksAreEachCenteredAtEqualPower() {
-        val p = ProResPlan.audioPlan(listOf(mono(1), mono(2), mono(3), mono(4))) as AudioPlan.Mix
+    @Test fun fourMonoTracksBecomeOneFourChannelTrackInOrder() {
+        // the S5II: four mono 24-bit tracks (FFmpeg streams 1–4 after the picture)
+        val p = ProResPlan.audioPlan(listOf(mono(1), mono(2), mono(3), mono(4))) as AudioPlan.Keep
         assertEquals(listOf(1, 2, 3, 4), p.streams)
-        assertEquals(2, p.outChannels)
-        for (o in 0..1) for (c in 0..3) assertEquals(0.5f, p.gain(o, c), 1e-6f)
+        assertEquals(4, p.channels)
+        assertEquals(48000, p.rate)
+        // identity: nothing mixed, nothing louder
+        for (o in 0..3) for (c in 0..3) assertEquals(if (o == c) 1f else 0f, p.matrix[o * 4 + c], 0f)
+        // the engine's stream k is channel k
+        assertEquals(listOf(slot(0, 1), slot(1, 1), slot(2, 1), slot(3, 1)), p.slots)
     }
 
-    @Test fun oneStereoTrackStaysStereoAndOneMonoStaysMono() {
-        val st = ProResPlan.audioPlan(listOf(AudioTrack(1, "pcm_s16le", 2, 48000, true))) as AudioPlan.Mix
-        assertEquals(listOf(1f, 0f, 0f, 1f), st.matrix.toList())
-        val m = ProResPlan.audioPlan(listOf(mono(1))) as AudioPlan.Mix
-        assertEquals(1, m.outChannels)
+    @Test fun twoMonoTracksAndAStereoTrackKeepEveryChannel() {
+        val two = ProResPlan.audioPlan(listOf(mono(1), mono(2))) as AudioPlan.Keep
+        assertEquals(2, two.channels)
+        assertEquals(listOf(slot(0, 1), slot(1, 1)), two.slots)
+        val st = ProResPlan.audioPlan(listOf(AudioTrack(1, "pcm_s16le", 2, 48000, true), mono(2))) as AudioPlan.Keep
+        assertEquals(3, st.channels)
+        assertEquals(listOf(slot(0, 2), slot(2, 1)), st.slots)
+        val m = ProResPlan.audioPlan(listOf(mono(1))) as AudioPlan.Keep
+        assertEquals(1, m.channels)
         assertEquals(listOf(1f), m.matrix.toList())
     }
 
-    @Test fun aStereoTrackKeepsItsSidesBesideCenteredMonoTracks() {
-        val p = ProResPlan.audioPlan(listOf(AudioTrack(1, "pcm_s24le", 2, 48000, true), mono(2))) as AudioPlan.Mix
-        val g = (1 / Math.sqrt(2.0)).toFloat()
-        // columns: stereo L, stereo R, mono
-        assertEquals(listOf(g, 0f, g, 0f, g, g), p.matrix.toList())
-    }
-
-    @Test fun onlyPcmAtTheFirstRateIsMixedAndAacIsCopiedWhenThereIsNoPcm() {
-        val p = ProResPlan.audioPlan(listOf(mono(1), mono(2, rate = 44100), AudioTrack(3, "aac", 2, 48000, false), mono(4))) as AudioPlan.Mix
+    @Test fun onlyPcmAtTheFirstRateIsKeptAndAacIsCopiedWhenThereIsNoPcm() {
+        val p = ProResPlan.audioPlan(listOf(mono(1), mono(2, rate = 44100), AudioTrack(3, "aac", 2, 48000, false), mono(4))) as AudioPlan.Keep
         assertEquals(listOf(1, 4), p.streams)
-        assertEquals(AudioPlan.Copy(5), ProResPlan.audioPlan(listOf(AudioTrack(5, "aac", 2, 48000, false))))
+        // the streams not kept have no slot (their clips play nothing rather than another stream)
+        assertEquals(listOf(slot(0, 1), null, null, slot(1, 1)), p.slots)
+        assertEquals(AudioPlan.Copy(5, listOf(slot(0, 2))), ProResPlan.audioPlan(listOf(AudioTrack(5, "aac", 2, 48000, false))))
         assertEquals(AudioPlan.None, ProResPlan.audioPlan(listOf(AudioTrack(5, "opus", 2, 48000, false))))
         assertEquals(AudioPlan.None, ProResPlan.audioPlan(emptyList()))
         // a PCM decoder this build lacks counts as none
         assertEquals(AudioPlan.None, ProResPlan.audioPlan(listOf(AudioTrack(1, "pcm_s64le", 1, 48000, false))))
     }
 
-    @Test fun atMostSixteenTracksAreMixed() {
-        val p = ProResPlan.audioPlan((1..20).map { mono(it) }) as AudioPlan.Mix
+    @Test fun atMostSixteenTracksAndSixtyFourChannelsAreKept() {
+        val p = ProResPlan.audioPlan((1..20).map { mono(it) }) as AudioPlan.Keep
         assertEquals(16, p.streams.size)
-        assertEquals(0.25f, p.gain(0, 0), 1e-6f)
+        assertEquals(null, p.slots[16])
+        val wide = ProResPlan.audioPlan((1..5).map { AudioTrack(it, "pcm_s24le", 16, 48000, true) }) as AudioPlan.Keep
+        assertEquals(64, wide.channels)
+        assertEquals(slot(48, 16), wide.slots[3])
+        assertEquals(null, wide.slots[4])
     }
 
     // ------------------------------------------------------------------ cache and swapping

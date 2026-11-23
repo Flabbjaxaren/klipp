@@ -79,4 +79,13 @@ echo "== 8. ProRes 422 in an MP4 container (.mp4), one mono track"
 $FF -f lavfi -i "$(pic 1920x1080 25)" -f lavfi -i "$(tone 440)" -map 0 -map 1 -c:v prores_ks -profile:v 2 -pix_fmt yuv422p10le \
   -c:a pcm_s16le -ac 1 -f mov "$OUT/p422_1080p25_in_mp4.mp4"
 
+echo "== 9. an intermediate as the phone writes it (four microphone tracks → one four-channel PCM track), for the"
+echo "      unit test that Media3 reads it (AudioChannelsTest, KLIPP_PRORES_MEDIA) – needs tools/ffmpeg/build.sh --host"
+if [ -x "$HERE/build/bench" ]; then
+  $FF -i "$OUT/p422_dci4k25_4mono_vlog.mov" -an -vf scale=640:-2 -c:v libx265 -preset ultrafast \
+    -x265-params aud=1:bframes=0:log-level=error -f hevc "$OUT/.standin.hevc"
+  "$HERE/build/bench" "$OUT/p422_dci4k25_4mono_vlog.mov" --mux "$OUT/inter_4ch_check.mov" "$OUT/.standin.hevc" > /dev/null 2>&1
+  rm -f "$OUT/.standin.hevc"
+fi
+
 ls -l "$OUT"

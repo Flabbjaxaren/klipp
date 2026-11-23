@@ -27,8 +27,8 @@ import java.util.concurrent.Executors
  * ProRes import. No phone has a ProRes decoder (seen: OnePlus 12 and vivo X300 Ultra have APV only), so a ProRes file
  * is converted once, in the background, into an intermediate the phone decodes in hardware: FFmpeg's ProRes decoder
  * (libklipp_prores.so, tools/ffmpeg) → the phone's HEVC encoder, Main10 at the source's size and frame rate, ~0.87 bits
- * per pixel ([ProResPlan.bitrate]) → a MOV with the camera's audio tracks mixed into one 16-bit PCM track
- * ([ProResPlan.audioPlan]; Media3 plays only one audio track).
+ * per pixel ([ProResPlan.bitrate]) → a MOV with the camera's audio tracks side by side in one 16-bit PCM track
+ * ([ProResPlan.audioPlan]; Media3 plays only one audio track – each clip picks its stream's channels, AudioChannels).
  *
  * The original stays the project's file (saved, relinked, shown by name); everything that decodes – playback, preview,
  * proxies, scrubbing, export – reads the intermediate instead ([playable], via ProjectController.uriOf). Until the
@@ -37,8 +37,11 @@ import java.util.concurrent.Executors
  * projects, and are deleted when no project uses their source any more ([sweep]).
  */
 object ProRes {
-    /** Bumped when intermediates come out differently: the old ones are then made anew. */
-    const val VERSION = 1
+    /**
+     * Bumped when intermediates come out differently: the old ones are then made anew. 2: every audio channel kept side
+     * by side (1 mixed them to stereo – every clip of the file played all of them).
+     */
+    const val VERSION = 2
 
     /** A source's state for the media panel. */
     sealed interface Status {
@@ -61,7 +64,7 @@ object ProRes {
     @Volatile var onChange: (() -> Unit)? = null
 
     /** A finished intermediate. */
-    class Entry(val file: File, val key: String, val note: String)
+    class Entry(val file: File, val key: String, val note: String, val audio: List<ProResPlan.Slot?> = emptyList())
 
     private val ready = ConcurrentHashMap<String, Entry>()
     /** Probed sources: address → ProRes (true) or not. */
@@ -96,7 +99,7 @@ object ProRes {
                 val e = items.getJSONObject(k)
                 val f = File(dir(c), e.getString("f"))
                 if (f.isFile && f.length() > 0) {
-                    ready[k] = Entry(f, e.optString("key"), e.optString("note"))
+                    ready[k] = Entry(f, e.optString("key"), e.optString("note"), slotsOf(e.optJSONArray("audio")))
                     known[k] = true
                 }
             }
@@ -108,7 +111,7 @@ object ProRes {
     private fun save(c: Context) = synchronized(ready) {
         runCatching {
             val items = JSONObject()
-            ready.forEach { (k, e) -> items.put(k, JSONObject().put("f", e.file.name).put("key", e.key).put("note", e.note)) }
+            ready.forEach { (k, e) -> items.put(k, JSONObject().put("f", e.file.name).put("key", e.key).put("note", e.note).put("audio", slotsJson(e.audio))) }
             val tmp = File(dir(c), "index.json.tmp")
             tmp.writeText(JSONObject().put("version", VERSION).put("items", items).toString())
             tmp.renameTo(index(c))
@@ -126,6 +129,21 @@ object ProRes {
         ready[k]?.let { return Uri.fromFile(it.file) }
         return if (known[k] == true) null else uri
     }
+
+    /**
+     * Where each audio stream of the source is in an intermediate's audio track ([file]: the intermediate, as
+     * [playable] gives it); null = [file] is no intermediate.
+     */
+    fun audioSlots(file: Uri): List<ProResPlan.Slot?>? {
+        if (file.scheme != "file") return null
+        val path = file.path ?: return null
+        return ready.values.firstOrNull { it.file.path == path }?.audio
+    }
+
+    private fun slotsJson(l: List<ProResPlan.Slot?>) = org.json.JSONArray().apply { for (x in l) put(if (x == null) JSONObject.NULL else org.json.JSONArray().put(x.first).put(x.count)) }
+
+    private fun slotsOf(a: org.json.JSONArray?): List<ProResPlan.Slot?> =
+        if (a == null) emptyList() else (0 until a.length()).map { i -> a.optJSONArray(i)?.let { ProResPlan.Slot(it.optInt(0), it.optInt(1)) } }
 
     /** Is [uri] a ProRes source (null = not probed yet)? */
     fun isProRes(uri: Uri): Boolean? = known[uri.toString()]
@@ -272,9 +290,9 @@ object ProRes {
         se.gendut.klipp.CrashReport.note("prores: converting ${uri.lastPathSegment}")
         val t0 = android.os.SystemClock.elapsedRealtime()
         try {
-            val note = Transcode(c, uri, tmp, { p -> main.post { if (progress.containsKey(k)) progress[k] = p } }, { k in cancelled }).run()
+            val (note, slots) = Transcode(c, uri, tmp, { p -> main.post { if (progress.containsKey(k)) progress[k] = p } }, { k in cancelled }).run()
             if (!tmp.renameTo(out)) error("the intermediate file couldn't be saved")
-            ready[k] = Entry(out, key, note)
+            ready[k] = Entry(out, key, note, slots)
             save(c)
             CameraLog.alias(uri, Uri.fromFile(out))
             MediaProbe.probe(c, Uri.fromFile(out))
@@ -336,7 +354,7 @@ object ProRes {
 
     /** One conversion: FFmpeg decodes, the encoder encodes, FFmpeg muxes. Returns a note for the trace (encoder, size). */
     private class Transcode(val c: Context, val uri: Uri, val out: File, val onProgress: (Int) -> Unit, val cancelled: () -> Boolean) {
-        fun run(): String {
+        fun run(): Pair<String, List<ProResPlan.Slot?>> {
             ProResNative.loadError?.let { throw IllegalStateException(Str.t(R.string.prores_no_decoder), it) }
             val pfd = c.contentResolver.openFileDescriptor(uri, "r") ?: error("the file can't be opened")
             var h = 0L
@@ -392,17 +410,17 @@ object ProRes {
                 val outW = p.size.width
                 val outH = p.size.height
                 when (plan) {
-                    is ProResPlan.AudioPlan.Mix -> ProResNative.prepare(h, out.absolutePath, Runtime.getRuntime().availableProcessors(), plan.streams.toIntArray(), plan.matrix, plan.outChannels, -1)
+                    is ProResPlan.AudioPlan.Keep -> ProResNative.prepare(h, out.absolutePath, Runtime.getRuntime().availableProcessors(), plan.streams.toIntArray(), plan.matrix, plan.channels, -1)
                     is ProResPlan.AudioPlan.Copy -> ProResNative.prepare(h, out.absolutePath, Runtime.getRuntime().availableProcessors(), null, null, 0, plan.stream)
                     ProResPlan.AudioPlan.None -> ProResNative.prepare(h, out.absolutePath, Runtime.getRuntime().availableProcessors(), null, null, 0, -1)
                 }
                 val note = "${p.name} ${outW}x$outH ${if (p.tenBit) "10" else "8"}-bit" + (if (p.size.scaledFrom(w, ht)) " scaled from ${w}x$ht" else "") +
-                    " audio " + when (plan) { is ProResPlan.AudioPlan.Mix -> "${plan.streams.size} tracks → ${plan.outChannels} ch"; is ProResPlan.AudioPlan.Copy -> "copied"; else -> "none" }
+                    " audio " + when (plan) { is ProResPlan.AudioPlan.Keep -> "${plan.streams.size} tracks → ${plan.channels} ch"; is ProResPlan.AudioPlan.Copy -> "copied"; else -> "none" }
                 se.gendut.klipp.CrashReport.note("prores: $note, ${ProResPlan.bitrate(outW, outH, fps, p.maxBitrate) / 1_000_000} Mbit/s")
                 enc.start()
                 encode(enc, h, outW, outH, if (p.tenBit) 10 else 8, colors, dur)
                 ProResNative.finish(h)
-                return note
+                return note to plan.slots
             } finally {
                 boost.close()
                 codec?.let { runCatching { it.stop() }; runCatching { it.release() } }
@@ -495,9 +513,9 @@ object ProRes {
         }
     }
 
-    internal fun putForTest(uri: Uri, file: File?, isProRes: Boolean = true) {
+    internal fun putForTest(uri: Uri, file: File?, isProRes: Boolean = true, audio: List<ProResPlan.Slot?> = emptyList()) {
         known[uri.toString()] = isProRes
-        if (file != null) ready[uri.toString()] = Entry(file, "test", "")
+        if (file != null) ready[uri.toString()] = Entry(file, "test", "", audio)
     }
 
     internal fun clearForTest() { ready.clear(); known.clear(); progress.clear(); failures.clear() }
