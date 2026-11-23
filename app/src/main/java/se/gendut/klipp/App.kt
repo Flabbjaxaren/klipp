@@ -706,6 +706,13 @@ private fun KlippAppContent(
             // (the engine can reuse an id after an undo: a new clip is not disconnected because an old one was)
             val s = state.magSide
             if (ids.any { it in s.disconnected || it in s.points }) state.magSide = MagSide(s.disconnected - ids.toSet(), s.points - ids.toSet())
+            // music and sound added in simple mode stay where they are put in the film, not on the clip under them
+            // (part of the add – no step of its own; see SimpleStripModel.pinInTime)
+            if (state.simple) controller.snapshot.sequence?.let { q ->
+                val videoLinks = q.video.flatMap { it.clips }.mapNotNull { it.link }.toSet()
+                val free = q.audio.flatMap { it.clips }.filter { it.id in added && (it.link == null || it.link !in videoLinks) }.map { it.id }
+                if (free.isNotEmpty()) state.magSide = state.magSide.copy(disconnected = state.magSide.disconnected + free)
+            }
         }
         controller.onExtraRestore = { o ->
             gs.load(o.optJSONObject("grades"))
