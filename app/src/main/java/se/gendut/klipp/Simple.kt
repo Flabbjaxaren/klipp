@@ -145,7 +145,8 @@ object SimpleGrade {
      */
     fun carry(from: ClipGrade, to: ClipGrade): ClipGrade {
         val a = adjustNode(from) ?: return to
-        val lk = lookNode(from)
+        // (the look in the adjust node itself – also one that holds OpenDRT, as a raw clip's developed node does)
+        val lk = lookNode(from) ?: a
         val adjusted = adjust(to) { it.copy(gain = it.gain.copy(master = a.gain.master), contrast = a.contrast, temp = a.temp, sat = a.sat) }
         return withLook(adjusted, lk?.lut, lk?.lutMix)
     }

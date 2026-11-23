@@ -430,6 +430,10 @@ class SimpleModeTest {
         assertEquals(LutStore.TEAL_ORANGE, carried.nodes[0].lut)
         assertEquals(0.7f, carried.nodes[0].lutMix, 0f)
         assertEquals(1f, carried.nodes[0].temp, 0f)
+        // a clip whose one node holds OpenDRT (a developed raw clip): its look goes over too
+        val raw = ClipGrade(listOf(GradeNode(1, "", drt = Drt())))
+        val rawLook = SimpleGrade.withLook(raw, LutStore.TEAL_ORANGE)
+        assertEquals(LutStore.TEAL_ORANGE, SimpleGrade.carry(rawLook, raw).nodes.firstNotNullOfOrNull { it.lut })
         // this clip only again: the next change is this clip's alone
         rule.onNodeWithTag("simpleColor:this").performClick()
         rule.waitForIdle()
