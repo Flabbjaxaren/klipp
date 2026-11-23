@@ -45,7 +45,7 @@ android {
         applicationId = "se.gendut.klipp"
         minSdk = 29
         targetSdk = 36
-        versionCode = 102
+        versionCode = 104
         versionName = "0.22.0-alpha.1"
         ndk { abiFilters += "arm64-v8a" }
         // speech recognition is always built optimized (the debug build's -O0 would be tens of times slower)
@@ -103,7 +103,7 @@ android {
         create("designTest") {
             initWith(getByName("release"))
             applicationIdSuffix = ".designtest"
-            versionNameSuffix = "-designtest.251"
+            versionNameSuffix = "-designtest.253"
             // the export's test points (the copy's latch, a refused foreground start, the time limit): this build only
             buildConfigField("boolean", "TEST_HOOKS", "true")
             manifestPlaceholders["appLabel"] = "Klipp test"
