@@ -721,6 +721,30 @@ class ProjectController(
     /** Nearest whole frame to [sec], in ticks. */
     private fun frameTicks(sec: Double): Long = FrameTime.ticks(sec, snapshot.fps)
 
+    /** The edges of every clip but [id] (s, as the engine reported them). */
+    private fun edgesBut(all: List<ClipSnap>, id: Long): List<Double> = all.filter { it.id != id }.flatMap { listOf(it.start, it.start + it.duration) }
+
+    /**
+     * The tick for an edited edge at [sec]: exactly on another clip's edge when it lies within a millisecond of one
+     * (the edge it was snapped to), else on the nearest frame. A clip from a phone often ends between two of the
+     * project's frames: a title snapped to its end ended at the next frame, over the first frame of the next clip.
+     */
+    private fun editTicks(sec: Double, edges: List<Double>): Long {
+        val e = edges.minByOrNull { abs(it - sec) }
+        return if (e != null && abs(e - sec) < 1e-3) exactTicks(e) else frameTicks(sec)
+    }
+
+    /** Where a moved clip of [duration] s starts: its start or its end exactly on another clip's edge when snapped to one. */
+    private fun moveTicks(start: Double, duration: Double?, edges: List<Double>): Long {
+        val s = edges.minByOrNull { abs(it - start) }
+        if (s != null && abs(s - start) < 1e-3) return exactTicks(s)
+        if (duration != null) {
+            val e = edges.minByOrNull { abs(it - (start + duration)) }
+            if (e != null && abs(e - (start + duration)) < 1e-3) return exactTicks(e) - Math.round(duration * TICKS_PER_SECOND)
+        }
+        return frameTicks(start)
+    }
+
     /** The engine's exact tick for a time it reported itself (seconds as f64 – round-trips exactly). */
     private fun exactTicks(sec: Double): Long = Math.round(sec * TICKS_PER_SECOND)
 
@@ -1169,7 +1193,12 @@ class ProjectController(
         for (t in steps.shrink) trimEdge(t)?.let { return it }
         if (steps.moves.isNotEmpty()) {
             val arr = JSONArray()
-            for (m in steps.moves) arr.put(JSONObject().put("clip", m.id).put("track", laneName(m.video, m.level)).put("time", frameTicks(m.start.toDouble())))
+            val all = snap.sequence?.let { q -> (q.video + q.audio).flatMap { it.clips } }.orEmpty()
+            for (m in steps.moves) {
+                val c = all.firstOrNull { it.id == m.id }
+                val at = moveTicks(m.start.toDouble(), c?.duration, edgesBut(all, m.id))
+                arr.put(JSONObject().put("clip", m.id).put("track", laneName(m.video, m.level)).put("time", at))
+            }
             engine.tryExec("timeline.move", JSONObject().put("moves", arr).put("insert", false).put("linked", false)).complaint()?.let { return it }
         }
         for (t in steps.extend) trimEdge(t)?.let { return it }
@@ -1179,9 +1208,10 @@ class ProjectController(
 
     /** One edge of one clip (not its linked partners), to whole frames from the engine's exact edge. */
     private suspend fun trimEdge(t: se.gendut.klipp.MagTrim): String? {
-        val c = engine.snapshot().sequence?.let { q -> (q.video + q.audio).flatMap { it.clips } }?.firstOrNull { it.id == t.id } ?: return null
+        val all = engine.snapshot().sequence?.let { q -> (q.video + q.audio).flatMap { it.clips } }.orEmpty()
+        val c = all.firstOrNull { it.id == t.id } ?: return null
         val edge = if (t.inEdge) c.start else c.start + c.duration
-        val delta = frameTicks(edge + t.delta) - exactTicks(edge)
+        val delta = editTicks(edge + t.delta, edgesBut(all, t.id)) - exactTicks(edge)
         if (delta == 0L) return null
         return engine.tryExec("timeline.trim", JSONObject().put("clip", t.id).put("edge", if (t.inEdge) "in" else "out").put("mode", "regular").put("delta", delta).put("linked", false))
             .complaint()
