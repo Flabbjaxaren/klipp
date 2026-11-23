@@ -15,6 +15,23 @@ undo history.
 The mode is `EditorState.simple`. It is switched with `EditorState.switchMode()` and stored in
 `AppPrefs.simpleMode`.
 
+## The layout (from the mockups)
+
+Every control is an advanced-mode function, reached in fewer steps:
+
+| Where | Control | The function it uses |
+|---|---|---|
+| Top | The project's name, length and number of clips; **Save video** | The export dialog (its simple form: preset and size) |
+| Bottom, nothing selected | **Add** | The media import |
+| | **Music** | The sound library (packs, text to speech, files from the phone) |
+| | **Text** | The title sheet, with *Captions from what is said* (the captions sheet) at the top |
+| | **Filter** | The simple colour page (look, exposure, contrast, warmth, saturation – the same nodes as advanced colour), in a sheet |
+| | **Format** | The project's settings (format and size) |
+| Bottom, a clip selected | **Split here, Speed, Sound, Filter, Zoom, Delete** | Razor at the playhead, the speed steps, the clip's volume, the filter sheet, the picture's crop and position, ripple delete; *Advanced* when the clip holds advanced work |
+| The strip | Music and text bands, the **+** tile, a first-time tip | The music and titles on other tracks (a tap selects them), the media import |
+
+The pages (Edit, Colour, Audio) are reached through these buttons instead of the workspace pills.
+
 ## The clip strip (first stage)
 
 In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of the track timeline:
@@ -29,8 +46,9 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
   ruler above the clips to move it through the film.
 - **Centred playhead** (⋯ menu, as in advanced mode). The line stays in the middle and the strip moves under it, so
   scrolling the strip moves through the film.
-- **Zoom.** Pinch with two fingers. Zoom 1 shows the whole film; the time under the fingers stays put, or the
-  playhead does when it is centred.
+- **Zoom.** Pinch with two fingers, down to the whole film in view however long it is (the overview) and up to
+  400 dp a second. The strip starts at a size where clips can be taken hold of; *Show the whole film* returns to
+  the overview in one tap. The time under the fingers stays put, or the playhead does when it is centred.
 - **Moving a clip.** Hold a clip and drag it. A lime line shows where it will go in, and it is dropped at the
   storyline's edit point nearest to where its start is. This is the magnetic timeline's own reorder
   (`MagTimeline.move`): the gap it leaves closes, nothing is overwritten, its linked sound and connected clips go
