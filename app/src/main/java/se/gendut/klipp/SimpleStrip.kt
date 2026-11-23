@@ -876,6 +876,8 @@ private fun TrimHandle(
     val haptics = rememberHaptics()
     val block = SimpleStripModel.block(state, c, startEdge)
     val snapNow by rememberUpdatedState(snap)
+    val clipNow by rememberUpdatedState(c)
+    val ppsNow by rememberUpdatedState(pps)
     val touch = 48.dp
     val edgeX = with(density) { side.toPx() } + (if (startEdge) c.start else c.end) * pps
     val label = stringResource(if (startEdge) R.string.simple_handle_start else R.string.simple_handle_end, c.name)
@@ -893,52 +895,67 @@ private fun TrimHandle(
                     CustomAccessibilityAction(lengthen) { SimpleStripModel.trim(state, c, startEdge, if (startEdge) -step else step) },
                 )
             }
-            .pointerInput(c, startEdge, pps, block) {
+            // (keyed by the clip's id, not the clip: the clip is read anew while the app updates it – a new file
+            // length, a proxy made – and a gesture keyed by the clip itself was cut off mid-drag; the rest of the drag
+            // then scrolled the strip, which moved the centred playhead)
+            .pointerInput(c.id, startEdge, block) {
                 if (block != null) {
                     detectTapGestures { onBlocked(block) }
                     return@pointerInput
                 }
                 var raw = 0f
                 var playheadBefore = 0f
+                var dragging = false
+                // the clip as it was when the drag began: the trim is measured from its edge
+                var c0 = clipNow
                 // the drag's trim, snapped to an edge of the other clips when one is near (a tick when it catches)
                 var caught: Float? = null
                 fun trimOf(r: Float): Float {
-                    val edge = if (startEdge) c.start else c.end
-                    val d = SimpleStripModel.clamp(c, startEdge, r)
+                    val edge = if (startEdge) c0.start else c0.end
+                    val d = SimpleStripModel.clamp(c0, startEdge, r)
                     val e = snapNow(edge + d)
                     if (e != caught) { caught = e; if (e != null) haptics.tick() }
-                    return if (e != null) SimpleStripModel.clamp(c, startEdge, e - edge) else d
+                    return if (e != null) SimpleStripModel.clamp(c0, startEdge, e - edge) else d
                 }
-                detectHorizontalDragGestures(
-                    onDragStart = { raw = 0f; playheadBefore = state.playhead; state.playing = false; haptics.press() },
-                    onHorizontalDrag = { ch, dx ->
-                        ch.consume()
-                        raw += dx / pps
-                        val d = trimOf(raw)
-                        onDrag(d)
-                        // the monitor shows the frame at the new edge (shortening: the material is there to show) – not
-                        // with the centred playhead: the strip would move under the finger; it goes to the edit when
-                        // the finger lifts
-                        if (!state.centerPlayhead) {
-                            val frame = 1f / projectFps.toFloat()
-                            state.playhead = if (startEdge) c.start + d.coerceAtLeast(0f)
-                                else c.start + SimpleStripModel.lengthAfter(c, false, d.coerceAtMost(0f)) - frame
-                        }
-                    },
-                    onDragEnd = {
-                        val d = trimOf(raw)
-                        onEnd()
-                        // back where it was for now; once the trim has landed, to the new edge (the start stays where the
-                        // clip starts – what follows ripples)
-                        state.playhead = playheadBefore
-                        if (abs(d) >= 1e-4f && SimpleStripModel.trim(state, c, startEdge, d)) {
-                            haptics.confirm()
-                            val frame = 1f / projectFps.toFloat()
-                            onLanded(if (startEdge) c.start else c.start + SimpleStripModel.lengthAfter(c, false, d) - frame)
-                        }
-                    },
-                    onDragCancel = { onEnd(); state.playhead = playheadBefore },
-                )
+                try {
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            c0 = clipNow; raw = 0f; caught = null; dragging = true
+                            playheadBefore = state.playhead; state.playing = false; haptics.press()
+                        },
+                        onHorizontalDrag = { ch, dx ->
+                            ch.consume()
+                            raw += dx / ppsNow
+                            val d = trimOf(raw)
+                            onDrag(d)
+                            // the monitor shows the frame at the new edge (shortening: the material is there to show) –
+                            // not with the centred playhead: the strip would move under the finger; it goes to the edit
+                            // when the finger lifts
+                            if (!state.centerPlayhead) {
+                                val frame = 1f / projectFps.toFloat()
+                                state.playhead = if (startEdge) c0.start + d.coerceAtLeast(0f)
+                                    else c0.start + SimpleStripModel.lengthAfter(c0, false, d.coerceAtMost(0f)) - frame
+                            }
+                        },
+                        onDragEnd = {
+                            dragging = false
+                            val d = trimOf(raw)
+                            onEnd()
+                            // back where it was for now; once the trim has landed, to the new edge (the start stays where
+                            // the clip starts – what follows ripples)
+                            state.playhead = playheadBefore
+                            if (abs(d) >= 1e-4f && SimpleStripModel.trim(state, c0, startEdge, d)) {
+                                haptics.confirm()
+                                val frame = 1f / projectFps.toFloat()
+                                onLanded(if (startEdge) c0.start else c0.start + SimpleStripModel.lengthAfter(c0, false, d) - frame)
+                            }
+                        },
+                        onDragCancel = { dragging = false; onEnd(); state.playhead = playheadBefore },
+                    )
+                } finally {
+                    // the gesture ended without a lift (the handle went away): nothing is trimmed, nothing is left shown
+                    if (dragging) { onEnd(); state.playhead = playheadBefore }
+                }
             }
             .testTag("simpleHandle:${if (startEdge) "start" else "end"}"),
         contentAlignment = Alignment.Center,
