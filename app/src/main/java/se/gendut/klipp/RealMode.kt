@@ -586,8 +586,9 @@ private class OpenVideos : ActivityResultContracts.OpenMultipleDocuments() {
         }
 }
 
-// Document providers can report .CRAW with an unknown or generic MIME type.
-fun videoRequest() = arrayOf("*/*")
+// Video, and files the provider has no type for: that is how .CRAW comes (application/octet-stream) – "*/*" showed
+// every document, subtitles and packages among the videos
+fun videoRequest() = arrayOf("video/*", "application/octet-stream")
 
 // ------------------------------------------------------------------ source monitor
 
