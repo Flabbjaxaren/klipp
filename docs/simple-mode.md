@@ -142,9 +142,14 @@ advanced mode, and nothing is simplified automatically.
 - on screen: the strip in place of the timeline, the visible undo, redo and advanced buttons, a drag being one trim
   and one undo step, the screen reader action, the blocked handle's dialog, and a film on other tracks.
 
-`SimpleModeTest` covers the mode setting, the dock, the badges, colour and export.
+`SimpleModeTest` covers the mode setting, the dock, the badges, colour (and the filter on all clips) and export (Good
+and Best). `SimpleSoundsTest` covers the Sounds switches, `AddSheetsFlowTest` the Text sheet and `ExportDialogTest` the
+Save video buttons.
 
-## Later stages
+## The panels
 
-Music, text and filter panels follow once the strip is verified with real projects. The mockups are on the design
-canvas.
+The mockups' panels are built (Sounds, Text, Filter, Save video; the table above). What they leave out:
+
+- **Sounds** has no music catalogue with moods: the library holds sound effects (packs), speech and the phone's own
+  files. Music is added from the phone.
+- **Filter** and **Text** close with *Done*; there is no *Cancel* – undo takes back what was done.
