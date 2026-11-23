@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="magnetic_setting">Magnetisk tidslinje</string>
+    <string name="magnetic_setting_hint">V1 är berättelsen: klipp sluter sig och gör plats, klipp på de andra spåren följer klippet de hänger på</string>
+    <string name="magnetic_on">Magnetisk tidslinje på</string>
+    <string name="magnetic_off">Magnetisk tidslinje av – spår som förut</string>
+    <string name="magnetic_tool_position">Position</string>
+    <string name="magnetic_keep_follow">Anslutna klipp följer med</string>
+    <string name="magnetic_keep_stay">Anslutna klipp stannar kvar</string>
+    <string name="magnetic_no_free_track">Inget ledigt spår för ett anslutet klipp – det ligger kvar på sitt</string>
+    <string name="magnetic_undo_delete">Radera</string>
+    <string name="magnetic_undo_gap">Mellanrum</string>
+    <string name="magnetic_undo_connect">Anslut</string>
+    <string name="magnetic_lift">Lyft ur berättelsen</string>
+    <string name="magnetic_lift_short">Lyft ur</string>
+    <string name="magnetic_overwrite_primary">Skriv över i berättelsen</string>
+    <string name="magnetic_overwrite_short">In i berättelsen</string>
+    <string name="magnetic_replace_gap">Ersätt med mellanrum</string>
+    <string name="magnetic_replace_gap_short">Mellanrum</string>
+    <string name="magnetic_disconnect">Koppla loss</string>
+    <string name="magnetic_reconnect">Koppla på igen</string>
+    <string name="magnetic_connection_point">Anslutningspunkt vid spelhuvudet</string>
+    <string name="magnetic_connection_point_short">Anslut här</string>
+    <string name="magnetic_connect">Anslut</string>
+    <string name="magnetic_gap">Mellanrum</string>
+    <string name="magnetic_gap_selection">Mellanrum · %1$.1f s</string>
+    <string name="magnetic_close_gap">Stäng mellanrum</string>
+    <string name="magnetic_ripple_delete">Radera (klippen efter sluter sig)</string>
+    <string name="magnetic_storyline_short">Berättelse</string>
+</resources>

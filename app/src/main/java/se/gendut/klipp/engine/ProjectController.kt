@@ -23,6 +23,7 @@ import se.gendut.klipp.ClipKind
 import se.gendut.klipp.EditBackend
 import se.gendut.klipp.EditorState
 import se.gendut.klipp.R
+import se.gendut.klipp.toMClip
 import se.gendut.klipp.Str
 import se.gendut.klipp.TrackDef
 import se.gendut.klipp.TrackKind
@@ -382,6 +383,13 @@ class ProjectController(
      * the engine's playhead on the first of them. Runs inside an undo group under the edit lock. Returns how many went in.
      */
     private suspend fun insertAtEnd(ids: List<Long>): Int {
+        // magnetic timeline: appended to the storyline (sound-only items connected at the playhead)
+        if (state.magnetic) {
+            var n = 0
+            val at = state.playhead.toDouble()
+            runMagnetic(Str.t(R.string.projectcontroller_undo_add_to_timeline), { placeAfterAll(ids, at).also { n = it.size } }) { m, placed -> m.append(placed) }
+            return n
+        }
         val now = engine.snapshot()
         val fps = now.fps
         val start = now.sequence?.duration ?: 0.0
@@ -415,6 +423,7 @@ class ProjectController(
 
     /** Insert (or overwrite) the source's marked range at the timeline playhead. */
     fun editFromSource(item: Long, atSec: Double, overwrite: Boolean, onDone: () -> Unit = {}) = scope.launch { editLock.withLock {
+        if (state.magnetic) { magneticFromSource(item, atSec, if (overwrite) SourceEdit.OVERWRITE else SourceEdit.INSERT, onDone); return@withLock }
         try {
             group(Str.t(if (overwrite) R.string.projectcontroller_undo_overwrite else R.string.projectcontroller_undo_insert)) {
                 if (snapshot.sequence == null) engine.exec("file.newSequence", newSeqParams())
@@ -429,6 +438,56 @@ class ProjectController(
             onMessage(e.message ?: Str.t(R.string.projectcontroller_edit_failed))
         }
     } }
+
+    /** How the source's marked part goes onto a magnetic timeline. */
+    enum class SourceEdit { INSERT, OVERWRITE, CONNECT }
+
+    /** The source's marked part connected at the timeline playhead (magnetic timeline). */
+    fun connectFromSource(item: Long, atSec: Double, onDone: () -> Unit = {}) = scope.launch { editLock.withLock {
+        magneticFromSource(item, atSec, SourceEdit.CONNECT, onDone)
+    } }
+
+    /**
+     * The source's marked part onto the magnetic timeline at [atSec]: inserted into the storyline (a clip there is cut,
+     * what follows moves on with its connected clips), over it (overwrite: nothing moves) or connected above it. A
+     * sound-only item is always connected. The caller holds [editLock].
+     */
+    private suspend fun magneticFromSource(item: Long, atSec: Double, how: SourceEdit, onDone: () -> Unit) {
+        try {
+            val label = Str.t(when (how) {
+                SourceEdit.OVERWRITE -> R.string.projectcontroller_undo_overwrite
+                SourceEdit.INSERT -> R.string.projectcontroller_undo_insert
+                SourceEdit.CONNECT -> R.string.magnetic_undo_connect
+            })
+            val m = engine.snapshot().media.firstOrNull { it.id == item } ?: return
+            val ok = when {
+                how == SourceEdit.CONNECT || !m.hasVideo -> group(label) {
+                    if (engine.snapshot().sequence == null) engine.exec("file.newSequence", newSeqParams())
+                    placeConnected(item, atSec)
+                }
+                how == SourceEdit.OVERWRITE -> group(label) {
+                    if (engine.snapshot().sequence == null) engine.exec("file.newSequence", newSeqParams())
+                    val p = JSONObject().put("item", item).put("track", "V1").put("time", frameTicks(atSec)).put("insert", false)
+                    if (m.hasAudio) p.put("audioTrack", "A1")
+                    engine.tryExec("timeline.place", p).complaint()?.let { onMessage(friendly(it)); false } ?: true
+                }
+                else -> {
+                    if (engine.snapshot().sequence == null) group(label) { engine.exec("file.newSequence", newSeqParams()) }
+                    runMagnetic(label, { placeAfterAll(listOf(item), atSec) }) { mt, placed -> mt.insert(placed, atSec.toFloat()) }
+                }
+            }
+            refresh()
+            if (ok) {
+                // the playhead after the new clip (as the engine leaves it after an insert)
+                if (how != SourceEdit.CONNECT && m.hasVideo) state.playhead = (atSec + markedLength(m)).toFloat()
+                onDone()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            onMessage(e.message ?: Str.t(R.string.projectcontroller_edit_failed))
+        }
+    }
 
     /**
      * Copy a timeline clip to the source: the same media with the clip's In/Out, so it can
@@ -764,6 +823,230 @@ class ProjectController(
         if (ids.isEmpty()) return
         runEdit("klipp.setLabel", JSONObject().put("clips", JSONArray().apply { ids.forEach { put(it) } }).put("label", label?.engine ?: JSONObject.NULL),
             Str.t(R.string.projectcontroller_undo_label))
+    }
+
+    // ------------------------------------------------------------------ magnetic timeline
+
+    override fun magnetic(label: String, plan: (se.gendut.klipp.MagTimeline) -> se.gendut.klipp.MPlan?) {
+        scope.launch { editLock.withLock { runMagnetic(label, { emptyList() }) { m, _ -> plan(m) }; refresh() } }
+    }
+
+    /** The transitions between clips of [s] (for the magnetic model: connected clips joined by one move together). */
+    private fun transitionsOf(s: Snapshot): List<se.gendut.klipp.UiTransition> = s.sequence?.let { q -> q.video + q.audio }.orEmpty()
+        .flatMap { t -> t.transitions.map { x -> se.gendut.klipp.UiTransition(x.id, 0, x.start.toFloat(), x.end.toFloat(), from = x.from, to = x.to) } }
+
+    /**
+     * A magnetic edit under the lock, as one undo step: [place] first puts new clips on the timeline (their V1 clips'
+     * ids go to [plan]), then the plan is made from the engine's timeline and carried out. A step the engine refuses
+     * takes the whole edit back. True if something changed. The caller holds [editLock] and refreshes afterwards.
+     */
+    private suspend fun runMagnetic(
+        label: String,
+        place: suspend () -> List<Long>,
+        plan: (se.gendut.klipp.MagTimeline, List<Long>) -> se.gendut.klipp.MPlan?,
+    ): Boolean {
+        val top = runCatching { engine.snapshot().undoIds.lastOrNull() }.getOrNull()
+        var err: String? = null
+        var any = false
+        group(label) {
+            val placed = place()
+            any = placed.isNotEmpty()
+            val snap = engine.snapshot()
+            val rows = rowsOf(snap)
+            val mt = se.gendut.klipp.magTimelineOf(toUi(snap, rows), rows, transitionsOf(snap), state.magSide, captionsOf(snap))
+            val p = plan(mt, placed)
+            if (p != null) {
+                any = true
+                err = try { carryOut(p) } catch (e: CancellationException) { throw e } catch (e: Exception) { e.message ?: Str.t(R.string.projectcontroller_edit_failed) }
+            }
+        }
+        val failed = err
+        if (failed != null) {
+            // half an edit is worse than none: back to before it (only if the group made a step)
+            if (runCatching { engine.snapshot().undoIds.lastOrNull() }.getOrNull() != top) {
+                engine.tryExec("edit.undo", JSONObject())
+                engine.tryExec("klipp.clearRedo", JSONObject())
+            }
+            se.gendut.klipp.CrashReport.note("magnetic edit failed: $failed")
+            onMessage(friendly(failed))
+            return false
+        }
+        return any
+    }
+
+    /** The captions of [s] (shown and hidden): they hang on the storyline as connected clips do. */
+    private fun captionsOf(s: Snapshot): List<se.gendut.klipp.UiCaption> = s.sequence?.let { q ->
+        (q.captions + q.hiddenCaptions).map { se.gendut.klipp.UiCaption(it.id, it.start.toFloat(), it.end.toFloat(), it.text, it.track) }
+    }.orEmpty()
+
+    /**
+     * Transitions between two clips that the edit's steps dropped (one of the clips moved for a moment, or for good)
+     * while the clips still meet: put back, at the same place on the cut and as long as before.
+     */
+    private suspend fun restoreTransitions(before: SequenceSnap) {
+        val now = engine.snapshot().sequence ?: return
+        val half = 0.5 / snapshot.fps.coerceAtLeast(1.0)
+        for ((audio, tracks) in listOf(false to before.video, true to before.audio)) for (t in tracks) for (x in t.transitions) {
+            val from = x.from ?: continue
+            val to = x.to ?: continue
+            val nowTracks = if (audio) now.audio else now.video
+            val tr = nowTracks.firstOrNull { nt -> nt.clips.any { it.id == from } && nt.clips.any { it.id == to } } ?: continue
+            if (tr.transitions.any { it.from == from && it.to == to }) continue
+            val l = tr.clips.first { it.id == from }
+            val r = tr.clips.first { it.id == to }
+            if (abs(l.start + l.duration - r.start) > half) continue
+            val cutBefore = t.clips.firstOrNull { it.id == to }?.start ?: continue
+            val frames = Math.round(x.duration * snapshot.fps).toInt().coerceAtLeast(1)
+            val ok = engine.tryExec(if (audio) "sequence.applyAudioTransition" else "sequence.applyVideoTransition",
+                JSONObject().put("clip", to).put("effect", x.effect).put("frames", frames).put("edge", "in").put("reverse", x.reverse)).isSuccess
+            if (!ok) { se.gendut.klipp.CrashReport.note("magnetic: transition $from|$to not put back"); continue }
+            val back = engine.snapshot().sequence?.let { q -> (if (audio) q.audio else q.video).flatMap { it.transitions } }?.firstOrNull { it.from == from && it.to == to } ?: continue
+            val start = r.start + (x.start - cutBefore)
+            if (abs(back.start - start) > 1e-4 || abs(back.duration - x.duration) > 1e-4) {
+                engine.tryExec("sequence.setTransition", JSONObject().put("transition", back.id).put("start", secToTicks(start)).put("duration", secToTicks(x.duration)))
+            }
+        }
+    }
+
+    /** The captions the plan moves or takes away (best effort: a caption that cannot go is noted, the edit stands). */
+    private suspend fun moveCaptions(p: se.gendut.klipp.MPlan) {
+        if (p.captionsRemoved.isNotEmpty()) engine.tryExec("captions.delete", JSONObject().put("captions", JSONArray(p.captionsRemoved.toList())))
+            .onFailure { se.gendut.klipp.CrashReport.note("magnetic: captions not deleted: ${it.message}") }
+        if (p.captionShift.isEmpty()) return
+        val starts = engine.snapshot().sequence?.let { q -> (q.captions + q.hiddenCaptions).associate { it.id to it.start } }.orEmpty()
+        val groups = p.captionShift.entries.filter { it.key in starts }.groupBy { frames(it.value) }.filterKeys { it != 0L }
+        // those going back first, from the earliest; then those going on, from the latest (none lands on one still to go)
+        val order = groups.entries.sortedWith(compareBy({ if (it.key < 0) 0 else 1 }, { g ->
+            if (g.key < 0) g.value.minOf { starts.getValue(it.key) } else -g.value.maxOf { starts.getValue(it.key) }
+        }))
+        for ((f, list) in order) {
+            engine.tryExec("captions.move", JSONObject().put("captions", JSONArray(list.map { it.key })).put("deltaFrames", f))
+                .onFailure { se.gendut.klipp.CrashReport.note("magnetic: captions not moved: ${it.message}") }
+        }
+    }
+
+    /** The engine's name of the lane ([video], [level]): V1, A2 … */
+    private fun laneName(video: Boolean, level: Int) = (if (video) "V" else "A") + (level + 1)
+
+    private fun Result<JSONObject>.complaint(): String? = exceptionOrNull()?.let { it.message ?: Str.t(R.string.projectcontroller_edit_failed) }
+
+    /**
+     * Carry out a magnetic plan (inside the edit's undo group): the tracks it needs, the cuts (pieces), what goes, then
+     * the shorter edges, one move of everything that changes place and the longer edges (see [se.gendut.klipp.magSteps]).
+     * Returns the engine's complaint, or null.
+     */
+    private suspend fun carryOut(p: se.gendut.klipp.MPlan): String? {
+        val q0 = engine.snapshot().sequence ?: return null
+        carryOutClips(p, q0)?.let { return it }
+        restoreTransitions(q0)
+        moveCaptions(p)
+        return null
+    }
+
+    /** The clips' part of [carryOut]. */
+    private suspend fun carryOutClips(p: se.gendut.klipp.MPlan, q0: SequenceSnap): String? {
+        val addV = (p.videoLanes - q0.video.size).coerceAtLeast(0)
+        val addA = (p.audioLanes - q0.audio.size).coerceAtLeast(0)
+        if (addV > 0 || addA > 0) engine.tryExec("sequence.addTracks", JSONObject().put("video", addV).put("audio", addA)).complaint()?.let { return it }
+        // the pieces: each clip cut from its latest time back (the clip itself keeps the part before each cut)
+        val ids = HashMap<Long, Long>()
+        if (p.pieces.isNotEmpty()) {
+            val q = engine.snapshot().sequence ?: return null
+            val tracks = q.video + q.audio
+            val before = tracks.flatMap { t -> t.clips.map { it.id } }.toSet()
+            fun trackOf(clip: Long) = tracks.firstOrNull { t -> t.clips.any { it.id == clip } }
+            for ((from, list) in p.pieces.groupBy { it.from }) {
+                val t = trackOf(from) ?: return Str.t(R.string.projectcontroller_edit_failed)
+                for (pc in list.sortedByDescending { it.at }) {
+                    engine.tryExec("timeline.razor", JSONObject().put("time", frameTicks(pc.at.toDouble())).put("track", t.id)).complaint()?.let { return it }
+                }
+            }
+            // a picture and its sound cut at the same time stay linked
+            for (at in p.pieces.map { it.at }.distinct()) relinkTails(q, before, at.toDouble())
+            val now = engine.snapshot().sequence ?: return null
+            val half = 0.5 / snapshot.fps.coerceAtLeast(1.0)
+            for (pc in p.pieces) {
+                val tid = trackOf(pc.from)?.id
+                val c = (now.video + now.audio).firstOrNull { it.id == tid }?.clips?.firstOrNull { it.id !in before && abs(it.start - pc.at) < half }
+                    ?: return Str.t(R.string.projectcontroller_edit_failed)
+                ids[pc.id] = c.id
+            }
+        }
+        val existing = engine.snapshot().sequence?.let { q -> (q.video + q.audio).flatMap { t -> t.clips.map { it.id } } }.orEmpty().toSet()
+        val gone = p.removed.filter { it in existing }
+        if (gone.isNotEmpty()) engine.tryExec("edit.clear", JSONObject().put("clips", JSONArray(gone))).complaint()?.let { return it }
+        val snap = engine.snapshot()
+        val rows = rowsOf(snap)
+        val steps = se.gendut.klipp.magSteps(p, toUi(snap, rows).associate { it.id to it.toMClip(rows) }, ids)
+        for (t in steps.shrink) trimEdge(t)?.let { return it }
+        if (steps.moves.isNotEmpty()) {
+            val arr = JSONArray()
+            for (m in steps.moves) arr.put(JSONObject().put("clip", m.id).put("track", laneName(m.video, m.level)).put("time", frameTicks(m.start.toDouble())))
+            engine.tryExec("timeline.move", JSONObject().put("moves", arr).put("insert", false).put("linked", false)).complaint()?.let { return it }
+        }
+        for (t in steps.extend) trimEdge(t)?.let { return it }
+        sweepSlivers()
+        return null
+    }
+
+    /** One edge of one clip (not its linked partners), to whole frames from the engine's exact edge. */
+    private suspend fun trimEdge(t: se.gendut.klipp.MagTrim): String? {
+        val c = engine.snapshot().sequence?.let { q -> (q.video + q.audio).flatMap { it.clips } }?.firstOrNull { it.id == t.id } ?: return null
+        val edge = if (t.inEdge) c.start else c.start + c.duration
+        val delta = frameTicks(edge + t.delta) - exactTicks(edge)
+        if (delta == 0L) return null
+        return engine.tryExec("timeline.trim", JSONObject().put("clip", t.id).put("edge", if (t.inEdge) "in" else "out").put("mode", "regular").put("delta", delta).put("linked", false))
+            .complaint()
+    }
+
+    /** The marked part of item [m] (or all of it), in seconds. */
+    private fun markedLength(m: MediaInfo): Double {
+        val frame = 1.0 / (if (m.fps > 1) m.fps else snapshot.fps.coerceAtLeast(1.0))
+        val a = m.markIn ?: 0.0
+        val b = m.markOut?.let { it + frame } ?: m.duration
+        return (b - a).coerceAtLeast(frame)
+    }
+
+    /**
+     * New media placed after everything (V1 and A1 are free there), to be moved into the storyline by the plan; the
+     * sound-only items are connected at [connectAt] instead. Returns the V1 clips placed, in order. Inside a group.
+     */
+    private suspend fun placeAfterAll(items: List<Long>, connectAt: Double): List<Long> {
+        val out = ArrayList<Long>()
+        for (id in items) {
+            val snap = engine.snapshot()
+            val q = snap.sequence ?: continue
+            val m = snap.media.firstOrNull { it.id == id } ?: continue
+            if (!m.hasVideo) { placeConnected(id, connectAt); continue }
+            val end = (q.video + q.audio).flatMap { it.clips }.maxOfOrNull { it.start + it.duration } ?: 0.0
+            val p = JSONObject().put("item", id).put("track", "V1").put("time", frameTicks(end)).put("insert", false)
+            if (m.hasAudio) p.put("audioTrack", "A1")
+            val r = engine.tryExec("timeline.place", p).getOrNull() ?: continue
+            val placed = r.optJSONArray("clips")?.let { a -> (0 until a.length()).map { a.getLong(it) } }.orEmpty()
+            val v1 = engine.snapshot().sequence?.video?.firstOrNull()?.clips?.firstOrNull { it.id in placed }?.id ?: continue
+            out += v1
+        }
+        return out
+    }
+
+    /** Item [item] as a connected clip at [at]: on the first free track above V1 (its sound below A1), new tracks if need be. */
+    private suspend fun placeConnected(item: Long, at: Double): Boolean {
+        val snap = engine.snapshot()
+        val m = snap.media.firstOrNull { it.id == item } ?: return false
+        val q = snap.sequence ?: return false
+        val rows = rowsOf(snap)
+        val mt = se.gendut.klipp.magTimelineOf(toUi(snap, rows), rows, transitionsOf(snap), state.magSide)
+        val len = markedLength(m).toFloat()
+        val vl = if (m.hasVideo) mt.connectLevel(true, at.toFloat(), len) else null
+        val al = if (m.hasAudio) mt.connectLevel(false, at.toFloat(), len) else null
+        if ((m.hasVideo && vl == null) || (m.hasAudio && al == null)) { onMessage(Str.t(R.string.magnetic_no_free_track)); return false }
+        val addV = ((vl ?: 0) + 1 - q.video.size).coerceAtLeast(0)
+        val addA = ((al ?: 0) + 1 - q.audio.size).coerceAtLeast(0)
+        if (addV > 0 || addA > 0) engine.tryExec("sequence.addTracks", JSONObject().put("video", addV).put("audio", addA)).complaint()?.let { onMessage(friendly(it)); return false }
+        val p = JSONObject().put("item", item).put("time", frameTicks(at)).put("insert", false)
+        if (vl != null) p.put("track", laneName(true, vl)) else p.put("video", false)
+        if (al != null) p.put("audioTrack", laneName(false, al)) else p.put("audio", false)
+        return engine.tryExec("timeline.place", p).complaint()?.let { onMessage(friendly(it)); false } ?: true
     }
 
     override fun undo() = run("edit.undo", JSONObject()).let { }
