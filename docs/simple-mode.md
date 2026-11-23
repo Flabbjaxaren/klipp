@@ -63,9 +63,15 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
 - **Moving a clip.** Hold a clip and drag it; held near the strip's edge, the strip scrolls that way. Dragged up
   onto a row, a storyline clip becomes a layer over the film (the storyline closes up – no gap is left; the magnetic
   `MagTimeline.move` to another lane); a video clip dragged down from a row goes into the storyline at the nearest edit
-  point (what follows makes room). While a video clip is dragged and nothing lies over the film yet, a row to drop it
-  on opens just over the storyline. A clip goes only onto a row of its kind (video and titles on video tracks, sound on audio tracks); a
-  layer dropped onto a clip on its row stacks onto the next free track. Each move is one undo step. A lime line shows where it will go in, and it is dropped at the
+  point (what follows makes room). While a video clip or a title is dragged, the strip's top (over the ruler) is a place
+  to drop it as a new layer over all the others – or just over the storyline when there are no layers yet; nothing
+  moves to make room for it. A clip goes only onto a row of its kind (video and titles on video tracks, sound on audio tracks); a
+  layer dropped onto a clip on its row stacks onto the next free track. Each move is one undo step.
+- **The magnet.** A clip moved onto a row, or along one, snaps its start or end to the edges of the clips on every
+  row and to the playhead when it comes within 12 dp; a trimmed edge snaps the same way (not to the playhead, which
+  follows the edge). A lime line through the rows shows the edge it caught, with a tick.
+- **Delete** (the bar) takes the selected clip out at once: a storyline clip closes up, a layer just goes. (The
+  timeline's removal animation, which finishes a delete in advanced mode, is not part of the strip.) A lime line shows where it will go in, and it is dropped at the
   storyline's edit point nearest to where its start is. This is the magnetic timeline's own reorder
   (`MagTimeline.move`): the gap it leaves closes, nothing is overwritten, its linked sound and connected clips go
   with it, and it is one undo step. A clip joined to a neighbour by a transition is not moved; it explains why and
