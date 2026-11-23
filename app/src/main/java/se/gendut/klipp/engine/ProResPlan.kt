@@ -108,65 +108,65 @@ object ProResPlan {
     /** An audio track as FFmpeg describes it. */
     data class AudioTrack(val index: Int, val codec: String, val channels: Int, val rate: Int, val decodable: Boolean)
 
-    /** How the camera's audio becomes the intermediate's one track (Media3 plays only one). */
+    /** Where one of the file's audio streams lies in the intermediate's track: its first channel and how many. */
+    data class Slot(val first: Int, val count: Int)
+
+    /**
+     * How the camera's audio becomes the intermediate's one track (Media3 plays only one track of a file): every
+     * channel is kept, side by side, and [slots] (one per audio stream of the source, in file order – the engine's
+     * audio_stream – null = not kept) says where each stream is, so a clip of stream k plays its own channels
+     * (AudioChannels).
+     */
     sealed interface AudioPlan {
+        val slots: List<Slot?>
+
         /** No usable audio. */
-        data object None : AudioPlan
-        /** One compressed track copied as it is (AAC) – nothing to mix, nothing lost. */
-        data class Copy(val stream: Int) : AudioPlan
+        data object None : AudioPlan { override val slots: List<Slot?> = emptyList() }
+
+        /** One compressed track copied as it is (AAC) – nothing to keep beside it, nothing lost. */
+        data class Copy(val stream: Int, override val slots: List<Slot?>) : AudioPlan
+
         /**
-         * PCM tracks mixed into [outChannels] channels of 16-bit PCM: [matrix] has a row per output channel and a column
-         * per input channel (all of [streams]' channels in order).
+         * PCM tracks [streams] (FFmpeg's stream indexes) written as one 16-bit track of [channels] channels: stream 0's
+         * channels first, then stream 1's … [matrix] is the identity FFmpeg's wrapper is given (a row per output
+         * channel, a column per input channel).
          */
-        data class Mix(val streams: List<Int>, val outChannels: Int, val matrix: FloatArray, val rate: Int) : AudioPlan {
-            fun gain(out: Int, col: Int) = matrix[out * (matrix.size / outChannels) + col]
-            override fun equals(other: Any?) = other is Mix && streams == other.streams && outChannels == other.outChannels && matrix.contentEquals(other.matrix) && rate == other.rate
-            override fun hashCode() = (streams.hashCode() * 31 + outChannels) * 31 + matrix.contentHashCode()
+        data class Keep(val streams: List<Int>, val channels: Int, val rate: Int, override val slots: List<Slot?>) : AudioPlan {
+            val matrix: FloatArray get() = FloatArray(channels * channels) { if (it % (channels + 1) == 0) 1f else 0f }
         }
     }
 
-    /** Compressed audio copied when there is no PCM to mix (what Media3 plays from a MOV). */
+    /** Compressed audio copied when there is no PCM (what Media3 plays from a MOV). */
     private val COPYABLE = setOf("aac")
 
-    /** At most this many tracks are mixed (FFmpeg side: KP_MAX_AUDIO). */
+    /** At most this many tracks are kept (FFmpeg side: KP_MAX_AUDIO) … */
     private const val MAX_TRACKS = 16
+    /** … and this many channels in all (KP_MAX_OUT). */
+    private const val MAX_CHANNELS = 64
 
     /**
-     * The audio plan for a camera file's tracks:
-     *  - one mono channel in all → mono;
-     *  - two channels in all (two mono tracks, or one stereo track) → stereo, the first left, the second right;
-     *  - more → stereo: a stereo track keeps its sides, every mono track (and each channel of a track with more than two)
-     *    is centered; each source at 1/√n so n tracks that carry the same sound don't clip.
-     * Only PCM tracks at the first one's sample rate are mixed; without PCM, an AAC track is copied as it is.
+     * The audio plan for a camera file's audio tracks ([tracks]: every audio stream in file order): the PCM tracks at
+     * the first one's sample rate, all their channels in order (four mono tracks → one four-channel track). Without
+     * PCM, an AAC track is copied as it is.
      */
     fun audioPlan(tracks: List<AudioTrack>): AudioPlan {
         val pcm = tracks.filter { it.decodable && it.codec.startsWith("pcm_") && it.channels > 0 && it.rate > 0 }
-        if (pcm.isEmpty()) return tracks.firstOrNull { it.codec in COPYABLE && it.channels > 0 }?.let { AudioPlan.Copy(it.index) } ?: AudioPlan.None
+        if (pcm.isEmpty()) {
+            val c = tracks.firstOrNull { it.codec in COPYABLE && it.channels > 0 } ?: return AudioPlan.None
+            return AudioPlan.Copy(c.index, tracks.map { if (it === c) Slot(0, it.channels) else null })
+        }
         val rate = pcm.first().rate
-        val use = pcm.filter { it.rate == rate }.take(MAX_TRACKS)
-        val cols = use.sumOf { it.channels }
-        if (cols == 1) return AudioPlan.Mix(use.map { it.index }, 1, floatArrayOf(1f), rate)
-        val m = FloatArray(2 * cols)
-        if (cols == 2) {
-            m[0 * cols + 0] = 1f
-            m[1 * cols + 1] = 1f
-            return AudioPlan.Mix(use.map { it.index }, 2, m, rate)
+        val use = ArrayList<AudioTrack>()
+        var cols = 0
+        for (t in pcm) {
+            if (t.rate != rate || use.size >= MAX_TRACKS || cols + t.channels > MAX_CHANNELS) continue
+            use += t
+            cols += t.channels
         }
-        // sources: a stereo track is one (its two sides), every other channel one
-        val sources = use.sumOf { if (it.channels == 2) 1 else it.channels }
-        val g = (1.0 / sqrt(sources.toDouble())).toFloat()
-        var col = 0
-        for (t in use) {
-            if (t.channels == 2) {
-                m[0 * cols + col] = g
-                m[1 * cols + col + 1] = g
-            } else for (c in 0 until t.channels) {
-                m[0 * cols + col + c] = g
-                m[1 * cols + col + c] = g
-            }
-            col += t.channels
-        }
-        return AudioPlan.Mix(use.map { it.index }, 2, m, rate)
+        val first = HashMap<AudioTrack, Int>()
+        var at = 0
+        for (t in use) { first[t] = at; at += t.channels }
+        return AudioPlan.Keep(use.map { it.index }, cols, rate, tracks.map { t -> first[t]?.let { Slot(it, t.channels) } })
     }
 
     // ------------------------------------------------------------------ cache

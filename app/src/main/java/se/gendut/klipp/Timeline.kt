@@ -2235,8 +2235,12 @@ private fun VolumeLine(clip: Clip, level: ClipLevel, edit: Boolean, modifier: Mo
 @Composable
 private fun Waveform(clip: Clip, uri: android.net.Uri?, span: () -> Pair<Double, Double>, timeAt: (Float) -> Float, pps: () -> Float, modifier: Modifier, level: ClipLevel? = null) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val peaks by androidx.compose.runtime.produceState(uri?.let { se.gendut.klipp.engine.Peaks.cachedLevels(it) }, uri) {
-        if (uri != null && value == null) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.Peaks.loadLevels(ctx, uri) }
+    // the clip's own stream and channels (one of a camera's microphone tracks): that file and those channels
+    val pick = remember(uri, clip.audioStream, clip.sourceChannels, se.gendut.klipp.engine.AudioStreams.revision) {
+        uri?.let { se.gendut.klipp.engine.AudioChannels.resolve(it, it, clip.audioStream, clip.sourceChannels) }
+    }
+    val peaks by androidx.compose.runtime.produceState(pick?.let { se.gendut.klipp.engine.Peaks.cachedLevels(it.uri, it.picks) }, pick) {
+        if (pick != null && value == null) value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.Peaks.loadLevels(ctx, pick.uri, pick.picks) }
     }
     val detail = WaveDetail.current
     val outline = remember { Path() }

@@ -33,6 +33,11 @@ data class AudioPiece(
     /** The clip (for audio effects and live sliders). */
     val clip: Long = 0,
     val afx: List<AfxSnap> = emptyList(),
+    /** The file's audio stream and the stream's channels the clip plays (ClipSnap.audioStream / sourceChannels). */
+    val stream: Int = 0,
+    val channels: List<Int> = emptyList(),
+    /** The item whose file's streams [stream] counts (the clip's own unless it plays a reversed or rendered file). */
+    val layoutItem: Long = item,
 ) {
     val end get() = start + dur
     fun gain(t: Double): Float = ramps.fold(1f) { g, r -> g * r.gain(t) }
@@ -46,6 +51,9 @@ data class AudioTrackPlan(val base: List<AudioPiece>, val over: List<AudioPiece>
 
 object AudioPlanner {
     private const val EPS = 1e-6
+
+    /** The clip's stream and channels on its piece (a crossfade's extra pieces too). */
+    private fun AudioPiece.sound(c: ClipSnap) = copy(stream = c.audioStream, channels = c.sourceChannels, layoutItem = c.layoutItem ?: c.item)
 
     fun plan(t: TrackSnap, mediaDur: (Long) -> Double?): AudioTrackPlan {
         val clips = t.clips.sortedBy { it.start }
@@ -68,7 +76,7 @@ object AudioPlanner {
             val outs = t.transitions.filter { it.from == c.id }.map { outRamp(it, c) }
             val ramps = ins + outs
             val lk = c.kf[KfKeys.LEVEL].orEmpty()
-            if (ramps.isEmpty()) { base += AudioPiece(c.start, c.duration, c.item, c.sourceIn, c.speed, c.levelDb, levelKf = lk, clip = c.id, afx = c.afx); continue }
+            if (ramps.isEmpty()) { base += AudioPiece(c.start, c.duration, c.item, c.sourceIn, c.speed, c.levelDb, levelKf = lk, clip = c.id, afx = c.afx).sound(c); continue }
             // split at the ramp edges so each piece only has the ramps that apply there
             val cuts = sortedSetOf(c.start, c.end)
             for (r in ramps) { cuts += r.t0.coerceIn(c.start, c.end); cuts += r.t1.coerceIn(c.start, c.end) }
@@ -77,7 +85,7 @@ object AudioPlanner {
                 val a = edges[k]; val b = edges[k + 1]
                 if (b - a <= EPS) continue
                 val mid = (a + b) / 2
-                base += AudioPiece(a, b - a, c.item, c.sourceIn + (a - c.start) * c.speed, c.speed, c.levelDb, ramps.filter { mid >= it.t0 && mid <= it.t1 }, lk, c.id, c.afx)
+                base += AudioPiece(a, b - a, c.item, c.sourceIn + (a - c.start) * c.speed, c.speed, c.levelDb, ramps.filter { mid >= it.t0 && mid <= it.t1 }, lk, c.id, c.afx).sound(c)
             }
         }
         // crossfades: the incoming clip's start before the cut and the outgoing clip's end after it
@@ -88,13 +96,13 @@ object AudioPlanner {
             // only as much as exists before the clip's in point; the piece is shortened at the start so it ends exactly at the cut
             val pre = (cut - x.start).coerceAtMost(to.sourceIn / to.speed.coerceAtLeast(1e-9))
             if (pre > EPS) {
-                over += AudioPiece(cut - pre, pre, to.item, (to.sourceIn - pre * to.speed).coerceAtLeast(0.0), to.speed, to.levelDb, listOf(inRamp(x, to)), to.kf[KfKeys.LEVEL].orEmpty(), to.id, to.afx)
+                over += AudioPiece(cut - pre, pre, to.item, (to.sourceIn - pre * to.speed).coerceAtLeast(0.0), to.speed, to.levelDb, listOf(inRamp(x, to)), to.kf[KfKeys.LEVEL].orEmpty(), to.id, to.afx).sound(to)
             }
             if (x.end - cut > EPS) {
                 val s0 = from.sourceIn + from.duration * from.speed
                 var len = x.end - cut
                 mediaDur(from.item)?.let { md -> len = len.coerceAtMost((md - s0) / from.speed) }
-                if (len > EPS) over += AudioPiece(cut, len, from.item, s0, from.speed, from.levelDb, listOf(outRamp(x, from)), from.kf[KfKeys.LEVEL].orEmpty(), from.id, from.afx)
+                if (len > EPS) over += AudioPiece(cut, len, from.item, s0, from.speed, from.levelDb, listOf(outRamp(x, from)), from.kf[KfKeys.LEVEL].orEmpty(), from.id, from.afx).sound(from)
             }
         }
         return AudioTrackPlan(base, over.sortedBy { it.start })

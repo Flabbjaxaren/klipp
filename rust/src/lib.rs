@@ -394,6 +394,14 @@ fn clip_json(c: &TrackItem) -> Value {
         // color label (as in other editing programs)
         "label": c.label.name(),
     });
+    // audio clips of a file with several audio streams or channels: which stream (0 = the first) and which of its
+    // channels the clip plays (empty = the first two) – the app's player picks them (engine/AudioChannels.kt)
+    if c.audio_stream != 0 {
+        v["audioStream"] = json!(c.audio_stream);
+    }
+    if !c.source_channels.is_empty() {
+        v["sourceChannels"] = json!(c.source_channels);
+    }
     if let Some(m) = c.effect("motion") {
         let pos = m.param("position").map(|p| p.vec2_at(t0));
         v["x"] = pos.map(|p| num(p.x)).unwrap_or(Value::Null);

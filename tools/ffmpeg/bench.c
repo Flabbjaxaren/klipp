@@ -7,13 +7,13 @@
  *   bench <file.mov> --mux out.mov stand-in.hevc
  *
  * --frame writes picture N as raw P010 (compare: ffmpeg -i file.mov -vf "select=eq(n\,N)" -pix_fmt p010le -f rawvideo);
- * --audio writes the mixed audio as raw 16-bit little-endian PCM. The mix here: two mono tracks → left/right, otherwise
- * every channel centered at 1/√n (Klipp's plan, ProResPlan.audioPlan, decides on the phone).
+ * --audio writes the audio as raw 16-bit little-endian PCM: every source channel kept, in order (as Klipp's plan,
+ * ProResPlan.audioPlan, does on the phone – the player picks each clip's channels).
  *
  * --mux checks the writing side without a phone: an Annex B HEVC stream with an access unit delimiter before each
  * picture and no B-frames (e.g. ffmpeg -i file.mov -c:v libx265 -x265-params aud=1:bframes=0 -f hevc x.hevc) stands
  * in for the phone's encoder; its pictures get the times the ProRes pictures had, its parameter sets are the encoder's
- * configuration, and the mixed audio goes beside them – the intermediate as the phone writes it.
+ * configuration, and the audio goes beside them – the intermediate as the phone writes it.
  */
 #include <math.h>
 #include <time.h>
@@ -121,10 +121,10 @@ int main(int argc, char **argv) {
         AVCodecParameters *p = k->ic->streams[i]->codecpar;
         if (p->codec_type == AVMEDIA_TYPE_AUDIO && avcodec_find_decoder(p->codec_id)) { streams[ns++] = (int)i; cols += p->ch_layout.nb_channels; }
     }
-    float mix[2 * 64] = {0};
-    int out_ch = cols == 1 ? 1 : 2;
-    if (cols == 2) { mix[0] = 1; mix[cols + 1] = 1; }
-    else for (int c = 0; c < cols; c++) for (int o = 0; o < out_ch; o++) mix[o * cols + c] = 1.0f / sqrtf((float)cols);
+    /* every channel kept, in order (Klipp's plan, ProResPlan.audioPlan): 4 mono tracks → one 4-channel track */
+    static float mix[KP_MAX_OUT * KP_MAX_OUT];
+    int out_ch = cols > 0 ? (cols > KP_MAX_OUT ? KP_MAX_OUT : cols) : 1;
+    for (int c = 0; c < out_ch; c++) mix[c * cols + c] = 1.0f;
     if (kp_prepare(k, NULL, threads, streams, ns, mix, out_ch, -1) < 0) { fprintf(stderr, "prepare: %s\n", k->err); kp_close(k); return 1; }
     if (mux_out) { int r = mux_check(k, mux_out, mux_hevc); kp_close(k); return r; }
     AVCodecParameters *vp = k->ic->streams[k->vidx]->codecpar;

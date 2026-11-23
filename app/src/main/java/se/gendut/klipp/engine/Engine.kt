@@ -197,6 +197,15 @@ data class ClipSnap(
     val group: Long? = null,
     /** The engine's color label name (see ClipLabel). */
     val label: String? = null,
+    /** Audio clips: the file's audio stream the clip plays (0 = the first) – see AudioChannels. */
+    val audioStream: Int = 0,
+    /** Audio clips: the stream's channels the clip plays (0-based; one = mono, two = left/right; empty = the first two). */
+    val sourceChannels: List<Int> = emptyList(),
+    /**
+     * Set when the clip plays from a file made from its item's ([Reversals], [AudioRenders]): the item whose file's
+     * streams [audioStream] counts (the made file keeps that file's first audio track).
+     */
+    val layoutItem: Long? = null,
 ) {
     /**
      * The source time (s in the file) shown at timeline time [t] – freeze frame, reverse and speed included
@@ -467,6 +476,8 @@ data class Snapshot(
                                 hold = c.dbl("hold"),
                                 group = if (c.isNull("group") || !c.has("group")) null else c.optLong("group"),
                                 label = c.optString("label").ifBlank { null },
+                                audioStream = c.optInt("audioStream", 0),
+                                sourceChannels = c.optJSONArray("sourceChannels")?.let { a -> (0 until a.length()).map { a.optInt(it) } }.orEmpty(),
                                 kf = c.optJSONObject("kf")?.let { o ->
                                     o.keys().asSequence().associateWith { k ->
                                         o.optJSONArray(k).list { j ->

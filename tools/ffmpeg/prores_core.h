@@ -1,8 +1,8 @@
 /*
  * Klipp's ProRes import, the part around FFmpeg (GPL-3.0-or-later, like the rest of Klipp's native code; FFmpeg itself
  * is LGPL-2.1-or-later, see build.sh): reads a ProRes MOV from a file descriptor, decodes the picture with FFmpeg's
- * ProRes decoder into the planes of the phone's video encoder (10-bit P010 or 8-bit 4:2:0), mixes the camera's audio
- * tracks into one, and writes the intermediate MOV (the encoder's HEVC + the mixed PCM) with FFmpeg's MOV muxer.
+ * ProRes decoder into the planes of the phone's video encoder (10-bit P010 or 8-bit 4:2:0), puts the camera's audio
+ * tracks side by side into one track (a matrix: Klipp keeps every channel, in order), and writes the intermediate MOV (the encoder's HEVC + the mixed PCM) with FFmpeg's MOV muxer.
  * Shared by the JNI library (klipp_prores.c) and the speed check on a computer (bench.c).
  */
 #ifndef KLIPP_PRORES_CORE_H
@@ -26,6 +26,8 @@
 #include <libavutil/pixdesc.h>
 
 #define KP_MAX_AUDIO 16
+/* the intermediate's audio track carries at most this many channels (every source channel, in order) */
+#define KP_MAX_OUT 64
 /* mixed audio is written in blocks of this many sample frames */
 #define KP_BLOCK 1024
 /* at most this much silence is put before an audio track that starts late (s) */
@@ -315,7 +317,7 @@ static int kp_prepare(Kp *k, const char *out_path, int threads, const int *strea
         else if (p->sample_rate != k->rate) return kp_failf(k, "the audio tracks have different sample rates");
     }
     if (k->na > 0) {
-        if (out_ch < 1 || out_ch > 2) return kp_failf(k, "bad audio plan");
+        if (out_ch < 1 || out_ch > KP_MAX_OUT) return kp_failf(k, "bad audio plan");
         k->out_ch = out_ch;
         k->cols = cols;
         k->mix = av_malloc_array((size_t)out_ch * (size_t)cols, sizeof(float));
@@ -652,7 +654,10 @@ static int kp_start_mux(Kp *k, const uint8_t *csd, int csd_len, int w, int h, in
             AVCodecParameters *ap = as->codecpar;
             ap->codec_type = AVMEDIA_TYPE_AUDIO;
             ap->codec_id = AV_CODEC_ID_PCM_S16LE;
-            av_channel_layout_default(&ap->ch_layout, k->out_ch);
+            /* (the channels are the camera's tracks side by side, not a speaker layout: mono and stereo are named,
+             * more are left unordered – a "quad" or "5.0" would invite a player to downmix them as speakers) */
+            if (k->out_ch <= 2) av_channel_layout_default(&ap->ch_layout, k->out_ch);
+            else av_channel_layout_custom_init(&ap->ch_layout, k->out_ch);
             ap->sample_rate = k->rate;
             ap->bits_per_coded_sample = 16;
             ap->block_align = 2 * k->out_ch;
