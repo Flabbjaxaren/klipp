@@ -306,8 +306,9 @@ class SimpleModeTest {
         rule.onNodeWithTag("badgeMark:1").assertDoesNotExist()
         st.switchMode(true)
         rule.waitForIdle()
-        rule.onNodeWithTag("badgeMark:1").assertExists()
-        rule.onNodeWithTag("badgeMark:2").assertDoesNotExist()
+        // (in simple mode's clip strip the mark is part of the clip's description: the unmerged tree)
+        rule.onNodeWithTag("badgeMark:1", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("badgeMark:2", useUnmergedTree = true).assertDoesNotExist()
         st.selected = 1L
         rule.waitForIdle()
         rule.onNodeWithTag("ctx:badges").performClick()
