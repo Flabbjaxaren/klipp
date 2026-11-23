@@ -266,11 +266,17 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     var laneHeight by remember { mutableFloatStateOf(1f) }
     // vertical scrolling (to reach the audio tracks when the source panel takes up space)
     var scrollY by remember { mutableFloatStateOf(0f) }
+    // a video track is added on top: everything below moves down a row – the view follows, so the add buttons (under the
+    // last track) stay where the finger is instead of sliding under the dock
+    var addedOnTop by remember { mutableStateOf(false) }
     // room under the last row: the add-track buttons (36 dp) and the floating dock / undo pill (~84 dp) – without it the
     // +V / +A buttons stayed under the dock and a tap there hit Undo
     val bottomPadPx = with(density) { 150.dp.toPx() }
     fun maxScrollY() = (topsPx[rows().lastIndex] + heightsPx[rows().lastIndex] + bottomPadPx - (laneHeight - rulerPx)).coerceAtLeast(0f)
     fun clampY(v: Float) = v.coerceIn(0f, maxScrollY())
+    LaunchedEffect(rows().size) {
+        if (addedOnTop) { addedOnTop = false; scrollY = clampY(scrollY + (heightsPx.getOrNull(0) ?: 0f)) }
+    }
     // Locked mode: the playhead stays in the center and the timeline slides under it.
     fun sx(): Float = if (state.centerPlayhead) state.playhead * pps - laneWidth / 2f else freeScroll
     fun setScroll(v: Float) {
@@ -648,7 +654,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 }
             } }
             // under the last track: add a video track (on top) or an audio track (at the bottom), up to the limits
-            AddTrackRow(state.tracks.canAddVideo, state.tracks.canAddAudio) { kind -> haptics.confirm(); state.addTrack(kind) }
+            AddTrackRow(state.tracks.canAddVideo, state.tracks.canAddAudio) { kind -> haptics.confirm(); if (kind == TrackKind.VIDEO) addedOnTop = true; state.addTrack(kind) }
             }
             }
         }
