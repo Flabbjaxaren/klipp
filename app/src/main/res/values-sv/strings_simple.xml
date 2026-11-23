@@ -70,4 +70,28 @@
         <item quantity="one">%1$d undertextspår till – ändra det i avancerat läge</item>
         <item quantity="other">%1$d undertextspår till – ändra dem i avancerat läge</item>
     </plurals>
+    <!-- Simple mode's clip strip (SimpleStrip.kt) -->
+    <string name="simple_strip_hint">Tryck på ett klipp för att välja det</string>
+    <string name="simple_trim_hint">Dra i de gröna kanterna för att korta klippet</string>
+    <string name="simple_trim_left">%1$s kvar (var %2$s)</string>
+    <string name="simple_trim_restore_start">Ta tillbaka början (+%1$s)</string>
+    <string name="simple_trim_restore_end">Ta tillbaka slutet (+%1$s)</string>
+    <string name="simple_handle_start">Början av %1$s</string>
+    <string name="simple_handle_end">Slutet av %1$s</string>
+    <string name="simple_a11y_shorten">Korta en halv sekund</string>
+    <string name="simple_a11y_lengthen">Förläng en halv sekund</string>
+    <string name="simple_clip_desc">Klipp %1$d av %2$d, %3$s, %4$s</string>
+    <string name="simple_gap_desc">Tomrum, %1$s</string>
+    <string name="simple_playhead">%1$s av %2$s</string>
+    <string name="simple_advanced_button">Avancerat</string>
+    <string name="simple_open_advanced">Öppna avancerat läge</string>
+    <string name="simple_blocked_transition_title">Kanten har en övergång</string>
+    <string name="simple_blocked_transition">Att korta klippet här skulle ändra övergången, och enkelt läge lämnar övergångar som de är. Öppna avancerat läge för att trimma den här kanten.</string>
+    <string name="simple_blocked_locked_title">Spåret är låst</string>
+    <string name="simple_blocked_locked">Inget på ett låst spår ändras. Öppna avancerat läge för att låsa upp det.</string>
+    <string name="simple_only_other_tracks">Filmen ligger på andra spår än huvudspåret. Enkelt läge visar bara huvudspåret och lämnar därför filmen som den är – öppna avancerat läge för att redigera den.</string>
+    <plurals name="simple_others_follow">
+        <item quantity="one">%1$d sak till på andra spår – den följer med sitt klipp</item>
+        <item quantity="other">%1$d saker till på andra spår – de följer med sina klipp</item>
+    </plurals>
 </resources>

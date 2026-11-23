@@ -2604,7 +2604,7 @@ internal inline fun forEachWaveBar(from: Double, to: Double, width: Float, dSrc:
  * trimmed ([span], as the waveform): extending shows the new frames, nothing stretches.
  */
 @Composable
-private fun Filmstrip(clip: Clip, uri: android.net.Uri, span: () -> Pair<Double, Double>, pps: () -> Float, modifier: Modifier) {
+internal fun Filmstrip(clip: Clip, uri: android.net.Uri, span: () -> Pair<Double, Double>, pps: () -> Float, modifier: Modifier) {
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val density = LocalDensity.current
     val tileW = with(density) { 64.dp.toPx() }

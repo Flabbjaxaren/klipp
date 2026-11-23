@@ -70,4 +70,28 @@
         <item quantity="one">%1$d more caption track – edit it in advanced mode</item>
         <item quantity="other">%1$d more caption tracks – edit them in advanced mode</item>
     </plurals>
+    <!-- Simple mode's clip strip (SimpleStrip.kt) -->
+    <string name="simple_strip_hint">Tap a clip to select it</string>
+    <string name="simple_trim_hint">Drag the green edges to shorten the clip</string>
+    <string name="simple_trim_left">%1$s left (was %2$s)</string>
+    <string name="simple_trim_restore_start">Bring back start (+%1$s)</string>
+    <string name="simple_trim_restore_end">Bring back end (+%1$s)</string>
+    <string name="simple_handle_start">Start of %1$s</string>
+    <string name="simple_handle_end">End of %1$s</string>
+    <string name="simple_a11y_shorten">Shorten by half a second</string>
+    <string name="simple_a11y_lengthen">Lengthen by half a second</string>
+    <string name="simple_clip_desc">Clip %1$d of %2$d, %3$s, %4$s</string>
+    <string name="simple_gap_desc">Gap, %1$s</string>
+    <string name="simple_playhead">%1$s of %2$s</string>
+    <string name="simple_advanced_button">Advanced</string>
+    <string name="simple_open_advanced">Open advanced mode</string>
+    <string name="simple_blocked_transition_title">This edge has a transition</string>
+    <string name="simple_blocked_transition">Shortening the clip here would change the transition, and simple mode leaves transitions as they are. Open advanced mode to trim this edge.</string>
+    <string name="simple_blocked_locked_title">The track is locked</string>
+    <string name="simple_blocked_locked">Nothing on a locked track changes. Open advanced mode to unlock it.</string>
+    <string name="simple_only_other_tracks">This film is on other tracks than the main one. Simple mode shows the main track only, so it leaves the film as it is – open advanced mode to edit it.</string>
+    <plurals name="simple_others_follow">
+        <item quantity="one">%1$d more on other tracks – it follows its clip</item>
+        <item quantity="other">%1$d more on other tracks – they follow their clips</item>
+    </plurals>
 </resources>

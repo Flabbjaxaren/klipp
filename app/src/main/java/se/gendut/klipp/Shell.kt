@@ -499,8 +499,11 @@ internal fun EditPage(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             // (the transcript ends above the dock: none of its words or buttons lie under the floating bar)
             if (inTranscript) transcript!!(Modifier.fillMaxSize().padding(bottom = bar))
+            // simple mode: the film as one strip of clips (SimpleStrip.kt) – the same clips, edits and undo steps
+            else if (state.simple) SimpleStrip(state, Modifier.fillMaxSize().padding(bottom = bar))
             else Timeline(state, tool, Modifier.fillMaxSize())
-            if (overlays && !inTranscript) {
+            // (simple mode's strip has none of them: the render chip lay over its Advanced button and the playhead time)
+            if (overlays && !inTranscript && !state.simple) {
                 // (the chip first: a card that reaches up to it lies over it, not under)
                 // (the selected clips' stretch: the chip can render just that)
                 val sel = (state.multi + listOfNotNull(state.selected)).let { ids -> state.clips.filter { it.id in ids } }
