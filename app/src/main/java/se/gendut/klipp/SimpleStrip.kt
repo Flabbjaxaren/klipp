@@ -371,6 +371,15 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
             maxZoom = maxOf(1f, with(density) { 400.dp.toPx() } / fit)
             val pps = fit * zoomNow
             val scroll = rememberScrollState()
+            // while an edge is dragged the strip holds still: its own scrolling is off, and anything else that moves it
+            // meanwhile is undone (on a phone the strip jumped once per trim by about the trimmed length, which moved the
+            // centred playhead; seen on the vivo, not on the OnePlus) – and moves no playhead
+            val trimming = dragEdge != null
+            LaunchedEffect(trimming) {
+                if (!trimming) return@LaunchedEffect
+                val held = scroll.value
+                snapshotFlow { scroll.value }.collect { v -> if (v != held) scroll.scrollTo(held) }
+            }
             // a pinch keeps the time under the fingers (or the playhead) where it was on the screen
             var lastPps by remember { mutableFloatStateOf(pps) }
             LaunchedEffect(pps) {
@@ -386,7 +395,7 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
                 // scrolling the strip is scrubbing: the time under the line is the playhead
                 LaunchedEffect(pps) {
                     snapshotFlow { scroll.value }.collect { v ->
-                        if (scroll.isScrollInProgress && !state.playing) state.playhead = (v / pps).coerceIn(0f, total)
+                        if (scroll.isScrollInProgress && !state.playing && !trimming) state.playhead = (v / pps).coerceIn(0f, total)
                     }
                 }
                 // and the playhead set elsewhere (playing, a tap, Start / End) brings the strip along
@@ -537,7 +546,7 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
             // (the add tile after the last clip)
             val contentW = with(density) { (total * pps).toDp() } + side * 2 + (if (centered) 0.dp else 88.dp)
             Box(Modifier.fillMaxSize().verticalScroll(vscroll).testTag("simpleStrip:rows")) {
-            Box(Modifier.fillMaxWidth().height(contentH).horizontalScroll(scroll)) {
+            Box(Modifier.fillMaxWidth().height(contentH).horizontalScroll(scroll, enabled = !trimming)) {
                 Box(
                     Modifier.width(contentW).fillMaxHeight()
                         // a tap beside the clips: nothing stays selected; in the ruler and the storyline's row the
