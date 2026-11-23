@@ -3,6 +3,7 @@ package se.gendut.klipp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
@@ -11,6 +12,7 @@ import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.media3.common.MimeTypes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -54,6 +56,30 @@ class ExportDialogTest {
         rule.onNodeWithTag("exp:summary").assertTextContains("HEVC", substring = true)
         rule.onNodeWithTag("exp:go").assertIsEnabled().performClick()
         assertEquals(MimeTypes.VIDEO_H264, started?.codec)
+    }
+
+    /** Simple mode's Save video: Good or Best, and the two big buttons – to the gallery, or saved and shared. */
+    @Test fun simpleSaveVideoSavesOrShares() {
+        var started: ExportSettings? = null
+        var shared: ExportSettings? = null
+        rule.setContent {
+            KlippTheme {
+                androidx.compose.runtime.CompositionLocalProvider(LocalSimple provides true) {
+                    ExportDialog(ExportSettings(), "film", 1920, 1080, 30.0, 10.0, false, null, anyTenBit = false,
+                        caps = Phone(mapOf(MimeTypes.VIDEO_H264 to 2160, MimeTypes.VIDEO_H265 to 2160)), onDismiss = {}, onShare = { s, _ -> shared = s }) { s, _ -> started = s }
+                }
+            }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("exp:quality:GOOD").performScrollTo().performClick()
+        rule.onNodeWithTag("exp:share").performScrollTo().assertIsEnabled().assertIsDisplayed().performClick()
+        rule.waitForIdle()
+        // a Full HD project: Good is its own size, nothing blown up
+        assertEquals(0, shared?.height)
+        rule.onNodeWithTag("exp:quality:BEST").performScrollTo().performClick()
+        rule.onNodeWithTag("exp:go").performScrollTo().performClick()
+        rule.waitForIdle()
+        assertEquals(se.gendut.klipp.engine.ExportPreset.QUALITY, se.gendut.klipp.engine.ExportPreset.of(started!!, 1920, 1080, 30.0, Phone(mapOf(MimeTypes.VIDEO_H264 to 2160, MimeTypes.VIDEO_H265 to 2160))))
     }
 
     /** The colour chips show what will be made: a saved HDR or HLG choice that can't apply to this project shows SDR. */

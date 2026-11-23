@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -297,7 +298,7 @@ fun ExportDialog(
             val low = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp < 560
             Column(Modifier.testTag("exportDialog").then(if (low) Modifier.verticalScroll(rememberScrollState()) else Modifier)) {
                 // the same height on every tab, so the dialog stays where it is when the tab changes; the summary is always in view
-                Column(if (low) Modifier else Modifier.weight(1f, fill = false).height(420.dp).verticalScroll(rememberScrollState())) {
+                Column(if (low) Modifier else Modifier.weight(1f, fill = false).then(if (simple) Modifier.heightIn(max = 420.dp) else Modifier.height(420.dp)).verticalScroll(rememberScrollState())) {
                     // (simple mode: the file gets the date as its name)
                     if (!simple) TextInput(stringResource(R.string.exportui_file_name), name) { name = it.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(80) }
                     ExportOptions(s, seqW, seqH, projectFps, hdrPossible, hdrBlocked, anyTenBit, caps, seconds, hlgReady, hlgWhyNot, hlgSdrNote) { s = it }
@@ -309,22 +310,29 @@ fun ExportDialog(
                     color = K.OnSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp).testTag("exp:summary"),
                 )
+                // (in the scrolling column on a low window, so they can always be reached)
+                // simple mode: the mockup's two big buttons – to the gallery, or saved and then shared
+                if (simple) Column(Modifier.fillMaxWidth().padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BigButton(stringResource(R.string.simple_export_gallery), { if (plan.ok) onExport(s, name.ifBlank { defaultName }) }, color = K.Primary, textColor = K.OnPrimary,
+                        modifier = Modifier.fillMaxWidth().testTag("exp:go"), enabled = plan.ok)
+                    if (onShare != null) BigButton(stringResource(R.string.simple_export_share), { if (plan.ok) onShare(s, name.ifBlank { defaultName }) },
+                        modifier = Modifier.fillMaxWidth().testTag("exp:share"), enabled = plan.ok)
+                    Text(stringResource(R.string.simple_export_keep_editing), color = K.OnSurfaceVar, fontSize = 12.sp,
+                        modifier = Modifier.align(Alignment.CenterHorizontally))
+                }
             }
-            if (simple) Text(stringResource(R.string.simple_export_keep_editing), color = K.OnSurfaceVar, fontSize = 12.sp,
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp))
             // a message (an action refused, an error) shows in the dialog, not behind it
             MessageHost(inline = true)
         } },
         // a plan that can't be made can't be started (the reason is shown above the options)
         confirmButton = {
-            if (simple && onShare != null) FlatTextButton(onClick = { if (plan.ok) onShare(s, name.ifBlank { defaultName }) }, enabled = plan.ok, modifier = Modifier.testTag("exp:share")) {
-                Text(stringResource(R.string.simple_export_share))
-            }
-            FlatTextButton(onClick = { if (plan.ok) onExport(s, name.ifBlank { defaultName }) }, enabled = plan.ok, modifier = Modifier.testTag("exp:go")) {
-                Text(stringResource(if (simple) R.string.simple_export_gallery else R.string.exportui_go))
+            // (simple mode: the save buttons are in the dialog; Cancel alone here)
+            if (simple) FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.exportui_cancel)) }
+            else FlatTextButton(onClick = { if (plan.ok) onExport(s, name.ifBlank { defaultName }) }, enabled = plan.ok, modifier = Modifier.testTag("exp:go")) {
+                Text(stringResource(R.string.exportui_go))
             }
         },
-        dismissButton = { FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.exportui_cancel)) } },
+        dismissButton = if (simple) null else ({ FlatTextButton(onClick = onDismiss) { Text(stringResource(R.string.exportui_cancel)) } }),
         containerColor = K.SurfaceHigh,
     )
 }
@@ -419,14 +427,15 @@ enum class SimpleQuality(val label: Int, val hint: Int) {
 
     fun apply(s: ExportSettings, seqW: Int, seqH: Int, fps: Double, caps: se.gendut.klipp.engine.EncoderInfo): ExportSettings = when (this) {
         // (the size first: a preset's bitrate is for the size it is made at)
-        GOOD -> se.gendut.klipp.engine.ExportPreset.COMPATIBLE.apply(s.copy(height = 1080), seqW, seqH, fps, caps)
+        // (a project smaller than Full HD: its own size – nothing is blown up)
+        GOOD -> se.gendut.klipp.engine.ExportPreset.COMPATIBLE.apply(s.copy(height = if (minOf(seqW, seqH) > 1080) 1080 else 0), seqW, seqH, fps, caps)
         BEST -> se.gendut.klipp.engine.ExportPreset.QUALITY.apply(s.copy(height = if (minOf(seqW, seqH) >= 2160) 2160 else 0), seqW, seqH, fps, caps)
     }
 
     companion object {
         /** The quality [s] is (null: neither – a preset or size set in advanced mode). */
         fun of(s: ExportSettings, preset: se.gendut.klipp.engine.ExportPreset): SimpleQuality? = when {
-            preset == se.gendut.klipp.engine.ExportPreset.COMPATIBLE && s.height == 1080 -> GOOD
+            preset == se.gendut.klipp.engine.ExportPreset.COMPATIBLE && (s.height == 1080 || s.height == 0) -> GOOD
             preset == se.gendut.klipp.engine.ExportPreset.QUALITY && (s.height == 2160 || s.height == 0) -> BEST
             else -> null
         }
