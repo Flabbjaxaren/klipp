@@ -39,6 +39,10 @@ internal fun CrawDevelopDialog(settings: CrawSettings, importing: Boolean, onClo
                 DropField(stringResource(R.string.craw_develop_ei),
                     CrawSettings.EXPOSURE_INDICES.map { Opt(it, if (it == 0) auto else it.toString()) },
                     draft.ei, "crawEi") { draft = draft.copy(ei = it) }
+                DropField(stringResource(R.string.craw_develop_quality), listOf(
+                    Opt(false, stringResource(R.string.craw_quality_standard)),
+                    Opt(true, stringResource(R.string.craw_quality_high)),
+                ), draft.high, "crawQuality") { draft = draft.copy(high = it) }
             }
         },
         confirmButton = {

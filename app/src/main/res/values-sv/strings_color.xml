@@ -267,4 +267,7 @@
     <string name="craw_developed">CRAW-framkallningen har uppdaterats</string>
     <string name="craw_develop_import">Framkalla och importera</string>
     <string name="craw_unreadable">Filen är skadad eller ofullständig</string>
+    <string name="craw_develop_quality">Kvalitet</string>
+    <string name="craw_quality_standard">Standard</string>
+    <string name="craw_quality_high">Hög – större filer</string>
 </resources>

@@ -32,4 +32,13 @@ class CrawSettingsTest {
             for (i in 1 until lut.size) assertTrue("${log.key} at $i", lut[i] >= lut[i - 1])
         }
     }
+
+    @Test fun highQualityRaisesTheBitRateUpToTheEncodersTop() {
+        // 4K at 30: standard stops at 100 Mbit/s, high at the encoder's top (160 on the OnePlus)
+        assertEquals(100_000_000, CrawSettings.bitRate(4080, 3064, 30.0, false, 160_000_000))
+        assertEquals(160_000_000, CrawSettings.bitRate(4080, 3064, 30.0, true, 160_000_000))
+        // 1080p at 30: 21.8 Mbit/s, high 1.6 times that
+        assertEquals(21_772_800, CrawSettings.bitRate(1920, 1080, 30.0, false, 160_000_000))
+        assertEquals(34_836_480, CrawSettings.bitRate(1920, 1080, 30.0, true, 160_000_000))
+    }
 }

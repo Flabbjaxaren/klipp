@@ -267,4 +267,7 @@
     <string name="craw_developed">CRAW development updated</string>
     <string name="craw_develop_import">Develop and import</string>
     <string name="craw_unreadable">The file is damaged or incomplete</string>
+    <string name="craw_develop_quality">Quality</string>
+    <string name="craw_quality_standard">Standard</string>
+    <string name="craw_quality_high">High – bigger files</string>
 </resources>

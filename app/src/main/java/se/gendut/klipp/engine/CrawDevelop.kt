@@ -3,10 +3,18 @@ package se.gendut.klipp.engine
 import org.json.JSONObject
 import android.net.Uri
 
-data class CrawSettings(val log: OpenDrt.Input = OpenDrt.Input.DI, val ei: Int = 0) {
+/** [high]: the encoder's top bit rate (on the OnePlus 160 instead of 100 Mbit/s for 4K) – cleaner gradients, bigger files. */
+data class CrawSettings(val log: OpenDrt.Input = OpenDrt.Input.DI, val ei: Int = 0, val high: Boolean = false) {
     companion object {
         val LOGS = listOf(OpenDrt.Input.DI, OpenDrt.Input.SLOG3, OpenDrt.Input.FLOG2, OpenDrt.Input.LOGC4)
         val EXPOSURE_INDICES = listOf(0, 100, 200, 400, 800, 1600, 3200, 6400)
+
+        /** Standard: 0.35 bit a pixel, at most 100 Mbit/s. High: 1.6 times that, up to the encoder's own top (240 at most). */
+        fun bitRate(width: Int, height: Int, fps: Double, high: Boolean, encoderTop: Int): Int {
+            val base = width.toDouble() * height * fps * .35
+            val top = if (high) minOf(encoderTop.toDouble(), 240_000_000.0) else 100_000_000.0
+            return (if (high) base * 1.6 else base).coerceIn(1_000_000.0, maxOf(1_000_000.0, top)).toInt()
+        }
     }
 
     fun xyzToGamut(): FloatArray {
@@ -43,14 +51,14 @@ data class CrawSettings(val log: OpenDrt.Input = OpenDrt.Input.DI, val ei: Int =
 }
 
 internal data class CrawSource(val original: Uri, val settings: CrawSettings) {
-    fun toJson() = JSONObject().put("uri", original.toString()).put("log", settings.log.key).put("ei", settings.ei)
+    fun toJson() = JSONObject().put("uri", original.toString()).put("log", settings.log.key).put("ei", settings.ei).put("high", settings.high)
 
     companion object {
         fun fromJson(value: JSONObject): CrawSource? {
             val uri = value.optString("uri").takeIf { it.isNotEmpty() } ?: return null
             val log = OpenDrt.Input.of(value.optString("log"))
             val ei = value.optInt("ei", 0)
-            return CrawSource(Uri.parse(uri), CrawSettings(log.takeIf { it in CrawSettings.LOGS } ?: OpenDrt.Input.DI, ei))
+            return CrawSource(Uri.parse(uri), CrawSettings(log.takeIf { it in CrawSettings.LOGS } ?: OpenDrt.Input.DI, ei, value.optBoolean("high")))
         }
     }
 }

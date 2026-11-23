@@ -90,7 +90,7 @@ internal object CrawImport {
                         configure(handle, settings.xyzToGamut(), settings.logLut(), settings.ei)
                         val hasAudio = source.audioFrames > 0
                         val video = if (hasAudio) temp(".video.mp4") else output
-                        writeVideo(source, video, job::ensureActive)
+                        writeVideo(source, video, settings.high, job::ensureActive)
                         if (hasAudio) writeAudioAndCopyVideo(source, video, output, job::ensureActive)
                     } finally {
                         close(handle)
@@ -106,10 +106,10 @@ internal object CrawImport {
         }
     }
 
-    private data class VideoInput(val name: String, val surface: Boolean, val width: Int, val height: Int)
+    private data class VideoInput(val name: String, val surface: Boolean, val width: Int, val height: Int, val maxBitrate: Int)
     private class Main10Exception(message: String, cause: Throwable? = null) : IOException(message, cause)
 
-    private fun writeVideo(source: Source, out: File, checkActive: () -> Unit) {
+    private fun writeVideo(source: Source, out: File, high: Boolean, checkActive: () -> Unit) {
         val mime = MediaFormat.MIMETYPE_VIDEO_HEVC
         val direct = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010
         val surface = MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
@@ -135,10 +135,11 @@ internal object CrawImport {
                             (source.height * scale).toInt() / yAlignment * yAlignment
                     }.distinct().filter { (w, h) -> w > 0 && h > 0 && video.areSizeAndRateSupported(w, h, source.fps) }
                 for ((w, h) in sizes) {
-                    if (direct in caps.colorFormats) add(VideoInput(info.name, false, w, h))
-                    if (Build.VERSION.SDK_INT >= 33 && surface in caps.colorFormats) add(VideoInput(info.name, true, w, h))
+                    val top = video.bitrateRange.upper
+                    if (direct in caps.colorFormats) add(VideoInput(info.name, false, w, h, top))
+                    if (Build.VERSION.SDK_INT >= 33 && surface in caps.colorFormats) add(VideoInput(info.name, true, w, h, top))
                     // Some hardware encoders accept P010 without advertising it.
-                    if (direct !in caps.colorFormats) add(VideoInput(info.name, false, w, h))
+                    if (direct !in caps.colorFormats) add(VideoInput(info.name, false, w, h, top))
                 }
             }
         }.sortedByDescending { it.width.toLong() * it.height }
@@ -146,7 +147,7 @@ internal object CrawImport {
         for (candidate in candidates) {
             checkActive()
             try {
-                writeVideoAttempt(source, out, candidate, checkActive)
+                writeVideoAttempt(source, out, candidate, high, checkActive)
                 return
             } catch (e: Main10Exception) {
                 failure.addSuppressed(e)
@@ -157,7 +158,7 @@ internal object CrawImport {
         throw failure
     }
 
-    private fun writeVideoAttempt(source: Source, out: File, input: VideoInput, checkActive: () -> Unit) {
+    private fun writeVideoAttempt(source: Source, out: File, input: VideoInput, high: Boolean, checkActive: () -> Unit) {
         val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_HEVC, input.width, input.height).apply {
             setInteger(MediaFormat.KEY_COLOR_FORMAT, if (input.surface) MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
                 else MediaCodecInfo.CodecCapabilities.COLOR_FormatYUVP010)
@@ -169,7 +170,7 @@ internal object CrawImport {
             setFloat(MediaFormat.KEY_FRAME_RATE, source.fps.toFloat())
             setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-            setInteger(MediaFormat.KEY_BIT_RATE, (input.width.toDouble() * input.height * source.fps * .35).coerceIn(1_000_000.0, 100_000_000.0).toInt())
+            setInteger(MediaFormat.KEY_BIT_RATE, CrawSettings.bitRate(input.width, input.height, source.fps, high, input.maxBitrate))
         }
         val muxer = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
         try {
