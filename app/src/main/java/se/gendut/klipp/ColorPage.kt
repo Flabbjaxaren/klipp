@@ -171,7 +171,9 @@ class GradeState {
     private fun put(id: Long, g: ClipGrade?) {
         // empty = a node that neither grades nor has a window/qualifier (those must stay while being set up)
         // (a film turned off is kept for when it is turned on again)
-        if (g == null || (g.isNeutral && g.layer == null && g.nodes.size == 1 && g.nodes.none { it.hasKey || it.filmOff != null })) grades.remove(id) else grades[id] = g
+        // (a node turned off or at 0 % mix still holds its settings – only what would be neutral when on goes: turning the
+        // one node off deleted the grade, film and all, and turning it on again had nothing to turn on)
+        if (g == null || (g.isNeutral && g.layer == null && g.nodes.size == 1 && g.nodes.none { it.hasKey || it.filmOff != null || !it.copy(enabled = true, mix = 1f).isNeutral })) grades.remove(id) else grades[id] = g
         // a lingering drag state for the clip would otherwise show the old grade for a while (e.g. after "Reset" or undo)
         if (live?.first == id) live = id to (g ?: ClipGrade())
         revision++
