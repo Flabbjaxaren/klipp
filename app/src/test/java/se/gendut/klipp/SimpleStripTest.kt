@@ -731,4 +731,29 @@ class SimpleStripTest {
         rule.waitForIdle()
         assertEquals("snapped", 13f, st.clip(5).end, 1e-4f)
     }
+
+    @Test fun aTrimDragSurvivesTheClipBeingUpdatedUnderIt() {
+        // (as the app does while a drag goes on: a proxy made, a file's length read – the same clip, read anew)
+        val st = simple().apply { centerPlayhead = true; playhead = 10f; selected = 2L }
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        val pps = rule.onNodeWithTag("simpleClip:1").fetchSemanticsNode().size.width / 8f
+        rule.onNodeWithTag("simpleHandle:start").performTouchInput {
+            down(center)
+            moveBy(androidx.compose.ui.geometry.Offset(viewConfiguration.touchSlop + 1f, 0f))
+            repeat(3) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(pps * 0.2f, 0f)) }
+        }
+        rule.waitForIdle()
+        st.commit(st.clips.map { if (it.id == 2L) it.copy(label = ClipLabel.GREEN) else it })
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleHandle:start").performTouchInput {
+            repeat(3) { advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(pps * 0.2f, 0f)) }
+        }
+        rule.waitForIdle()
+        assertEquals("the strip didn't scroll: the centred playhead stayed", 10f, st.playhead, 0f)
+        rule.onNodeWithTag("simpleHandle:start").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals("one trim (after the update's own step)", 2, st.undoCount)
+        assertEquals("the whole drag (1.2 s, caught by the adjustment clip's end at 9 s)", 9f, st.clip(2).srcIn - 2f + 8f, 1e-3f)
+    }
 }
