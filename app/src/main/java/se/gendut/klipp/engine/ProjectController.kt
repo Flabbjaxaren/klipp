@@ -2781,13 +2781,13 @@ class ProjectController(
                 .put("position", JSONArray().put(q.width / 2.0).put(q.height * 0.82))
             // the track named (the engine refuses it if it isn't free); a new top track is added first – both one undo step
             place.track?.let { p.put("track", it) }
-            val r = if (!place.create) engine.tryExec("graphics.newText", p) else group(Str.t(R.string.projectcontroller_undo_title)) {
-                engine.tryExec("sequence.addTracks", JSONObject().put("video", 1).put("audio", 0)).onFailure { onMessage(friendly(it.message)) }
-                engine.tryExec("graphics.newText", p)
+            // the title, its look and (when needed) a new top track first: one undo step
+            val clip = group(Str.t(R.string.projectcontroller_undo_title)) {
+                if (place.create) engine.tryExec("sequence.addTracks", JSONObject().put("video", 1).put("audio", 0)).onFailure { onMessage(friendly(it.message)) }
+                val r = engine.tryExec("graphics.newText", p)
+                r.onFailure { onMessage(Str.t(R.string.projectcontroller_title_failed, friendly(it.message))) }
+                r.getOrNull()?.optLong("clip")?.takeIf { it > 0 }?.also { if (look.isNotEmpty()) setParam(it, "graphic_text", "name", look) }
             }
-            r.onFailure { onMessage(Str.t(R.string.projectcontroller_title_failed, friendly(it.message))) }
-            val clip = r.getOrNull()?.optLong("clip")?.takeIf { it > 0 }
-            if (clip != null && look.isNotEmpty()) setParam(clip, "graphic_text", "name", look)
             refresh()
             clip?.let { state.selected = it; state.inspecting = true; onAdded(it) }
         } }
