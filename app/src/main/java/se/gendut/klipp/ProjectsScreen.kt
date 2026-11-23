@@ -89,6 +89,9 @@ data class ProjectCard(
 /** What the projects page needs from the app. */
 interface ProjectsBackend {
     val revision: Int
+    /** Where the screen reads the backend (list, backup info, versions) off the main thread. Tests read in place: on a
+     *  busy CI runner a hop to the shared IO pool sometimes never came back within a minute, and the test waited in vain. */
+    val io: kotlinx.coroutines.CoroutineDispatcher get() = Dispatchers.IO
     fun list(): List<ProjectCard>
     fun open(id: String)
     fun create(spec: NewProjectSpec)
@@ -205,7 +208,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
     val haptics = rememberHaptics()
     // the project list is read from disk – on the IO thread, not in composition (the previous list shows until the new one is ready)
     val projects by produceState(emptyList<ProjectCard>(), backend, backend.revision) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { backend.list() }
+        value = kotlinx.coroutines.withContext(backend.io) { backend.list() }
     }
     var creating by remember { mutableStateOf(false) }
     // a low window (a phone on its side): New project is a button in the header – floating at the bottom it lay over Continue
@@ -296,7 +299,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                 if (query == null && !selecting) {
                     hero?.let { h ->
                         item(key = "hero", span = { GridItemSpan(maxLineSpan) }) {
-                            val b by produceState<BackupInfo?>(null, h.id, backend.revision) { value = withContext(Dispatchers.IO) { backend.backupInfo(h.id) } }
+                            val b by produceState<BackupInfo?>(null, h.id, backend.revision) { value = withContext(backend.io) { backend.backupInfo(h.id) } }
                             HeroCard(h, b, onOpen = { open(h) }, onMenu = { haptics.heavy(); menuFor = h })
                         }
                     }
@@ -343,7 +346,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
                     }
                     // backups: a new file in the chosen folder each time
                     val folder = remember(backend.revision) { backend.backupFolder() }
-                    val info by produceState<BackupInfo?>(null, p.id, backend.revision) { value = withContext(Dispatchers.IO) { backend.backupInfo(p.id) } }
+                    val info by produceState<BackupInfo?>(null, p.id, backend.revision) { value = withContext(backend.io) { backend.backupInfo(p.id) } }
                     if (folder != null) {
                         ExportChoice(stringResource(R.string.projectsscreen_backup_now), stringResource(R.string.projectsscreen_backup_now_hint, folder), "backupNow") {
                             menuFor = null; haptics.confirm(); backend.backup(p.id, p.name)
@@ -373,7 +376,7 @@ fun ProjectsScreen(backend: ProjectsBackend, onSettings: (() -> Unit)? = null, o
         )
     }
     versionsOf?.let { p ->
-        val list by produceState<List<Pair<Long, Int>>?>(null, p.id) { value = withContext(Dispatchers.IO) { backend.versions(p.id) } }
+        val list by produceState<List<Pair<Long, Int>>?>(null, p.id) { value = withContext(backend.io) { backend.versions(p.id) } }
         AlertDialog(
             onDismissRequest = { versionsOf = null },
             title = { Text(stringResource(R.string.projectsscreen_versions_title, p.name)) },

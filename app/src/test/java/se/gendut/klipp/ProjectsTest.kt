@@ -30,6 +30,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 class FakeProjects : ProjectsBackend {
+    // read in place, not on the shared IO pool (see ProjectsBackend.io)
+    override val io: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.Unconfined
     var rev by mutableIntStateOf(0)
     val log = mutableListOf<String>()
     val items = mutableListOf(
