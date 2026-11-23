@@ -186,6 +186,15 @@ data class TrackState(
     val muted: Boolean = false,
     val solo: Boolean = false,
     val syncLock: Boolean = true,
+    /** The track's own audio effects (the mixer's inserts) – simple mode shows them as a badge. */
+    val afx: List<se.gendut.klipp.engine.AfxSnap> = emptyList(),
+)
+
+/** A clip's own settings that simple mode has no control for (see [clipBadges]): keyed properties, sound effects, opacity. */
+data class ClipExtras(
+    val keyed: Set<String> = emptySet(),
+    val afx: List<se.gendut.klipp.engine.AfxSnap> = emptyList(),
+    val opacity: Float = 100f,
 )
 
 /** A clip's properties (Effect Controls) shown by the UI. Position in sequence pixels, null = center. */
@@ -643,12 +652,46 @@ class EditorState(initial: List<Clip> = initialClips()) {
     /** Something is selected as a group (clips and/or captions). */
     val groupSelected: Boolean get() = multi.isNotEmpty() || multiCaptions.isNotEmpty()
     var markers by mutableStateOf(listOf(9f, 31f))
-    var magnet by mutableStateOf(true)
+    /** Snapping as the advanced mode has it (its toggle in the timeline's row); simple mode always snaps. */
+    private var magnetSetting by mutableStateOf(true)
+    /** Snapping: the advanced mode's toggle, always on in simple mode (setting it changes the advanced one only). */
+    var magnet: Boolean
+        get() = simple || magnetSetting
+        set(v) { magnetSetting = v }
+    /** The magnetic timeline as the advanced mode has it (Settings → Timeline, the ⋯ menu). */
+    private var magneticSetting by mutableStateOf(false)
     /**
      * The magnetic timeline (Settings → Timeline, off by default; see Magnetic.kt): V1 and its sound are the primary
-     * storyline that closes up and makes room, the other tracks hold connected clips that follow it.
+     * storyline that closes up and makes room, the other tracks hold connected clips that follow it. Always on in simple
+     * mode – without touching the advanced mode's own choice, which setting this changes (see Simple.kt).
      */
-    var magnetic by mutableStateOf(false)
+    var magnetic: Boolean
+        get() = simple || magneticSetting
+        set(v) { magneticSetting = v }
+    /**
+     * Simple mode (see Simple.kt): what the pages offer, never what the project holds – switching changes nothing in it.
+     * Set through [switchMode]; the app keeps it in the settings ([onModeChange]).
+     */
+    var simple by mutableStateOf(false)
+    /** The mode was switched: kept in the app's settings (set by the app). */
+    var onModeChange: ((Boolean) -> Unit)? = null
+    /** Shows a page (0 edit, 1 color, 2 audio) – set by the app (Open in advanced mode goes to the color or audio page). */
+    var onShowPage: ((Int) -> Unit)? = null
+    /** Each clip's own settings that simple mode reads for its badges (keyframes, sound effects, opacity) – from the engine. */
+    var clipExtras by mutableStateOf<Map<Long, ClipExtras>>(emptyMap())
+    /** A track's own effects (the mixer's inserts) by audio track index: on/off and remove from a badge (set by the app). */
+    var trackFxOps: ((Int) -> AfxRackOps)? = null
+
+    /** Switch between simple and advanced mode: instant, the project stays exactly as it is. */
+    fun switchMode(on: Boolean) {
+        if (simple == on) return
+        val wasMagnetic = magnetic
+        simple = on
+        // (a gap clip is selected only on the magnetic timeline; the rows of steps belong to the mode they came from)
+        if (wasMagnetic && !magnetic) selectedGap = null
+        dockRow = DockRow.NONE
+        onModeChange?.invoke(on)
+    }
     /** While a storyline clip is dragged or trimmed: its connected clips stay where they are (the pill over the timeline). */
     var keepConnected by mutableStateOf(false)
     /** What the magnetic timeline keeps with the project: disconnected clips and moved connection points. */
@@ -1276,7 +1319,7 @@ class TitleDraft {
 enum class EditView { TIMELINE, TRANSCRIPT }
 
 /** The rows of steps that can replace the dock's actions for a selection. */
-enum class DockRow { NONE, SPEED, FREEZE, VOLUME, LABEL, MORE, MAGNETIC }
+enum class DockRow { NONE, SPEED, FREEZE, VOLUME, LABEL, MORE, MAGNETIC, BADGES }
 
 /** What the row for an empty selection adds. */
 enum class AddAction { MEDIA, SOUND, TITLE, CAPTIONS, VOICE }

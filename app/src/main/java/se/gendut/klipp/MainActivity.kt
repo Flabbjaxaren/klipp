@@ -57,6 +57,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // simple or advanced: first, before anything else writes a setting (a phone that used Klipp before stays advanced)
+        runCatching {
+            val info = packageManager.getPackageInfo(packageName, 0)
+            AppPrefs.initMode(applicationContext, updated = info.lastUpdateTime > info.firstInstallTime,
+                hasProjects = java.io.File(filesDir, "projekt").list()?.isNotEmpty() == true)
+        }
         se.gendut.klipp.engine.Perf.init(applicationContext)
         se.gendut.klipp.engine.GlStill.init(applicationContext)
         se.gendut.klipp.engine.FrameSnap.init(applicationContext)

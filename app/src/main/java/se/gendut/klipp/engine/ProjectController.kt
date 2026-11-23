@@ -1158,7 +1158,11 @@ class ProjectController(
             if (state.selectedCaption != null && state.captions.none { it.id == state.selectedCaption }) { state.selectedCaption = null; state.editingCaption = false }
             state.trackStates = rows.map { r ->
                 val t = (if (r.kind == TrackKind.VIDEO) q.video else q.audio).firstOrNull { it.id == r.id }
-                if (t == null) se.gendut.klipp.TrackState() else se.gendut.klipp.TrackState(t.locked, t.enabled, t.muted, t.solo, t.syncLock)
+                if (t == null) se.gendut.klipp.TrackState() else se.gendut.klipp.TrackState(t.locked, t.enabled, t.muted, t.solo, t.syncLock, t.afx)
+            }
+            // what simple mode shows as badges on the clips (keyframes, sound effects, opacity)
+            state.clipExtras = (q.video + q.audio).flatMap { it.clips }.associate { c ->
+                c.id to se.gendut.klipp.ClipExtras(c.kf.filterValues { it.isNotEmpty() }.keys, c.afx, c.opacity.toFloat())
             }
             state.trackVolKf = q.audio.map { t -> if (t.autoMode == "Off") emptyList() else t.volKf.map { it.first.toFloat() to it.second.toFloat() } }
             state.clipLevels = q.audio.flatMap { it.clips }.associate { c ->
@@ -1194,7 +1198,7 @@ class ProjectController(
         state.selectedCaption = null; state.editingCaption = false
         state.setTrackRows(se.gendut.klipp.DEFAULT_TRACKS)
         state.trackStates = List(se.gendut.klipp.DEFAULT_TRACKS.size) { se.gendut.klipp.TrackState() }
-        state.trackVolKf = emptyList(); state.clipLevels = emptyMap()
+        state.trackVolKf = emptyList(); state.clipLevels = emptyMap(); state.clipExtras = emptyMap()
         state.targetVideo = se.gendut.klipp.DEFAULT_TRACKS.v1Row; state.targetAudio = se.gendut.klipp.DEFAULT_TRACKS.a1Row
     }
 
