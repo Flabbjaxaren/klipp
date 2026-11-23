@@ -975,7 +975,8 @@ private fun FadeRow(label: String, tag: String, current: Float?, set: (Float?) -
 
 /**
  * Direct manipulation in the program monitor: one finger moves, two fingers pinch (scale) and rotate.
- * Snapping to center, 100 % and right angles with haptics; the engine gets the values when the fingers lift.
+ * A tick when passing the center, 100 % and right angles; a title snaps its text to the middle of the picture
+ * (across, up and down – a lime line shows it). The engine gets the values when the fingers lift.
  */
 @Composable
 fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
@@ -1005,6 +1006,10 @@ fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
         se.gendut.klipp.engine.TitleFollow.revision
         c.snapshot.sequence?.video?.firstNotNullOfOrNull { tr -> tr.clips.firstOrNull { it.id == id && it.text != null } }
     }
+    val titleNow by rememberUpdatedState(titleSnap)
+    // a title held at the middle of the picture (across / up and down): drawn as a lime line
+    var midX by remember { mutableStateOf(false) }
+    var midY by remember { mutableStateOf(false) }
     BoxWithConstraints(modifier.fillMaxSize().testTag("motion")) {
         val s = constraints.maxWidth / w // screen pixels per sequence pixel
         Box(
@@ -1015,6 +1020,12 @@ fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
                     scope.launch { glow.animateTo(1f, Springs.pop()) }
                     var rawX = x; var rawY = y; var rawK = k; var rawR = r
                     var snapX = rawX > w / 2; var snapY = rawY > h / 2; var snapK = rawK > 100f; var snapR = kotlin.math.floor(rawR / 90f).roundToInt()
+                    // a title: where its text's middle lies from its position (the text box's center, as drawn now)
+                    val textMid = if (!pNow.isTitle) null else (titleNow?.let { c ->
+                        se.gendut.klipp.engine.titleBoxQuad(c.copy(x = x.toDouble(), y = y.toDouble(), scale = k.toDouble(), rotation = r.toDouble(), kf = emptyMap()),
+                            state.playhead.toDouble().coerceIn(c.start, c.end - 1e-3), w.toInt(), h.toInt())
+                    }?.let { q -> Offset((q[0] + q[2] + q[4] + q[6]) / 4f * w - x, (q[1] + q[3] + q[5] + q[7]) / 4f * h - y) } ?: Offset.Zero)
+                    val near = 12.dp.toPx() / s
                     // if the gesture is canceled (clip changes, view goes away) the overlay must not get stuck as active
                     try { while (true) {
                         val ev = awaitPointerEvent()
@@ -1044,16 +1055,25 @@ fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
                             if (sx != snapX || sy != snapY || sk != snapK || sr != snapR) haptics.tick()
                             snapX = sx; snapY = sy; snapK = sk; snapR = sr
                             x = rawX; y = rawY; k = rawK; r = rawR
+                            // a title near the middle: held there (with a tick as it catches)
+                            if (textMid != null) {
+                                val mx = abs(rawX + textMid.x - w / 2) < near
+                                val my = abs(rawY + textMid.y - h / 2) < near
+                                if (mx) x = w / 2 - textMid.x
+                                if (my) y = h / 2 - textMid.y
+                                if ((mx && !midX) || (my && !midY)) haptics.tick()
+                                midX = mx; midY = my
+                            }
                             state.setLive(pNow.copy(x = x, y = y, scale = k, rotation = r))
                         }
                         ev.changes.forEach { it.consume() }
                     } } catch (e: kotlinx.coroutines.CancellationException) {
-                        active = false
+                        active = false; midX = false; midY = false
                         scope.launch { glow.animateTo(0f, Springs.settle()) }
                         scope.launch { state.endLive() }
                         throw e
                     }
-                    active = false
+                    active = false; midX = false; midY = false
                     scope.launch { glow.animateTo(0f, Springs.settle()) }
                     val q = pNow
                     val changed = abs(x - (q.x ?: w / 2)) > 0.5f || abs(y - (q.y ?: h / 2)) > 0.5f || abs(k - q.scale) > 0.05f || abs(r - q.rotation) > 0.05f
@@ -1077,6 +1097,9 @@ fun MotionOverlay(state: EditorState, modifier: Modifier = Modifier) {
                     drawLine(K.OnSurface.copy(alpha = 0.35f * g), Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), 1.dp.toPx(), pathEffect = dash)
                     drawLine(K.OnSurface.copy(alpha = 0.35f * g), Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 1.dp.toPx(), pathEffect = dash)
                 }
+                // a title held at the middle: the line it is held on, lime
+                if (midX) drawLine(K.Primary, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), 2.dp.toPx())
+                if (midY) drawLine(K.Primary, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), 2.dp.toPx())
                 // a title: the box right around its text (as it is drawn now, with the live values while dragging)
                 val quad = titleSnap?.let { c -> se.gendut.klipp.engine.titleBoxQuad(c.copy(x = x.toDouble(), y = y.toDouble(), scale = k.toDouble(), rotation = r.toDouble(), kf = if (active) emptyMap() else c.kf),
                     state.playhead.toDouble().coerceIn(c.start, c.end - 1e-3), w.toInt(), h.toInt()) }
