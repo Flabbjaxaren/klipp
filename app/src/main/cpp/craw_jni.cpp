@@ -6,10 +6,12 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <thread>
 
 #include "common/Clip.h"
+#include "common/Json.h"
 
 namespace {
 using craw::tools::Clip;
@@ -185,6 +187,48 @@ private:
     std::vector<GridPoint> xShading_, yShading_;
 };
 
+// How the phone was held, from the accelerometer (IMU_ chunks, type 2, Android device axes) over the take's first
+// second: RawLens writes no orientation, so a take filmed upright came in lying on its side. The angle is Android's
+// OrientationEventListener's (0 = upright portrait), and the picture's clockwise turn the camera's usual one:
+// sensor orientation plus it for the back camera, minus it for the front. Empty when the phone lay flat or the take
+// has no accelerometer.
+std::optional<int> heldRotation(const Clip& c, const craw::json::Value& meta) {
+    const auto& reader = c.reader();
+    const int64_t t0 = c.frameCount() ? reader.frame(0).timestampNs : 0;
+    double sum[2][3]{};
+    int count[2]{};
+    for (const auto& chunk : reader.chunks()) {
+        if (std::memcmp(chunk.fourcc.data(), "IMU_", 4) != 0 || !reader.crcOk(chunk)) continue;
+        const auto payload = reader.payload(chunk);
+        if (payload.size() < 8) continue;
+        const auto* d = reinterpret_cast<const uint8_t*>(payload.data());
+        uint32_t n;
+        std::memcpy(&n, d + 4, 4);
+        if (d[0] != 2 || payload.size() < 8 + size_t{n} * 20) continue;
+        for (uint32_t i = 0; i < n; ++i) {
+            int64_t t;
+            float v[3];
+            std::memcpy(&t, d + 8 + 20 * size_t{i}, 8);
+            std::memcpy(v, d + 16 + 20 * size_t{i}, 12);
+            if (!std::isfinite(v[0]) || !std::isfinite(v[1]) || !std::isfinite(v[2])) continue;
+            const int early = t >= t0 && t - t0 <= 1'000'000'000 ? 0 : 1;
+            for (int k = 0; k < 3; ++k) sum[early][k] += v[k];
+            ++count[early];
+        }
+    }
+    const int pick = count[0] ? 0 : 1;
+    if (!count[pick]) return std::nullopt;
+    const double x = sum[pick][0], y = sum[pick][1], z = sum[pick][2];
+    // flat on its back or face (gravity mostly through the screen): no way to tell
+    if (std::hypot(x, y) < .5 * std::sqrt(x * x + y * y + z * z)) return std::nullopt;
+    // OrientationEventListener: X = -x, Y = -y, angle = 90 - atan2(-Y, X)
+    const int angle = ((int(std::lround(90 - std::atan2(y, -x) * 180 / M_PI)) % 360) + 360) % 360;
+    const int device = (angle + 45) / 90 * 90 % 360;
+    const int sensor = ((int(meta["sensorOrientation"].num(90)) % 360) + 360) % 360;
+    const bool front = meta["lensFacing"].str("back") == "front";
+    return front ? (sensor - device + 360) % 360 : (sensor + device) % 360;
+}
+
 void fail(JNIEnv* env, const std::exception& e) {
     if (!env->ExceptionCheck()) {
         env->ThrowNew(env->FindClass("java/io/IOException"), e.what());
@@ -222,7 +266,11 @@ Java_se_gendut_klipp_engine_CrawImport_metadata(JNIEnv* env, jobject, jlong hand
     const auto& info = c.info();
     const auto& audio = c.audio();
     const double fps = info.fpsNum / info.fpsDen;
-    const jlong fields[] = {w, h, jlong(c.frameCount()), info.orientationDeg,
+    // an orientation the file states wins; otherwise how the phone was held
+    const auto meta = craw::json::parseOrEmpty(c.reader().metaJson());
+    const bool stated = meta["orientation"].isNumber() || meta["video"]["orientation"].isNumber();
+    const int rotation = stated ? info.orientationDeg : heldRotation(c, meta).value_or(info.orientationDeg);
+    const jlong fields[] = {w, h, jlong(c.frameCount()), rotation,
         std::isfinite(fps) && fps >= 1 && fps <= 1000 ? jlong(std::round(fps * 1000)) : 30000,
         audio.channels, audio.sampleRate, jlong(audio.frames), c.reader().frame(0).timestampNs};
     auto result = env->NewLongArray(std::size(fields));
