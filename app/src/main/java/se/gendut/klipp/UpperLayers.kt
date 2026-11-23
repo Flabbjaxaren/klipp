@@ -106,7 +106,7 @@ fun UpperLayers(
         // back-to-back segments (a dissolve's two halves, clips next to each other in an upper track): two players
         // taking turns, see Alternate
         for (layer in uppers) for (part in Alternate.split(layer)) key(part.name) { LayerVideo(part, plan, controller, state, main, gradeOf, look, planName = layer.name) }
-        if (titles && plan.overlays.isNotEmpty()) OverlayText(plan, state)
+        if (titles && plan.overlays.isNotEmpty()) OverlayText(plan, state, controller)
     }
 }
 
@@ -133,7 +133,7 @@ fun rememberPreviewPlan(controller: ProjectController, gradeOf: (Long) -> se.gen
 @Composable
 fun ProgramTitles(controller: ProjectController, state: EditorState, gradeOf: (Long) -> se.gendut.klipp.engine.ClipGrade?, gradesKey: Any?) {
     val plan = rememberPreviewPlan(controller, gradeOf, gradesKey) ?: return
-    if (plan.overlays.isNotEmpty()) Box(Modifier.fillMaxSize().testTag("programTitles")) { OverlayText(plan, state) }
+    if (plan.overlays.isNotEmpty()) Box(Modifier.fillMaxSize().testTag("programTitles")) { OverlayText(plan, state, controller) }
 }
 
 @OptIn(UnstableApi::class)
@@ -952,12 +952,13 @@ private fun composeBlend(b: se.gendut.klipp.engine.BlendMode): androidx.compose.
 
 /** Titles and captions drawn by the app, in step with the playhead. */
 @Composable
-private fun OverlayText(plan: LayerPlan, state: EditorState) {
+private fun OverlayText(plan: LayerPlan, state: EditorState, controller: ProjectController) {
     val hw = plan.width / 2
     val hh = plan.height / 2
     Canvas(Modifier.fillMaxSize()) {
         // read in the draw phase: during playback only the drawing is redone, nothing is recomposed every frame
-        val t = state.playhead.toDouble()
+        // (at – or past – the timeline's very end: its last frame's titles and captions, as the picture under them – lastFrameAt)
+        val t = state.playhead.toDouble().let { p -> lastFrameAt(controller.snapshot)?.let { minOf(p, it) } ?: p }
         // titles that follow a tracked object are redrawn when the tracking or the link changes
         se.gendut.klipp.engine.TitleFollow.revision
         for (captions in OVERLAY_KINDS) {
