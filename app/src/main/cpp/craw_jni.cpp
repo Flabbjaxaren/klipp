@@ -215,6 +215,8 @@ Java_se_gendut_klipp_engine_CrawImport_close(JNIEnv*, jobject, jlong handle) {
 
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_se_gendut_klipp_engine_CrawImport_metadata(JNIEnv* env, jobject, jlong handle) {
+    // (reading frame 0 can throw – a C++ exception leaving a JNI function ends the process)
+    try {
     const auto& c = source(handle).clip;
     const auto [w, h] = c.imageSize();
     const auto& info = c.info();
@@ -226,6 +228,10 @@ Java_se_gendut_klipp_engine_CrawImport_metadata(JNIEnv* env, jobject, jlong hand
     auto result = env->NewLongArray(std::size(fields));
     if (result) env->SetLongArrayRegion(result, 0, std::size(fields), fields);
     return result;
+    } catch (const std::exception& e) {
+        fail(env, e);
+        return nullptr;
+    }
 }
 
 extern "C" JNIEXPORT void JNICALL
@@ -235,6 +241,9 @@ Java_se_gendut_klipp_engine_CrawImport_configure(JNIEnv* env, jobject, jlong han
         auto& input = source(handle);
         auto encoding = std::make_unique<LogEncoding>();
         Matrix matrix{};
+        if (env->GetArrayLength(xyzToGamut) != 9 || env->GetArrayLength(curve) != jsize(logLutSize)) {
+            throw std::runtime_error("Invalid CRAW log encoding");
+        }
         for (int r = 0; r < 3; ++r) env->GetFloatArrayRegion(xyzToGamut, r * 3, 3, matrix[r].data());
         env->GetFloatArrayRegion(curve, 0, logLutSize, encoding->curve.data());
         if (env->ExceptionCheck()) return;
@@ -257,6 +266,9 @@ Java_se_gendut_klipp_engine_CrawImport_decode(JNIEnv* env, jobject, jlong handle
     jobject vBuffer, jint vRow, jint vPixel) {
     try {
         const auto& c = source(handle).clip;
+        // 4:2:0 writes pixel pairs: an odd size would write one column/row past the planes checked below
+        if (w < 2 || h < 2 || (w & 1) || (h & 1)) throw std::runtime_error("Invalid CRAW output size");
+        if (!source(handle).encoding) throw std::runtime_error("CRAW log encoding not configured");
         const auto raw = c.frameRaw(frame, std::clamp(std::thread::hardware_concurrency(), 1u, 4u));
         const unsigned scale = c.isRgb() ? 2 : 1;
         if (raw.width / scale < unsigned(w) || raw.height / scale < unsigned(h) ||
@@ -321,13 +333,14 @@ Java_se_gendut_klipp_engine_CrawImport_decode(JNIEnv* env, jobject, jlong handle
                             }
                             const auto [r, g, b] = rgb;
                             const float luma = .2126f * r + .7152f * g + .0722f * b;
-                            yPlane.put(x + dx, y + dy, quantize(64 + 876 * luma));
+                            yPlane.put(x + dx, y + dy, quantize(std::clamp(64 + 876 * luma, 0.f, 1023.f)));
                             cb += b - luma;
                             cr += r - luma;
                         }
                     }
-                    uPlane.put(x / 2, y / 2, quantize(512 + 224 * cb / 1.8556f));
-                    vPlane.put(x / 2, y / 2, quantize(512 + 224 * cr / 1.5748f));
+                    // cb/cr are the 2x2 block's sums: 224 x sum = 896 x average, 896 being 10-bit limited range's chroma scale
+                    uPlane.put(x / 2, y / 2, quantize(std::clamp(512 + 224 * cb / 1.8556f, 0.f, 1023.f)));
+                    vPlane.put(x / 2, y / 2, quantize(std::clamp(512 + 224 * cr / 1.5748f, 0.f, 1023.f)));
                 }
             }
         };
