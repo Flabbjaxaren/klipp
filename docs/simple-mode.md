@@ -38,11 +38,12 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
 
 - **The film as one row.** The strip shows the storyline, the clips on V1, with their frames. Gaps in the storyline
   show as dashed spaces.
-- **Rows under the clips: the other tracks.** Every track with something on it is a row of its own, in the advanced
-  timeline's order: the video tracks highest first (overlays, B-roll, titles), then A1, A2 … (sound and music that
-  isn't a video clip's own – that is part of its clip), then the captions. Empty tracks are not shown; they stay in
-  the project. A clip on a row is selected, moved and trimmed like a clip in the storyline. More rows than there is
-  room for: a swipe up or down, or *+N rows*, shows the rest.
+- **Rows for the other tracks.** Every track with something on it is a row of its own, in the advanced timeline's
+  order: the video tracks (overlays, B-roll, titles) over the storyline, the highest on top – what lies higher covers
+  what is under it in the picture – and A1, A2 … (sound and music that isn't a video clip's own; that is part of its
+  clip) and the captions under it. Empty tracks are not shown; they stay in the project. A clip on a row is selected,
+  moved and trimmed like a clip in the storyline. With more rows than there is room for, the strip scrolls up and
+  down; it opens with the storyline in view.
 - **What hangs on what.** Overlays and titles hang on the storyline clip under them (the magnetic timeline's connected
   clips) and go with it: a pin and a thin line show where. While a layer is dragged, the clip it will hang on lights
   up. Music and sound moved, trimmed or added in simple mode stay where they are in the film instead (they are kept
@@ -59,11 +60,11 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
 - **Zoom.** Pinch with two fingers, down to the whole film in view however long it is (the overview) and up to
   400 dp a second. The strip starts at a size where clips can be taken hold of; *Show the whole film* returns to
   the overview in one tap. The time under the fingers stays put, or the playhead does when it is centred.
-- **Moving a clip.** Hold a clip and drag it; held near the strip's edge, the strip scrolls that way. Dragged down
+- **Moving a clip.** Hold a clip and drag it; held near the strip's edge, the strip scrolls that way. Dragged up
   onto a row, a storyline clip becomes a layer over the film (the storyline closes up – no gap is left; the magnetic
-  `MagTimeline.move` to another lane); a video clip dragged up from a row goes into the storyline at the nearest edit
+  `MagTimeline.move` to another lane); a video clip dragged down from a row goes into the storyline at the nearest edit
   point (what follows makes room). While a video clip is dragged and nothing lies over the film yet, a row to drop it
-  on is offered. A clip goes only onto a row of its kind (video and titles on video tracks, sound on audio tracks); a
+  on opens just over the storyline. A clip goes only onto a row of its kind (video and titles on video tracks, sound on audio tracks); a
   layer dropped onto a clip on its row stacks onto the next free track. Each move is one undo step. A lime line shows where it will go in, and it is dropped at the
   storyline's edit point nearest to where its start is. This is the magnetic timeline's own reorder
   (`MagTimeline.move`): the gap it leaves closes, nothing is overwritten, its linked sound and connected clips go
@@ -123,8 +124,8 @@ advanced mode, and nothing is simplified automatically.
 
 - the storyline, and a row per track (a video clip's own sound in its clip, empty tracks left out);
 - layers moving along their row, into the storyline and out of it; music staying in place; titles made longer;
-- on screen: the rows, a clip dragged down onto a row, a layer dragged along its row, a locked row's mark, more rows
-  than room;
+- on screen: video rows over the storyline and sound rows under it, a clip dragged up onto a row (and not onto a
+  sound row), a layer dragged along its row, a locked row's mark, more rows than room scrolling;
 - the limits of what a trim can bring back;
 - trimming the end (ripple, connected clips follow, one undo step, undo and redo);
 - cutting the start;
