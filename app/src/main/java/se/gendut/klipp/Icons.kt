@@ -80,6 +80,16 @@ object Ic {
     val Marker = stroke("marker", "M6 3h12v13l-6 5-6-5z")
     val Magnet = shifted("magnet", 0f, 1.5f, "M5 3h4v8a3 3 0 006 0V3h4v8a7 7 0 01-14 0z", "M5 7h4", "M15 7h4")
     val Link = stroke("link", "M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1", "M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1")
+    /** A link broken in two (a disconnected clip). */
+    val Unlink = stroke("unlink", "M9 15l-1.5 1.5a3.5 3.5 0 01-5-5L4 10", "M15 9l1.5-1.5a3.5 3.5 0 015 5L20 14", "M8 3v3", "M3 8h3", "M16 21v-3", "M21 16h-3")
+    /** Four ways (the position tool). */
+    val Position = stroke("position", "M12 3v18", "M3 12h18", "M9 6l3-3 3 3", "M9 18l3 3 3-3", "M6 9l-3 3 3 3", "M18 9l3 3-3 3")
+    /** The storyline with a clip hanging above it (the magnetic timeline). */
+    val Storyline = shifted("storyline", 0f, 1f, "M3 16h18", "M7 6h7v4H7z", "M10 10v6")
+    /** Up out of the storyline (lift). */
+    val LiftUp = shifted("liftUp", 0f, -0.5f, "M12 17V5", "M7 10l5-5 5 5", "M5 20h14")
+    /** Down into the storyline (overwrite to primary). */
+    val DropDown = stroke("dropDown", "M12 4v12", "M7 11l5 5 5-5", "M5 20h14")
     val Crop = stroke("crop", "M6 2v16h16", "M2 6h16v16")
     val Mic = stroke("mic", "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z", "M5 11a7 7 0 0 0 14 0", "M12 18v3", "M9 21h6")
     val Check = stroke("check", "M5 12l5 5 9-10")

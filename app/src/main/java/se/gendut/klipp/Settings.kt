@@ -64,6 +64,10 @@ object AppPrefs {
     fun centerDefault(c: Context): Boolean = p(c).getBoolean("centerPlayhead", false)
     fun setCenterDefault(c: Context, on: Boolean) { p(c).edit().putBoolean("centerPlayhead", on).apply() }
 
+    /** The magnetic timeline (see Magnetic.kt); off = track-based editing as always. */
+    fun magneticTimeline(c: Context): Boolean = p(c).getBoolean("magneticTimeline", false)
+    fun setMagneticTimeline(c: Context, on: Boolean) { p(c).edit().putBoolean("magneticTimeline", on).apply() }
+
     /** Magnetic snapping on when the app starts. */
     fun magnetDefault(c: Context): Boolean = p(c).getBoolean("magnet", true)
     fun setMagnetDefault(c: Context, on: Boolean) { p(c).edit().putBoolean("magnet", on).apply() }
@@ -142,9 +146,10 @@ private fun secLabel(s: Float) = (if (s % 1f == 0f) s.toInt().toString() else "%
  *
  * @param onCenterDefault the playhead's default mode changed (also applies right away)
  * @param onMagnetDefault the snapping default changed (also applies right away)
+ * @param onMagnetic the magnetic timeline turned on or off (applies right away)
  */
 @Composable
-fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {}, onMagnetDefault: (Boolean) -> Unit = {}) {
+fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {}, onMagnetDefault: (Boolean) -> Unit = {}, onMagnetic: (Boolean) -> Unit = {}) {
     val ctx = LocalContext.current
     val haptics = rememberHaptics()
     // (the empty parts take the touches too: the editor lies under the page)
@@ -210,6 +215,10 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             var magnet by remember { mutableStateOf(AppPrefs.magnetDefault(ctx)) }
             SwitchRow(stringResource(R.string.settings_magnet), stringResource(R.string.settings_magnet_hint), magnet, "set:magnet") {
                 magnet = it; AppPrefs.setMagnetDefault(ctx, it); onMagnetDefault(it)
+            }
+            var magnetic by remember { mutableStateOf(AppPrefs.magneticTimeline(ctx)) }
+            SwitchRow(stringResource(R.string.magnetic_setting), stringResource(R.string.magnetic_setting_hint), magnetic, "set:magnetic") {
+                magnetic = it; AppPrefs.setMagneticTimeline(ctx, it); onMagnetic(it)
             }
             var addImport by remember { mutableStateOf(AppPrefs.addOnImport(ctx)) }
             SwitchRow(stringResource(R.string.settings_add_on_import), stringResource(R.string.settings_add_on_import_hint), addImport, "set:addOnImport") {

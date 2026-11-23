@@ -97,8 +97,14 @@ private const val FLING_OUT_DP = 2400f
 /** The platform magnifier (Android 9+; not in the JVM test environment, which has no surfaces for it). */
 private val LOUPE = Build.VERSION.SDK_INT >= 28 && Build.FINGERPRINT != "robolectric"
 
-/** SELECT move, RIPPLE ripple, RAZOR razor, TRIM trim (slip on the clip, roll on the edit point). */
-enum class Tool { SELECT, RIPPLE, RAZOR, TRIM }
+/**
+ * SELECT move, RIPPLE ripple, RAZOR razor, TRIM trim (slip on the clip, roll on the edit point); POSITION (the magnetic
+ * timeline's, in place of Ripple there: its trims ripple anyway) moves storyline clips over what is there, leaving gap clips.
+ */
+enum class Tool { SELECT, RIPPLE, RAZOR, TRIM, POSITION }
+
+/** The tool moves and trims clips (as opposed to cutting, slipping or rolling). */
+val Tool.moves: Boolean get() = this == Tool.SELECT || this == Tool.RIPPLE || this == Tool.POSITION
 
 class Haptics(private val view: View) {
     companion object {
@@ -168,6 +174,8 @@ private sealed interface Hit {
     data class VolLine(val id: Long) : Hit
     data object Ruler : Hit
     data object Empty : Hit
+    /** An edge of the selected gap clip (magnetic timeline): drag = its length, what follows ripples. */
+    data class GapEdge(val gap: MGap, val left: Boolean) : Hit
 }
 
 @Composable
@@ -188,6 +196,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     val scratchPath = remember { Path() }
     val scratchPath2 = remember { Path() }
     val lassoDash = remember(density) { with(density) { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 5.dp.toPx())) } }
+    val gapDash = remember(density) { with(density) { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx())) } }
     /** Text in the caption lane (one object, not a new one on every draw). */
     val capPaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.rgb(0xD8, 0xF5, 0xEC) } }
     /** Caption being dragged right now: (id, start, end) – shown until the engine's reply arrives. */
@@ -288,6 +297,17 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     val touching = remember { booleanArrayOf(false) }
 
     val anims = remember { mutableStateMapOf<Long, ClipAnim>() }
+    // the magnetic timeline: the model of the timeline as it is (null when off), its gap clips and connections
+    val magNow by remember(state) { derivedStateOf { if (state.magnetic) state.mag() else null } }
+    val magGaps by remember(state) { derivedStateOf { magNow?.gaps().orEmpty() } }
+    val magLinks by remember(state) { derivedStateOf { magNow?.connections().orEmpty() } }
+    /** A storyline clip is dragged or trimmed (magnetic): the pill that keeps its connected clips in place shows. */
+    var magDragging by remember { mutableStateOf(false) }
+    /** The running drag's preview, made again when the pill is pressed. */
+    val magRepreview = remember { arrayOfNulls<() -> Unit>(1) }
+    LaunchedEffect(state.keepConnected) { magRepreview[0]?.invoke() }
+    // a selected gap clip that is gone (an edit moved it) is let go
+    LaunchedEffect(magGaps) { state.selectedGap?.let { g -> if (magGaps.none { abs(it.start - g.start) < 1e-3f && abs(it.end - g.end) < 1e-3f }) state.selectedGap = null } }
     var initialized by remember { mutableStateOf(false) }
     /** A volume line being dragged (or just released): the clip and its level as shown until the engine's reply arrives. */
     var volEdit by remember { mutableStateOf<Pair<Long, ClipLevel>?>(null) }
@@ -368,10 +388,41 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
         c.id to androidx.compose.ui.geometry.Rect(a.start.value * pps, ty, (a.start.value + a.len.value) * pps, ty + hOf(a.track.value))
     }.toMap()
 
+    /**
+     * The magnetic preview: every clip but [exclude] (those follow the finger) slides to where [plan] puts it – the
+     * neighbors make room, connected clips go with their storyline clips, what the edit removes fades; no plan = back
+     * to where the clips are.
+     */
+    fun magPreview(plan: MPlan?, exclude: Set<Long>) {
+        val rws = rows()
+        for (c in state.clips) {
+            if (c.id in exclude || c.id in state.removing) continue
+            val an = anims[c.id] ?: continue
+            val f = plan?.clip(c.id)
+            val st = f?.start ?: c.start
+            val ln = f?.len ?: c.length
+            // (a track the edit adds lies past the rows: above the top one, below the last)
+            val tr = f?.let { rws.rowOf(it.video, it.level).toFloat() } ?: c.track.toFloat()
+            val dm = if (plan != null && c.id in plan.removed) 0.6f else 0f
+            if (abs(an.start.targetValue - st) > 1e-4f) scope.launch { an.start.animateTo(st, Springs.follow()) }
+            if (abs(an.len.targetValue - ln) > 1e-4f) scope.launch { an.len.animateTo(ln, Springs.follow()) }
+            if (abs(an.track.targetValue - tr) > 1e-4f) scope.launch { an.track.animateTo(tr, Springs.track()) }
+            if (abs(an.doom.targetValue - dm) > 1e-4f) scope.launch { an.doom.animateTo(dm, Springs.lift()) }
+        }
+    }
+    /** After a magnetic edit: what the engine leaves where it was slides back (moved clips follow their new place on their own). */
+    fun magSettleLater() {
+        scope.launch {
+            delay(1500)
+            if (dragId == null) magPreview(null, emptySet())
+        }
+    }
+
     /** Clear everything temporary from a gesture and return the clips to the model's state (cancelled gesture). */
     fun abandonGesture() {
         dragId = null; snapLine = null; scrubTier = 0; loupe = null; deleteArmed = false; hoverTrack = -1; lassoPts = null; lassoLive = emptySet(); lassoCapLive = emptySet(); razorLine = null; transPreview = null; capDrag = null; capGroupDt = null
         state.trimView = null
+        magDragging = false; magRepreview[0] = null; state.keepConnected = false
         for (c in state.clips) anims[c.id]?.let { a ->
             scope.launch { a.start.animateTo(c.start, Springs.settle()) }
             scope.launch { a.len.animateTo(c.length, Springs.settle()) }
@@ -379,6 +430,17 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
             scope.launch { a.lift.animateTo(0f, Springs.lift()) }
             scope.launch { a.doom.animateTo(0f, Springs.lift()) }
         }
+    }
+
+    /** The gap clip under a touch at [pos] (screen coordinates in the lanes), on the storyline's row; null = none or not magnetic. */
+    fun gapAtTouch(pos: Offset): MGap? {
+        if (magNow == null) return null
+        val v1 = rows().v1Row
+        val y = pos.y - rulerPx + scrollY
+        val ty = yOf(v1.toFloat())
+        if (y < ty || y > ty + hOf(v1.toFloat())) return null
+        val t = (pos.x + sx()) / pps
+        return magGaps.firstOrNull { t >= it.start && t < it.end }
     }
 
     // Glow on the snap line
@@ -457,7 +519,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
         initialized = true
     }
 
-    Row(modifier.background(K.Lane)) {
+    Box(modifier) {
+    Row(Modifier.fillMaxSize().background(K.Lane)) {
         // Track headers
         Column(Modifier.width(headerW).fillMaxHeight().background(K.Surface)) {
             // the whole timeline in the corner: the visible part as a frame; tap or drag = go there
@@ -694,7 +757,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             }
                             // any clip's edge (not only the selected one's): drag = trim. Only the inner part, so the edge
                             // belongs to the clip under the finger (adjacent clips: left of the cut = the left clip's end)
-                            if (tool == Tool.SELECT || tool == Tool.RIPPLE) for (c in list.asReversed()) {
+                            if (tool.moves) for (c in list.asReversed()) {
                                 val a = anims[c.id] ?: continue
                                 val ty = yOf(a.track.value)
                                 if (y < ty || y > ty + hOf(a.track.value)) continue
@@ -710,6 +773,18 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 val x0 = a.start.value * pps
                                 val x1 = (a.start.value + a.len.value) * pps
                                 if (cx in x0..x1 && y >= ty && y <= ty + hOf(a.track.value)) return@run Hit.Body(c.id)
+                            }
+                            // the selected gap clip's edges (inside it: the clips around it keep theirs)
+                            state.selectedGap?.takeIf { magNow != null && tool != Tool.RAZOR }?.let { g ->
+                                val v1 = rows().v1Row
+                                val ty = yOf(v1.toFloat())
+                                if (y >= ty && y <= ty + hOf(v1.toFloat())) {
+                                    val x0 = g.start * pps
+                                    val x1 = g.end * pps
+                                    val zone = maxOf(handlePx, edgePx)
+                                    if (cx > x1 - zone && cx <= x1 + 4f) return@run Hit.GapEdge(g, false)
+                                    if (cx >= x0 - 4f && cx < x0 + zone && g.start > 0f) return@run Hit.GapEdge(g, true)
+                                }
                             }
                             Hit.Empty
                         }
@@ -960,6 +1035,41 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             scope.launch { delay(1500); if (volEdit === pending) volEdit = null }
                             return@awaitEachGesture
                         }
+                        // the selected gap clip's edge: its length (what follows ripples, as a storyline clip's trim)
+                        if (hit is Hit.GapEdge) {
+                            val g = hit.gap
+                            var moved = false
+                            var lastD = 0f
+                            magRepreview[0] = { magPreview(magNow?.trimGap(g.start, lastD, state.keepConnected), emptySet()) }
+                            while (true) {
+                                val ev = awaitPointerEvent()
+                                val p = ev.changes.filter { it.pressed }
+                                if (p.isEmpty()) break
+                                if (p.size >= 2 || ev.changes.any { it.isConsumed }) {
+                                    magPreview(null, emptySet()); snapLine = null; magDragging = false
+                                    while (awaitPointerEvent().changes.any { it.pressed }) { }
+                                    return@awaitEachGesture
+                                }
+                                val ch = p[0]
+                                val dx = ch.position.x - start.x
+                                if (!moved && abs(dx) > viewConfiguration.touchSlop) { moved = true; state.playing = false; haptics.tick(); magDragging = true }
+                                if (!moved) continue
+                                ch.consume()
+                                // the right edge longer to the right, the left one longer to the left; as short as nothing
+                                val d = ((if (hit.left) -dx else dx) / pps).coerceAtLeast(-g.len)
+                                if ((d <= -g.len) != (lastD <= -g.len)) haptics.tick()
+                                lastD = d
+                                magRepreview[0]?.invoke()
+                            }
+                            magDragging = false
+                            magRepreview[0] = null
+                            if (moved && abs(lastD) * pps > 0.5f) {
+                                haptics.confirm()
+                                if (!state.magTrimGap(g.start, snapFrame(lastD))) magPreview(null, emptySet()) else magSettleLater()
+                            } else magPreview(null, emptySet())
+                            state.keepConnected = false
+                            return@awaitEachGesture
+                        }
                         val orig: Clip? = when (hit) {
                             is Hit.Body -> state.clips.firstOrNull { it.id == hit.id }
                             is Hit.TrimL -> state.clips.firstOrNull { it.id == hit.id }
@@ -970,6 +1080,11 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         // linked clips (video ↔ audio) follow along while dragging
                         // several selected (lasso): the whole group follows along, tracks are kept
                         val groupDrag = orig != null && hit is Hit.Body && tool != Tool.RAZOR && orig.id in state.multi
+                        // the magnetic timeline: the model as the gesture starts, and whether the clip is a storyline clip (its trims ripple)
+                        val mag0 = magNow
+                        val magLead = mag0 != null && orig != null && mag0.leadOf(orig.id) == orig.id
+                        val magStory = mag0 != null && orig != null && mag0.isPrimary(orig.id)
+                        val rippleTrim = if (mag0 != null) magLead else tool == Tool.RIPPLE
                         val partners: List<Pair<Clip, ClipAnim>> = if (groupDrag) {
                             state.clips.filter { it.id in state.multi && it.id != orig.id }.mapNotNull { pc -> anims[pc.id]?.let { pc to it } }
                         } else orig?.let { o -> state.partnersOf(o).mapNotNull { pc -> anims[pc.id]?.let { pc to it } } }.orEmpty()
@@ -1014,6 +1129,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         val wasPlaying = state.playing
 
                         fun revert() {
+                            // (the magnetic preview's neighbors back to where they are)
+                            if (mag0 != null) magPreview(null, setOfNotNull(orig?.id) + partners.map { it.first.id })
                             if (orig != null && a != null && dragId == orig.id) {
                                 for ((pc, pa) in partners) {
                                     scope.launch { pa.start.animateTo(pc.start, Springs.settle()) }
@@ -1051,6 +1168,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             if (slipping) return
                             dragId = orig.id
                             if (!groupDrag) { state.selected = orig.id; state.multi = emptySet(); state.multiCaptions = emptySet() }
+                            // a storyline clip (or a group with one): the pill to keep its connected clips in place
+                            if (mag0 != null && (magStory || (groupDrag && state.multi.any { mag0.isPrimary(it) })) && (hit is Hit.Body || magLead)) magDragging = true
                             haptics.tick()
                             if (hit is Hit.Body) scope.launch { a.lift.animateTo(1f, Springs.lift()) }
                         }
@@ -1064,7 +1183,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         // a quick swipe down through a clip (select/ripple tool) cuts it where the finger went down
                         var knife = false
                         if (capLaneLasso) lasso = true
-                        else if (hit is Hit.Body && (tool == Tool.SELECT || tool == Tool.RIPPLE) && !lockedHit) {
+                        else if (hit is Hit.Body && tool.moves && !lockedHit) {
                             val r = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
                                 var out: androidx.compose.ui.input.pointer.PointerEvent
                                 while (true) {
@@ -1238,7 +1357,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     haptics.tick()
                                 }
                                 val quick = ch.uptimeMillis - down.uptimeMillis < KNIFE_MS
-                                if (hit is Hit.Body && (tool == Tool.SELECT || tool == Tool.RIPPLE) && !lockedHit && quick && d.y > 0f && d.y > abs(d.x) * 1.5f) {
+                                if (hit is Hit.Body && tool.moves && !lockedHit && quick && d.y > 0f && d.y > abs(d.x) * 1.5f) {
                                     knife = true
                                     razorDrag = true
                                     vertical = false
@@ -1321,6 +1440,22 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                         if (!groupDrag) for ((pc, pa) in partners) scope.launch { pa.track.animateTo(state.partnerTrack(orig, nt, pc).toFloat(), Springs.track()) }
                                     }
                                     hoverTrack = if (groupDrag) -1 else curTrack
+                                    // magnetic: the neighbors make room (or close up) while the clip is dragged
+                                    if (mag0 != null) {
+                                        val tgt = target
+                                        val trk = curTrack
+                                        val follow = setOf(orig.id) + partners.map { it.first.id }
+                                        magRepreview[0] = {
+                                            val m = magNow
+                                            magPreview(when {
+                                                m == null -> null
+                                                groupDrag -> m.moveBlock(state.multi, tgt - orig.start, state.keepConnected)
+                                                tool == Tool.POSITION && m.isPrimary(orig.id) && trk == orig.track -> m.positionMove(orig.id, tgt, state.keepConnected)
+                                                else -> m.move(orig.id, tgt, rows().engineIndex(trk), state.keepConnected, alone = !state.linkedSelection)
+                                            }, follow)
+                                        }
+                                        magRepreview[0]?.invoke()
+                                    }
                                     // dragged up out of the timeline: released there, the clip is deleted (ripple)
                                     val out = ch.position.y < rulerPx - outPx
                                     if (out != deleteArmed) {
@@ -1332,7 +1467,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 }
                                 hit is Hit.TrimL && dragId == orig?.id && orig != null && a != null -> {
                                     var lo = max(0f, orig.start - orig.srcIn / orig.speed)
-                                    if (tool != Tool.RIPPLE) {
+                                    if (!rippleTrim) {
                                         val prevEnd = state.clips.filter { it.track == orig.track && it.id != orig.id && it.end <= orig.start + 0.001f }.maxOfOrNull { it.end }
                                         if (prevEnd != null) lo = max(lo, prevEnd)
                                     }
@@ -1351,21 +1486,27 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     val spec = if (snap != null) Springs.snap() else Springs.follow()
                                     a.leftEdge = true
                                     // ripple: the clip stays put and only the start is shortened (the rest moves in) – as when released
-                                    if (tool == Tool.RIPPLE) scope.launch { a.start.animateTo(orig.start, spec) }
+                                    if (rippleTrim) scope.launch { a.start.animateTo(orig.start, spec) }
                                     else scope.launch { a.start.animateTo(s, spec) }
                                     scope.launch { a.len.animateTo(orig.end - s, spec) }
                                     for ((pc, pa) in partners) if (abs(pc.start - orig.start) < 0.02f) {
                                         pa.leftEdge = true
-                                        if (tool == Tool.RIPPLE) scope.launch { pa.len.animateTo(pc.length - (s - orig.start), spec) }
+                                        if (rippleTrim) scope.launch { pa.len.animateTo(pc.length - (s - orig.start), spec) }
                                         else {
                                             scope.launch { pa.start.animateTo(s, spec) }
                                             scope.launch { pa.len.animateTo(pc.end - s, spec) }
                                         }
                                     }
+                                    if (mag0 != null) {
+                                        val cut = s - orig.start
+                                        val follow = setOf(orig.id) + partners.map { it.first.id }
+                                        magRepreview[0] = { magPreview(magNow?.trim(orig.id, true, cut, state.keepConnected), follow) }
+                                        magRepreview[0]?.invoke()
+                                    }
                                 }
                                 hit is Hit.TrimR && dragId == orig?.id && orig != null && a != null -> {
                                     var hi = orig.start + (orig.srcLen - orig.srcIn) / orig.speed
-                                    if (tool != Tool.RIPPLE) {
+                                    if (!rippleTrim) {
                                         val nextStart = state.clips.filter { it.track == orig.track && it.id != orig.id && it.start >= orig.end - 0.001f }.minOfOrNull { it.start }
                                         if (nextStart != null) hi = min(hi, nextStart)
                                     }
@@ -1384,6 +1525,12 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     a.leftEdge = false
                                     scope.launch { a.len.animateTo(e - orig.start, spec) }
                                     for ((pc, pa) in partners) if (abs(pc.end - orig.end) < 0.02f) { pa.leftEdge = false; scope.launch { pa.len.animateTo(e - pc.start, spec) } }
+                                    if (mag0 != null) {
+                                        val dl = e - orig.end
+                                        val follow = setOf(orig.id) + partners.map { it.first.id }
+                                        magRepreview[0] = { magPreview(magNow?.trim(orig.id, false, dl, state.keepConnected), follow) }
+                                        magRepreview[0]?.invoke()
+                                    }
                                 }
                                 hit is Hit.TransEdge -> {
                                     val tr = state.transitions.firstOrNull { it.id == hit.id }
@@ -1575,7 +1722,13 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     val target = ((start.x + sx()) / pps).coerceAtLeast(0f)
                                     scope.launch { animate(state.playhead, target, animationSpec = Springs.settle()) { v, _ -> state.playhead = v } }
                                 }
-                                Hit.Empty -> state.clearSelection()
+                                Hit.Empty -> {
+                                    // the magnetic timeline: a gap clip on the storyline is selected (as a clip)
+                                    val g = gapAtTouch(start)
+                                    state.clearSelection()
+                                    if (g != null && tool != Tool.RAZOR) { haptics.tick(); state.selectedGap = g }
+                                }
+                                is Hit.GapEdge -> Unit
                             }
                             return@awaitEachGesture
                         }
@@ -1592,6 +1745,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         if (dropDelete && a != null) {
                             dragId = null
                             haptics.heavy()
+                            if (mag0 != null) { magPreview(null, setOf(orig.id)); magSettleLater() }
                             capGroupDt = null
                             scope.launch { a.doom.animateTo(0f, Springs.lift()) }
                             for ((_, pa) in partners) scope.launch { pa.doom.animateTo(0f, Springs.lift()) }
@@ -1616,10 +1770,23 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                         for ((_, pa) in partners) scope.launch { pa.lift.animateTo(0f, Springs.lift()) }
                                         if (lastTarget != orig.start) {
                                             haptics.confirm()
-                                            state.moveGroup(lastTarget - orig.start, insert = tool == Tool.RIPPLE)
+                                            if (mag0 != null && state.multiCaptions.isEmpty()) { if (!state.magMoveBlock(state.multi, lastTarget - orig.start)) magPreview(null, emptySet()); magSettleLater() }
+                                            else state.moveGroup(lastTarget - orig.start, insert = tool == Tool.RIPPLE)
                                             val pending = capGroupDt
                                             if (pending != null) scope.launch { delay(1500); if (capGroupDt === pending) capGroupDt = null }
                                         } else capGroupDt = null
+                                    } else if (mag0 != null) {
+                                        // magnetic: the plan the preview showed, made again from the timeline as it is
+                                        val changed = (lastTarget != orig.start || curTrack != orig.track) && state.magMove(orig, lastTarget, curTrack, position = tool == Tool.POSITION)
+                                        if (changed) haptics.confirm()
+                                        else {
+                                            magPreview(null, emptySet())
+                                            for ((cl, an) in listOf(orig to a) + partners) {
+                                                scope.launch { an.start.animateTo(cl.start, Springs.settle()) }
+                                                scope.launch { an.track.animateTo(cl.track.toFloat(), Springs.track()) }
+                                            }
+                                        }
+                                        magSettleLater()
                                     } else if (lastTarget != orig.start || curTrack != orig.track) {
                                         haptics.confirm()
                                         state.moveClip(orig, lastTarget, curTrack, insert = tool == Tool.RIPPLE)
@@ -1639,6 +1806,14 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             // back where it started: no trim (and no undo step)
                             is Hit.TrimL, is Hit.TrimR -> if (orig != null && dragId == orig.id && abs(lastLen - orig.length) < 1e-4f && abs(lastTarget - orig.start) < 1e-4f) {
                                 revert()
+                            } else if (mag0 != null && orig != null && dragId == orig.id) {
+                                // magnetic: a storyline clip ripples (its connected clips keep to their frames), others trim alone
+                                dragId = null
+                                haptics.confirm()
+                                val inEdge = hit is Hit.TrimL
+                                val delta = if (inEdge) (if (rippleTrim) orig.length - lastLen else lastTarget - orig.start) else lastLen - orig.length
+                                if (!state.magTrim(orig.id, inEdge, delta)) { a?.leftEdge = false; magPreview(null, emptySet()) }
+                                magSettleLater()
                             } else if (hit is Hit.TrimL && orig != null && dragId == orig.id) {
                                 dragId = null
                                 haptics.confirm()
@@ -1692,6 +1867,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         throw e
                       } finally {
                         touching[0] = false
+                        magDragging = false
+                        magRepreview[0] = null
+                        state.keepConnected = false
                       }
                     }
                 }
@@ -1848,6 +2026,41 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 x += step
                             }
                         }
+                    }
+                }
+                // the magnetic timeline: gap clips on the storyline's row and a thin line from each connected clip to its
+                // connection point on the storyline
+                if (magNow != null) {
+                    val v1 = rows().v1Row.toFloat()
+                    val a1 = rows().a1Row.toFloat()
+                    val inset = 3.dp.toPx()
+                    val gTop = rulerPx + yOf(v1) - scrollY + inset
+                    val gH = hOf(v1) - inset * 2
+                    if (dragId == null && gTop + gH > rulerPx) for (g in magGaps) {
+                        val x0 = g.start * pps - sx()
+                        val x1 = g.end * pps - sx()
+                        if (x1 < 0f || x0 > size.width || x1 - x0 < 2f) continue
+                        val sel = state.selectedGap?.let { abs(it.start - g.start) < 1e-3f } == true
+                        drawRoundRect(K.Deep.copy(alpha = if (sel) 0.8f else 0.55f), Offset(x0 + 1f, gTop), Size(x1 - x0 - 2f, gH), CornerRadius(6.dp.toPx()))
+                        drawRoundRect(if (sel) K.Mark else K.OutlineVar, Offset(x0 + 1f, gTop), Size(x1 - x0 - 2f, gH), CornerRadius(6.dp.toPx()),
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(if (sel) 2.dp.toPx() else 1.dp.toPx(), pathEffect = if (sel) null else gapDash))
+                        if (sel) for (hx in listOf(x0 + 4.dp.toPx(), x1 - 4.dp.toPx())) drawRoundRect(K.Mark, Offset(hx - 2.dp.toPx(), gTop + gH * 0.25f), Size(4.dp.toPx(), gH * 0.5f), CornerRadius(2.dp.toPx()))
+                    }
+                    val lineCol = K.OnSurface.copy(alpha = 0.35f)
+                    for (cn in magLinks) {
+                        val c = state.clips.firstOrNull { it.id == cn.clip } ?: continue
+                        if (c.id in state.removing) continue
+                        val an = anims[c.id] ?: continue
+                        val x = (cn.at + an.start.value - c.start) * pps - sx()
+                        if (x < -4f || x > size.width + 4f) continue
+                        val row = an.track.value
+                        val video = rows().getOrNull(c.track)?.kind != TrackKind.AUDIO
+                        val (y0, y1) = if (video) (rulerPx + yOf(row) + hOf(row) - scrollY - inset) to (rulerPx + yOf(v1) - scrollY + inset)
+                            else (rulerPx + yOf(a1) + hOf(a1) - scrollY - inset) to (rulerPx + yOf(row) - scrollY + inset)
+                        if (y1 - y0 < 4f) continue
+                        drawLine(lineCol, Offset(x, maxOf(y0, rulerPx)), Offset(x, maxOf(y1, rulerPx)), 1.dp.toPx())
+                        val dot = if (video) y1 else y0
+                        if (dot > rulerPx) drawCircle(lineCol, 2.5.dp.toPx(), Offset(x, dot))
                     }
                 }
                 val preview = transPreview
@@ -2050,6 +2263,26 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+    // magnetic: while a storyline clip is dragged or trimmed, another finger on this pill keeps its connected clips
+    // where they are (the touch equivalent of holding a key while dragging)
+    androidx.compose.animation.AnimatedVisibility(
+        magDragging, Modifier.align(Alignment.TopCenter).padding(top = rulerH + 4.dp),
+        enter = androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(0.5f, 600f), initialScale = 0.8f) + androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.scaleOut(targetScale = 0.8f) + androidx.compose.animation.fadeOut(),
+    ) {
+        val keep = state.keepConnected
+        Row(
+            Modifier.height(40.dp).clip(RoundedCornerShape(20.dp)).background(if (keep) K.PrimaryContainer else K.SurfaceHighest)
+                .clickable { haptics.tick(); state.keepConnected = !state.keepConnected }
+                .padding(horizontal = 14.dp).testTag("magnetic:keep"),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            androidx.compose.material3.Icon(if (keep) Ic.Unlink else Ic.Link, null, tint = if (keep) K.PrimarySoft else K.OnSurfaceVar, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(stringResource(if (keep) R.string.magnetic_keep_stay else R.string.magnetic_keep_follow), color = if (keep) K.PrimarySoft else K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+    }
     }
 }
 

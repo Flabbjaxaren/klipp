@@ -267,6 +267,8 @@ private fun KlippAppContent(
         if (AppPrefs.centerDefault(context)) state.centerPlayhead = true
         // snapping is on from the start; the setting can only turn it off
         if (!AppPrefs.magnetDefault(context)) state.magnet = false
+        // the magnetic timeline (off unless turned on)
+        state.magnetic = AppPrefs.magneticTimeline(context)
     }
     // release the source decoder only when the source is actually closed (not when the phone rotates)
     LaunchedEffect(sourceMedia) { if (sourceMedia == null) sourcePlayback?.close() }
@@ -650,12 +652,23 @@ private fun KlippAppContent(
         se.gendut.klipp.engine.LutStore.init(context)
         controller.extraSave = { gradeToJson(grade, mix).put("linkedSelection", state.linkedSelection).put("grades", gs.toJson())
             .put("transitionBlur", se.gendut.klipp.engine.TransitionLooks.toJson())
-            .put("safeZone", org.json.JSONObject().put("platform", state.safeZone ?: "").put("alpha", state.safeZoneAlpha.toDouble())) }
+            .put("safeZone", org.json.JSONObject().put("platform", state.safeZone ?: "").put("alpha", state.safeZoneAlpha.toDouble()))
+            .put("magnetic", state.magSide.toJson()) }
         // the pieces get the clip's grade as part of the split (undone with it) – no separate color step
-        controller.onSplit = { old, fresh -> gs.grades[old]?.let { g -> gs.setAll(fresh.associateWith { g }, record = false) } }
-        controller.onNewClips = { ids -> ids.filter { gs.grades.containsKey(it) }.takeIf { it.isNotEmpty() }?.let { stale -> gs.setAll(stale.associateWith { se.gendut.klipp.engine.ClipGrade() }, record = false) } }
+        controller.onSplit = { old, fresh ->
+            gs.grades[old]?.let { g -> gs.setAll(fresh.associateWith { g }, record = false) }
+            // the pieces of a disconnected clip stay disconnected (part of the cut, no step of its own)
+            if (old in state.magSide.disconnected) state.magSide = state.magSide.copy(disconnected = state.magSide.disconnected + fresh)
+        }
+        controller.onNewClips = { ids ->
+            ids.filter { gs.grades.containsKey(it) }.takeIf { it.isNotEmpty() }?.let { stale -> gs.setAll(stale.associateWith { se.gendut.klipp.engine.ClipGrade() }, record = false) }
+            // (the engine can reuse an id after an undo: a new clip is not disconnected because an old one was)
+            val s = state.magSide
+            if (ids.any { it in s.disconnected || it in s.points }) state.magSide = MagSide(s.disconnected - ids.toSet(), s.points - ids.toSet())
+        }
         controller.onExtraRestore = { o ->
             gs.load(o.optJSONObject("grades"))
+            state.magSide = MagSide.fromJson(o.optJSONObject("magnetic"))
             se.gendut.klipp.engine.RenderCache.renderAll = false
             se.gendut.klipp.engine.RenderCache.halted = false
             se.gendut.klipp.engine.TransitionLooks.load(o.optJSONObject("transitionBlur"))
@@ -963,6 +976,7 @@ private fun KlippAppContent(
                         setMarks = { a, b -> controller.setMarks(media.id, a, b) },
                         edit = { ow, done -> controller.editFromSource(media.id, state.playhead.toDouble(), ow, done) },
                         onClose = { sourceMedia = null },
+                        connect = if (state.magnetic) ({ done -> controller.connectFromSource(media.id, state.playhead.toDouble(), done) }) else null,
                         fill = fill,
                         text = remember(controller, media.id) {
                             object : SourceText {
@@ -1198,6 +1212,7 @@ private fun KlippAppContent(
                 onClose = { showAppSettings = false },
                 onCenterDefault = { state.centerPlayhead = it },
                 onMagnetDefault = { state.magnet = it },
+                onMagnetic = { state.magnetic = it; state.selectedGap = null; if (!it && tool == Tool.POSITION) tool = Tool.SELECT },
             )
         }
 
