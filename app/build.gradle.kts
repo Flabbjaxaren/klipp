@@ -46,7 +46,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 102
-        versionName = "0.21.0-beta.2"
+        versionName = "0.22.0-alpha.1"
         ndk { abiFilters += "arm64-v8a" }
         // speech recognition is always built optimized (the debug build's -O0 would be tens of times slower)
         externalNativeBuild { cmake { arguments += listOf("-DCMAKE_BUILD_TYPE=Release", "-DANDROID_STL=c++_shared") } }
@@ -103,7 +103,7 @@ android {
         create("designTest") {
             initWith(getByName("release"))
             applicationIdSuffix = ".designtest"
-            versionNameSuffix = "-designtest.241"
+            versionNameSuffix = "-designtest.248"
             // the export's test points (the copy's latch, a refused foreground start, the time limit): this build only
             buildConfigField("boolean", "TEST_HOOKS", "true")
             manifestPlaceholders["appLabel"] = "Klipp test"
