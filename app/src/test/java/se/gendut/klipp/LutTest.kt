@@ -45,6 +45,38 @@ class LutTest {
         l.at(0, 0, 1, px); assertEquals(1f, px[2])
     }
 
+    @Test
+    fun valueLinesReadAsBefore() {
+        // the fast value-line reader against the platform's parser: tabs, CRLF, comments after the values, signs,
+        // exponents, leading points and many digits; lines that aren't three numbers are skipped as before
+        val rnd = Random(7)
+        val vals = FloatArray(27 * 3) { rnd.nextFloat() * 1.2f - 0.1f }
+        val sb = StringBuilder("LUT_3D_SIZE 3\r\n")
+        val forms = listOf<(Float) -> String>(
+            { "%.6f".format(java.util.Locale.ROOT, it) }, { "%.10f".format(java.util.Locale.ROOT, it) },
+            { "%e".format(java.util.Locale.ROOT, it) }, { "%E".format(java.util.Locale.ROOT, it) },
+            { it.toString() }, { "%.4f".format(java.util.Locale.ROOT, it).replace("0.", ".") },
+        )
+        for (i in 0 until 27) {
+            val f = forms[i % forms.size]
+            sb.append(if (i % 2 == 0) "\t" else "  ").append(f(vals[i * 3])).append(' ').append(f(vals[i * 3 + 1]))
+                .append('\t').append(f(vals[i * 3 + 2])).append(if (i % 3 == 0) " # note" else "").append("\r\n")
+            if (i == 5) sb.append("1 2\n0 0 0 0 0\n1 x 1\n")
+        }
+        val l = CubeLut.parseCube("t", sb.toString())
+        val px = FloatArray(3)
+        var i = 0
+        for (b in 0 until 3) for (g in 0 until 3) for (r in 0 until 3) {
+            l.at(r, g, b, px)
+            val f = forms[i % forms.size]
+            for (c in 0..2) {
+                val want = f(vals[i * 3 + c]).toFloat()
+                assertEquals(want, px[c], abs(want) * 1e-6f + 1e-9f)
+            }
+            i++
+        }
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun rejects1dLut() { CubeLut.parseCube("x", "LUT_1D_SIZE 4\n0 0 0\n") }
 
