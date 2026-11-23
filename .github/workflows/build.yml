@@ -78,6 +78,10 @@ jobs:
               -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest "klipp_$n.mp4"
           done
           ffmpeg -loglevel error -f lavfi -i "sine=frequency=300:duration=8,volume='if(lt(mod(t,4),2),1,0)':eval=frame" -c:a aac tal.m4a
+          # a camera file with three sound streams (deleting the second and third stream sounds)
+          ffmpeg -loglevel error -f lavfi -i testsrc=size=1280x720:rate=25:duration=10 -f lavfi -i sine=frequency=440:duration=10 \
+            -f lavfi -i sine=frequency=660:duration=10 -f lavfi -i sine=frequency=880:duration=10 \
+            -map 0 -map 1 -map 2 -map 3 -c:v libx264 -pix_fmt yuv420p -c:a aac three.mov
           # real speech and real noise for the rendered noise reduction (DeepFilterNet's own sample clips, pinned commit)
           DF=https://raw.githubusercontent.com/Rikorose/DeepFilterNet/7b14b895fe7fc42cab72b4a4c1e49c982bd6404b/assets
           curl -sSfL "$DF/clean_freesound_33711.wav" -o df_clean.wav
