@@ -236,6 +236,15 @@ object OpenDrt {
     private fun exp2(x: Float) = 2f.pow(x)
     private fun exp10(x: Float) = 10f.pow(x)
 
+    /** The inverse of [oetf] (linear → code value), by bisection – the curves are monotonic (the MotionCam develop's tables). */
+    internal fun encode(lin: Float, tf: Int): Float {
+        var lo = -1f; var hi = 4f
+        if (lin <= oetf(lo, tf)) return lo
+        if (lin >= oetf(hi, tf)) return hi
+        repeat(40) { val m = (lo + hi) * 0.5f; if (oetf(m, tf) < lin) lo = m else hi = m }
+        return (lo + hi) * 0.5f
+    }
+
     internal fun oetf(x: Float, tf: Int): Float = when (tf) {
         -1 -> spowf(x, 2.4f) // Rec.709 video (Klipp): the display curve inverted
         -2 -> { // Apple Log (Klipp)
