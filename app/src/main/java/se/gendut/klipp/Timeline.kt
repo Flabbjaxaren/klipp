@@ -92,7 +92,6 @@ private const val SLIM_TRACK_DP = 16
 /** A swipe down that leaves the touch slop within this time (ms) is a cut, not a move. */
 internal const val KNIFE_MS = 160L
 /** Upward speed (dp/s) at release that flings a dragged clip out (delete). */
-private const val FLING_OUT_DP = 2400f
 
 /** The platform magnifier (Android 9+; not in the JVM test environment, which has no surfaces for it). */
 private val LOUPE = Build.VERSION.SDK_INT >= 28 && Build.FINGERPRINT != "robolectric"
@@ -266,7 +265,6 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     /** Any clip's edge can be dragged (trim) within this distance inside the clip. */
     val edgePx = with(density) { 12.dp.toPx() }
     /** A clip released this far above the tracks (or flung up) is deleted. */
-    val outPx = with(density) { 8.dp.toPx() }
     val minSpan = with(density) { 40.dp.toPx() } // pinch zoom: minimum finger distance
     /** Preview while a transition is dragged: (id, start, end, anchor, edit point); id −1 = new. */
     var transPreview by remember { mutableStateOf<UiTransition?>(null) }
@@ -308,7 +306,6 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     /** Where the finger is during a trim (the loupe magnifies there); null = no loupe. */
     var loupe by remember { mutableStateOf<Offset?>(null) }
     /** A dragged clip is out of the timeline: released now it is deleted. */
-    var deleteArmed by remember { mutableStateOf(false) }
     /** Scrub speed tier while the playhead is dragged (finger moved down = slower, see ScrubTiers). */
     var scrubTier by remember { mutableIntStateOf(0) }
     val snapGlow = remember { Animatable(0f) }
@@ -441,7 +438,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
 
     /** Clear everything temporary from a gesture and return the clips to the model's state (cancelled gesture). */
     fun abandonGesture() {
-        dragId = null; snapLine = null; scrubTier = 0; loupe = null; deleteArmed = false; hoverTrack = -1; lassoPts = null; lassoLive = emptySet(); lassoCapLive = emptySet(); razorLine = null; transPreview = null; capDrag = null; capGroupDt = null
+        dragId = null; snapLine = null; scrubTier = 0; loupe = null; hoverTrack = -1; lassoPts = null; lassoLive = emptySet(); lassoCapLive = emptySet(); razorLine = null; transPreview = null; capDrag = null; capGroupDt = null
         state.trimView = null
         magDragging = false; magRepreview[0] = null; state.keepConnected = false
         for (c in state.clips) anims[c.id]?.let { a ->
@@ -1140,7 +1137,6 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         var lastLen = orig?.length ?: 0f
                         var curTrack = orig?.track ?: 0
                         var lastSpan = 0f
-                        var lastPos = start
                         var pinchA: androidx.compose.ui.input.pointer.PointerId? = null
                         // scrubbing the playhead (ruler, or the timeline under a locked playhead): slower the further down the finger goes
                         val scrubT = ScrubTiers(28.dp.toPx(), 44.dp.toPx())
@@ -1370,7 +1366,6 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
 
                             val ch = pressed.first()
                             vt.addPosition(ch.uptimeMillis, ch.position)
-                            lastPos = ch.position
                             val d = ch.position - start
                             if (!moved && (abs(d.x) > viewConfiguration.touchSlop || abs(d.y) > viewConfiguration.touchSlop)) {
                                 moved = true
@@ -1485,14 +1480,6 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                             }, follow)
                                         }
                                         magRepreview[0]?.invoke()
-                                    }
-                                    // dragged up out of the timeline: released there, the clip is deleted (ripple)
-                                    val out = ch.position.y < rulerPx - outPx
-                                    if (out != deleteArmed) {
-                                        deleteArmed = out
-                                        if (out) haptics.heavy() else haptics.tick()
-                                        scope.launch { a.doom.animateTo(if (out) 1f else 0f, Springs.lift()) }
-                                        for ((_, pa) in partners) scope.launch { pa.doom.animateTo(if (out) 1f else 0f, Springs.lift()) }
                                     }
                                 }
                                 hit is Hit.TrimL && dragId == orig?.id && orig != null && a != null -> {
@@ -1629,7 +1616,6 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                             scrubTier = 0
                             loupe = null
                             hoverTrack = -1
-                            if (deleteArmed) { deleteArmed = false; a?.let { x -> scope.launch { x.doom.animateTo(0f, Springs.lift()) } } }
                             snapLine = null
                             state.trimView = null
                             rollPair?.let { (l, r) ->
@@ -1767,30 +1753,6 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         loupe = null
                         hoverTrack = -1
                         state.trimView = null
-                        // released above the tracks, or flung up hard: delete
-                        val fling = vt.calculateVelocity()
-                        val flungOut = hit is Hit.Body && dragId == orig?.id && fling.y < -FLING_OUT_DP * density.density && (lastPos.y + fling.y * 0.12f) < rulerPx - outPx
-                        val dropDelete = (deleteArmed || flungOut) && hit is Hit.Body && orig != null && dragId == orig.id
-                        deleteArmed = false
-                        if (dropDelete && a != null) {
-                            dragId = null
-                            haptics.heavy()
-                            if (mag0 != null) { magPreview(null, setOf(orig.id)); magSettleLater() }
-                            capGroupDt = null
-                            scope.launch { a.doom.animateTo(0f, Springs.lift()) }
-                            for ((_, pa) in partners) scope.launch { pa.doom.animateTo(0f, Springs.lift()) }
-                            if (groupDrag) {
-                                for ((pc, pa) in partners) { scope.launch { pa.start.animateTo(pc.start, Springs.settle()) }; scope.launch { pa.lift.animateTo(0f, Springs.lift()) } }
-                                scope.launch { a.start.animateTo(orig.start, Springs.settle()) }
-                                scope.launch { a.lift.animateTo(0f, Springs.lift()) }
-                                state.removeGroup(true)
-                            } else {
-                                // (the clip fades out where it was dropped; linked partners go back until the engine removes them)
-                                for ((pc, pa) in partners) scope.launch { pa.start.animateTo(pc.start, Springs.settle()) }
-                                state.requestRemove(orig.id, true)
-                            }
-                            return@awaitEachGesture
-                        }
                         when (hit) {
                             is Hit.Body -> {
                                 if (orig != null && a != null && dragId == orig.id) {
@@ -2280,20 +2242,6 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                 }
             }
             ScrubSpeedBadge(scrubTier, Modifier.align(Alignment.TopCenter).padding(top = rulerH + 6.dp))
-            androidx.compose.animation.AnimatedVisibility(
-                deleteArmed, Modifier.align(Alignment.TopCenter).padding(top = 4.dp),
-                enter = androidx.compose.animation.scaleIn(androidx.compose.animation.core.spring(0.5f, 600f), initialScale = 0.7f) + androidx.compose.animation.fadeIn(),
-                exit = androidx.compose.animation.scaleOut(targetScale = 0.7f) + androidx.compose.animation.fadeOut(),
-            ) {
-                Row(
-                    Modifier.clip(RoundedCornerShape(14.dp)).background(K.Error).padding(horizontal = 12.dp, vertical = 5.dp).testTag("releaseToDelete"),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    androidx.compose.material3.Icon(Ic.Delete, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.timeline_release_to_delete), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
         }
     }
     // magnetic: while a storyline clip is dragged or trimmed, another finger on this pill keeps its connected clips

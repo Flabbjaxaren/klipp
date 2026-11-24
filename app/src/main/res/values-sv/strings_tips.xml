@@ -1,17 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="tip_knife">Svep snabbt nedåt genom ett klipp för att dela det där.</string>
-    <string name="tip_out">Dra upp ett klipp ur tidslinjen (eller släng det uppåt) för att radera det.</string>
     <string name="tip_edge">Dra i kanten på ett klipp för att trimma det – en lupp visar var du är.</string>
     <string name="tip_scrub">Skrubba på linjalen eller i bilden och dra ner fingret för ½, ¼, ⅛ fart.</string>
     <string name="tip_undo">Tryck med två fingrar för att ångra, tre för att göra om.</string>
     <string name="tip_picture">Nyp i bilden för att titta närmare (dubbeltryck går tillbaka), dubbeltryck i full storlek för helskärm. Håll ett finger på den och tryck bredvid för att stega bildrutor.</string>
     <string name="tip_text">Transkriptionen är tidslinjens andra vy i Redigera: ta bort ord där så klipps videon med.</string>
-    <string name="tip_out_simple">Släng ett klipp snabbt uppåt för att radera det – resten flyttar ihop sig.</string>
     <string name="tip_edge_simple">Tryck på ett klipp och dra i handtagen i dess ändar för att korta det.</string>
     <string name="tip_scrub_simple">Dra längs tidslinjalen för att gå igenom filmen.</string>
     <string name="tip_knife_button">Eller: markera klippet och tryck Dela i raden nedtill.</string>
-    <string name="tip_out_button">Eller: markera klippet och tryck Radera.</string>
     <string name="tip_undo_button">Eller: ångra- och gör om-knapparna nere till vänster.</string>
     <string name="tip_next">Nästa</string>
     <string name="tip_done">Uppfattat</string>

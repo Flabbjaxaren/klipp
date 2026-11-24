@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -77,24 +78,22 @@ class GesturesTest {
         assertEquals(1, st.clips.count { it.name == "B-roll_hamn" })
     }
 
-    @Test fun draggingAClipOutOfTheTimelineDeletesIt() {
+    @Test fun draggingAClipUpOutOfTheTimelineDeletesNothing() {
         val st = EditorState()
         timeline(st)
+        val n = st.clips.size
         rule.onNodeWithTag("timeline").performTouchInput {
             val from = pt(10.5f, v1)
             down(from)
             advanceEventTime(250)
-            // up past the ruler (above the tracks)
+            // up past the ruler (above the tracks), and flung up hard
             for (i in 1..14) moveTo(Offset(from.x, from.y - (v1 + 40f) * density * i / 14))
+            up()
         }
         rule.waitForIdle()
-        rule.onNodeWithTag("releaseToDelete").assertExists()
-        rule.onRoot().captureRoboImage("$dir/40_slapp_for_att_radera.png")
-        rule.onNodeWithTag("timeline").performTouchInput { up() }
-        rule.waitForIdle()
-        assertNull("B-roll deleted", st.clips.firstOrNull { it.id == 2L })
-        // ripple: the clip after it moved in
-        assertEquals(8f, st.clips.first { it.id == 3L }.start, 0.01f)
+        // (taken up, a clip goes to a track over the others – deleting is the Delete button)
+        assertNotNull("B-roll kept", st.clips.firstOrNull { it.id == 2L })
+        assertEquals(n, st.clips.size)
     }
 
     @Test fun anyEdgeTrimsWithoutSelectingFirst() {

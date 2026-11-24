@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.sp
 /** First-run tips about the touch gestures, in this order (the key is saved when the tip has been read). */
 internal val TIPS = listOf(
     "knife" to R.string.tip_knife,
-    "out" to R.string.tip_out,
     "edge" to R.string.tip_edge,
     "scrub" to R.string.tip_scrub,
     "undo" to R.string.tip_undo,
@@ -48,7 +47,6 @@ internal val TIPS = listOf(
  */
 internal val SIMPLE_TIPS = listOf(
     "knife" to R.string.tip_knife,
-    "out" to R.string.tip_out_simple,
     "edge" to R.string.tip_edge_simple,
     "scrub" to R.string.tip_scrub_simple,
     "undo" to R.string.tip_undo,
@@ -58,7 +56,6 @@ internal val SIMPLE_TIPS = listOf(
 /** The same gestures with the button that does the same (0 = there is none, the gesture is the only way). */
 internal val TIP_BUTTONS = mapOf(
     "knife" to R.string.tip_knife_button,
-    "out" to R.string.tip_out_button,
     "undo" to R.string.tip_undo_button,
 )
 

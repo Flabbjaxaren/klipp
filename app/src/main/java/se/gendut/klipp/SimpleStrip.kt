@@ -821,7 +821,7 @@ private fun StripClip(
                 // monitor was black)
                 if (state.playhead < c.start || state.playhead >= c.end) state.playhead = c.start
             }
-            .swipeEdits(state, c, pps, haptics) { knife(it) }
+            .swipeCut(state, c, pps, haptics) { knife(it) }
             .testTag("simpleClip:${c.id}")
     ) {
         if (uri != null) Filmstrip(c, uri, { liveSourceSpan(c.srcIn, c.length, c.speed, c.reverse, c.hold, c.length, 0f) }, { pps }, Modifier.fillMaxSize())
@@ -1119,7 +1119,7 @@ private fun LaneClip(
                 )
             }
             .clickable { haptics.press(); state.playing = false; state.tapSelect(c.id) }
-            .swipeEdits(state, c, pps, haptics) { knife(it) }
+            .swipeCut(state, c, pps, haptics) { knife(it) }
             .testTag("simpleLaneClip:${c.id}"),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -1186,44 +1186,39 @@ private fun LaneMarks(state: EditorState, lane: SimpleStripModel.Lane, y: androi
 }
 
 /**
- * The timeline's quick swipes on a clip, also in the strip (the gesture tips name them): a swipe down through it cuts it
- * where the finger went down (the playhead when that is close), a flick up deletes it – the rest closes up, as Delete.
- * Only a swipe that leaves the touch slop within [KNIFE_MS] and mostly up or down; anything slower or sideways is left to
- * the tap, the hold-and-drag and the scrolling. (Put after them in the chain: it sees the touch first.)
+ * The timeline's quick swipe down on a clip, also in the strip (the gesture tips name it): through the clip it cuts it
+ * where the finger went down (the playhead when that is close). Only a swipe down that leaves the touch slop within
+ * [KNIFE_MS] and mostly downwards; anything slower, sideways or upwards is left to the tap, the hold-and-drag and the
+ * scrolling. (Put after them in the chain: it sees the touch first.) There is no flick up to delete: a clip taken up
+ * is a layer over the film (the magnetic timeline's lanes) – Delete in the bar takes it out.
  */
-internal fun Modifier.swipeEdits(state: EditorState, clip: Clip, pps: Float, haptics: Haptics, onKnife: (Float?) -> Unit): Modifier = pointerInput(clip.id, pps) {
+internal fun Modifier.swipeCut(state: EditorState, clip: Clip, pps: Float, haptics: Haptics, onKnife: (Float?) -> Unit): Modifier = pointerInput(clip.id, pps) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         // the clip as it is now, not as it was when the gesture began to be watched: keyed by its id, the handler lives on
         // while the clip moves (a clip before it shortened or moved, the film as long) – the cut then went where the clip
         // had been, to the right of the finger, and outside the clip cut nothing
         val c = state.clips.firstOrNull { it.id == clip.id } ?: return@awaitEachGesture
-        // 1 = cut, -1 = out, 0 = not (yet) a swipe
-        var kind = 0
+        var cutting = false
         while (true) {
             val ev = awaitPointerEvent()
-            if (ev.changes.count { it.pressed } > 1) return@awaitEachGesture
-            val ch = ev.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
-            if (kind != 0) { ch.consume(); if (!ch.pressed) break else continue }
+            if (ev.changes.count { it.pressed } > 1) { if (cutting) onKnife(null); return@awaitEachGesture }
+            val ch = ev.changes.firstOrNull { it.id == down.id } ?: run { if (cutting) onKnife(null); return@awaitEachGesture }
+            if (cutting) { ch.consume(); if (!ch.pressed) break else continue }
             if (!ch.pressed) return@awaitEachGesture
             val d = ch.position - down.position
             if (abs(d.x) <= viewConfiguration.touchSlop && abs(d.y) <= viewConfiguration.touchSlop) continue
-            if (ch.uptimeMillis - down.uptimeMillis >= KNIFE_MS || abs(d.y) < abs(d.x) * 1.5f) return@awaitEachGesture
-            kind = if (d.y > 0f) 1 else -1
+            if (ch.uptimeMillis - down.uptimeMillis >= KNIFE_MS || d.y <= 0f || d.y < abs(d.x) * 1.5f) return@awaitEachGesture
+            cutting = true
             state.playing = false
             haptics.tick()
             ch.consume()
             // the red line where it will cut, while the finger is down (as the timeline's knife)
-            if (kind == 1) onKnife(knifeAt(state, c, pps, down.position.x))
+            onKnife(knifeAt(state, c, pps, down.position.x))
         }
-        if (kind == 1) {
-            val t = knifeAt(state, c, pps, down.position.x)
-            if (t > c.start + 0.04f && t < c.end - 0.04f) { haptics.confirm(); state.split(c.id, t) }
-            onKnife(null)
-        } else if (kind == -1) {
-            haptics.confirm()
-            state.requestRemove(c.id, state.magnetic)
-        }
+        val t = knifeAt(state, c, pps, down.position.x)
+        if (t > c.start + 0.04f && t < c.end - 0.04f) { haptics.confirm(); state.split(c.id, t) }
+        onKnife(null)
     }
 }
 

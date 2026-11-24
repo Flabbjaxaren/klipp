@@ -34,7 +34,6 @@
     <string name="timeline_delete_track">Delete</string>
     <string name="timeline_delete_track_title">Delete track %1$s?</string>
     <string name="timeline_delete_track_text">The track is empty. The tracks above or below it are renumbered. Undo brings it back.</string>
-    <string name="timeline_release_to_delete">Release to delete</string>
     <string name="keyframeui_interp_title">Interpolation</string>
     <string name="keyframeui_linear">Linear</string>
     <string name="keyframeui_easy_ease">Easy ease</string>

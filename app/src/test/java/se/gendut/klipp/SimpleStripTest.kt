@@ -708,7 +708,7 @@ class SimpleStripTest {
                 val haptics = rememberHaptics()
                 androidx.compose.foundation.layout.Box(
                     Modifier.size(with(androidx.compose.ui.platform.LocalDensity.current) { (was.length * pps).toDp() }, 80.dp)
-                        .swipeEdits(st, was, pps, haptics) {}.testTag("clip")
+                        .swipeCut(st, was, pps, haptics) {}.testTag("clip")
                 )
             }
         }
@@ -744,19 +744,17 @@ class SimpleStripTest {
         rule.onNodeWithTag("simpleStrip:knife").assertDoesNotExist()
     }
 
-    @Test fun aQuickFlickUpDeletesTheClipAndTheRestClosesUp() {
+    @Test fun aQuickFlickUpDeletesNothing() {
         val st = simple()
         rule.setContent { KlippTheme { SimpleStrip(st) } }
         rule.waitForIdle()
+        // (taken up, a clip is a layer over the film – the bar's Delete takes it out)
         quick("simpleClip:2", -90f)
-        rule.waitForIdle()
-        assertEquals(listOf(1L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
-        assertEquals(8f, st.clip(3).start, 1e-4f)
-        assertEquals(1, st.undoCount)
-        // a layer flicked up just goes
         quick("simpleLaneClip:5", -60f)
         rule.waitForIdle()
-        assertFalse(st.clips.any { it.id == 5L })
+        assertEquals(listOf(1L, 2L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
+        assertTrue(st.clips.any { it.id == 5L })
+        assertEquals(0, st.undoCount)
     }
 
     @Test fun aSlowOrSidewaysDragIsNoSwipe() {
@@ -777,8 +775,8 @@ class SimpleStripTest {
     @Test fun simpleModesTipsNameItsOwnGestures() {
         val keys = SIMPLE_TIPS.map { it.first }
         assertFalse("no transcript in simple mode", "text" in keys)
-        assertTrue("knife" in keys && "out" in keys)
-        assertEquals(R.string.tip_out_simple, SIMPLE_TIPS.first { it.first == "out" }.second)
+        assertTrue("knife" in keys)
+        assertFalse("no flick up to delete", "out" in keys || "out" in TIPS.map { it.first })
     }
 
     @Test fun theBarsDeleteTakesTheClipOut() {

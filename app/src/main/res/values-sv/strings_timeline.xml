@@ -34,7 +34,6 @@
     <string name="timeline_delete_track">Ta bort</string>
     <string name="timeline_delete_track_title">Ta bort spår %1$s?</string>
     <string name="timeline_delete_track_text">Spåret är tomt. Spåren ovanför eller under numreras om. Ångra tar tillbaka det.</string>
-    <string name="timeline_release_to_delete">Släpp för att radera</string>
     <string name="keyframeui_interp_title">Interpolering</string>
     <string name="keyframeui_linear">Linjär</string>
     <string name="keyframeui_easy_ease">Easy ease</string>
