@@ -986,12 +986,22 @@ private fun KlippAppContent(
             }
     ) {
         val landscape = maxWidth > maxHeight
-        // the program monitor's height in portrait (drag the handle under the transport; double tap = 16:9 again)
-        val defaultMonitorH = maxWidth * 9f / 16f
+        // the program monitor's height in portrait (drag the handle under the transport; double tap = the project's shape
+        // again). By default the picture's own shape (16:9, 4:3, 9:16…, up to 55 % of the screen), so no grey bands are
+        // left around it, and a height set by hand is kept per shape – one height for every project left a 16:9 picture
+        // in a square box after a portrait project
+        // (derived: an edit changes the snapshot, the shape seldom – the editor doesn't recompose on every edit for it)
+        val picShape by remember(controller) { derivedStateOf {
+            val q = controller?.snapshot?.sequence
+            if (q != null && q.width > 0 && q.height > 0) q.width.toFloat() / q.height else 16f / 9f
+        } }
+        val shapeKey = "%.3f".format(java.util.Locale.ROOT, picShape)
+        val defaultMonitorH = maxWidth / picShape
         val maxMonitorH = maxHeight * 0.55f
-        // the height the user dragged to (kept), else the default for the window as it is now – a default remembered
-        // once was the landscape one when the app started on its side, and the portrait picture was then twice as tall
-        var userMonitorH by remember { mutableStateOf(AppPrefs.monitorHeight(context).takeIf { it > 0f }?.dp) }
+        // the height the user dragged to for this shape (kept), else the default for the window as it is now – a default
+        // remembered once was the landscape one when the app started on its side, and the portrait picture was then twice
+        // as tall
+        var userMonitorH by remember(shapeKey) { mutableStateOf(AppPrefs.monitorHeightFor(context, shapeKey).takeIf { it > 0f }?.dp) }
         val monitorH = userMonitorH ?: defaultMonitorH
         // the picture's scrub speed while it is dragged (shown as a badge on the picture)
         var monitorTier by remember { mutableIntStateOf(0) }
@@ -1180,8 +1190,8 @@ private fun KlippAppContent(
             TopArea(fill = false, monitorMod = Modifier.fillMaxWidth().height(monitorH.coerceIn(MIN_MONITOR_H, maxMonitorH.coerceAtLeast(MIN_MONITOR_H))))
             if (sourceMedia == null && !state.typingInPanel) MonitorHandle(
                 onDrag = { dy -> userMonitorH = ((userMonitorH ?: defaultMonitorH) + with(density) { dy.toDp() }).coerceIn(MIN_MONITOR_H, maxMonitorH.coerceAtLeast(MIN_MONITOR_H)) },
-                onEnd = { AppPrefs.setMonitorHeight(context, (userMonitorH ?: defaultMonitorH).value) },
-                onReset = { haptics.tick(); userMonitorH = null; AppPrefs.setMonitorHeight(context, 0f) },
+                onEnd = { AppPrefs.setMonitorHeightFor(context, shapeKey, (userMonitorH ?: defaultMonitorH).value) },
+                onReset = { haptics.tick(); userMonitorH = null; AppPrefs.setMonitorHeightFor(context, shapeKey, 0f) },
             )
             Pages(Modifier.weight(1f).fillMaxWidth())
         }
@@ -1517,7 +1527,7 @@ internal fun LabelPicker(current: ClipLabel?, onPick: (ClipLabel?) -> Unit) {
     }
 }
 
-/** The grip under the transport: drag to make the picture taller or shorter; double tap = back to 16:9. */
+/** The grip under the transport: drag to make the picture taller or shorter; double tap = back to the project's shape. */
 @Composable
 private fun MonitorHandle(onDrag: (Float) -> Unit, onEnd: () -> Unit, onReset: () -> Unit) {
     Box(

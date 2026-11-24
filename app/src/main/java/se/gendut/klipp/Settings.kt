@@ -126,9 +126,17 @@ object AppPrefs {
     fun captionSeconds(c: Context): Float = p(c).getFloat("captionSec", 2f).coerceIn(0.5f, 20f)
     fun setCaptionSeconds(c: Context, s: Float) { p(c).edit().putFloat("captionSec", s).apply() }
 
-    /** The program monitor's height in portrait (dp); 0 = the default (16:9 of the width). */
-    fun monitorHeight(c: Context): Float = p(c).getFloat("monitorHeightDp", 0f)
-    fun setMonitorHeight(c: Context, dp: Float) { p(c).edit().putFloat("monitorHeightDp", dp).apply() }
+    /**
+     * The program monitor's height in portrait (dp) per picture shape (key: width/height, 3 decimals); 0 = fit the
+     * shape. A height set before it was kept per shape (one for every project) is taken as the 16:9 one.
+     */
+    fun monitorHeightFor(c: Context, shape: String): Float =
+        p(c).getFloat("monitorH_$shape", if (shape == "1.778") p(c).getFloat("monitorHeightDp", 0f) else 0f)
+    fun setMonitorHeightFor(c: Context, shape: String, dp: Float) {
+        val e = p(c).edit().putFloat("monitorH_$shape", dp)
+        if (shape == "1.778") e.remove("monitorHeightDp")
+        e.apply()
+    }
 
     /** Tips already shown (first-run hints), by key. */
     fun tipSeen(c: Context, key: String): Boolean = p(c).getBoolean("tip_$key", false)
