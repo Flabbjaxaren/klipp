@@ -50,7 +50,9 @@ private suspend fun importAll(ctx: Context, picked: List<Uri>, names: List<Strin
 
     val raw = picked.indices.filter { isMcraw(names[it]) }
     status(Str.p(R.plurals.mcraw_preparing, raw.size, raw.size))
-    val ph = withContext(Dispatchers.IO) { raw.associateWith { i -> Placeholder.make(ctx, picked[i], names[i], quick) } }
+    val ph = withContext(Dispatchers.IO) {
+        raw.associateWith { i -> Placeholder.make(ctx, picked[i], names[i], quick)?.also { store.notePlaceholder(ctx, it, picked[i], names[i], ei, outKey) } }
+    }
     if (ph.values.all { it != null }) {
         // every RAW clip goes on the timeline at once as its placeholder; each develop takes its placeholder's place
         onEach(picked.mapIndexed { i, u -> ph[i] ?: u })

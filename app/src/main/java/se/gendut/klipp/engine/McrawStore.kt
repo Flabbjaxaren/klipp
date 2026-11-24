@@ -84,6 +84,16 @@ object McrawStore {
     }
 
     /** What a develop was made from. */
+    /**
+     * A placeholder ([Placeholder]) for [src]'s develop at [ei] (≤ 0: Auto) into [out]: noted like a develop, so a
+     * placeholder left behind (the app closed while it was developing) is developed when its project is opened again.
+     */
+    fun notePlaceholder(c: Context, placeholder: Uri, src: Uri, name: String, ei: Int, out: String) {
+        val f = File(placeholder.path ?: return)
+        if (f.parentFile?.absolutePath != dir(c).absolutePath) return
+        record(c, f, src, name, ei, out, ei <= 0)
+    }
+
     data class Info(val source: Uri, val name: String, val ei: Int, val out: String, val auto: Boolean = false)
 
     /** The develop behind [uri] (a clip's file), or null when it is not one. Reads a small file: off the main thread. */
@@ -165,7 +175,10 @@ object McrawStore {
     fun finishDrafts(c: Context, uris: Collection<Uri>) {
         val app = c.applicationContext
         for (u in uris) {
-            if (!isDraft(app, u) || !queued.add(u.toString())) continue
+            // a quick develop's full one; and a placeholder no import is developing any more (the app was closed
+            // meanwhile – it stayed a placeholder for good)
+            val left = Placeholder.isPlaceholder(u) && !importing
+            if (!(isDraft(app, u) || left) || !queued.add(u.toString())) continue
             if (drafts++ == 0) Proxies.hold(true)
             bg.launch {
                 // a moment first: the import that brought the draft in is still adding it to the project
