@@ -45,6 +45,58 @@
    "notes": "Decoder and clip reader sources (identical to the Cinematic RAW Studio Android app's pinned copy), modified for Klipp: bounds checks in Reader.cpp, a frame size limit in Decoder.cpp and a checked lens shading allocation in Clip.cpp (see third_party/craw/SOURCE.md)."
   },
   {
+   "id": "motioncam-decoder",
+   "component": "motioncam-decoder (MotionCam's .mcraw decoder library)",
+   "version": "b931ec0e2466c8217c49f13df925531b78f76e33",
+   "kind": "vendored-source",
+   "category": "native",
+   "origin": "https://github.com/mirsadm/motioncam-decoder",
+   "license": "Apache-2.0",
+   "copyright": "© 2023 MotionCam",
+   "notices": [
+    "LICENSES/third-party/motioncam-decoder/LICENSE",
+    "LICENSES/repo/third_party/motioncam-decoder/KLIPP.md"
+   ],
+   "changes": "None to the source. Trimmed to lib/ and the headers it includes (third_party/motioncam-decoder/KLIPP.md); app/src/main/cpp/CMakeLists.txt builds lib/Decoder.cpp, RawData.cpp and RawData_Legacy.cpp with Klipp's own JNI layer (mcraw_jni.cpp).",
+   "included_in": "lib/arm64-v8a/libklipp_mcraw.so",
+   "status": "verified",
+   "notes": "Reading MotionCam .mcraw files (the MotionCam RAW import)."
+  },
+  {
+   "id": "nlohmann-json",
+   "component": "JSON for Modern C++ (nlohmann/json, header-only)",
+   "version": "3.11.3",
+   "kind": "vendored-source",
+   "category": "native",
+   "origin": "https://github.com/nlohmann/json",
+   "license": "MIT",
+   "copyright": "© 2013-2023 Niels Lohmann",
+   "notices": [
+    "LICENSES/third-party/motioncam-decoder/nlohmann-json-LICENSE.txt"
+   ],
+   "changes": "None.",
+   "included_in": "lib/arm64-v8a/libklipp_mcraw.so",
+   "status": "verified",
+   "notes": "motioncam-decoder's thirdparty/nlohmann/json.hpp (third_party/motioncam-decoder/thirdparty)."
+  },
+  {
+   "id": "simde",
+   "component": "SIMDe - SIMD Everywhere (header-only; x86 SSE2/SSE4.1 on ARM)",
+   "version": "as in motioncam-decoder b931ec0",
+   "kind": "vendored-source",
+   "category": "native",
+   "origin": "https://github.com/simd-everywhere/simde",
+   "license": "MIT",
+   "copyright": "© 2015-2023 Evan Nemerson and the SIMDe contributors (listed in the notice)",
+   "notices": [
+    "LICENSES/third-party/motioncam-decoder/simde-LICENSE.txt"
+   ],
+   "changes": "None; only the headers RawData.cpp includes are kept.",
+   "included_in": "lib/arm64-v8a/libklipp_mcraw.so",
+   "status": "verified",
+   "notes": "motioncam-decoder's thirdparty/simde (third_party/motioncam-decoder/thirdparty)."
+  },
+  {
    "id": "media3-vendored",
    "component": "Media3 effect, transformer, ExoPlayer (modified)",
    "version": "1.11.1",

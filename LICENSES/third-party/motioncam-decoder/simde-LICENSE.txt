@@ -1,0 +1,28 @@
+SIMDe - SIMD Everywhere (https://github.com/simd-everywhere/simde), the headers included in motioncam-decoder's
+thirdparty/simde that RawData.cpp uses (x86/sse2.h, x86/sse4.1.h and the headers they include), compiled into
+libklipp_mcraw.so. SPDX-License-Identifier: MIT
+
+Copyright, as listed in those headers:
+  2017-2020 Evan Nemerson <evan@nemerson.com>
+  2015-2017 John W. Ratcliff <jratcliffscarab@gmail.com>
+  2015      Brandon Rowlett <browlett@nvidia.com>
+  2015      Ken Fast <kfast@gdeb.com>
+  2023      Yi-Yen Chung <eric681@andestech.com> (Copyright owned by Andes Technology)
+  2023      Ju-Hung Li <jhlee@pllab.cs.nthu.edu.tw> (Copyright owned by NTHU pllab)
+  2020      Evan Nemerson <evan@nemerson.com>
+  2021      Evan Nemerson <evan@nemerson.com>
+  2017      Hasindu Gamaarachchi <hasindu@unsw.edu.au>
+  2018      Jeff Daily <jeff.daily@amd.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

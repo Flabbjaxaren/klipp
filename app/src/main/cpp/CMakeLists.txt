@@ -46,3 +46,19 @@ target_include_directories(klipp_craw PRIVATE ${CRAW_ROOT}/include ${CRAW_ROOT}/
 # unused clip-tool code (DNG/WAV writers) is dropped at link time
 target_compile_options(klipp_craw PRIVATE -O3 -march=armv8-a+crc -fvisibility=hidden -ffunction-sections -fdata-sections)
 target_link_options(klipp_craw PRIVATE -Wl,-z,max-page-size=16384 -Wl,--gc-sections)
+
+# MotionCam .mcraw reading (mcraw_jni.cpp) with MotionCam's own decoder library, motioncam-decoder (Apache-2.0,
+# https://github.com/mirsadm/motioncam-decoder, commit b931ec0), vendored in third_party/motioncam-decoder: only its
+# library sources are built here (its own CMake adds an example, tests and -Werror), with the nlohmann/json and SIMDe
+# headers it includes (SIMDe turns its SSE2/SSE4.1 code into NEON on arm64)
+set(MCRAW_ROOT ${KLIPP_ROOT}/third_party/motioncam-decoder)
+add_library(klipp_mcraw SHARED
+    ${MCRAW_ROOT}/lib/Decoder.cpp
+    ${MCRAW_ROOT}/lib/RawData.cpp
+    ${MCRAW_ROOT}/lib/RawData_Legacy.cpp
+    mcraw_jni.cpp
+)
+target_include_directories(klipp_mcraw PRIVATE ${MCRAW_ROOT}/lib/include ${MCRAW_ROOT}/thirdparty)
+target_compile_options(klipp_mcraw PRIVATE -O3 -fexceptions -frtti -fvisibility=hidden -ffunction-sections -fdata-sections)
+target_link_options(klipp_mcraw PRIVATE -Wl,--gc-sections -Wl,-z,max-page-size=16384)
+target_link_libraries(klipp_mcraw ${LOG_LIB})

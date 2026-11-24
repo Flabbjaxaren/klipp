@@ -31,3 +31,5 @@
 -dontwarn com.google.mediapipe.proto.GraphTemplateProto$*
 
 -keep class se.gendut.klipp.engine.CrawImport { native <methods>; }
+# MotionCam .mcraw (libklipp_mcraw): mcraw_jni.cpp's functions are found by class and method name
+-keep class se.gendut.klipp.engine.Mcraw { native <methods>; }
