@@ -249,12 +249,14 @@ object McpBridge {
             gesture(listOf(x to y, x to y), 60, 0, false)
             texts("tapped ($x, $y)")
         },
-        Tool("drag", "A finger from (x1, y1) to (x2, y2) over duration_ms, held hold_ms before lifting. shot_while_held=true returns a " +
+        Tool("drag", "A finger from (x1, y1) to (x2, y2) over duration_ms (and on through then's points), held hold_ms before lifting. shot_while_held=true returns a " +
             "screenshot taken while the finger is still down (e.g. a magnifier). press_ms: rest before moving (a long press).",
             JSONObject().put("x1", prop("number", "")).put("y1", prop("number", "")).put("x2", prop("number", "")).put("y2", prop("number", ""))
                 .put("from_node", prop("string", "start on this element instead of (x1, y1)"))
                 .put("duration_ms", prop("number", "default 400")).put("press_ms", prop("number", "default 0"))
-                .put("hold_ms", prop("number", "default 0")).put("shot_while_held", prop("boolean", "")).put("scale", prop("number", "screenshot scale")),
+                .put("hold_ms", prop("number", "default 0")).put("shot_while_held", prop("boolean", "")).put("scale", prop("number", "screenshot scale"))
+                .put("then", prop("array", "more points [[x, y], …] the finger goes on to after (x2, y2), each over then_ms (before it lifts)"))
+                .put("then_ms", prop("number", "default 200")),
             listOf("x2", "y2")) { a ->
             val (x1, y1) = point(a, "x1", "y1", "from_node")
             val x2 = a.getDouble("x2").toFloat(); val y2 = a.getDouble("y2").toFloat()
@@ -265,6 +267,16 @@ object McpBridge {
             val press = a.optLong("press_ms", 0)
             if (press > 0) repeat((press / 16).toInt()) { path += x1 to y1 }
             for (i in 1..steps) path += (x1 + (x2 - x1) * i / steps) to (y1 + (y2 - y1) * i / steps)
+            // (and on: e.g. a swipe down and back up before the finger lifts)
+            a.optJSONArray("then")?.let { pts ->
+                val legSteps = (a.optLong("then_ms", 200).coerceIn(16, 10_000) / 16).toInt().coerceAtLeast(1)
+                for (k in 0 until pts.length()) {
+                    val pt = pts.getJSONArray(k)
+                    val (fx, fy) = path.last()
+                    val tx = pt.getDouble(0).toFloat(); val ty = pt.getDouble(1).toFloat()
+                    for (i in 1..legSteps) path += (fx + (tx - fx) * i / legSteps) to (fy + (ty - fy) * i / legSteps)
+                }
+            }
             val shot = gesture(path, 16, a.optLong("hold_ms", 0), a.optBoolean("shot_while_held"), a.optDouble("scale", 0.5))
             JSONArray().put(text("dragged ($x1, $y1) → ($x2, $y2)")).also { if (shot != null) it.put(shot) }
         },
