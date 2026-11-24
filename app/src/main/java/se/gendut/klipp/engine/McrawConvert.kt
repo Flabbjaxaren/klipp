@@ -238,8 +238,8 @@ object McrawConvert {
                 val info2 = MediaCodec.BufferInfo()
                 var outFrames = 0
                 fun drain(end: Boolean) {
-                    // (at the end: the encoder's end of stream – or, when none comes, what it has given within 5 s: an
-                    // .mcraw whose frame times stepped back left the encoder without one, and the import waited forever)
+                    // (at the end: the encoder's end of stream – waited for without a limit, the import hung for good when
+                    // none came)
                     // Every frame given back is enough: the phone's HEVC encoder now and then gives no end of stream
                     // although all frames are out (seen on a 4K develop while another encoder was busy)
                     var quiet = 0
@@ -247,12 +247,16 @@ object McrawConvert {
                         val i = codec.dequeueOutputBuffer(info2, if (end) 10_000 else 0)
                         if (i >= 0 || i == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) quiet = 0
                         when {
-                            i == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!end) return else if (outFrames >= encoded && quiet++ >= 20) {
-                                line("end of stream: all $outFrames frames out, no end flag from the encoder")
-                                return
-                            } else if (quiet >= 500) {
-                                line("end of stream: none from the encoder within 5 s – the file ends with $outFrames of $encoded frames")
-                                return
+                            i == MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                                if (!end) return
+                                quiet++
+                                if (outFrames >= encoded && quiet > 20) {
+                                    line("end of stream: all $outFrames frames out, no end flag from the encoder")
+                                    return
+                                }
+                                // the encoder stopped with frames still in it (with several 4K files decoding beside it):
+                                // no develop – a clip shorter than its .mcraw would go in unnoticed; it is developed again
+                                if (quiet >= 500) error("the encoder stopped after $outFrames of $encoded frames")
                             }
                             i == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                                 track = muxer.addTrack(codec.outputFormat)
