@@ -27,4 +27,5 @@
     <string name="magnetic_close_gap">Stäng mellanrum</string>
     <string name="magnetic_ripple_delete">Radera (klippen efter sluter sig)</string>
     <string name="magnetic_storyline_short">Berättelse</string>
+    <string name="magnetic_storyline_badge">Berättelse – magnetisk tidslinje på</string>
 </resources>

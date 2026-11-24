@@ -654,6 +654,9 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
                             if (ts.locked) androidx.compose.material3.Icon(Ic.Lock, stringResource(R.string.timeline_locked), tint = K.Mark, modifier = Modifier.size(11.dp))
                             if (ts.solo) Text("S", color = K.Teal, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            // the magnetic timeline: V1 is the storyline (what closes up and makes room)
+                            if (state.magnetic && t.kind == TrackKind.VIDEO && t.name == "V1") androidx.compose.material3.Icon(Ic.Storyline,
+                                stringResource(R.string.magnetic_storyline_badge), tint = K.PrimarySoft, modifier = Modifier.size(11.dp).testTag("storylineBadge"))
                             // simple mode: the track's own effects (made in advanced mode) – a tap offers their choices
                             if (state.simple) trackBadge(ts)?.let { b ->
                                 BadgeMark(listOf(b), Modifier.clickable(onClickLabel = stringResource(b.kind.label)) { haptics.tick(); trackBadgeOpen = i to b }.testTag("trackBadge:${t.name}"))

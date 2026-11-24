@@ -132,6 +132,8 @@ class SimpleModeTest {
         assertFalse(AppPrefs.simpleMode(ctx))
         assertFalse(AppPrefs.askMode(ctx))
         rule.onNodeWithTag("modeAsk").assertDoesNotExist()
+        // V1 says it is the storyline
+        rule.onNodeWithTag("storylineBadge", useUnmergedTree = true).assertExists()
     }
 
     @Test fun advancedOnTracksKeepsTheTimelineAsBefore() {
@@ -147,6 +149,7 @@ class SimpleModeTest {
         assertFalse(st.magnetic)
         assertFalse(AppPrefs.magneticTimeline(ctx))
         assertFalse(AppPrefs.askMode(ctx))
+        rule.onNodeWithTag("storylineBadge", useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test fun skippingTheQuestionKeepsAdvanced() {

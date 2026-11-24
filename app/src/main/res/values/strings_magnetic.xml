@@ -27,4 +27,5 @@
     <string name="magnetic_close_gap">Close gap</string>
     <string name="magnetic_ripple_delete">Delete (the clips after it close up)</string>
     <string name="magnetic_storyline_short">Storyline</string>
+    <string name="magnetic_storyline_badge">Storyline – the magnetic timeline is on</string>
 </resources>
