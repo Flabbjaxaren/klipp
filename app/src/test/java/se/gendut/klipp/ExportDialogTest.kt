@@ -33,12 +33,12 @@ import se.gendut.klipp.engine.Support
 class ExportDialogTest {
     @get:Rule val rule = createComposeRule()
 
-    private class Phone(val maxShort: Map<String, Int>) : EncoderInfo {
+    private class Phone(val maxShort: Map<String, Int>, hdrOk: Boolean = false) : EncoderInfo {
         override val codecs get() = maxShort.keys.toList()
         override fun size(mime: String, w: Int, h: Int) = if (minOf(w, h) <= (maxShort[mime] ?: 0)) Support.YES else Support.NO
         override fun rate(mime: String, w: Int, h: Int, fps: Double) = Support.YES
         override fun tenBit(mime: String) = Support.NO
-        override val hdr = Support.NO
+        override val hdr = if (hdrOk) Support.YES else Support.NO
     }
 
     @Test fun exportCantBeStartedForWhatCantBeMade() {
@@ -96,4 +96,22 @@ class ExportDialogTest {
 
     @Test fun savedHdrWithoutHdrClipsShowsSdr() = colourChips(ExportSettings(hdr = true), "exp:hdr")
     @Test fun savedHlgThatCantBeMadeShowsSdr() = colourChips(ExportSettings(hlg = true), "exp:hlg")
+
+    /** A saved HLG choice: Best compatibility makes an 8-bit H.264 SDR file, not HEVC HLG; with HLG on it isn't offered as chosen. */
+    @Test fun bestCompatibilityTurnsHlgOff() {
+        var started: ExportSettings? = null
+        rule.setContent {
+            KlippTheme { ExportDialog(ExportSettings(hlg = true, codec = MimeTypes.VIDEO_H265), "film", 1080, 1920, 25.0, 10.0, hdrPossible = false, hdrBlocked = null,
+                anyTenBit = false, caps = Phone(mapOf(MimeTypes.VIDEO_H264 to 2160, MimeTypes.VIDEO_H265 to 2160), hdrOk = true), hlgReady = true, onDismiss = {}) { s, _ -> started = s } }
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("exp:summary").assertTextContains("HLG", substring = true)
+        rule.onNodeWithTag("exp:preset").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("exp:preset:COMPATIBLE").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("exp:summary").assertTextContains("H.264", substring = true)
+        val text = rule.onNodeWithTag("exp:summary").fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString()
+        org.junit.Assert.assertFalse(text, "HLG" in text)
+    }
 }

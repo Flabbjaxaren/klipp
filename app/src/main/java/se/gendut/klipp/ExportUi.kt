@@ -106,10 +106,16 @@ fun ExportOptions(
         if (plan.hlg && hlgSdrNote != null) Note(hlgSdrNote)
         return
     }
-    // presets in plain words on top of the tabs: each sets codec, bit depth, bitrate and audio; any other choice = custom
+    // presets in plain words on top of the tabs: each sets codec, bit depth, bitrate and audio; any other choice = custom.
+    // The two 8-bit ones make SDR: HLG is 10-bit HEVC, so a saved HLG choice made "Best compatibility" an HEVC HLG file
+    // (applied with HLG off; HLG on is custom, not a file that plays everywhere)
+    fun eightBit(p: se.gendut.klipp.engine.ExportPreset) =
+        p == se.gendut.klipp.engine.ExportPreset.COMPATIBLE || p == se.gendut.klipp.engine.ExportPreset.SMALLER
+    fun applied(p: se.gendut.klipp.engine.ExportPreset) = p.apply(s, seqW, seqH, projectFps, caps).let { if (eightBit(p)) it.copy(hlg = false) else it }
     val preset = se.gendut.klipp.engine.ExportPreset.of(s, seqW, seqH, projectFps, caps)
+        .let { if (it != se.gendut.klipp.engine.ExportPreset.CUSTOM && eightBit(it) && plan.hlg) se.gendut.klipp.engine.ExportPreset.CUSTOM else it }
     DropField(stringResource(R.string.exportui_preset), se.gendut.klipp.engine.ExportPreset.entries.map { p ->
-        val x = p.apply(s, seqW, seqH, projectFps, caps)
+        val x = applied(p)
         val px = planOf(x)
         val what = when (p) {
             se.gendut.klipp.engine.ExportPreset.COMPATIBLE -> stringResource(R.string.exportpreset_compatible_hint)
@@ -125,7 +131,7 @@ fun ExportOptions(
             se.gendut.klipp.engine.ExportPreset.QUALITY -> R.string.exportpreset_quality
             se.gendut.klipp.engine.ExportPreset.CUSTOM -> R.string.exportpreset_custom
         }), what + size, enabled = p != se.gendut.klipp.engine.ExportPreset.CUSTOM || preset == p, key = p.name)
-    }, preset, "exp:preset") { p -> onChange(p.apply(s, seqW, seqH, projectFps, caps)) }
+    }, preset, "exp:preset") { p -> onChange(applied(p)) }
 
     @Composable fun resolution() = DropField(stringResource(R.string.exportui_resolution), HEIGHTS.map { h ->
         val (w2, h2) = s.copy(height = h).outputSize(seqW, seqH)
