@@ -507,11 +507,7 @@ class ProjectController(
         return if (ok(probed)) normalizeFps(probed!!) else 30.0
     }
 
-    private fun normalizeFps(f: Double): Double {
-        // phone video often reports e.g. 29.98 or 59.93 – round to standard values
-        val std = listOf(23.976, 24.0, 25.0, 29.97, 30.0, 50.0, 59.94, 60.0)
-        return std.minBy { abs(it - f) }.takeIf { abs(it - f) < 0.6 } ?: f
-    }
+    private fun normalizeFps(f: Double): Double = standardFps(f)
 
     private fun displayName(u: Uri): String =
         runCatching {
