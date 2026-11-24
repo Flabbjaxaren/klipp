@@ -813,6 +813,7 @@ private fun StripClip(
                 // monitor was black)
                 if (state.playhead < c.start || state.playhead >= c.end) state.playhead = c.start
             }
+            .swipeEdits(state, c, pps, haptics)
             .testTag("simpleClip:${c.id}")
     ) {
         if (uri != null) Filmstrip(c, uri, { liveSourceSpan(c.srcIn, c.length, c.speed, c.reverse, c.hold, c.length, 0f) }, { pps }, Modifier.fillMaxSize())
@@ -1108,6 +1109,7 @@ private fun LaneClip(
                 )
             }
             .clickable { haptics.press(); state.playing = false; state.tapSelect(c.id) }
+            .swipeEdits(state, c, pps, haptics)
             .testTag("simpleLaneClip:${c.id}"),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -1171,6 +1173,42 @@ private fun LaneMarks(state: EditorState, lane: SimpleStripModel.Lane, y: androi
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) { for (m in marks) Icon(m.first, null, tint = K.OnSurface, modifier = Modifier.size(14.dp)) }
+}
+
+/**
+ * The timeline's quick swipes on a clip, also in the strip (the gesture tips name them): a swipe down through it cuts it
+ * where the finger went down (the playhead when that is close), a flick up deletes it – the rest closes up, as Delete.
+ * Only a swipe that leaves the touch slop within [KNIFE_MS] and mostly up or down; anything slower or sideways is left to
+ * the tap, the hold-and-drag and the scrolling. (Put after them in the chain: it sees the touch first.)
+ */
+private fun Modifier.swipeEdits(state: EditorState, c: Clip, pps: Float, haptics: Haptics): Modifier = pointerInput(c.id, pps) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        // 1 = cut, -1 = out, 0 = not (yet) a swipe
+        var kind = 0
+        while (true) {
+            val ev = awaitPointerEvent()
+            if (ev.changes.count { it.pressed } > 1) return@awaitEachGesture
+            val ch = ev.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+            if (kind != 0) { ch.consume(); if (!ch.pressed) break else continue }
+            if (!ch.pressed) return@awaitEachGesture
+            val d = ch.position - down.position
+            if (abs(d.x) <= viewConfiguration.touchSlop && abs(d.y) <= viewConfiguration.touchSlop) continue
+            if (ch.uptimeMillis - down.uptimeMillis >= KNIFE_MS || abs(d.y) < abs(d.x) * 1.5f) return@awaitEachGesture
+            kind = if (d.y > 0f) 1 else -1
+            state.playing = false
+            haptics.tick()
+            ch.consume()
+        }
+        if (kind == 1) {
+            var t = snapFrame(c.start + down.position.x / pps)
+            if (abs(t - state.playhead) * pps < 12.dp.toPx()) t = state.playhead
+            if (t > c.start + 0.04f && t < c.end - 0.04f) { haptics.confirm(); state.split(c.id, t) }
+        } else if (kind == -1) {
+            haptics.confirm()
+            state.requestRemove(c.id, state.magnetic)
+        }
+    }
 }
 
 /** Simple mode's first tip, once: how the strip is used (closed for good with OK). */

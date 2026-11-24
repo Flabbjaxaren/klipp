@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.test.swipeDown
+import androidx.compose.ui.test.swipe
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.Modifier
@@ -655,18 +656,74 @@ class SimpleStripTest {
         rule.onNodeWithTag("simpleClip:1").assertIsDisplayed()
         fun shown(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.height > 1f
         assertFalse("the last sound row is out of view at first", shown("simpleLaneClip:11"))
-        // a swipe up: the rows under the storyline
-        rule.onNodeWithTag("simpleStrip:rows").performTouchInput { swipeUp(startY = bottom - 10f, endY = top + 10f, durationMillis = 300) }
+        // a swipe up beside the clips (on a clip a quick swipe cuts or deletes it, as in the timeline): the rows under
+        // the storyline
+        rule.onNodeWithTag("simpleStrip:rows").performTouchInput { swipe(androidx.compose.ui.geometry.Offset(left + 10f, bottom - 10f), androidx.compose.ui.geometry.Offset(left + 10f, top + 10f), 300) }
         rule.waitForIdle()
         assertTrue(shown("simpleLaneClip:11"))
         // and down again: the rows over it
-        rule.onNodeWithTag("simpleStrip:rows").performTouchInput { swipeDown(startY = top + 10f, endY = bottom - 10f, durationMillis = 300) }
+        rule.onNodeWithTag("simpleStrip:rows").performTouchInput { swipe(androidx.compose.ui.geometry.Offset(left + 10f, top + 10f), androidx.compose.ui.geometry.Offset(left + 10f, bottom - 10f), 300) }
         rule.waitForIdle()
         assertTrue(shown("simpleLaneClip:5"))
         rule.onRoot().captureRoboImage("build/shots/s24_enkel_rader.png")
     }
 
     // ------------------------------------------------------------------ delete, layers over layers, the magnet
+
+    // ------------------------------------------------------------------ the timeline's quick swipes (the gesture tips)
+
+    private fun quick(tag: String, dy: Float, holdMs: Long = 16) = rule.onNodeWithTag(tag).performTouchInput {
+        down(center); advanceEventTime(holdMs)
+        moveBy(androidx.compose.ui.geometry.Offset(2f, dy / 2)); advanceEventTime(16)
+        moveBy(androidx.compose.ui.geometry.Offset(0f, dy / 2)); advanceEventTime(16)
+        up()
+    }
+
+    @Test fun aQuickSwipeDownCutsTheClipWhereTheFingerWent() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        // clip 2 (8–13 s), swiped down through its middle
+        quick("simpleClip:2", 90f)
+        rule.waitForIdle()
+        val line = SimpleStripModel.storyline(st)
+        assertEquals(5, line.size)
+        val cut = line[2].start
+        assertTrue("cut inside clip 2: $cut", cut > 9f && cut < 12f)
+        assertEquals(8f, line[1].start, 1e-4f)
+        assertEquals(13f, line[3].start, 1e-4f)
+        assertEquals(1, st.undoCount)
+    }
+
+    @Test fun aQuickFlickUpDeletesTheClipAndTheRestClosesUp() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        quick("simpleClip:2", -90f)
+        rule.waitForIdle()
+        assertEquals(listOf(1L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
+        assertEquals(8f, st.clip(3).start, 1e-4f)
+        assertEquals(1, st.undoCount)
+        // a layer flicked up just goes
+        quick("simpleLaneClip:5", -60f)
+        rule.waitForIdle()
+        assertFalse(st.clips.any { it.id == 5L })
+    }
+
+    @Test fun aSlowOrSidewaysDragIsNoSwipe() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        // slow: the finger rested before it went down
+        quick("simpleClip:2", 90f, holdMs = 250)
+        // sideways: the strip scrolls
+        rule.onNodeWithTag("simpleClip:2").performTouchInput {
+            down(center); advanceEventTime(16); moveBy(androidx.compose.ui.geometry.Offset(-90f, 30f)); advanceEventTime(16); up()
+        }
+        rule.waitForIdle()
+        assertEquals(listOf(1L, 2L, 3L, 4L), SimpleStripModel.storyline(st).map { it.id })
+        assertEquals(0, st.undoCount)
+    }
 
     @Test fun theBarsDeleteTakesTheClipOut() {
         val st = simple()

@@ -90,7 +90,7 @@ import kotlin.math.roundToInt
 /** Height of an empty track's slim lane (dp). */
 private const val SLIM_TRACK_DP = 16
 /** A swipe down that leaves the touch slop within this time (ms) is a cut, not a move. */
-private const val KNIFE_MS = 160L
+internal const val KNIFE_MS = 160L
 /** Upward speed (dp/s) at release that flings a dragged clip out (delete). */
 private const val FLING_OUT_DP = 2400f
 
