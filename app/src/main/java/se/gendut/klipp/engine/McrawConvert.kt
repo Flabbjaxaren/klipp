@@ -236,16 +236,22 @@ object McrawConvert {
                 var track = -1
                 var audioTrack = -1
                 val info2 = MediaCodec.BufferInfo()
+                var outFrames = 0
                 fun drain(end: Boolean) {
                     // (at the end: the encoder's end of stream – or, when none comes, what it has given within 5 s: an
                     // .mcraw whose frame times stepped back left the encoder without one, and the import waited forever)
+                    // Every frame given back is enough: the phone's HEVC encoder now and then gives no end of stream
+                    // although all frames are out (seen on a 4K develop while another encoder was busy)
                     var quiet = 0
                     while (true) {
                         val i = codec.dequeueOutputBuffer(info2, if (end) 10_000 else 0)
                         if (i >= 0 || i == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) quiet = 0
                         when {
-                            i == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!end) return else if (++quiet >= 500) {
-                                line("end of stream: none from the encoder within 5 s – the file ends with what it gave")
+                            i == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!end) return else if (outFrames >= encoded && quiet++ >= 20) {
+                                line("end of stream: all $outFrames frames out, no end flag from the encoder")
+                                return
+                            } else if (quiet >= 500) {
+                                line("end of stream: none from the encoder within 5 s – the file ends with $outFrames of $encoded frames")
                                 return
                             }
                             i == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
@@ -256,7 +262,7 @@ object McrawConvert {
                             i >= 0 -> {
                                 val ob = codec.getOutputBuffer(i)!!
                                 if (info2.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) info2.size = 0
-                                if (info2.size > 0 && track >= 0) { ob.position(info2.offset); ob.limit(info2.offset + info2.size); muxer.writeSampleData(track, ob, info2) }
+                                if (info2.size > 0 && track >= 0) { ob.position(info2.offset); ob.limit(info2.offset + info2.size); muxer.writeSampleData(track, ob, info2); outFrames++ }
                                 codec.releaseOutputBuffer(i, false)
                                 if (info2.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) return
                             }
