@@ -27,6 +27,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -442,12 +445,17 @@ fun DisabledReason(text: String, tag: String = "reason") {
 }
 
 /**
- * A fresh install's first start: simple or advanced, as two cards. Skipping keeps advanced (as for everyone who used the
- * app before the modes); either can be changed any time in Settings or the ⋯ menu.
+ * A fresh install's first start: simple or advanced, as two cards; advanced asks next how the timeline works – tracks
+ * or the magnetic timeline (the same setting as Settings → Timeline; simple mode always edits on the magnetic one).
+ * Skipping keeps advanced on tracks (as for everyone who used the app before the modes); all of it can be changed any
+ * time in Settings or the ⋯ menu.
+ *
+ * @param onPick the mode picked (true = simple) and, for advanced, whether the timeline is magnetic (null = unchanged)
  */
 @Composable
-fun ModeChooser(onPick: (Boolean) -> Unit, onSkip: () -> Unit) {
-    androidx.activity.compose.BackHandler { onSkip() }
+fun ModeChooser(onPick: (Boolean, Boolean?) -> Unit, onSkip: () -> Unit) {
+    var timeline by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler { if (timeline) timeline = false else onSkip() }
     Box(
         Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.windowInsetsPadding(WindowInsets.safeDrawing).testTag("modeAsk"),
         contentAlignment = Alignment.Center,
@@ -456,11 +464,19 @@ fun ModeChooser(onPick: (Boolean) -> Unit, onSkip: () -> Unit) {
             Modifier.widthIn(max = 480.dp).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(stringResource(R.string.simple_choose_title), color = K.OnSurface, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
-            Text(stringResource(R.string.simple_choose_text), color = K.OnSurfaceVar, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 8.dp))
-            ModeCard(stringResource(R.string.simple_mode_simple), stringResource(R.string.simple_mode_simple_hint), Ic.Bolt, "modeAsk:simple") { onPick(true) }
-            ModeCard(stringResource(R.string.simple_mode_advanced), stringResource(R.string.simple_mode_advanced_hint), Ic.Sliders, "modeAsk:advanced") { onPick(false) }
-            FlatTextButton(onClick = onSkip, modifier = Modifier.padding(top = 4.dp).testTag("modeAsk:skip")) { Text(stringResource(R.string.simple_choose_skip)) }
+            if (!timeline) {
+                Text(stringResource(R.string.simple_choose_title), color = K.OnSurface, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+                Text(stringResource(R.string.simple_choose_text), color = K.OnSurfaceVar, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 8.dp))
+                ModeCard(stringResource(R.string.simple_mode_simple), stringResource(R.string.simple_mode_simple_hint), Ic.Bolt, "modeAsk:simple") { onPick(true, null) }
+                ModeCard(stringResource(R.string.simple_mode_advanced), stringResource(R.string.simple_mode_advanced_hint), Ic.Sliders, "modeAsk:advanced") { timeline = true }
+                FlatTextButton(onClick = onSkip, modifier = Modifier.padding(top = 4.dp).testTag("modeAsk:skip")) { Text(stringResource(R.string.simple_choose_skip)) }
+            } else {
+                Text(stringResource(R.string.simple_choose_timeline_title), color = K.OnSurface, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+                Text(stringResource(R.string.simple_choose_timeline_text), color = K.OnSurfaceVar, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 8.dp))
+                ModeCard(stringResource(R.string.simple_choose_tracks), stringResource(R.string.simple_choose_tracks_hint), Ic.Layers, "modeAsk:tracks") { onPick(false, false) }
+                ModeCard(stringResource(R.string.magnetic_setting), stringResource(R.string.simple_choose_magnetic_hint), Ic.Storyline, "modeAsk:magnetic") { onPick(false, true) }
+                FlatTextButton(onClick = { timeline = false }, modifier = Modifier.padding(top = 4.dp).testTag("modeAsk:back")) { Text(stringResource(R.string.app_back)) }
+            }
         }
     }
 }

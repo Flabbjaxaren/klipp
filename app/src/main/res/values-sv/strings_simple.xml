@@ -13,6 +13,11 @@
     <string name="simple_choose_title">Hur vill du klippa?</string>
     <string name="simple_choose_text">Du kan byta när som helst i Inställningar eller i tidslinjens ⋯-meny.</string>
     <string name="simple_choose_skip">Hoppa över</string>
+    <string name="simple_choose_timeline_title">Hur ska tidslinjen fungera?</string>
+    <string name="simple_choose_timeline_text">Du kan byta när som helst i Inställningar → Tidslinje.</string>
+    <string name="simple_choose_tracks">Spår</string>
+    <string name="simple_choose_tracks_hint">Klippen ligger kvar där du lägger dem, på vilket spår som helst</string>
+    <string name="simple_choose_magnetic_hint">V1 är berättelsen: klippen sluter sig och gör plats, resten följer med</string>
     <string name="simple_settings_timeline">Standardlängder, import, vibration</string>
     <!-- badges: what was made in advanced mode -->
     <string name="simple_badge_color">Avancerad färg</string>

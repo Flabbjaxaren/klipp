@@ -15,6 +15,11 @@ undo history.
 The mode is `EditorState.simple`. It is switched with `EditorState.switchMode()` and stored in
 `AppPrefs.simpleMode`.
 
+A fresh install asks once which mode to use (`ModeChooser` in `Simple.kt`). Picking *Advanced* asks next how the
+timeline works: *Tracks* or *Magnetic timeline*, the same setting as Settings → Timeline (`AppPrefs.magneticTimeline`).
+Skipping keeps advanced mode on tracks, as for everyone who used the app before the modes. Existing installs are not
+asked. With the magnetic timeline on, V1's header carries the storyline mark, so it is clear which track closes up.
+
 ## The layout (from the mockups)
 
 Every control is an advanced-mode function, reached in fewer steps:

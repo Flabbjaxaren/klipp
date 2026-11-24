@@ -1337,7 +1337,11 @@ private fun KlippAppContent(
 
         // a fresh install's first start: which mode (over everything; skipped = advanced)
         if (askMode) ModeChooser(
-            onPick = { on -> AppPrefs.setSimpleMode(context, on); state.switchMode(on); askMode = false; haptics.confirm() },
+            onPick = { on, magnetic ->
+                AppPrefs.setSimpleMode(context, on); state.switchMode(on)
+                magnetic?.let { AppPrefs.setMagneticTimeline(context, it); state.magnetic = it }
+                askMode = false; haptics.confirm()
+            },
             onSkip = { AppPrefs.skipModeAsk(context); askMode = false },
         )
 

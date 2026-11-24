@@ -108,6 +108,47 @@ class SimpleModeTest {
         rule.onNodeWithTag("modeAsk").assertDoesNotExist()
     }
 
+    @Test fun advancedAsksHowTheTimelineWorks() {
+        AppPrefs.initMode(ctx, updated = false, hasProjects = false)
+        val st = EditorState()
+        rule.setContent { KlippTheme { KlippApp(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("modeAsk:advanced").performClick()
+        rule.waitForIdle()
+        // not answered yet: the second question, and Back returns to the first
+        assertTrue(AppPrefs.askMode(ctx))
+        rule.onNodeWithTag("modeAsk:tracks").assertIsDisplayed()
+        rule.onRoot().captureRoboImage("$dir/s01b_tidslinje_fraga.png")
+        rule.onNodeWithTag("modeAsk:back").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("modeAsk:simple").assertIsDisplayed()
+        rule.onNodeWithTag("modeAsk:advanced").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("modeAsk:magnetic").performClick()
+        rule.waitForIdle()
+        assertFalse(st.simple)
+        assertTrue(st.magnetic)
+        assertTrue(AppPrefs.magneticTimeline(ctx))
+        assertFalse(AppPrefs.simpleMode(ctx))
+        assertFalse(AppPrefs.askMode(ctx))
+        rule.onNodeWithTag("modeAsk").assertDoesNotExist()
+    }
+
+    @Test fun advancedOnTracksKeepsTheTimelineAsBefore() {
+        AppPrefs.initMode(ctx, updated = false, hasProjects = false)
+        val st = EditorState()
+        rule.setContent { KlippTheme { KlippApp(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("modeAsk:advanced").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("modeAsk:tracks").performClick()
+        rule.waitForIdle()
+        assertFalse(st.simple)
+        assertFalse(st.magnetic)
+        assertFalse(AppPrefs.magneticTimeline(ctx))
+        assertFalse(AppPrefs.askMode(ctx))
+    }
+
     @Test fun skippingTheQuestionKeepsAdvanced() {
         AppPrefs.initMode(ctx, updated = false, hasProjects = false)
         val st = EditorState()
