@@ -220,6 +220,35 @@ object Proxies {
         }, "proxy-probe").apply { isDaemon = true }.start()
     }
 
+    /**
+     * A file known to need a proxy (a MotionCam develop: 4K, 60 fps, 10-bit) is queued now, without waiting for its
+     * media info – a relinked file's info can still be empty when [ensure] runs, and it was then marked as checked and
+     * never got a proxy (playback used the 4K original and froze).
+     */
+    fun request(context: Context, u: Uri) {
+        init(context)
+        val k = key(u)
+        Thread({
+            val depth = depthFor(context, u, false)
+            val sg = sig(shortSide, quality, depth)
+            main.post {
+                checked += k
+                failed.remove(k)
+                if (ready[k]?.sig == sg || progress.containsKey(k)) return@post
+                progress[k] = -1
+                queue.addLast(Job(u, false, depth, shortSide, sg))
+                next()
+            }
+        }, "proxy-request").apply { isDaemon = true }.start()
+    }
+
+    /**
+     * Proxies wait while MotionCam develops run in the background (they share the file reads, the GPU and the encoder:
+     * the develops' decode went from 13 to 21-27 ms a frame with proxies made beside them).
+     */
+    @Volatile private var held = false
+    fun hold(on: Boolean) { held = on; if (!on) main.post { next() } }
+
     /** Proxy bitrate (bit/s): Normal = 12 Mbit/s at 1080p (H.264), HEVC ≈ 70 %. */
     fun bitrate(short: Int, quality: Int, hevc: Boolean): Int {
         val px = (short.toDouble() / 1080.0).let { it * it }
@@ -244,8 +273,15 @@ object Proxies {
 
     private fun next() {
         val c = app ?: return
-        if (running != null || BackgroundWork.exporting) return
-        val job = queue.removeFirstOrNull() ?: return
+        if (running != null || BackgroundWork.exporting || held) return
+        // no proxy for a MotionCam quick develop (half size, light enough to play itself) or placeholder: its full
+        // develop replaces it in a moment and gets its own. One was started as the hold ended, just before the draft was
+        // swapped out, and ran beside the full develop's first playback (a crash in the phone's codec followed)
+        var job: Job
+        do {
+            job = queue.removeFirstOrNull() ?: return
+            if (McrawStore.isDraft(c, job.uri) || Placeholder.isPlaceholder(job.uri)) progress.remove(key(job.uri)) else break
+        } while (true)
         val u = job.uri
         val k = key(u)
         val out = fileFor(c, u, job.sig)

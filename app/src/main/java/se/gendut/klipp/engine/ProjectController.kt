@@ -111,9 +111,46 @@ class ProjectController(
     /** Set if a project couldn't be opened and neither could the previous one – nothing is then saved over the files. */
     private var saveBlocked = false
 
+    // the open project's side of the MotionCam develops (McrawStore): set while this controller lives
+    private val mcrawRelink: (Uri, Uri) -> Unit = { old, new -> relinkMcraw(old, new) }
+    private val mcrawHas: (Uri) -> Boolean = { u -> uris.containsValue(u) }
+    private val mcrawRemove: (Uri) -> Unit = { u -> uris.filterValues { it == u }.keys.toList().takeIf { it.isNotEmpty() }?.let { deleteMedia(it, emptyList()) } }
+
     init {
         state.backend = this
         state.props = this
+        McrawStore.relink = mcrawRelink
+        McrawStore.has = mcrawHas
+        McrawStore.remove = mcrawRemove
+    }
+
+    /**
+     * A MotionCam clip's develop replaced (a placeholder by its develop, a quick develop by its full one, a develop by
+     * one at other RAW settings): every media item using [old] now uses [new] – the same clip, same length. One save, no
+     * undo step; the old develop is cleaned up once no project uses it (McrawStore.clean).
+     */
+    private fun relinkMcraw(old: Uri, new: Uri) = scope.launch {
+        editLock.withLock {
+            var n = 0
+            for ((id, u) in uris.toList()) {
+                if (u != old) continue
+                val pfd = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openFileDescriptor(new, "r") }.getOrNull() } ?: continue
+                val ok = engine.tryExec("media.relink", JSONObject().put("item", id)
+                    .put("path", FdPath.of(pfd.fd, displayName(new), "video/mp4")).put("force", true)).isSuccess
+                if (ok) {
+                    fds += pfd; uris[id] = new; offline.remove(id); n++
+                    // a placeholder's media and its clips take the clip's own name (they showed "…_placeholder_…"); a clip
+                    // otherwise keeps the name it was put in with
+                    if (Placeholder.isPlaceholder(old)) Placeholder.clipName(old)?.let { name ->
+                        engine.tryExec("clip.rename", JSONObject().put("item", id).put("name", name))
+                        engine.snapshot().sequence?.let { q -> (q.video + q.audio).flatMap { t -> t.clips } }.orEmpty()
+                            .filter { it.item == id && it.name.contains(Placeholder.MARK) }
+                            .forEach { c -> engine.tryExec("clip.rename", JSONObject().put("clip", c.id).put("name", name)) }
+                    }
+                } else runCatching { pfd.close() }
+            }
+            if (n > 0) { refresh(true); saveLocked(); Proxies.request(context, new) }
+        }
     }
 
     /** Set by the UI: opens the file picker for captions. */
@@ -344,7 +381,9 @@ class ProjectController(
                         if (first != null && first.width > 0) {
                             // (the rate the frames are at, measured from the file: a file can state another – see MediaProbe.rateOf)
                             val measured = withContext(kotlinx.coroutines.Dispatchers.IO) { uriOf(first.id)?.let { MediaProbe.probe(context, it)?.fps } }
-                            p.put("width", first.width).put("height", first.height).put("fps", firstFps(measured ?: first.fps, uriOf(first.id)))
+                            // a MotionCam quick develop (or its placeholder) is half size: the project gets the full develop's size
+                            val k = if (McrawStore.isDraft(context, uris[first.id]) || Placeholder.isDraft(uris[first.id])) 2 else 1
+                            p.put("width", first.width * k).put("height", first.height * k).put("fps", firstFps(measured ?: first.fps, uriOf(first.id)))
                         }
                         engine.exec("file.newSequence", p)
                     }
@@ -1384,6 +1423,12 @@ class ProjectController(
         runCatching { ProRes.ensure(context, snap.media.filter { !it.offline }.mapNotNull { m -> uris[m.id]?.let { it to m } }) }
         // heavy files (4K, high frame rate, HDR) get proxy files in the background
         runCatching { Proxies.ensure(context, snap.media.mapNotNull { m -> uriOf(m.id)?.let { it to m } }) }
+        // MotionCam quick develops get their full develop in the background; the develops' log is the suggested input
+        // of a new OpenDRT or film node (CameraLog)
+        runCatching { McrawStore.finishDrafts(context, snap.media.mapNotNull { m -> uris[m.id] }) }
+        snap.media.mapNotNull { m -> uris[m.id] }.takeIf { it.isNotEmpty() }?.let { u ->
+            scope.launch(Dispatchers.IO) { runCatching { McrawStore.rememberLogs(context, u) } }
+        }
         scope.launch { runCatching { Perf.prefetchHdr(context, snap.media.filter { it.hasVideo }.mapNotNull { uriOf(it.id) }) } }
         probeMedia(snap)
     }
@@ -1751,6 +1796,8 @@ class ProjectController(
         }
         }
         projectsRevision++
+        // MotionCam develops no project uses any more go
+        withContext(Dispatchers.IO) { runCatching { McrawStore.clean(context, projectDir) } }
     }
 
     fun renameProject(id: String, name: String) = scope.launch {
@@ -1804,6 +1851,8 @@ class ProjectController(
                 val used = projectDir.listFiles { f -> f.name.endsWith(".media.json") }.orEmpty().any { runCatching { it.readText().contains(path) }.getOrDefault(true) }
                 if (!used) dir.deleteRecursively()
             }
+            // the MotionCam develops only this project used
+            runCatching { McrawStore.clean(context, projectDir) }
         }
         projectsRevision++
     }
@@ -3245,6 +3294,10 @@ class ProjectController(
     }
 
     fun close() {
+        // (only this controller's: a new one may have set its own already)
+        if (McrawStore.relink === mcrawRelink) McrawStore.relink = null
+        if (McrawStore.has === mcrawHas) McrawStore.has = null
+        if (McrawStore.remove === mcrawRemove) McrawStore.remove = null
         // a pending save happens now (a couple of seconds at most), before the engine is released
         if (saveJob?.isActive == true) {
             saveJob?.cancel()
