@@ -599,7 +599,7 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
                             },
                             onMove = { d -> movingDx += d.x; movingDy += d.y },
                             onDrop = { cancelled -> drop(c.id, cancelled) },
-                            onKnife = { t -> knife = if (t != null) KnifeMark(t, mainTop, MAIN_H, true) else knife?.copy(held = false) },
+                            onKnife = { t, on -> knife = if (t != null) KnifeMark(t, mainTop, MAIN_H, true, on) else knife?.copy(held = false) },
                         )
                     } }
                     // the rows: each track's clips (a tap selects, hold and drag moves – along the row or to another)
@@ -619,7 +619,7 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
                                     },
                                     onMove = { d -> movingDx += d.x; movingDy += d.y },
                                     onDrop = { cancelled -> drop(c.id, cancelled) },
-                                    onKnife = { t -> knife = if (t != null) KnifeMark(t, y, LANE_H, true) else knife?.copy(held = false) },
+                                    onKnife = { t, on -> knife = if (t != null) KnifeMark(t, y, LANE_H, true, on) else knife?.copy(held = false) },
                                 ) }
                                 LaneMarks(state, lane, y, with(density) { scroll.value.toDp() }) { b -> haptics.heavy(); blocked = b }
                             }
@@ -775,7 +775,7 @@ private fun StripClip(
     state: EditorState, c: Clip, index: Int, count: Int, pps: Float, side: androidx.compose.ui.unit.Dp,
     top: androidx.compose.ui.unit.Dp, selected: Boolean, dragEdge: Boolean?, dragDelta: Float,
     moving: Offset?, onMoveStart: (Offset) -> Unit, onMove: (Offset) -> Unit, onDrop: (cancelled: Boolean) -> Unit,
-    onKnife: (Float?) -> Unit = {},
+    onKnife: (Float?, Boolean) -> Unit = { _, _ -> },
 ) {
     val density = LocalDensity.current
     val haptics = rememberHaptics()
@@ -821,7 +821,7 @@ private fun StripClip(
                 // monitor was black)
                 if (state.playhead < c.start || state.playhead >= c.end) state.playhead = c.start
             }
-            .swipeCut(state, c, pps, haptics) { knife(it) }
+            .swipeCut(state, c, pps, haptics) { t, on -> knife(t, on) }
             .testTag("simpleClip:${c.id}")
     ) {
         if (uri != null) Filmstrip(c, uri, { liveSourceSpan(c.srcIn, c.length, c.speed, c.reverse, c.hold, c.length, 0f) }, { pps }, Modifier.fillMaxSize())
@@ -1082,7 +1082,7 @@ private fun LaneClip(
     state: EditorState, c: Clip, pps: Float, sidePx: Float, y: androidx.compose.ui.unit.Dp, selected: Boolean,
     dragEdge: Boolean?, dragDelta: Float, moving: Offset?,
     onMoveStart: (Offset) -> Unit, onMove: (Offset) -> Unit, onDrop: (cancelled: Boolean) -> Unit,
-    onKnife: (Float?) -> Unit = {},
+    onKnife: (Float?, Boolean) -> Unit = { _, _ -> },
 ) {
     val density = LocalDensity.current
     val haptics = rememberHaptics()
@@ -1119,7 +1119,7 @@ private fun LaneClip(
                 )
             }
             .clickable { haptics.press(); state.playing = false; state.tapSelect(c.id) }
-            .swipeCut(state, c, pps, haptics) { knife(it) }
+            .swipeCut(state, c, pps, haptics) { t, on -> knife(t, on) }
             .testTag("simpleLaneClip:${c.id}"),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -1189,10 +1189,12 @@ private fun LaneMarks(state: EditorState, lane: SimpleStripModel.Lane, y: androi
  * The timeline's quick swipe down on a clip, also in the strip (the gesture tips name it): through the clip it cuts it
  * where the finger went down (the playhead when that is close). Only a swipe down that leaves the touch slop within
  * [KNIFE_MS] and mostly downwards; anything slower, sideways or upwards is left to the tap, the hold-and-drag and the
- * scrolling. (Put after them in the chain: it sees the touch first.) There is no flick up to delete: a clip taken up
- * is a layer over the film (the magnetic timeline's lanes) – Delete in the bar takes it out.
+ * scrolling. (Put after them in the chain: it sees the touch first.) Until the finger lifts the cut can be taken back:
+ * the finger back up to where it went down ([KnifeBack]) greys the line, and letting go there cuts nothing. [onKnife]
+ * gets where it cuts and whether it still does, and null when the finger is up. There is no flick up to delete: a clip
+ * taken up is a layer over the film (the magnetic timeline's lanes) – Delete in the bar takes it out.
  */
-internal fun Modifier.swipeCut(state: EditorState, clip: Clip, pps: Float, haptics: Haptics, onKnife: (Float?) -> Unit): Modifier = pointerInput(clip.id, pps) {
+internal fun Modifier.swipeCut(state: EditorState, clip: Clip, pps: Float, haptics: Haptics, onKnife: (Float?, Boolean) -> Unit): Modifier = pointerInput(clip.id, pps) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         // the clip as it is now, not as it was when the gesture began to be watched: keyed by its id, the handler lives on
@@ -1200,11 +1202,19 @@ internal fun Modifier.swipeCut(state: EditorState, clip: Clip, pps: Float, hapti
         // had been, to the right of the finger, and outside the clip cut nothing
         val c = state.clips.firstOrNull { it.id == clip.id } ?: return@awaitEachGesture
         var cutting = false
+        val back = KnifeBack.of(this)
+        val t = knifeAt(state, c, pps, down.position.x)
         while (true) {
             val ev = awaitPointerEvent()
-            if (ev.changes.count { it.pressed } > 1) { if (cutting) onKnife(null); return@awaitEachGesture }
-            val ch = ev.changes.firstOrNull { it.id == down.id } ?: run { if (cutting) onKnife(null); return@awaitEachGesture }
-            if (cutting) { ch.consume(); if (!ch.pressed) break else continue }
+            if (ev.changes.count { it.pressed } > 1) { if (cutting) onKnife(null, false); return@awaitEachGesture }
+            val ch = ev.changes.firstOrNull { it.id == down.id } ?: run { if (cutting) onKnife(null, false); return@awaitEachGesture }
+            if (cutting) {
+                ch.consume()
+                if (!ch.pressed) break
+                // back up: taken back (grey); down again: it cuts again
+                if (back.update(ch.position.y - down.position.y)) { haptics.tick(); onKnife(t, back.on) }
+                continue
+            }
             if (!ch.pressed) return@awaitEachGesture
             val d = ch.position - down.position
             if (abs(d.x) <= viewConfiguration.touchSlop && abs(d.y) <= viewConfiguration.touchSlop) continue
@@ -1213,12 +1223,12 @@ internal fun Modifier.swipeCut(state: EditorState, clip: Clip, pps: Float, hapti
             state.playing = false
             haptics.tick()
             ch.consume()
+            back.update(d.y)
             // the red line where it will cut, while the finger is down (as the timeline's knife)
-            onKnife(knifeAt(state, c, pps, down.position.x))
+            onKnife(t, true)
         }
-        val t = knifeAt(state, c, pps, down.position.x)
-        if (t > c.start + 0.04f && t < c.end - 0.04f) { haptics.confirm(); state.split(c.id, t) }
-        onKnife(null)
+        if (back.on && t > c.start + 0.04f && t < c.end - 0.04f) { haptics.confirm(); state.split(c.id, t) }
+        onKnife(null, false)
     }
 }
 
@@ -1228,8 +1238,10 @@ private fun androidx.compose.ui.unit.Density.knifeAt(state: EditorState, c: Clip
     return if (abs(t - state.playhead) * pps < 12.dp.toPx()) state.playhead else t
 }
 
-/** The red line of a swipe-down cut, over the row it cuts (it fades when the finger lifts, on the new edit point). */
-private data class KnifeMark(val t: Float, val top: androidx.compose.ui.unit.Dp, val height: androidx.compose.ui.unit.Dp, val held: Boolean)
+/** The red line of a swipe-down cut, over the row it cuts (grey when taken back; it fades when the finger lifts, on the new edit point). */
+private data class KnifeMark(val t: Float, val top: androidx.compose.ui.unit.Dp, val height: androidx.compose.ui.unit.Dp, val held: Boolean,
+    /** Still cuts (false: taken back – the finger is back up where it went down). */
+    val on: Boolean = true)
 
 @Composable
 private fun KnifeLine(mark: KnifeMark?, pps: Float, sidePx: Float) {
@@ -1241,10 +1253,11 @@ private fun KnifeLine(mark: KnifeMark?, pps: Float, sidePx: Float) {
     if (alpha <= 0f) return
     Canvas(
         Modifier.offset { IntOffset(0, m.top.roundToPx()) }.fillMaxWidth().height(m.height).zIndex(5f)
-            .then(if (mark?.held == true) Modifier.testTag("simpleStrip:knife") else Modifier)
+            .then(if (mark?.held == true) Modifier.testTag(if (mark.on) "simpleStrip:knife" else "simpleStrip:knifeOff") else Modifier)
     ) {
         val x = sidePx + m.t * pps
-        val red = Color(0xFFFF6B6B).copy(alpha = alpha)
+        // red where it cuts; grey when taken back (the finger back up)
+        val red = (if (m.on) Color(0xFFFF6B6B) else K.OnSurfaceVar).copy(alpha = alpha)
         drawRect(red.copy(alpha = 0.18f * alpha), Offset(x - 5.dp.toPx(), 0f), androidx.compose.ui.geometry.Size(10.dp.toPx(), size.height))
         drawRect(red, Offset(x - 1.dp.toPx(), 0f), androidx.compose.ui.geometry.Size(2.dp.toPx(), size.height))
         drawCircle(K.Surface.copy(alpha = alpha), 7.dp.toPx(), Offset(x, size.height / 2f))

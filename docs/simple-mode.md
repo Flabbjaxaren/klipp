@@ -77,7 +77,10 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
   follows the edge). A lime line through the rows shows the edge it caught, with a tick.
 - **The quick swipe down, as in the timeline.** A quick swipe down through a clip cuts it where the finger went down
   (the playhead when that is within 12 dp), with the timeline's red line on the row while the finger is down (it fades on
-  the new edit point when the finger lifts). Quick means the finger leaves the touch slop within 160 ms, mostly
+  the new edit point when the finger lifts). Until the finger lifts the cut can be taken back: brought back up to where
+  it went down (within 12 dp, once it has been more than 28 dp down), the line goes grey with a tick, and letting go
+  there cuts nothing and leaves no undo step; down again, it is red and cuts again. The advanced timeline's swipe works
+  the same way (`KnifeBack` in `Timeline.kt`). Quick means the finger leaves the touch slop within 160 ms, mostly
   downwards; slower, sideways or upward drags are left to holding, moving and scrolling, so the rows scroll from beside
   the clips or with a drag up. There is no flick up to delete, in either mode: on the magnetic timeline a clip taken up
   becomes a layer over the film, and *Delete* in the bar takes a clip out. The gesture tips in simple mode name the swipe

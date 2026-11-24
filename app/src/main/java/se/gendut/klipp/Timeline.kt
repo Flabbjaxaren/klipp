@@ -91,7 +91,32 @@ import kotlin.math.roundToInt
 private const val SLIM_TRACK_DP = 16
 /** A swipe down that leaves the touch slop within this time (ms) is a cut, not a move. */
 internal const val KNIFE_MS = 160L
-/** Upward speed (dp/s) at release that flings a dragged clip out (delete). */
+
+/**
+ * Whether a swipe-down cut still cuts, from how far the finger is below where it went down ([dy], px): once it has been
+ * more than [arm] down, bringing it back up to within [back] of the start (or above) takes the cut back – letting go
+ * there cuts nothing – and down past [arm] again cuts again. (Between the two it stays as it was: no flicker.)
+ */
+internal class KnifeBack(private val back: Float, private val arm: Float) {
+    var on = true
+        private set
+    private var deep = false
+
+    /** The finger is [dy] px below where it went down; true when that changed whether it cuts. */
+    fun update(dy: Float): Boolean {
+        val was = on
+        if (dy > arm) { deep = true; on = true } else if (deep && dy < back) on = false
+        return on != was
+    }
+
+    companion object {
+        /** Back up to within this of where the finger went down (about a fingertip): the cut is taken back. */
+        val BACK = 12.dp
+        /** Down past this again: it cuts again. */
+        val ARM = 28.dp
+        fun of(d: androidx.compose.ui.unit.Density) = with(d) { KnifeBack(BACK.toPx(), ARM.toPx()) }
+    }
+}
 
 /** The platform magnifier (Android 9+; not in the JVM test environment, which has no surfaces for it). */
 private val LOUPE = Build.VERSION.SDK_INT >= 28 && Build.FINGERPRINT != "robolectric"
@@ -302,6 +327,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
     var lassoCapLive by remember { mutableStateOf<Set<Long>>(emptySet()) }
     /** The razor dragged up/down: (time, first track, track under the finger). */
     var razorLine by remember { mutableStateOf<Triple<Float, Int, Int>?>(null) }
+    // a swipe-down cut taken back (the finger back up where it went down): its line grey, and letting go cuts nothing
+    var knifeOff by remember { mutableStateOf(false) }
     var snapLine by remember { mutableStateOf<Float?>(null) }
     /** Where the finger is during a trim (the loupe magnifies there); null = no loupe. */
     var loupe by remember { mutableStateOf<Offset?>(null) }
@@ -438,7 +465,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
 
     /** Clear everything temporary from a gesture and return the clips to the model's state (cancelled gesture). */
     fun abandonGesture() {
-        dragId = null; snapLine = null; scrubTier = 0; loupe = null; hoverTrack = -1; lassoPts = null; lassoLive = emptySet(); lassoCapLive = emptySet(); razorLine = null; transPreview = null; capDrag = null; capGroupDt = null
+        dragId = null; snapLine = null; scrubTier = 0; loupe = null; hoverTrack = -1; lassoPts = null; lassoLive = emptySet(); lassoCapLive = emptySet(); razorLine = null; knifeOff = false; transPreview = null; capDrag = null; capGroupDt = null
         state.trimView = null
         magDragging = false; magRepreview[0] = null; state.keepConnected = false
         for (c in state.clips) anims[c.id]?.let { a ->
@@ -1206,8 +1233,11 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         var razorDrag = false
                         var razorT = 0f
                         var razorFrom = 0
-                        // a quick swipe down through a clip (select/ripple tool) cuts it where the finger went down
+                        // a quick swipe down through a clip (select/ripple tool) cuts it where the finger went down – unless
+                        // the finger comes back up before it lifts
                         var knife = false
+                        val knifeBack = KnifeBack.of(density)
+                        knifeOff = false
                         if (capLaneLasso) lasso = true
                         else if (hit is Hit.Body && tool.moves && !lockedHit) {
                             val r = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
@@ -1384,6 +1414,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                 val quick = ch.uptimeMillis - down.uptimeMillis < KNIFE_MS
                                 if (hit is Hit.Body && tool.moves && !lockedHit && quick && d.y > 0f && d.y > abs(d.x) * 1.5f) {
                                     knife = true
+                                    knifeBack.update(d.y)
                                     razorDrag = true
                                     vertical = false
                                     razorT = snapFrame(((start.x + sx()) / pps).coerceAtLeast(0f))
@@ -1440,6 +1471,11 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                                     if (cur != razorLine?.third) {
                                         haptics.tick()
                                         razorLine = Triple(razorT, razorFrom, cur)
+                                    }
+                                    // the swipe's cut: back up where it went down takes it back, down again cuts again
+                                    if (knife && knifeBack.update(ch.position.y - start.y)) {
+                                        haptics.tick()
+                                        knifeOff = !knifeBack.on
                                     }
                                 }
                                 hit is Hit.Body && dragId == orig?.id && orig != null && a != null -> {
@@ -1613,6 +1649,7 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         if (cancelled || multi) {
                             // cancelled or two fingers (zoom): clear trim frame, snap line and previews
                             razorLine = null
+                            knifeOff = false
                             scrubTier = 0
                             loupe = null
                             hoverTrack = -1
@@ -1646,7 +1683,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                         if (razorDrag) {
                             val line = razorLine
                             razorLine = null
-                            if (line != null) {
+                            knifeOff = false
+                            if (line != null && !(knife && !knifeBack.on)) {
                                 if (knife && line.second == line.third && orig != null) {
                                     // one track: the same as the razor's tap (linked sound follows the engine's rules)
                                     if (line.first > orig.start + 0.04f && line.first < orig.end - 0.04f) { haptics.confirm(); state.split(orig.id, line.first) }
@@ -2201,7 +2239,8 @@ fun Timeline(state: EditorState, tool: Tool, modifier: Modifier = Modifier) {
                     val x = t * pps - sx()
                     val top = rulerPx + yOf(lo.toFloat()) - scrollY
                     val bottom = rulerPx + yOf(hi.toFloat()) + hOf(hi.toFloat()) - scrollY
-                    val red = Color(0xFFFF6B6B)
+                    // grey: a swipe's cut taken back
+                    val red = if (knifeOff) K.OnSurfaceVar else Color(0xFFFF6B6B)
                     drawRect(red.copy(alpha = 0.18f), Offset(x - 5.dp.toPx(), top), Size(10.dp.toPx(), bottom - top))
                     drawRect(red, Offset(x - 1.dp.toPx(), top), Size(2.dp.toPx(), bottom - top))
                     // mark where the cuts will land

@@ -24,7 +24,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
-/** The touch gestures: knife swipe, drag-out delete, edge trims, long-press lift, slim lanes, scrub speeds, timecodes. */
+/** The touch gestures: knife swipe (and taking it back), no drag-out delete, edge trims, long-press lift, slim lanes, scrub speeds, timecodes. */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [35], qualifiers = "sv-w411dp-h891dp-xxhdpi")
@@ -60,6 +60,36 @@ class GesturesTest {
         assertEquals(2, parts.size)
         assertEquals(18f, parts[1].start, 0.05f)
         assertEquals("only that clip is cut", 5, st.clips.count { it.track == 2 })
+    }
+
+    @Test fun aSwipeDownTakenBackBeforeLettingGoCutsNothing() {
+        val st = EditorState()
+        timeline(st)
+        val n = st.clips.size
+        // the second A003 (13–22 s on V1): swiped down at 18 s, then back up to where it went down, and let go
+        rule.onNodeWithTag("timeline").performTouchInput {
+            val from = pt(18f, v1 - 10f)
+            down(from)
+            for (i in 1..4) moveTo(Offset(from.x, from.y + 12f * density * i))
+            for (i in 3 downTo 0) moveTo(Offset(from.x, from.y + 12f * density * i))
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals("not cut", n, st.clips.size)
+        assertEquals(0, st.undoCount)
+        // down, back up, and down again: it cuts
+        rule.onNodeWithTag("timeline").performTouchInput {
+            val from = pt(18f, v1 - 10f)
+            down(from)
+            for (i in 1..4) moveTo(Offset(from.x, from.y + 12f * density * i))
+            for (i in 3 downTo 0) moveTo(Offset(from.x, from.y + 12f * density * i))
+            for (i in 1..4) moveTo(Offset(from.x, from.y + 12f * density * i))
+            up()
+        }
+        rule.waitForIdle()
+        val parts = st.clips.filter { it.track == 2 && it.name == "A003_intervju" && it.start >= 13f }.sortedBy { it.start }
+        assertEquals(2, parts.size)
+        assertEquals(18f, parts[1].start, 0.05f)
     }
 
     @Test fun slowVerticalDragStillMovesBetweenTracks() {

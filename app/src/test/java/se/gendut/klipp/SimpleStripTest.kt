@@ -708,7 +708,7 @@ class SimpleStripTest {
                 val haptics = rememberHaptics()
                 androidx.compose.foundation.layout.Box(
                     Modifier.size(with(androidx.compose.ui.platform.LocalDensity.current) { (was.length * pps).toDp() }, 80.dp)
-                        .swipeCut(st, was, pps, haptics) {}.testTag("clip")
+                        .swipeCut(st, was, pps, haptics) { _, _ -> }.testTag("clip")
                 )
             }
         }
@@ -742,6 +742,41 @@ class SimpleStripTest {
         rule.waitForIdle()
         assertEquals(5, SimpleStripModel.storyline(st).size)
         rule.onNodeWithTag("simpleStrip:knife").assertDoesNotExist()
+    }
+
+    @Test fun aSwipeDownTakenBackBeforeLettingGoCutsNothing() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        // down through clip 2, then back up to where the finger went down: the line goes grey
+        rule.onNodeWithTag("simpleClip:2").performTouchInput {
+            down(center); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(2f, 45f)); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(0f, 45f)); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(-2f, -88f)); advanceEventTime(16)
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleStrip:knifeOff").assertExists()
+        rule.onRoot().captureRoboImage("build/shots/s26_enkel_kniv_tillbaka.png")
+        // let go there: nothing cut, no undo step
+        rule.onNodeWithTag("simpleClip:2").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(4, SimpleStripModel.storyline(st).size)
+        assertEquals(0, st.undoCount)
+        // down, back up and down again: red again, and it cuts
+        rule.onNodeWithTag("simpleClip:2").performTouchInput {
+            down(center); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(2f, 45f)); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(0f, 45f)); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(-2f, -88f)); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(0f, 90f)); advanceEventTime(16)
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleStrip:knife").assertExists()
+        rule.onNodeWithTag("simpleClip:2").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(5, SimpleStripModel.storyline(st).size)
+        assertEquals(1, st.undoCount)
     }
 
     @Test fun aQuickFlickUpDeletesNothing() {
