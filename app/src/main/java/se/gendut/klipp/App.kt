@@ -998,6 +998,11 @@ private fun KlippAppContent(
         val shapeKey = "%.3f".format(java.util.Locale.ROOT, picShape)
         val defaultMonitorH = maxWidth / picShape
         val maxMonitorH = maxHeight * 0.55f
+        // landscape: the picture's share of the width (the rest is the timeline; the dock under the picture follows it)
+        // – never so narrow that the transport and the dock don't fit beside each other's controls (360 dp)
+        var splitSet by remember { androidx.compose.runtime.mutableFloatStateOf(AppPrefs.landscapeSplit(context)) }
+        val minSplit = (360.dp / maxWidth).coerceIn(0.3f, AppPrefs.LANDSCAPE_SPLIT)
+        val split = splitSet.coerceIn(minSplit, 0.75f)
         // the height the user dragged to for this shape (kept), else the default for the window as it is now – a default
         // remembered once was the landscape one when the app started on its side, and the portrait picture was then twice
         // as tall
@@ -1174,7 +1179,6 @@ private fun KlippAppContent(
         if (landscape) {
             // landscape: picture (and source) on the left, the modes with the timeline on the right; the split between
             // them can be dragged (the grip between them; double tap = back to 46 %)
-            var split by remember { androidx.compose.runtime.mutableFloatStateOf(AppPrefs.landscapeSplit(context)) }
             val rowPx = with(density) { maxWidth.toPx() }
             Row(Modifier.fillMaxSize().safeArea()) {
                 Column(Modifier.weight(split).fillMaxHeight()) {
@@ -1184,9 +1188,9 @@ private fun KlippAppContent(
                     if (sourceMedia == null) Spacer(Modifier.height(92.dp))
                 }
                 SplitHandle(
-                    onDrag = { dx -> split = (split + dx / rowPx).coerceIn(0.3f, 0.75f) },
+                    onDrag = { dx -> splitSet = (split + dx / rowPx).coerceIn(minSplit, 0.75f) },
                     onEnd = { AppPrefs.setLandscapeSplit(context, split) },
-                    onReset = { haptics.tick(); split = AppPrefs.LANDSCAPE_SPLIT; AppPrefs.setLandscapeSplit(context, split) },
+                    onReset = { haptics.tick(); splitSet = AppPrefs.LANDSCAPE_SPLIT; AppPrefs.setLandscapeSplit(context, splitSet) },
                 )
                 Box(Modifier.weight(1f - split).fillMaxHeight()) {
                     Pages(Modifier.fillMaxSize())
@@ -1213,7 +1217,7 @@ private fun KlippAppContent(
             bottomBar,
             enter = slideInVertically(spring(0.7f, 400f)) { it } + fadeIn(),
             exit = slideOutVertically { it } + fadeOut(),
-            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(if (landscape) 0.46f else 1f),
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth(if (landscape) split else 1f),
         ) {
         Column(
             Modifier.windowInsetsPadding(WindowInsets.navigationBars)
@@ -1233,7 +1237,7 @@ private fun KlippAppContent(
 
         // (a Box: the chip keeps its own width, its cross right after the text)
         if (landscape && bottomBar) Box(
-            Modifier.align(Alignment.BottomEnd).fillMaxWidth(0.54f).windowInsetsPadding(WindowInsets.navigationBars)
+            Modifier.align(Alignment.BottomEnd).fillMaxWidth(1f - split).windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(start = 8.dp, bottom = 12.dp),
         ) { SelectionChip(state, { page.value }) }
 
