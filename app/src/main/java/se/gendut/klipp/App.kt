@@ -1556,10 +1556,15 @@ private fun SplitHandle(onDrag: (Float) -> Unit, onEnd: () -> Unit, onReset: () 
 /** The grip under the transport: drag to make the picture taller or shorter; double tap = back to the project's shape. */
 @Composable
 private fun MonitorHandle(onDrag: (Float) -> Unit, onEnd: () -> Unit, onReset: () -> Unit) {
+    // (the gestures stay while the handle does: they call the latest lambdas – the shape the height is kept for changes
+    // with the project)
+    val drag by rememberUpdatedState(onDrag)
+    val end by rememberUpdatedState(onEnd)
+    val reset by rememberUpdatedState(onReset)
     Box(
         Modifier.fillMaxWidth().height(14.dp)
-            .pointerInput(Unit) { detectVerticalDragGestures(onDragEnd = onEnd) { ch, dy -> ch.consume(); onDrag(dy) } }
-            .pointerInput(Unit) { detectTapGestures(onDoubleTap = { onReset() }) }
+            .pointerInput(Unit) { detectVerticalDragGestures(onDragEnd = { end() }) { ch, dy -> ch.consume(); drag(dy) } }
+            .pointerInput(Unit) { detectTapGestures(onDoubleTap = { reset() }) }
             .testTag("monitorHandle"),
         contentAlignment = Alignment.Center,
     ) { Box(Modifier.size(40.dp, 4.dp).clip(RoundedCornerShape(2.dp)).background(K.OutlineVar)) }
