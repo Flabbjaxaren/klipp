@@ -66,4 +66,11 @@ class TitlePlaceTest {
             } else assertEquals(max, tracks.size)
         }
     }
+
+    @Test fun aNewTitleFitsAPortraitFrame() {
+        // landscape as before (a share of the height); portrait: of the width, the same size as in landscape
+        assertEquals(1080 * 0.09, se.gendut.klipp.engine.titleSize(se.gendut.klipp.engine.TitleTemplate.FREE, 1920.0, 1080.0), 1e-6)
+        assertEquals(1080 * 0.09, se.gendut.klipp.engine.titleSize(se.gendut.klipp.engine.TitleTemplate.FREE, 1080.0, 1920.0), 1e-6)
+        assertEquals(1080 * 0.062, se.gendut.klipp.engine.titleSize(se.gendut.klipp.engine.TitleTemplate.LOWER_THIRD, 1080.0, 1920.0), 1e-6)
+    }
 }

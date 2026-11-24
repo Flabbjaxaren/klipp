@@ -36,3 +36,11 @@ fun titlePlace(tracks: List<List<FrameSpan>>, locked: List<Boolean>, at: Long, l
     }
     return TitlePlace(tracks.size, true, null)
 }
+
+/**
+ * A new title's text size (px) in a [w]×[h] frame: a share of the frame's shorter side – of its height, it was too wide
+ * for a portrait frame (a short title ran off both sides of 9:16); a landscape frame is as before.
+ */
+fun titleSize(template: TitleTemplate, w: Double, h: Double): Double = minOf(w, h) * when (template) {
+    TitleTemplate.LOWER_THIRD -> 0.062; TitleTemplate.CHAPTER -> 0.085; TitleTemplate.ROLL -> 0.05; TitleTemplate.FREE -> 0.09
+}

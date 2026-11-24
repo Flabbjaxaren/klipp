@@ -2753,9 +2753,7 @@ class ProjectController(
         scope.launch { editLock.withLock {
             val q = snapshot.sequence ?: run { onMessage(Str.t(R.string.projectcontroller_add_clip_first)); return@launch }
             val l = TitleLook.parse(look)
-            val size = q.height * when (l.template) {
-                TitleTemplate.LOWER_THIRD -> 0.062; TitleTemplate.CHAPTER -> 0.085; TitleTemplate.ROLL -> 0.05; TitleTemplate.FREE -> 0.09
-            }
+            val size = titleSize(l.template, q.width.toDouble(), q.height.toDouble())
             // the default length from settings (credits rolls twice as long)
             val seconds = seconds ?: (se.gendut.klipp.AppPrefs.titleSeconds(context).toDouble() * if (l.template == TitleTemplate.ROLL) 2 else 1)
             // the topmost video track (always seen), free for the whole title – or a new track on top; else say why and make nothing
