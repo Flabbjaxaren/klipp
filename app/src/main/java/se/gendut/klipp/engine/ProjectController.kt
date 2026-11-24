@@ -829,7 +829,36 @@ class ProjectController(
             }
             p.put("edge", "out").put("delta", delta)
         }
+        // a ripple trim on tracks: the captions after the clip go along, in the same step (the magnetic timeline's own
+        // edits move them themselves)
+        if (ripple && !state.magnetic && c != null) {
+            scope.launch { editLock.withLock {
+                group(Str.t(R.string.projectcontroller_undo_trim)) {
+                    engine.tryExec("timeline.trim", p).onFailure { onMessage(friendly(it.message)) }
+                    rippleCaptions(old.id, c.start + c.duration)
+                    sweepSlivers()
+                }
+                refresh()
+            } }
+            return
+        }
         runEdit("timeline.trim", p, Str.t(R.string.projectcontroller_undo_trim))
+    }
+
+    /**
+     * After a ripple edit on tracks that moved the end of clip [id] from [oldEnd] (s): the captions from there on move by
+     * as much – they are sync-locked as the engine's ripple delete has them (it moved them, a ripple trim or a speed
+     * change didn't, so the captions fell out of step with the speech after the clip). The caller holds [editLock].
+     */
+    private suspend fun rippleCaptions(id: Long, oldEnd: Double) {
+        val q = engine.snapshot().sequence ?: return
+        val c = (q.video + q.audio).flatMap { it.clips }.firstOrNull { it.id == id } ?: return
+        val f = Math.round((c.start + c.duration - oldEnd) * snapshot.fps)
+        if (f == 0L) return
+        val ids = (q.captions + q.hiddenCaptions).filter { it.start >= oldEnd - 1e-3 }.map { it.id }
+        if (ids.isEmpty()) return
+        engine.tryExec("captions.move", JSONObject().put("captions", JSONArray(ids)).put("deltaFrames", f))
+            .onFailure { se.gendut.klipp.CrashReport.note("ripple: captions not moved: ${it.message}") }
     }
 
     /** Clips created by a new edit (the color page forgets an old grade on the same id). */
@@ -2092,14 +2121,21 @@ class ProjectController(
                     p.link?.let { l -> all.filter { it.id != p.id && it.link == l && kotlin.math.abs(it.start - p.start) < 1e-3 }.forEach { ids.put(it.id) } }
                     engine.tryExec("clip.speedDuration", JSONObject().put("clips", ids).put("speed", speed).put("ripple", true)).onFailure { onMessage(friendly(it.message)) }
                 }
+                // (on tracks the captions after the clip go along – see rippleCaptions)
+                if (!state.magnetic) pieces.lastOrNull()?.let { rippleCaptions(it.id, c.start + c.duration) }
             }
         }
         refresh()
     }
 
     fun setSpeed(clipId: Long, percent: Int) = scope.launch { editLock.withLock {
-        engine.tryExec("clip.speedDuration", JSONObject().put("clips", JSONArray().put(clipId)).put("speed", percent).put("ripple", true))
-            .onFailure { onMessage(friendly(it.message)) }
+        val c = clipSnap(clipId)
+        // (on tracks the captions after the clip go along – see rippleCaptions)
+        group(Str.t(R.string.projectcontroller_undo_speed), on = c != null && !state.magnetic) {
+            engine.tryExec("clip.speedDuration", JSONObject().put("clips", JSONArray().put(clipId)).put("speed", percent).put("ripple", true))
+                .onFailure { onMessage(friendly(it.message)) }
+            if (c != null && !state.magnetic) rippleCaptions(clipId, c.start + c.duration)
+        }
         refresh()
     } }
 

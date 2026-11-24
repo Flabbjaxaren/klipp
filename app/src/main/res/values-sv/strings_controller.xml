@@ -139,6 +139,7 @@
     <string name="projectcontroller_undo_roll">Rulla</string>
     <string name="projectcontroller_undo_clean_slivers">Rensa små bitar</string>
     <string name="projectcontroller_undo_speed_ramp">Hastighetsramp</string>
+    <string name="projectcontroller_undo_speed">Fart</string>
     <string name="projectcontroller_undo_duck_music">Ducka musik</string>
     <string name="projectcontroller_undo_remove_ducking">Ta bort duckning</string>
     <string name="projectcontroller_undo_voiceover">Voice-over</string>

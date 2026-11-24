@@ -139,6 +139,7 @@
     <string name="projectcontroller_undo_roll">Roll</string>
     <string name="projectcontroller_undo_clean_slivers">Clean up slivers</string>
     <string name="projectcontroller_undo_speed_ramp">Speed ramp</string>
+    <string name="projectcontroller_undo_speed">Speed</string>
     <string name="projectcontroller_undo_duck_music">Duck music</string>
     <string name="projectcontroller_undo_remove_ducking">Remove ducking</string>
     <string name="projectcontroller_undo_voiceover">Voice-over</string>
