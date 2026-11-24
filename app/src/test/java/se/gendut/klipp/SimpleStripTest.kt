@@ -725,6 +725,13 @@ class SimpleStripTest {
         assertEquals(0, st.undoCount)
     }
 
+    @Test fun simpleModesTipsNameItsOwnGestures() {
+        val keys = SIMPLE_TIPS.map { it.first }
+        assertFalse("no transcript in simple mode", "text" in keys)
+        assertTrue("knife" in keys && "out" in keys)
+        assertEquals(R.string.tip_out_simple, SIMPLE_TIPS.first { it.first == "out" }.second)
+    }
+
     @Test fun theBarsDeleteTakesTheClipOut() {
         val st = simple()
         rule.setContent { KlippTheme { SimpleStrip(st) } }

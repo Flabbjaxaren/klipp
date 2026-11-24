@@ -42,6 +42,19 @@ internal val TIPS = listOf(
     "text" to R.string.tip_text,
 )
 
+/**
+ * Simple mode's tips: the same gestures where the strip has them, its own words where it differs (the handles and the
+ * ruler; no loupe or slow scrubbing) and no transcript tip (simple mode has none). Read keys are shared with advanced.
+ */
+internal val SIMPLE_TIPS = listOf(
+    "knife" to R.string.tip_knife,
+    "out" to R.string.tip_out_simple,
+    "edge" to R.string.tip_edge_simple,
+    "scrub" to R.string.tip_scrub_simple,
+    "undo" to R.string.tip_undo,
+    "picture" to R.string.tip_picture,
+)
+
 /** The same gestures with the button that does the same (0 = there is none, the gesture is the only way). */
 internal val TIP_BUTTONS = mapOf(
     "knife" to R.string.tip_knife_button,
@@ -56,14 +69,15 @@ internal object TipsState {
 
 /** One tip at a time over the timeline: "Next" shows the next one, × hides them all for good. */
 @Composable
-fun TipCard(visible: Boolean, modifier: Modifier = Modifier) {
+fun TipCard(visible: Boolean, modifier: Modifier = Modifier, simple: Boolean = false) {
     val ctx = LocalContext.current
-    var current by remember(TipsState.revision) { mutableStateOf(TIPS.indexOfFirst { !AppPrefs.tipSeen(ctx, it.first) }) }
+    val tips = if (simple) SIMPLE_TIPS else TIPS
+    var current by remember(TipsState.revision, simple) { mutableStateOf(tips.indexOfFirst { !AppPrefs.tipSeen(ctx, it.first) }) }
     AnimatedVisibility(
         visible && current >= 0, modifier = modifier,
         enter = slideInVertically(spring(0.7f, 400f)) { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut(),
     ) {
-        val (key, text) = TIPS[current.coerceIn(0, TIPS.lastIndex)]
+        val (key, text) = tips[current.coerceIn(0, tips.lastIndex)]
         Row(
             Modifier.shadow(8.dp, RoundedCornerShape(22.dp)).clip(RoundedCornerShape(22.dp)).background(K.SurfaceHighest)
                 .padding(start = 14.dp, end = 4.dp, top = 6.dp, bottom = 6.dp).testTag("tip:$key"),
@@ -74,8 +88,8 @@ fun TipCard(visible: Boolean, modifier: Modifier = Modifier) {
             Text(stringResource(text), color = K.OnSurface, fontSize = 13.sp, modifier = Modifier.weight(1f))
             FlatTextButton(onClick = {
                 AppPrefs.setTipSeen(ctx, key)
-                current = TIPS.indexOfFirst { !AppPrefs.tipSeen(ctx, it.first) }
-            }) { Text(stringResource(if (current < TIPS.lastIndex) R.string.tip_next else R.string.tip_done), fontWeight = FontWeight.Bold) }
+                current = tips.indexOfFirst { !AppPrefs.tipSeen(ctx, it.first) }
+            }) { Text(stringResource(if (current < tips.lastIndex) R.string.tip_next else R.string.tip_done), fontWeight = FontWeight.Bold) }
             RoundIcon(Ic.Close, stringResource(R.string.tip_hide_all), modifier = Modifier.size(40.dp)) {
                 TIPS.forEach { AppPrefs.setTipSeen(ctx, it.first) }
                 current = -1

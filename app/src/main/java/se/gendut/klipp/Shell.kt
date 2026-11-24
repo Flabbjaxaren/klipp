@@ -561,7 +561,7 @@ internal fun EditPage(
             }
             // first-run tips about the gestures, only when nothing is selected
             val nothingSelected = state.selected == null && !state.groupSelected && state.selectedTransition == null && state.selectedCut == null && state.selectedCaption == null
-            TipCard(tips && nothingSelected && state.clips.isNotEmpty(), Modifier.align(Alignment.BottomCenter).padding(bottom = barPad, start = 12.dp, end = 12.dp))
+            TipCard(tips && nothingSelected && state.clips.isNotEmpty(), Modifier.align(Alignment.BottomCenter).padding(bottom = barPad, start = 12.dp, end = 12.dp), simple = state.simple)
             // Properties slide up over the timeline; the picture above stays visible
             androidx.compose.animation.AnimatedVisibility(
                 visible = state.inspecting && state.selected != null,

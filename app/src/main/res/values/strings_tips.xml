@@ -7,6 +7,9 @@
     <string name="tip_undo">Tap with two fingers to undo, three fingers to redo.</string>
     <string name="tip_picture">Pinch the picture to look closer (double-tap goes back), double-tap it at full size for full screen. Hold a finger on it and tap beside it to step frames.</string>
     <string name="tip_text">The transcript is the timeline\'s other view in Edit: delete words there and the video is cut along.</string>
+    <string name="tip_out_simple">Flick a clip up quickly to delete it – the rest closes up.</string>
+    <string name="tip_edge_simple">Tap a clip, then drag the handles at its ends to trim it.</string>
+    <string name="tip_scrub_simple">Drag along the time ruler to move through the film.</string>
     <string name="tip_knife_button">Or: select the clip and press Split in the row at the bottom.</string>
     <string name="tip_out_button">Or: select the clip and press Delete.</string>
     <string name="tip_undo_button">Or: the undo and redo buttons at the bottom left.</string>
