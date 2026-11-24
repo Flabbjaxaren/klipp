@@ -539,13 +539,26 @@ private fun McrawStorageRow(ctx: android.content.Context) {
         size = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.McrawStore.bytes(ctx) }
     }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var ask by remember { mutableStateOf(false) }
     Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(stringResource(R.string.mcraw_storage), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             Text(stringResource(R.string.mcraw_storage_hint, size / 1e9), color = K.OnSurfaceVar, fontSize = 12.sp)
         }
-        FlatTextButton(onClick = {
-            scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.McrawStore.clearAll(ctx) }; size = 0 }
-        }, modifier = Modifier.testTag("set:clearMcraw")) { Text(stringResource(R.string.settings_clear)) }
+        FlatTextButton(onClick = { ask = true }, modifier = Modifier.testTag("set:clearMcraw")) { Text(stringResource(R.string.settings_clear)) }
     }
+    // (asked first: the develops projects use go too – their clips are offline until the .mcraw is imported again)
+    if (ask) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { ask = false },
+        title = { Text(stringResource(R.string.mcraw_clear_title)) },
+        text = { Text(stringResource(R.string.mcraw_clear_text)) },
+        confirmButton = {
+            FlatTextButton(onClick = {
+                ask = false
+                scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.McrawStore.clearAll(ctx) }; size = 0 }
+            }, modifier = Modifier.testTag("set:clearMcraw:yes")) { Text(stringResource(R.string.settings_clear)) }
+        },
+        dismissButton = { FlatTextButton(onClick = { ask = false }) { Text(stringResource(R.string.app_cancel)) } },
+        containerColor = K.SurfaceHigh,
+    )
 }

@@ -35,4 +35,6 @@
     <string name="mcraw_developed">Framkallat vid EI %1$s till %2$s</string>
     <string name="mcraw_storage">MotionCam RAW-framkallningar</string>
     <string name="mcraw_storage_hint">%1$.1f GB · görs när en .mcraw importeras och tas bort av sig själva när inget projekt använder dem. Efter Rensa görs de bara om genom att .mcraw-filen importeras igen.</string>
+    <string name="mcraw_clear_title">Rensa MotionCam RAW-framkallningarna?</string>
+    <string name="mcraw_clear_text">Alla tas bort, även de som dina projekt använder: de klippen är offline tills .mcraw-filerna importeras igen.</string>
 </resources>

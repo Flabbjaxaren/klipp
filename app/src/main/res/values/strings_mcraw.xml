@@ -35,4 +35,6 @@
     <string name="mcraw_developed">Developed at EI %1$s into %2$s</string>
     <string name="mcraw_storage">MotionCam RAW develops</string>
     <string name="mcraw_storage_hint">%1$.1f GB · made when a .mcraw is imported and removed by themselves when no project uses them. After Clear they are made again only by importing the .mcraw again.</string>
+    <string name="mcraw_clear_title">Clear the MotionCam RAW develops?</string>
+    <string name="mcraw_clear_text">All of them go, also those your projects use: their clips are offline until the .mcraw files are imported again.</string>
 </resources>
