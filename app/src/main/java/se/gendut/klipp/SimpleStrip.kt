@@ -1191,9 +1191,13 @@ private fun LaneMarks(state: EditorState, lane: SimpleStripModel.Lane, y: androi
  * Only a swipe that leaves the touch slop within [KNIFE_MS] and mostly up or down; anything slower or sideways is left to
  * the tap, the hold-and-drag and the scrolling. (Put after them in the chain: it sees the touch first.)
  */
-private fun Modifier.swipeEdits(state: EditorState, c: Clip, pps: Float, haptics: Haptics, onKnife: (Float?) -> Unit): Modifier = pointerInput(c.id, pps) {
+internal fun Modifier.swipeEdits(state: EditorState, clip: Clip, pps: Float, haptics: Haptics, onKnife: (Float?) -> Unit): Modifier = pointerInput(clip.id, pps) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
+        // the clip as it is now, not as it was when the gesture began to be watched: keyed by its id, the handler lives on
+        // while the clip moves (a clip before it shortened or moved, the film as long) – the cut then went where the clip
+        // had been, to the right of the finger, and outside the clip cut nothing
+        val c = state.clips.firstOrNull { it.id == clip.id } ?: return@awaitEachGesture
         // 1 = cut, -1 = out, 0 = not (yet) a swipe
         var kind = 0
         while (true) {

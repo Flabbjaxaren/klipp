@@ -1,5 +1,7 @@
 package se.gendut.klipp
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -692,6 +694,34 @@ class SimpleStripTest {
         assertTrue("cut inside clip 2: $cut", cut > 9f && cut < 12f)
         assertEquals(8f, line[1].start, 1e-4f)
         assertEquals(13f, line[3].start, 1e-4f)
+        assertEquals(1, st.undoCount)
+    }
+
+    @Test fun aSwipeCutsTheClipWhereItIsNowNotWhereItWas() {
+        val st = simple()
+        // the clip as the gesture was first given it: clip 2 at 40 s; since then it has moved to 8 s (the same clip, the
+        // same zoom – the gesture isn't started again)
+        val was = st.clip(2).copy(start = 40f)
+        val pps = 100f
+        rule.setContent {
+            KlippTheme {
+                val haptics = rememberHaptics()
+                androidx.compose.foundation.layout.Box(
+                    Modifier.size(with(androidx.compose.ui.platform.LocalDensity.current) { (was.length * pps).toDp() }, 80.dp)
+                        .swipeEdits(st, was, pps, haptics) {}.testTag("clip")
+                )
+            }
+        }
+        rule.waitForIdle()
+        // swiped down 150 px into it: cut 1.5 s into the clip where it is now (at 40 + 1.5 s, where it was: no cut)
+        rule.onNodeWithTag("clip").performTouchInput {
+            down(centerLeft + androidx.compose.ui.geometry.Offset(150f, 0f)); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(2f, 30f)); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(0f, 30f)); advanceEventTime(16)
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals(9.5f, SimpleStripModel.storyline(st).getOrNull(2)?.start ?: -1f, 0.05f)
         assertEquals(1, st.undoCount)
     }
 
