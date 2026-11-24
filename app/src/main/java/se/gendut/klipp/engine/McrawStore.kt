@@ -124,6 +124,8 @@ object McrawStore {
     /** The develop running in the background: "name: 42 %", null = none. */
     var working by mutableStateOf<String?>(null)
     private val bg = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private fun workingText(name: String, p: Float, full: Boolean = false) =
+        se.gendut.klipp.Str.t(if (full) se.gendut.klipp.R.string.mcraw_working_full else se.gendut.klipp.R.string.mcraw_working, name, (p * 100).toInt())
 
     /**
      * Develops [info]'s source again at [ei] into [out] in the background and, when done, puts it in the place of
@@ -132,9 +134,9 @@ object McrawStore {
     fun redevelop(c: Context, old: Uri, info: Info, ei: Int, out: String, done: (Uri?, String) -> Unit) {
         if (working != null) return
         val app = c.applicationContext
-        working = "${info.name}: 0 %"
+        working = workingText(info.name, 0f)
         bg.launch {
-            val r = runCatching { develop(app, info.source, info.name, ei, out) { p -> working = "${info.name}: ${(p * 100).toInt()} %" } }
+            val r = runCatching { develop(app, info.source, info.name, ei, out) { p -> working = workingText(info.name, p) } }
                 .getOrElse { McrawConvert.Result(null, it.message ?: it.toString(), "") }
             withContext(Dispatchers.Main) {
                 working = null
@@ -173,10 +175,10 @@ object McrawStore {
                     val r = if (info == null) null else {
                         // after an import still developing (both at once would slow each other) and a Develop from the RAW settings
                         while (importing || working != null) delay(500)
-                        working = "${info.name} (full size): 0 %"
+                        working = workingText(info.name, 0f, full = true)
                         runCatching {
                             develop(app, info.source, info.name, info.ei, info.out, auto = info.auto) { p ->
-                                working = "${info.name} (full size): ${(p * 100).toInt()} %"
+                                working = workingText(info.name, p, full = true)
                             }
                         }.getOrNull()
                     }

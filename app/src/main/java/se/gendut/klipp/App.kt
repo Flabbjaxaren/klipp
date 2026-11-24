@@ -283,16 +283,25 @@ private fun KlippAppContent(
     // release the source decoder only when the source is actually closed (not when the phone rotates)
     LaunchedEffect(sourceMedia) { if (sourceMedia == null) sourcePlayback?.close() }
     // (with "add imported clips to the timeline" the clips are on the timeline already – the media panel stays shut)
+    // a picked MotionCam .mcraw is developed into a log clip first (importMcraw: a placeholder at once, its develop in its
+    // place when ready); the progress shows in a strip that takes no touches
+    var mcrawProgress by remember { mutableStateOf<String?>(null) }
     fun importPicked(uris: List<android.net.Uri>, raw: se.gendut.klipp.engine.CrawSettings = se.gendut.klipp.engine.CrawSettings()) {
-        controller?.import(uris, raw)
-        if (uris.isNotEmpty() && !AppPrefs.addOnImport(context)) mediaOpen = true
+        val c = controller ?: return
+        if (uris.isEmpty()) return
+        scope.launch {
+            try { importMcraw(context, uris, onEach = { c.import(it, raw) }) { mcrawProgress = it } } finally { mcrawProgress = null }
+        }
+        if (!AppPrefs.addOnImport(context)) mediaOpen = true
     }
     var pendingCrawImport by remember(controller, controller?.currentId) { mutableStateOf<List<android.net.Uri>?>(null) }
-    val picker = rememberVideoPicker { uris ->
+    /** Picked files (the system picker or Klipp's own): .CRAW asks its develop settings first, the rest goes in. */
+    fun pick(uris: List<android.net.Uri>) {
         if (controller != null && uris.isNotEmpty()) scope.launch {
             if (controller.hasCraw(uris)) pendingCrawImport = uris else importPicked(uris)
         }
     }
+    val picker = rememberVideoPicker { uris -> pick(uris) }
     pendingCrawImport?.let { files ->
         CrawDevelopDialog(se.gendut.klipp.engine.CrawSettings(), importing = true, onClose = { pendingCrawImport = null }) {
             importPicked(files, it)
@@ -362,6 +371,9 @@ private fun KlippAppContent(
             notifyPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
         if (c.snapshot.sequence?.video?.any { it.clips.isNotEmpty() } != true) { toaster.show(Str.t(R.string.app_timeline_empty)); return }
+        // MotionCam clips still in their placeholder or quick (half size) develop: the export waits for the full ones
+        val drafts = c.snapshot.media.count { m -> c.uriOf(m.id).let { se.gendut.klipp.engine.McrawStore.isDraft(context, it) || se.gendut.klipp.engine.Placeholder.isPlaceholder(it) } }
+        if (drafts > 0) { toaster.show(Str.p(R.plurals.mcraw_export_wait, drafts, drafts)); return }
         state.playing = false
         exportAsk = true
     }
@@ -1338,8 +1350,7 @@ private fun KlippAppContent(
             VideoPickerScreen(
                 onImport = { uris ->
                     videoPicker = false
-                    controller?.import(uris)
-                    if (uris.isNotEmpty() && !AppPrefs.addOnImport(context)) mediaOpen = true
+                    pick(uris)
                 },
                 onFilesApp = { videoPicker = false; picker.launch(videoRequest()) },
                 onClose = { videoPicker = false },
@@ -1356,6 +1367,14 @@ private fun KlippAppContent(
             onSkip = { AppPrefs.skipModeAsk(context); askMode = false },
         )
 
+        // the MotionCam develops' progress: a strip that doesn't block – it takes no touches, and the clips already in can
+        // be edited (a develop from the RAW settings, and quick develops' full ones, show here too)
+        (mcrawProgress ?: se.gendut.klipp.engine.McrawStore.working?.let { stringResource(R.string.mcraw_status, it) })?.let { text ->
+            Text(text, color = K.OnSurface, fontSize = 13.sp, maxLines = 2,
+                modifier = Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 80.dp, start = 16.dp, end = 16.dp)
+                    .clip(RoundedCornerShape(12.dp)).background(K.SurfaceHigh.copy(alpha = 0.92f)).padding(horizontal = 14.dp, vertical = 8.dp)
+                    .testTag("mcraw:progress"))
+        }
         MessageHost(Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 70.dp), toaster = toaster, layer = 0)
     }
     }
@@ -1449,6 +1468,7 @@ internal fun RenderChip(modifier: Modifier, selection: ClosedFloatingPointRange<
             Spacer(Modifier.width(4.dp))
             Text(
                 when {
+                    rc.waitingForDevelop -> stringResource(R.string.mcraw_waiting_develops)
                     rc.waitingForProxy -> stringResource(R.string.app_waiting_proxies)
                     p != null -> stringResource(R.string.app_rendering_progress, (p * 100).toInt())
                     rc.renderAll -> stringResource(R.string.app_waiting)

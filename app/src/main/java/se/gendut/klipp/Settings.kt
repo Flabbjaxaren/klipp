@@ -45,6 +45,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import se.gendut.klipp.engine.ExportSettings
 
 /** App-wide settings (apply to all projects). Stored in "klipp". */
@@ -357,6 +358,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                 }
                 FlatTextButton(onClick = { se.gendut.klipp.engine.RenderCache.clear(); renderSize = 0 }, modifier = Modifier.testTag("set:clearRenders")) { Text(stringResource(R.string.settings_clear)) }
             }
+            McrawStorageRow(ctx)
 
                 }
                 4 -> PanelCard(Modifier.padding(top = 8.dp)) {
@@ -501,23 +503,25 @@ private fun AccentTones() {
  */
 @Composable
 private fun StorageSummary(ctx: android.content.Context) {
-    data class Use(val proxies: Long, val cache: Long, val renders: Long, val other: Long, val free: Long)
+    data class Use(val proxies: Long, val cache: Long, val renders: Long, val other: Long, val free: Long, val mcraw: Long)
     var use by remember { mutableStateOf<Use?>(null) }
     androidx.compose.runtime.LaunchedEffect(se.gendut.klipp.engine.Proxies.revision, se.gendut.klipp.engine.NodeCache.revision,
-        se.gendut.klipp.engine.RenderCache.revision, se.gendut.klipp.engine.HoldVideos.revision) {
+        se.gendut.klipp.engine.RenderCache.revision, se.gendut.klipp.engine.HoldVideos.revision, se.gendut.klipp.engine.McrawStore.revision) {
         use = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             fun dirSize(name: String) = java.io.File(ctx.filesDir, name).walkBottomUp().filter { it.isFile }.sumOf { it.length() }
             Use(
                 se.gendut.klipp.engine.Proxies.size(ctx), se.gendut.klipp.engine.NodeCache.size(ctx), se.gendut.klipp.engine.RenderCache.bytes(),
                 dirSize("holds") + dirSize("reversed") + dirSize("prores"),
                 runCatching { android.os.StatFs(ctx.filesDir.path).availableBytes }.getOrDefault(0L),
+                // the MotionCam develops count in the total (their own row below says how much)
+                dirSize("mcraw"),
             )
         }
     }
     val u = use ?: return
     val gb = { b: Long -> b / 1e9 }
     Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp).testTag("set:storage")) {
-        Text(stringResource(R.string.settings_storage_summary, gb(u.proxies + u.cache + u.renders + u.other), gb(u.free)),
+        Text(stringResource(R.string.settings_storage_summary, gb(u.proxies + u.cache + u.renders + u.other + u.mcraw), gb(u.free)),
             color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         Text(stringResource(R.string.settings_storage_parts, gb(u.proxies), gb(u.cache), gb(u.renders), gb(u.other)),
             color = K.OnSurfaceVar, fontSize = 12.sp)
@@ -526,3 +530,22 @@ private fun StorageSummary(ctx: android.content.Context) {
 }
 
 private const val LOW_SPACE = 2_000_000_000L
+
+/** The MotionCam RAW develops (engine/McrawStore): their size and Clear – made again only by importing the .mcraw again. */
+@Composable
+private fun McrawStorageRow(ctx: android.content.Context) {
+    var size by remember { mutableStateOf(0L) }
+    androidx.compose.runtime.LaunchedEffect(se.gendut.klipp.engine.McrawStore.revision) {
+        size = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.McrawStore.bytes(ctx) }
+    }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.mcraw_storage), color = K.OnSurface, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.mcraw_storage_hint, size / 1e9), color = K.OnSurfaceVar, fontSize = 12.sp)
+        }
+        FlatTextButton(onClick = {
+            scope.launch { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { se.gendut.klipp.engine.McrawStore.clearAll(ctx) }; size = 0 }
+        }, modifier = Modifier.testTag("set:clearMcraw")) { Text(stringResource(R.string.settings_clear)) }
+    }
+}

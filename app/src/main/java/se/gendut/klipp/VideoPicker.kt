@@ -60,7 +60,8 @@ import kotlinx.coroutines.withContext
  * The phone's videos with previews, for the import. The system's own pickers show no thumbnail for 10-bit
  * log video (they can't make one) and, in the files app, list leftover ".pending" files first; this one draws the
  * previews with Klipp's own thumbnail decoder (as the media panel does), newest first, by folder, with the file names. Picked
- * clips come back in the order they were picked. "Files app" opens the system picker for anything else.
+ * clips come back in the order they were picked. "Files app" opens the system picker for anything else. The MotionCam
+ * RAW chip lists the .mcraw files of MotionCam's folder ([McrawPanel]), developed into log clips on import.
  */
 object VideoLibrary {
     data class Video(
@@ -110,6 +111,9 @@ object VideoLibrary {
     }
 }
 
+/** The picker's "folder" key of the MotionCam RAW list (no real folder is named so). */
+private const val MCRAW_FOLDER = "\u0000mcraw"
+
 @Composable
 fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onClose: () -> Unit) {
     val ctx = LocalContext.current
@@ -158,7 +162,19 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
                 modifier = Modifier.padding(start = 8.dp).testTag("videoPicker:choose"))
         }
         val list = videos
+        // folders, the most used first (Camera usually); "All" = every video, newest first; MotionCam RAW = the .mcraw
+        // files of MotionCam's folder (no video access needed: the folder's own grant reads them)
+        val folders = list.orEmpty().groupingBy { it.folder }.eachCount().entries.sortedByDescending { it.value }.map { it.key }.filter { it.isNotEmpty() }
+        if (list != null || !access) {
+            LazyRow(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                item { ToggleChip(all, folder == null, { folder = null }) }
+                item { ToggleChip(stringResource(R.string.mcraw_chip), folder == MCRAW_FOLDER, { folder = MCRAW_FOLDER }, Modifier.testTag("videoPicker:mcraw")) }
+                items(folders) { f -> ToggleChip(f, folder == f, { folder = f }) }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
         when {
+            folder == MCRAW_FOLDER -> McrawPanel(picked) { u -> haptics.tick(); picked = if (u in picked) picked - u else picked + u }
             !access -> Column(Modifier.fillMaxWidth().weight(1f).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(stringResource(R.string.videopicker_access), color = K.OnSurfaceVar, fontSize = 15.sp)
                 PillButton(stringResource(R.string.videopicker_allow), {
@@ -171,13 +187,6 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
                 Text(stringResource(if (partial) R.string.videopicker_none_chosen else R.string.videopicker_none), color = K.OnSurfaceVar, fontSize = 15.sp)
             }
             else -> {
-                // folders, the most used first (Camera usually); "All" = every video, newest first
-                val folders = list.groupingBy { it.folder }.eachCount().entries.sortedByDescending { it.value }.map { it.key }.filter { it.isNotEmpty() }
-                LazyRow(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    item { ToggleChip(all, folder == null, { folder = null }) }
-                    items(folders) { f -> ToggleChip(f, folder == f, { folder = f }) }
-                }
-                Spacer(Modifier.height(8.dp))
                 val shown = if (folder == null) list else list.filter { it.folder == folder }
                 LazyVerticalGrid(
                     GridCells.Adaptive(150.dp), Modifier.fillMaxWidth().weight(1f),

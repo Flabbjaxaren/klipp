@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- MotionCam RAW (.mcraw): videoväljarens lista, importen, RAW-inställningarna i färgsidan, Inställningar → Uppspelning och lagring -->
+    <string name="mcraw_chip">MotionCam RAW</string>
+    <string name="mcraw_develop_at_ei">Framkalla vid EI</string>
+    <string name="mcraw_auto">Auto</string>
+    <string name="mcraw_auto_was">Auto (%1$d)</string>
+    <string name="mcraw_quick">Snabbimport</string>
+    <string name="mcraw_develop_into">Framkalla till</string>
+    <string name="mcraw_folder_hint">Välj MotionCams mapp en gång (oftast Documents/MotionCam): dess .mcraw-filer visas här och framkallas till loggen som valts ovan när de importeras. En snabb framkallning i halv storlek hamnar på tidslinjen först; den i full storlek byter ut den av sig själv.</string>
+    <string name="mcraw_choose_folder">Välj mapp</string>
+    <string name="mcraw_other_folder">Annan mapp</string>
+    <string name="mcraw_none">Inga .mcraw-filer i den här mappen.</string>
+    <string name="mcraw_unavailable">MotionCam RAW kan inte läsas på den här telefonen (avkodarbiblioteket laddades inte).</string>
+    <plurals name="mcraw_preparing">
+        <item quantity="one">Förbereder %1$d RAW-klipp…</item>
+        <item quantity="other">Förbereder %1$d RAW-klipp…</item>
+    </plurals>
+    <string name="mcraw_developing">Framkallar %1$s till %2$s… (%3$d kvar)</string>
+    <string name="mcraw_developing_progress">Framkallar %1$s till %2$s… %3$d %% (%4$d kvar)</string>
+    <string name="mcraw_developing_quick">Framkallar %1$s till %2$s (snabbt)… %3$d %% (%4$d kvar)</string>
+    <string name="mcraw_not_developed">%1$s framkallades inte: %2$s</string>
+    <string name="mcraw_working">%1$s: %2$d %%</string>
+    <string name="mcraw_working_full">%1$s (full storlek): %2$d %%</string>
+    <string name="mcraw_status">Framkallar %1$s</string>
+    <plurals name="mcraw_export_wait">
+        <item quantity="one">%1$d MotionCam-klipp framkallas fortfarande i full storlek – exportera när det är klart.</item>
+        <item quantity="other">%1$d MotionCam-klipp framkallas fortfarande i full storlek – exportera när de är klara.</item>
+    </plurals>
+    <string name="mcraw_waiting_develops">Väntar på framkallningar …</string>
+    <string name="mcraw_settings">MotionCam RAW-framkallning</string>
+    <string name="mcraw_settings_info">Framkallat från %1$s vid EI %2$s till %3$s. Att framkalla igen läser .mcraw-filen i bakgrunden; klippet byts när det är klart och behåller sin gradering.</string>
+    <string name="mcraw_output">Utdata (loggkurva och färgrymd)</string>
+    <string name="mcraw_develop">Framkalla igen</string>
+    <string name="mcraw_developed">Framkallat vid EI %1$s till %2$s</string>
+    <string name="mcraw_storage">MotionCam RAW-framkallningar</string>
+    <string name="mcraw_storage_hint">%1$.1f GB · görs när en .mcraw importeras och tas bort av sig själva när inget projekt använder dem. Efter Rensa görs de bara om genom att .mcraw-filen importeras igen.</string>
+</resources>
