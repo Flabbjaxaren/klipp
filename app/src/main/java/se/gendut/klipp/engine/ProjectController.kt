@@ -386,8 +386,8 @@ class ProjectController(
                             val measured = withContext(kotlinx.coroutines.Dispatchers.IO) { uriOf(first.id)?.let { MediaProbe.probe(context, it)?.fps } }
                             // a MotionCam quick develop (or its placeholder) is half size: the project gets the full develop's size
                             val k = if (McrawStore.isDraft(context, uris[first.id]) || Placeholder.isDraft(uris[first.id])) 2 else 1
-                            p.put("width", first.width * k).put("height", first.height * k).put("fps", firstFps(measured ?: first.fps, uriOf(first.id)))
-                        }
+                            p.put("width", first.width * k).put("height", first.height * k).put("fps", seqFps ?: firstFps(measured ?: first.fps, uriOf(first.id)))
+                        } else seqFps?.let { p.put("fps", it) }
                         engine.exec("file.newSequence", p)
                     }
                     // with the setting on, the imported clips go straight to the end of the timeline, in name order
@@ -1725,6 +1725,12 @@ class ProjectController(
     /** Audio for the sequence being created (now, or on the first import): sample rate and mono/stereo. */
     private var seqSampleRate = 48_000
     private var seqMono = false
+    /**
+     * The frame rate chosen for a new project whose size comes from its first clip (null = the clip's too). The sequence
+     * is only made at the first import, and it took the clip's rate alone: a project created at 24 fps became 120 with a
+     * 120 fps clip.
+     */
+    private var seqFps: Double? = null
 
     /** Parameters for a new sequence, with the project's audio choices. */
     private fun newSeqParams(): JSONObject = JSONObject().put("name", Str.t(R.string.projectcontroller_default_sequence_name)).put("sampleRate", seqSampleRate).put("mix", if (seqMono) "Mono" else "Stereo")
@@ -1744,6 +1750,7 @@ class ProjectController(
             currentName = name.ifBlank { defaultName() }
             seqSampleRate = sampleRate
             seqMono = mono
+            seqFps = fps?.takeIf { it.isFinite() && it >= 1.0 }
             export?.let { ExportSettings.save(context, currentId, it) }
             if (width != null && height != null) {
                 engine.tryExec("file.newSequence", newSeqParams().put("width", width).put("height", height).put("fps", fps ?: 25.0))
