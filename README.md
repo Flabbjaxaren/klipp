@@ -22,9 +22,9 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
 
 ## ✨ Features
 
-- ✂️ **Editing:** three video and three audio tracks, insert/overwrite from a source monitor, ripple, roll, slip,
+- ✂️ **Editing:** up to six video and ten audio tracks, insert/overwrite from a source monitor, ripple, roll, slip,
   razor, linked audio, compound clips, markers, sync by sound (camera + separate recorder), undo/redo for everything.
-- 👆 **Touch first:** swipe down through a clip to cut it, drag a clip up out of the timeline to delete it, drag any
+- 👆 **Touch first:** swipe down through a clip to cut it (slide back up before you let go to cancel), drag any
   edge to trim (with a loupe and a two-frame trim view), long-press to lift, pinch to zoom; scrub on the ruler or the
   picture and slide the finger down for ½, ¼, ⅛ speed; two-finger tap = undo, three = redo (not yet inside the Add
   sheets).
@@ -41,9 +41,32 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
 - 🎧 **Audio:** volume lines on the clips in the timeline (tap for a keyframe, drag the line or a keyframe, double tap
   to delete), mixer with automation, effects (noise reduction, speech enhance, EQ, compressor …), auto ducking,
   loudness measurement, voice-over, downloadable sound effect packs.
+- 📷 **RAW and pro formats:** ProRes import, MotionCam RAW (`.mcraw`) and Cinematic RAW Studio (`.CRAW`) developed on
+  the phone into an editable log copy (see Known limitations).
 - ⚡ **Performance:** proxies, pre-rendering of heavy parts, render cache, HDR and 10-bit.
 - 🔒 **Private:** nothing leaves the phone: speech recognition and all processing run locally; the network is only used to
   download speech models and sound packs you ask for.
+
+## 🔬 Experimental features
+
+Turn them on in **Settings → Experimental**. They are off by default; while off, Klipp is the advanced editor on
+tracks, as before. Turning them on or off, or switching between them, never changes the project: the same clips,
+tracks, effects and undo history in every mode.
+
+- 🐣 **Simple mode:** a second, beginner face on the same editor. The clips as a strip of thumbnails (tap to select,
+  drag the edges to trim, hold and drag to reorder, swipe down to cut), and four buttons: **Add**, **Sounds** (sound packs, text
+  to speech, ducking under speech, fade out at the end), **Text** (four title styles, 3 s, 5 s or the whole clip) and
+  **Filter** (look, exposure, contrast, warmth, saturation – for one clip or all). **Save video** exports in *Good*
+  (Full HD) or *Best* (4K) and can share straight away. Everything in it is an advanced-mode function: work done in
+  advanced mode that simple mode has no control for is kept and shown as a mark on the clip. Details in
+  [`docs/simple-mode.md`](docs/simple-mode.md).
+- 🧲 **Magnetic timeline:** V1 is the storyline. Clips close up when one is deleted or trimmed and make room when one
+  is inserted; clips on the other tracks are connected to the storyline clip they hang on and follow it. Lift a clip
+  from the storyline, overwrite into it or replace it with a gap clip. It can be chosen for advanced mode; simple mode
+  always edits on it.
+
+The first time the experimental features are on, Klipp asks once which mode to use. Both may still change between
+versions – feedback in Issues is welcome.
 
 ## 💛 Support Klipp
 
@@ -125,6 +148,12 @@ replace an installed Klipp.
 
 ## ⚠️ Known limitations
 
+- MotionCam RAW `.mcraw` video: in the video picker, tap **MotionCam RAW** and choose MotionCam's folder once (usually
+  `Documents/MotionCam`). Klipp develops each take on the GPU into a 10-bit HEVC log copy with its sound; a quick
+  half-size copy goes on the timeline first and the full one replaces it by itself. **MotionCam RAW development** on
+  the Color page develops it again with another log or exposure index. MotionCam clips get no OpenDRT node
+  automatically – add one on the Color page. Thanks to Paulo Gonçalves ([@utalpt](https://github.com/utalpt)) for
+  the developer this is built on.
 - Cinematic RAW Studio `.CRAW` video opens through **Import → Files app** on devices with a compatible
   10-bit HEVC encoder. Klipp develops an editable log copy with AAC audio when present and keeps the source
   linked. The editing copy is scaled to fit the encoder when needed. Use **CRAW development** on the Color
