@@ -88,7 +88,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import se.gendut.klipp.engine.MediaProbe
 import se.gendut.klipp.engine.SpeedRamp
+import se.gendut.klipp.engine.standardFps
 import se.gendut.klipp.engine.TransitionLooks
 import se.gendut.klipp.engine.TransitionType
 import kotlin.math.abs
@@ -835,6 +837,20 @@ private fun ClipDock(state: EditorState) {
                 // (the speed the clip has is never out of sight)
                 val on = abs(cur * 100 - p) < 0.5f
                 DockStep("$p%", on, modifier = Modifier.inViewWhen(on)) { state.selected?.let { state.setSpeed(it, p) } }
+            }
+            // slow motion: a high-frame-rate clip at the project's rate, every source frame used once (120 → 24 fps = 20 %:
+            // 5× slower, no frame repeated or dropped); exact when 100 × project / clip rate is whole, "≈" otherwise. The
+            // clip's measured rate is taken as the standard rate it was shot at (a variable 119.6 is 120)
+            val clipFps = sel?.takeIf { it.kind == ClipKind.VIDEO && it.item > 0 }
+                ?.let { MediaProbe.frameRate(state.uriOfItem?.invoke(it.item), 0.0) }?.takeIf { it > 0.0 }?.let(::standardFps) ?: 0.0
+            val proj = projectFps
+            if (clipFps > proj * 1.01 && proj >= 1.0) {
+                val pc = Math.round(100.0 * proj / clipFps).toInt().coerceAtLeast(1)
+                val exact = abs(100.0 * proj / clipFps - pc) < 0.01
+                val on = abs(cur * 100 - pc) < 0.5f
+                fun fps(f: Double) = if (abs(f - Math.round(f)) < 0.01) Math.round(f).toString() else "%.2f".format(f)
+                DockStep(stringResource(R.string.app_conform, fps(clipFps), fps(proj)) + if (exact) "" else " ≈", on, "speed:conform",
+                    modifier = Modifier.inViewWhen(on)) { state.selected?.let { state.setSpeed(it, pc) } }
             }
             // ramp: the speed changes smoothly along the clip (advanced mode: simple mode has the steps)
             if (!simple) state.onSpeedRamp?.let { ramp ->

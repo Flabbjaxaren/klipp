@@ -116,6 +116,7 @@
     <string name="app_volume_lines">Volymlinjer</string>
     <string name="app_back">Tillbaka</string>
     <string name="app_ramp">Ramp</string>
+    <string name="app_conform">Slow-mo %1$s→%2$s</string>
     <string name="app_freeze">Frys</string>
     <string name="app_label">Etikett</string>
     <string name="app_label_none">Ingen</string>
