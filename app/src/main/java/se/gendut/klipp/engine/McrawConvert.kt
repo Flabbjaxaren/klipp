@@ -237,10 +237,17 @@ object McrawConvert {
                 var audioTrack = -1
                 val info2 = MediaCodec.BufferInfo()
                 fun drain(end: Boolean) {
+                    // (at the end: the encoder's end of stream – or, when none comes, what it has given within 5 s: an
+                    // .mcraw whose frame times stepped back left the encoder without one, and the import waited forever)
+                    var quiet = 0
                     while (true) {
                         val i = codec.dequeueOutputBuffer(info2, if (end) 10_000 else 0)
+                        if (i >= 0 || i == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) quiet = 0
                         when {
-                            i == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!end) return
+                            i == MediaCodec.INFO_TRY_AGAIN_LATER -> if (!end) return else if (++quiet >= 500) {
+                                line("end of stream: none from the encoder within 5 s – the file ends with what it gave")
+                                return
+                            }
                             i == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                                 track = muxer.addTrack(codec.outputFormat)
                                 audioTrack = runCatching { soundFormat.get(10, java.util.concurrent.TimeUnit.SECONDS) }.getOrNull()?.let { muxer.addTrack(it) } ?: -1
@@ -257,6 +264,9 @@ object McrawConvert {
                     }
                 }
 
+                var lastPts = Long.MIN_VALUE
+                var stepped = 0
+                val frameNs = (1e9 / fps).toLong().coerceAtLeast(1L)
                 val gl = Gl(inputSurface, w, hh, ch, ow, oh)
                 try {
                     gl.setup(cfa, c, camToOut, headroom(ei), draft, outIn.oetf)
@@ -268,7 +278,12 @@ object McrawConvert {
                         gl.drawFrame(f.buf, f.meta, c)
                         free.put(f.buf)
                         t2 = System.nanoTime(); tDraw += t2 - t; t = t2
-                        gl.present((frames.getLong(f.index) - t0ns))
+                        // the frame's time, always after the one before: the encoder drops a frame whose time doesn't
+                        // move on (a file's clock stepping back or repeating)
+                        var pts = frames.getLong(f.index) - t0ns
+                        if (lastPts != Long.MIN_VALUE && pts <= lastPts) { pts = lastPts + frameNs; stepped++ }
+                        lastPts = pts
+                        gl.present(pts)
                         t2 = System.nanoTime(); tSwap += t2 - t; t = t2
                         encoded++
                         drain(false)
@@ -276,6 +291,7 @@ object McrawConvert {
                         if (k % 4 == 0) progress(k / n.toFloat())
                     }
                 } finally { uploadNs = gl.tUpload; gl.release() }
+                if (stepped > 0) line("frame times: $stepped did not move on – each put one frame after the one before")
                 val tEnd = System.nanoTime()
                 codec.signalEndOfInputStream()
                 drain(true)
