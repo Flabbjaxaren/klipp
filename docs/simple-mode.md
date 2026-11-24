@@ -76,7 +76,8 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
   row and to the playhead when it comes within 12 dp; a trimmed edge snaps the same way (not to the playhead, which
   follows the edge). A lime line through the rows shows the edge it caught, with a tick.
 - **Quick swipes, as in the timeline.** A quick swipe down through a clip cuts it where the finger went down (the
-  playhead when that is within 12 dp); a quick flick up deletes it, and a storyline clip's gap closes. Quick means the
+  playhead when that is within 12 dp), with the timeline's red line on the row while the finger is down (it fades on the new
+  edit point when the finger lifts); a quick flick up deletes it, and a storyline clip's gap closes. Quick means the
   finger leaves the touch slop within 160 ms, mostly up or down; slower or sideways drags are left to holding, moving
   and scrolling. On a clip a quick vertical swipe is therefore an edit, not a scroll: the rows scroll from beside the
   clips. The gesture tips in simple mode name these gestures and the strip's own trim and ruler, and leave out the

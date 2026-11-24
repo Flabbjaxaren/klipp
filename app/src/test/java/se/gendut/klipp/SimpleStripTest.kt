@@ -695,6 +695,25 @@ class SimpleStripTest {
         assertEquals(1, st.undoCount)
     }
 
+    @Test fun theCutShowsAsARedLineWhileTheFingerIsDown() {
+        val st = simple()
+        rule.setContent { KlippTheme { SimpleStrip(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleClip:2").performTouchInput {
+            down(center); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(2f, 45f)); advanceEventTime(16)
+            moveBy(androidx.compose.ui.geometry.Offset(0f, 45f)); advanceEventTime(16)
+        }
+        rule.waitForIdle()
+        rule.onNodeWithTag("simpleStrip:knife").assertExists()
+        rule.onRoot().captureRoboImage("build/shots/s25_enkel_kniv.png")
+        assertEquals("nothing cut yet", 4, SimpleStripModel.storyline(st).size)
+        rule.onNodeWithTag("simpleClip:2").performTouchInput { up() }
+        rule.waitForIdle()
+        assertEquals(5, SimpleStripModel.storyline(st).size)
+        rule.onNodeWithTag("simpleStrip:knife").assertDoesNotExist()
+    }
+
     @Test fun aQuickFlickUpDeletesTheClipAndTheRestClosesUp() {
         val st = simple()
         rule.setContent { KlippTheme { SimpleStrip(st) } }
