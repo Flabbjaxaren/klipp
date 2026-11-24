@@ -119,6 +119,50 @@ class CubeLut(val name: String, val size: Int, val data: FloatArray, val domainM
 
         private val WS = Regex("\\s+")
 
+        /** The numbers on a value line into [out] (up to 4; a '#' ends the line): how many, or -1 if one isn't a number. */
+        private fun floats(line: String, out: FloatArray): Int {
+            var n = 0
+            var i = 0
+            val len = line.length
+            while (i < len) {
+                val c = line[i]
+                if (c == '#') break
+                if (c == ' ' || c == '\t' || c == '\r') { i++; continue }
+                val start = i
+                while (i < len && line[i] != ' ' && line[i] != '\t' && line[i] != '\r' && line[i] != '#') i++
+                if (n >= out.size) return -1
+                out[n++] = number(line, start, i) ?: return -1
+            }
+            return n
+        }
+
+        /** A plain decimal (sign, digits, point, exponent) read without making a string; null if it isn't one. */
+        private fun number(s: String, from: Int, to: Int): Float? {
+            var i = from
+            var neg = false
+            if (i < to && (s[i] == '-' || s[i] == '+')) { neg = s[i] == '-'; i++ }
+            var mant = 0L; var digits = 0; var scale = 0; var any = false
+            while (i < to && s[i].isDigit()) { if (digits < 18) { mant = mant * 10 + (s[i] - '0'); digits++ } else scale++; i++; any = true }
+            if (i < to && s[i] == '.') {
+                i++
+                while (i < to && s[i].isDigit()) { if (digits < 18) { mant = mant * 10 + (s[i] - '0'); digits++; scale-- }; i++; any = true }
+            }
+            if (!any) return null
+            if (i < to && (s[i] == 'e' || s[i] == 'E')) {
+                i++
+                var eneg = false
+                if (i < to && (s[i] == '-' || s[i] == '+')) { eneg = s[i] == '-'; i++ }
+                var e = 0; var ed = false
+                while (i < to && s[i].isDigit()) { e = e * 10 + (s[i] - '0'); i++; ed = true }
+                if (!ed) return null
+                scale += if (eneg) -e else e
+            }
+            // anything else (NaN, a hex float…): the platform's parser decides, as before
+            if (i != to) return s.substring(from, to).toFloatOrNull()
+            val v = if (scale >= 0) mant * Math.pow(10.0, scale.toDouble()) else mant / Math.pow(10.0, -scale.toDouble())
+            return (if (neg) -v else v).toFloat()
+        }
+
         /** Parses a .cube file (3D). */
         fun parseCube(name: String, text: String): CubeLut {
             var size = 0
@@ -127,7 +171,18 @@ class CubeLut(val name: String, val size: Int, val data: FloatArray, val domainM
             // the values in a growing FloatArray (not a list of boxed Floats – a 65³ LUT has 824,000 values)
             var values = FloatArray(3 * 33 * 33 * 33)
             var count = 0
+            // the value lines (all but a few) are read without a regex or new strings – a 65³ LUT has 275,000 of them,
+            // and splitting each with a regex made a .zip of large LUTs take about a minute to import
+            val tmp = FloatArray(4)
             for (raw in text.lineSequence()) {
+                val c0 = raw.firstOrNull { it != ' ' && it != '\t' } ?: continue
+                if (c0.isDigit() || c0 == '-' || c0 == '+' || c0 == '.') {
+                    val n = floats(raw, tmp)
+                    if (n != 3) continue
+                    if (count + 3 > values.size) values = values.copyOf(maxOf(values.size * 2, size * size * size * 3))
+                    values[count++] = tmp[0]; values[count++] = tmp[1]; values[count++] = tmp[2]
+                    continue
+                }
                 val line = raw.substringBefore('#').trim()
                 if (line.isEmpty()) continue
                 val parts = line.split(WS)
