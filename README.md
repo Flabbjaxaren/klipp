@@ -45,6 +45,15 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
 - 🔒 **Private:** nothing leaves the phone: speech recognition and all processing run locally; the network is only used to
   download speech models and sound packs you ask for.
 
+## 💛 Support Klipp
+
+Klipp is free, open source and ad-free, built in my spare time. If you enjoy it and want to support further
+development, any contribution is greatly appreciated!
+
+<p>
+<a href="https://www.paypal.me/gendutklipp"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=for-the-badge&logo=paypal&logoColor=white" alt="Donate with PayPal" height="50"></a>
+</p>
+
 ## 📁 Project layout
 
 - `app/` – the Android app (Compose, Media3 for playback and export)
