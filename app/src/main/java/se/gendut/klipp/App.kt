@@ -1163,7 +1163,7 @@ private fun KlippAppContent(
         } else {
         if (landscape) {
             // landscape: picture (and source) on the left, the modes with the timeline on the right
-            Row(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            Row(Modifier.fillMaxSize().safeArea()) {
                 Column(Modifier.weight(0.46f).fillMaxHeight()) {
                     topBar()
                     Column(Modifier.weight(1f)) { TopArea(fill = true, monitorMod = Modifier.fillMaxWidth().weight(1f)) }
@@ -1175,7 +1175,7 @@ private fun KlippAppContent(
                 }
             }
         } else {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+        Column(Modifier.fillMaxSize().safeArea()) {
             topBar()
             TopArea(fill = false, monitorMod = Modifier.fillMaxWidth().height(monitorH.coerceIn(MIN_MONITOR_H, maxMonitorH.coerceAtLeast(MIN_MONITOR_H))))
             if (sourceMedia == null && !state.typingInPanel) MonitorHandle(
@@ -1673,7 +1673,8 @@ private fun FullViewer(
         val wasLandscape = view.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
         fullscreenOrientation(aspect)?.let { activity?.requestedOrientation = it }
         onDispose {
-            ctl?.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            // back to the app's own setting (full screen keeps the bars hidden)
+            if (UiLook.immersive) UiLook.applyBars(activity) else ctl?.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             if (activity != null && before != null && activity.requestedOrientation != before) {
                 // back the way the editor was: the sensor alone wouldn't turn a phone lying flat back. A moment later the
                 // earlier setting (usually: follow the sensor) applies again.

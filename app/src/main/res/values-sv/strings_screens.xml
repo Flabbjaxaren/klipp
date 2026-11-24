@@ -6,6 +6,12 @@
     <string name="settings_group_appearance">Utseende</string>
     <string name="settings_accent_color">Accentfärg</string>
     <string name="settings_background">Bakgrund</string>
+    <string name="settings_ui_size">Gränssnittets storlek</string>
+    <string name="settings_ui_size_normal">Normal</string>
+    <string name="settings_ui_size_compact">Kompakt</string>
+    <string name="settings_ui_size_small">Liten</string>
+    <string name="settings_fullscreen">Helskärm</string>
+    <string name="settings_fullscreen_hint">Döljer status- och navigeringsfälten. Svep från kanten för att se dem en stund.</string>
     <string name="settings_group_timeline">Tidslinje</string>
     <string name="settings_center_playhead">Spelhuvudet i mitten</string>
     <string name="settings_center_playhead_hint">tidslinjen rullar under ett fast spelhuvud när appen startar</string>

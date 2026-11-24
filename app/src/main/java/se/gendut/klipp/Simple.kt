@@ -457,7 +457,7 @@ fun ModeChooser(onPick: (Boolean, Boolean?) -> Unit, onSkip: () -> Unit) {
     var timeline by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler { if (timeline) timeline = false else onSkip() }
     Box(
-        Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.windowInsetsPadding(WindowInsets.safeDrawing).testTag("modeAsk"),
+        Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.safeArea().testTag("modeAsk"),
         contentAlignment = Alignment.Center,
     ) {
         Column(

@@ -148,7 +148,7 @@ fun VideoPickerScreen(onImport: (List<Uri>) -> Unit, onFilesApp: () -> Unit, onC
     var picked by remember { mutableStateOf<List<Uri>>(emptyList()) }
 
     // (the empty pointer input keeps touches on the page's bare parts from reaching the editor under it)
-    Column(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.windowInsetsPadding(WindowInsets.safeDrawing).testTag("videoPicker")) {
+    Column(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.safeArea().testTag("videoPicker")) {
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             RoundIcon(Ic.Close, stringResource(R.string.videopicker_close)) { onClose() }
             Text(stringResource(R.string.videopicker_title), color = K.OnSurface, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))

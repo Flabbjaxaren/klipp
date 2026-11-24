@@ -39,6 +39,12 @@ class MainActivity : ComponentActivity() {
     }
 
     // the export's end is said on a screen the user sees; ended while none was resumed, it waits as a notice
+    // full screen again when the app comes back (the system shows the bars for dialogs and other apps)
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) UiLook.applyBars(this)
+    }
+
     override fun onResume() {
         super.onResume()
         se.gendut.klipp.engine.ExportJobs.watching = true

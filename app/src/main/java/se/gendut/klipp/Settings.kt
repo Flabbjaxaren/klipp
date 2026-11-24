@@ -162,8 +162,16 @@ object AppPrefs {
     fun waveDetail(c: Context): WaveDetail = runCatching { WaveDetail.valueOf(p(c).getString("waveDetail", null) ?: "") }.getOrDefault(WaveDetail.NORMAL)
     fun setWaveDetail(c: Context, d: WaveDetail) { p(c).edit().putString("waveDetail", d.name).apply(); WaveDetail.current = d }
 
+    /** Interface size (1 = Klipp's own) and full screen (see [UiLook]). */
+    fun uiScale(c: Context): Float = p(c).getFloat("uiScale", 1f).let { v -> UiLook.SCALES.minBy { kotlin.math.abs(it - v) } }
+    fun setUiScale(c: Context, f: Float) { p(c).edit().putFloat("uiScale", f).apply(); UiLook.scale = f }
+    fun immersive(c: Context): Boolean = p(c).getBoolean("immersive", false)
+    fun setImmersive(c: Context, on: Boolean, activity: android.app.Activity?) { p(c).edit().putBoolean("immersive", on).apply(); UiLook.immersive = on; UiLook.applyBars(activity) }
+
     /** Loads what applies to the whole app (theme, haptics, waveforms) – when the app starts. */
     fun apply(c: Context) {
+        UiLook.scale = uiScale(c)
+        UiLook.immersive = immersive(c)
         K.customSeed = customSeed(c)
         K.accent = accent(c)
         K.base = base(c)
@@ -199,7 +207,7 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
     val ctx = LocalContext.current
     val haptics = rememberHaptics()
     // (the empty parts take the touches too: the editor lies under the page)
-    Column(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.windowInsetsPadding(WindowInsets.safeDrawing).testTag("settings")) {
+    Column(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.safeArea().testTag("settings")) {
         var page by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(-1) }
         val pageTitles = listOf(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_group_playback), stringResource(R.string.settings_group_export), stringResource(R.string.settings_group_developer), stringResource(R.string.settings_group_help), stringResource(R.string.settings_group_about), stringResource(R.string.settings_group_experimental))
         val about = remember { AboutNav() }
@@ -260,6 +268,12 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             }
             AccentTones()
             DropField(stringResource(R.string.settings_background), Base.entries.map { Opt(it, it.label, it.hint, key = it.name) }, K.base, "base") { AppPrefs.setBase(ctx, it) }
+            val sizeNames = listOf(stringResource(R.string.settings_ui_size_normal), stringResource(R.string.settings_ui_size_compact), stringResource(R.string.settings_ui_size_small))
+            DropField(stringResource(R.string.settings_ui_size), UiLook.SCALES.mapIndexed { i, f -> Opt(f, sizeNames[i], "${(f * 100).toInt()} %", key = "ui$i") },
+                UiLook.scale, "set:uiScale") { AppPrefs.setUiScale(ctx, it) }
+            SwitchRow(stringResource(R.string.settings_fullscreen), stringResource(R.string.settings_fullscreen_hint), UiLook.immersive, "set:immersive") {
+                AppPrefs.setImmersive(ctx, it, ctx as? android.app.Activity)
+            }
 
                 }
                 1 -> PanelCard(Modifier.padding(top = 8.dp)) {

@@ -245,6 +245,23 @@ fun KlippTheme(content: @Composable () -> Unit) {
             outlineVariant = K.OutlineVar,
             error = K.Error,
         ),
-        content = content,
-    )
+    ) {
+        // the interface size (Settings → Appearance): every dp and sp scaled by one factor – and the screen's size in dp
+        // with them, so layouts that measure the screen (sheet heights, compact pages) see the room there is
+        val k = UiLook.scale
+        val d = androidx.compose.ui.platform.LocalDensity.current
+        val c = androidx.compose.ui.platform.LocalConfiguration.current
+        val conf = remember(c, k) {
+            if (k == 1f) c else android.content.res.Configuration(c).apply {
+                screenWidthDp = (c.screenWidthDp / k).toInt()
+                screenHeightDp = (c.screenHeightDp / k).toInt()
+                smallestScreenWidthDp = (c.smallestScreenWidthDp / k).toInt()
+            }
+        }
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density * k, d.fontScale),
+            androidx.compose.ui.platform.LocalConfiguration provides conf,
+            content = content,
+        )
+    }
 }
