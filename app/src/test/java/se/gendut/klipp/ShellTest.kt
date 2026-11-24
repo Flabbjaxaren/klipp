@@ -97,6 +97,24 @@ class ShellTest {
         rule.onRoot().captureRoboImage("$dir/62_skal_flera_valda.png")
     }
 
+    @Test fun moreDeletesAClipAndClosesTheGapOnTracks() {
+        val st = EditorState().apply { props = FakeProps(); playhead = 3f; onCopyToSource = {} }
+        app(st)
+        val c = st.clips.first { it.id == 1L }
+        val after = st.clips.filter { it.track == c.track && it.start >= c.start + c.length - 1e-3f }.associate { it.id to it.start }
+        st.selected = 1L
+        rule.waitForIdle()
+        rule.onNodeWithTag("ctx:more").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("ctx:ripple").assertIsDisplayed().performClick()
+        rule.waitForIdle()
+        rule.mainClock.advanceTimeBy(1500)
+        rule.waitForIdle()
+        assertNull(st.clips.firstOrNull { it.id == 1L })
+        // what came after it moved up by its length
+        for ((id, s0) in after) assertEquals(s0 - c.length, st.clips.first { it.id == id }.start, 0.01f)
+    }
+
     /** The [tags] are all showing, whole inside the dock and wide enough to press, in that order from the left. */
     private fun assertTheDockHolds(tags: List<String>) {
         val dock = rule.onNodeWithTag("dock").assertIsDisplayed().getUnclippedBoundsInRoot()

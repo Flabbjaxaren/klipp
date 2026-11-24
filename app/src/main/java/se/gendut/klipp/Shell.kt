@@ -906,6 +906,9 @@ private fun ClipDock(state: EditorState) {
             // the rest of the clip's actions, behind More
             val items = buildList {
                 add(DockItem(Ic.Back, back) { row(DockRow.NONE) })
+                // on tracks: delete and close the gap (the row's Delete leaves it; the magnetic timeline's always closes up)
+                if (!state.magnetic) add(DockItem(Ic.Ripple, stringResource(R.string.design_ripple_short), "ctx:ripple", tint = K.Error,
+                    desc = stringResource(R.string.app_ripple_delete)) { state.selected?.let { row(DockRow.NONE); state.requestRemove(it, true) } })
                 // (a video clip has Copy in its row)
                 if (isSound) state.onCopyToSource?.let { copy ->
                     add(DockItem(Ic.Copy, stringResource(R.string.app_copy)) { state.selected?.let { copy(it) } })
