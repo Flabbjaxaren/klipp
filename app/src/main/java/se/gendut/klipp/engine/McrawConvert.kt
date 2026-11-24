@@ -407,6 +407,11 @@ object McrawConvert {
             val vc = ci.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_HEVC).videoCapabilities ?: continue
             var tw = w
             while (tw >= 1280) {
+                // the exact size first (even sides): rounded down to 16 lines, a half-size 3840×2160 develop was
+                // 1920×1072, and a project made from it 3840×2144
+                val tw2 = tw / 2 * 2
+                val th2 = ((tw.toLong() * h / w).toInt()) / 2 * 2
+                if (vc.isSizeSupported(tw2, th2)) return Triple(tw2, th2, ci.name)
                 val th = ((tw.toLong() * h / w) / 16 * 16).toInt()
                 val tw16 = tw / 16 * 16
                 if (vc.isSizeSupported(tw16, th) && (vc.areSizeAndRateSupported(tw16, th, fps) || vc.isSizeSupported(tw16, th))) return Triple(tw16, th, ci.name)
