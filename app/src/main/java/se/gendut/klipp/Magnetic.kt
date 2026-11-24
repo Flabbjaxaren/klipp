@@ -3,7 +3,7 @@ package se.gendut.klipp
 import kotlin.math.abs
 
 /*
- * The magnetic timeline (Settings → Timeline; off by default): the timeline edits like one storyline instead of tracks.
+ * The magnetic timeline (Settings → Experimental; off by default): the timeline edits like one storyline instead of tracks.
  *
  * Klipp stays track-based underneath. V1 and the sound linked to its clips are the primary storyline: inserting, moving,
  * deleting and trimming there close gaps and push later clips on (clips never collide), and the empty stretches of V1

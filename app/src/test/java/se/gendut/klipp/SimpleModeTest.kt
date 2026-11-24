@@ -25,6 +25,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,6 +56,90 @@ class SimpleModeTest {
     @get:Rule val rule = createComposeRule()
     private val dir = "build/shots"
     private val ctx get() = RuntimeEnvironment.getApplication()
+
+    /** (Simple mode and the magnetic timeline are experimental features: on for these tests, off in their own below.) */
+    @Before fun experimentalOn() {
+        ctx.getSharedPreferences("klipp", 0).edit().putBoolean("experimental", true).commit()
+    }
+
+    // ------------------------------------------------------------------ experimental
+
+    private fun experimentalOff() { ctx.getSharedPreferences("klipp", 0).edit().putBoolean("experimental", false).commit() }
+
+    @Test fun withoutTheExperimentalFeaturesNothingIsAskedOrOffered() {
+        experimentalOff()
+        AppPrefs.initMode(ctx, updated = false, hasProjects = false)
+        assertFalse("a fresh install is not asked", AppPrefs.askMode(ctx))
+        // choices made earlier (with the features on) wait: advanced mode on tracks
+        AppPrefs.setSimpleMode(ctx, true)
+        AppPrefs.setMagneticTimeline(ctx, true)
+        assertFalse(AppPrefs.simpleMode(ctx))
+        assertFalse(AppPrefs.magneticTimeline(ctx))
+        val st = EditorState()
+        rule.setContent { KlippTheme { KlippApp(st) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("modeAsk").assertDoesNotExist()
+        assertFalse(st.simple)
+        assertFalse(st.magnetic)
+        assertFalse(st.experimental)
+        rule.onNodeWithTag("modes:menu").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("mode:simple").assertDoesNotExist()
+        rule.onNodeWithTag("mode:magnetic").assertDoesNotExist()
+        rule.onNodeWithTag("mode:center").assertExists()
+    }
+
+    @Test fun theExperimentalPageHoldsTheModeAndTheMagneticTimeline() {
+        experimentalOff()
+        var on: Boolean? = null
+        rule.setContent { KlippTheme { SettingsScreen(onClose = {}, onMode = {}, onExperimental = { on = it }) } }
+        rule.waitForIdle()
+        // the first page: no mode row
+        rule.onNodeWithTag("set:mode").assertDoesNotExist()
+        rule.onNodeWithTag("set:cat:experimental").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("set:mode").assertDoesNotExist()
+        rule.onNodeWithTag("set:experimental").performClick()
+        rule.waitForIdle()
+        assertEquals(true, on)
+        assertTrue(AppPrefs.experimental(ctx))
+        rule.onNodeWithTag("set:mode").assertExists()
+        rule.onNodeWithTag("set:magnetic").assertExists()
+        rule.onRoot().captureRoboImage("$dir/s00_experimentellt.png")
+    }
+
+    @Test fun theTimelinePageHasNoMagneticSwitch() {
+        rule.setContent { KlippTheme { SettingsScreen(onClose = {}) } }
+        rule.waitForIdle()
+        rule.onNodeWithTag("set:cat:timeline").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("set:magnetic").assertDoesNotExist()
+        rule.onNodeWithTag("set:magnet").assertExists()
+    }
+
+    @Test fun turningTheExperimentalFeaturesOffLeavesSimpleModeAndKeepsTheChoice() {
+        AppPrefs.setSimpleMode(ctx, true)
+        val st = EditorState().apply { props = FakeProps(); playhead = 3f }
+        rule.setContent { KlippTheme { KlippApp(st) } }
+        rule.waitForIdle()
+        assertTrue(st.simple)
+        val clips = st.clips
+        // Settings → Experimental → off: advanced mode on tracks, the project as it was
+        rule.onNodeWithTag("appSettings").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("set:cat:experimental").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("set:experimental").performClick()
+        rule.waitForIdle()
+        assertFalse(st.simple)
+        assertFalse(st.magnetic)
+        assertFalse(st.experimental)
+        assertEquals(clips, st.clips)
+        // on again: simple mode is back
+        rule.onNodeWithTag("set:experimental").performClick()
+        rule.waitForIdle()
+        assertTrue(st.simple)
+    }
 
     // ------------------------------------------------------------------ the mode setting
 
@@ -617,7 +702,7 @@ class SimpleModeTest {
         var mode: Boolean? = null
         rule.setContent { KlippTheme { SettingsScreen(onClose = {}, simple = true, onMode = { mode = it }) } }
         rule.waitForIdle()
-        rule.onNodeWithTag("set:mode").assertExists()
+        rule.onNodeWithTag("set:cat:experimental").assertExists()
         rule.onNodeWithTag("set:cat:appearance").assertExists()
         rule.onNodeWithTag("set:cat:timeline").assertExists()
         rule.onNodeWithTag("set:cat:help").assertExists()
@@ -625,9 +710,18 @@ class SimpleModeTest {
         rule.onNodeWithTag("set:cat:pipeline").assertDoesNotExist()
         rule.onNodeWithTag("set:cat:developer").assertDoesNotExist()
         rule.onRoot().captureRoboImage("$dir/s07_enkelt_installningar.png")
+        rule.onNodeWithTag("set:cat:experimental").performClick()
+        rule.waitForIdle()
         rule.onNodeWithTag("mode:advanced").performClick()
         rule.waitForIdle()
         assertEquals(false, mode)
+        // (simple mode: no magnetic switch – it is always on)
+        rule.onNodeWithTag("set:magnetic").assertDoesNotExist()
+    }
+
+    @Test fun simpleSettingsTimelinePage() {
+        rule.setContent { KlippTheme { SettingsScreen(onClose = {}, simple = true, onMode = {}) } }
+        rule.waitForIdle()
         rule.onNodeWithTag("set:cat:timeline").performClick()
         rule.waitForIdle()
         rule.onNodeWithTag("set:magnetic").assertDoesNotExist()

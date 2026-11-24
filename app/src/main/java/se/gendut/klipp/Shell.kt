@@ -489,8 +489,8 @@ internal fun EditPage(
                             onClick = { haptics.press(); flip() },
                             modifier = Modifier.testTag(tag),
                         )
-                    // simple or advanced (the same switch as in Settings): the project stays as it is
-                    mode(Ic.Bolt, stringResource(R.string.simple_mode_menu), state.simple, "mode:simple") {
+                    // simple or advanced (the same switch as in Settings → Experimental): the project stays as it is
+                    if (state.experimental) mode(Ic.Bolt, stringResource(R.string.simple_mode_menu), state.simple, "mode:simple") {
                         modesOpen = false
                         val on = !state.simple
                         state.switchMode(on)
@@ -499,9 +499,9 @@ internal fun EditPage(
                     // the centred playhead: in both modes (in simple mode the strip moves under it)
                     mode(Ic.Center, stringResource(R.string.app_locked_playhead), state.centerPlayhead, "mode:center") { state.centerPlayhead = !state.centerPlayhead }
                     if (!state.simple) {
-                    // the magnetic timeline (the same switch as in Settings → Timeline)
+                    // the magnetic timeline (the same switch as in Settings → Experimental)
                     val ctx = androidx.compose.ui.platform.LocalContext.current
-                    mode(Ic.Storyline, stringResource(R.string.magnetic_setting), state.magnetic, "mode:magnetic") {
+                    if (state.experimental) mode(Ic.Storyline, stringResource(R.string.magnetic_setting), state.magnetic, "mode:magnetic") {
                         val on = !state.magnetic
                         state.magnetic = on
                         AppPrefs.setMagneticTimeline(ctx, on)

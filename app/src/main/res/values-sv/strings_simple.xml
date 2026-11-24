@@ -177,4 +177,8 @@
     <string name="simple_trim_cut_away">Klipps bort\n%1$s</string>
     <string name="simple_trim_release">Släpp för att korta – resten flyttar ihop sig</string>
     <string name="simple_trim_release_row">Släpp för att korta</string>
+    <string name="settings_group_experimental">Experimentellt</string>
+    <string name="settings_cat_experimental">Enkelt läge och magnetisk tidslinje</string>
+    <string name="experimental_switch">Experimentella funktioner</string>
+    <string name="experimental_switch_hint">Enkelt läge och den magnetiska tidslinjen är under arbete och kan ändras. Avstängt är Klipp i avancerat läge med spår – dina projekt förblir som de är.</string>
 </resources>

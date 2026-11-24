@@ -64,20 +64,31 @@ object AppPrefs {
     fun centerDefault(c: Context): Boolean = p(c).getBoolean("centerPlayhead", false)
     fun setCenterDefault(c: Context, on: Boolean) { p(c).edit().putBoolean("centerPlayhead", on).apply() }
 
-    /** The magnetic timeline (see Magnetic.kt); off = track-based editing as always. */
-    fun magneticTimeline(c: Context): Boolean = p(c).getBoolean("magneticTimeline", false)
+    /**
+     * Experimental features (Settings → Experimental, off by default): simple mode and the magnetic timeline. Off, the
+     * app is advanced mode on tracks whatever was chosen – the choices are kept, and come back when it is turned on.
+     */
+    fun experimental(c: Context): Boolean = p(c).getBoolean("experimental", false)
+    /** (Turned on: the first start's question is not put now – the Experimental page has the same choices.) */
+    fun setExperimental(c: Context, on: Boolean) { p(c).edit().putBoolean("experimental", on).remove("askMode").apply() }
+
+    /** The magnetic timeline (see Magnetic.kt), an experimental feature; off = track-based editing as always. */
+    fun magneticTimeline(c: Context): Boolean = experimental(c) && p(c).getBoolean("magneticTimeline", false)
     fun setMagneticTimeline(c: Context, on: Boolean) { p(c).edit().putBoolean("magneticTimeline", on).apply() }
 
-    /** Simple mode (see Simple.kt), app-wide; stored as "appMode" = "simple" / "advanced" – missing = advanced. */
-    fun simpleMode(c: Context): Boolean = p(c).getString("appMode", null) == "simple"
+    /**
+     * Simple mode (see Simple.kt), app-wide and experimental; stored as "appMode" = "simple" / "advanced" – missing =
+     * advanced.
+     */
+    fun simpleMode(c: Context): Boolean = experimental(c) && p(c).getString("appMode", null) == "simple"
     /** The mode chosen (Settings, the ⋯ menu or the first start's question, which is then answered). */
     fun setSimpleMode(c: Context, on: Boolean) { p(c).edit().putString("appMode", if (on) "simple" else "advanced").remove("askMode").apply() }
     /** Simple mode's first tip (tap, hold, pinch) has been seen and closed. */
     fun simpleTipSeen(c: Context): Boolean = p(c).getBoolean("simpleTipSeen", false)
     fun setSimpleTipSeen(c: Context) { p(c).edit().putBoolean("simpleTipSeen", true).apply() }
 
-    /** The first start's question (simple or advanced) is waiting for an answer. */
-    fun askMode(c: Context): Boolean = p(c).getBoolean("askMode", false)
+    /** The first start's question (simple or advanced) is waiting for an answer – only with the experimental features on. */
+    fun askMode(c: Context): Boolean = experimental(c) && p(c).getBoolean("askMode", false)
     /** The question skipped: advanced, as for everyone who used the app before the modes. */
     fun skipModeAsk(c: Context) = setSimpleMode(c, false)
 
@@ -89,7 +100,8 @@ object AppPrefs {
     fun initMode(c: Context, updated: Boolean, hasProjects: Boolean) {
         val pr = p(c)
         if (pr.contains("appMode") || pr.contains("askMode")) return
-        if (updated || hasProjects || pr.all.isNotEmpty()) pr.edit().putString("appMode", "advanced").apply()
+        // (the experimental switch alone is no sign of an earlier install)
+        if (updated || hasProjects || pr.all.keys.any { it != "experimental" }) pr.edit().putString("appMode", "advanced").apply()
         else pr.edit().putBoolean("askMode", true).apply()
     }
 
@@ -174,17 +186,21 @@ private fun secLabel(s: Float) = (if (s % 1f == 0f) s.toInt().toString() else "%
  * @param onMagnetic the magnetic timeline turned on or off (applies right away)
  * @param simple simple mode (see Simple.kt): the first page offers what simple mode uses – appearance, the timeline's
  *   default lengths, help and about – and the timeline page leaves out what simple mode decides itself (snapping, the
- *   magnetic timeline) or doesn't show (the playhead mode, waveform detail); [onMode] switches it (the row at the top)
+ *   magnetic timeline) or doesn't show (the playhead mode, waveform detail); [onMode] switches it (on the Experimental
+ *   page)
+ * @param experimental the experimental features (simple mode and the magnetic timeline) are on: the Experimental page
+ *   offers them; [onExperimental] turns them on or off (off: advanced mode on tracks, the choices kept for later)
  */
 @Composable
 fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {}, onMagnetDefault: (Boolean) -> Unit = {}, onMagnetic: (Boolean) -> Unit = {},
-                   simple: Boolean = false, onMode: ((Boolean) -> Unit)? = null) {
+                   simple: Boolean = false, onMode: ((Boolean) -> Unit)? = null,
+                   experimental: Boolean = AppPrefs.experimental(LocalContext.current), onExperimental: (Boolean) -> Unit = {}) {
     val ctx = LocalContext.current
     val haptics = rememberHaptics()
     // (the empty parts take the touches too: the editor lies under the page)
     Column(Modifier.fillMaxSize().background(K.Bg).pointerInput(Unit) {}.windowInsetsPadding(WindowInsets.safeDrawing).testTag("settings")) {
         var page by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(-1) }
-        val pageTitles = listOf(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_group_playback), stringResource(R.string.settings_group_export), stringResource(R.string.settings_group_developer), stringResource(R.string.settings_group_help), stringResource(R.string.settings_group_about))
+        val pageTitles = listOf(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_group_timeline), stringResource(R.string.settings_group_pipeline), stringResource(R.string.settings_group_playback), stringResource(R.string.settings_group_export), stringResource(R.string.settings_group_developer), stringResource(R.string.settings_group_help), stringResource(R.string.settings_group_about), stringResource(R.string.settings_group_experimental))
         val about = remember { AboutNav() }
         if (page >= 0) androidx.activity.compose.BackHandler { page = -1 }
         Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -197,8 +213,6 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
         Column(Modifier.weight(1f).verticalScroll(scroll).padding(bottom = 40.dp)) {
             when (page) {
                 -1 -> {
-                    // simple or advanced: the first thing on the page, in both modes
-                    if (onMode != null) PanelCard(Modifier.padding(top = 8.dp)) { ModeRow(simple, onMode) }
                     PanelCard(Modifier.padding(top = 8.dp)) {
                     CategoryRow(stringResource(R.string.settings_group_appearance), stringResource(R.string.settings_cat_appearance), Ic.Eye, "set:cat:appearance") { page = 0 }
                     CategoryRow(stringResource(R.string.settings_group_timeline), stringResource(if (simple) R.string.simple_settings_timeline else R.string.settings_cat_timeline), Ic.Trim, "set:cat:timeline") { page = 1 }
@@ -211,6 +225,10 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                     }
                     CategoryRow(stringResource(R.string.settings_group_help), stringResource(R.string.settings_cat_help), Ic.Bulb, "set:cat:help") { page = 6 }
                     CategoryRow(stringResource(R.string.settings_group_about), stringResource(R.string.settings_cat_about), Ic.Transcript, "set:cat:about") { page = 7 }
+                    }
+                    // simple mode and the magnetic timeline: still being built (in both modes – simple mode is left here)
+                    PanelCard(Modifier.padding(top = 8.dp)) {
+                    CategoryRow(stringResource(R.string.settings_group_experimental), stringResource(R.string.settings_cat_experimental), Ic.Bolt, "set:cat:experimental") { page = 8 }
                     }
                 }
                 0 -> PanelCard(Modifier.padding(top = 8.dp)) {
@@ -253,10 +271,6 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
             var magnet by remember { mutableStateOf(AppPrefs.magnetDefault(ctx)) }
             SwitchRow(stringResource(R.string.settings_magnet), stringResource(R.string.settings_magnet_hint), magnet, "set:magnet") {
                 magnet = it; AppPrefs.setMagnetDefault(ctx, it); onMagnetDefault(it)
-            }
-            var magnetic by remember { mutableStateOf(AppPrefs.magneticTimeline(ctx)) }
-            SwitchRow(stringResource(R.string.magnetic_setting), stringResource(R.string.magnetic_setting_hint), magnetic, "set:magnetic") {
-                magnetic = it; AppPrefs.setMagneticTimeline(ctx, it); onMagnetic(it)
             }
             }
             var addImport by remember { mutableStateOf(AppPrefs.addOnImport(ctx)) }
@@ -378,6 +392,23 @@ fun SettingsScreen(onClose: () -> Unit, onCenterDefault: (Boolean) -> Unit = {},
                 AppPrefs.resetTips(ctx); haptics.confirm(); reset = true
             }, Modifier.padding(horizontal = 16.dp, vertical = 10.dp).testTag("set:showTips"))
             if (reset) Text(stringResource(R.string.settings_help_tips_back), color = K.OnSurfaceVar, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp).testTag("set:tipsBack"))
+                }
+                8 -> PanelCard(Modifier.padding(top = 8.dp)) {
+            // simple mode and the magnetic timeline: off, the app is advanced mode on tracks (the choices kept for later)
+            var on by remember { mutableStateOf(experimental) }
+            SwitchRow(stringResource(R.string.experimental_switch), stringResource(R.string.experimental_switch_hint), on, "set:experimental") {
+                on = it; AppPrefs.setExperimental(ctx, it); onExperimental(it)
+            }
+            if (on) {
+                if (onMode != null) ModeRow(simple, onMode)
+                // (simple mode edits on the magnetic timeline always: this is the advanced mode's choice)
+                if (!simple) {
+                    var magnetic by remember { mutableStateOf(AppPrefs.magneticTimeline(ctx)) }
+                    SwitchRow(stringResource(R.string.magnetic_setting), stringResource(R.string.magnetic_setting_hint), magnetic, "set:magnetic") {
+                        magnetic = it; AppPrefs.setMagneticTimeline(ctx, it); onMagnetic(it)
+                    }
+                }
+            }
                 }
                 7 -> AboutPage(about)
             }

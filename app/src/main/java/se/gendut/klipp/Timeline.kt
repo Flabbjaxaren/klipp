@@ -2537,7 +2537,7 @@ private fun Waveform(clip: Clip, uri: android.net.Uri?, span: () -> Pair<Double,
     }
 }
 
-/** How fine the timeline draws waveforms (Settings → Timeline). [stepDp]: a bar per this many dp (MAX: one per pixel). */
+/** How fine the timeline draws waveforms (Settings → Experimental). [stepDp]: a bar per this many dp (MAX: one per pixel). */
 enum class WaveDetail(val stepDp: Float) {
     NORMAL(2f),
     DETAILED(1f),

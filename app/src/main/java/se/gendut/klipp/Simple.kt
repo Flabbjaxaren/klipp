@@ -446,7 +446,7 @@ fun DisabledReason(text: String, tag: String = "reason") {
 
 /**
  * A fresh install's first start: simple or advanced, as two cards; advanced asks next how the timeline works – tracks
- * or the magnetic timeline (the same setting as Settings → Timeline; simple mode always edits on the magnetic one).
+ * or the magnetic timeline (the same setting as Settings → Experimental; simple mode always edits on the magnetic one).
  * Skipping keeps advanced on tracks (as for everyone who used the app before the modes); all of it can be changed any
  * time in Settings or the ⋯ menu.
  *

@@ -659,10 +659,10 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var magnet: Boolean
         get() = simple || magnetSetting
         set(v) { magnetSetting = v }
-    /** The magnetic timeline as the advanced mode has it (Settings → Timeline, the ⋯ menu). */
+    /** The magnetic timeline as the advanced mode has it (Settings → Experimental, the ⋯ menu). */
     private var magneticSetting by mutableStateOf(false)
     /**
-     * The magnetic timeline (Settings → Timeline, off by default; see Magnetic.kt): V1 and its sound are the primary
+     * The magnetic timeline (Settings → Experimental, off by default; see Magnetic.kt): V1 and its sound are the primary
      * storyline that closes up and makes room, the other tracks hold connected clips that follow it. Always on in simple
      * mode – without touching the advanced mode's own choice, which setting this changes (see Simple.kt).
      */
@@ -674,6 +674,11 @@ class EditorState(initial: List<Clip> = initialClips()) {
      * Set through [switchMode]; the app keeps it in the settings ([onModeChange]).
      */
     var simple by mutableStateOf(false)
+    /**
+     * The experimental features are on (Settings → Experimental): only then do the ⋯ menu and Settings offer simple mode
+     * and the magnetic timeline (set by the app).
+     */
+    var experimental by mutableStateOf(false)
     /** The mode was switched: kept in the app's settings (set by the app). */
     var onModeChange: ((Boolean) -> Unit)? = null
     /** Shows a page (0 edit, 1 color, 2 audio) – set by the app (Open in advanced mode goes to the color or audio page). */
@@ -683,15 +688,18 @@ class EditorState(initial: List<Clip> = initialClips()) {
     /** A track's own effects (the mixer's inserts) by audio track index: on/off and remove from a badge (set by the app). */
     var trackFxOps: ((Int) -> AfxRackOps)? = null
 
-    /** Switch between simple and advanced mode: instant, the project stays exactly as it is. */
-    fun switchMode(on: Boolean) {
+    /**
+     * Switch between simple and advanced mode: instant, the project stays exactly as it is. [keep]: the choice is kept in
+     * the settings (not when the experimental features are turned off – the choice waits for them to come back on).
+     */
+    fun switchMode(on: Boolean, keep: Boolean = true) {
         if (simple == on) return
         val wasMagnetic = magnetic
         simple = on
         // (a gap clip is selected only on the magnetic timeline; the rows of steps belong to the mode they came from)
         if (wasMagnetic && !magnetic) selectedGap = null
         dockRow = DockRow.NONE
-        onModeChange?.invoke(on)
+        if (keep) onModeChange?.invoke(on)
     }
     /** While a storyline clip is dragged or trimmed: its connected clips stay where they are (the pill over the timeline). */
     var keepConnected by mutableStateOf(false)

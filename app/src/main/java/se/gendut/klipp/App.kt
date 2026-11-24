@@ -267,6 +267,8 @@ private fun KlippAppContent(
         if (AppPrefs.centerDefault(context)) state.centerPlayhead = true
         // snapping is on from the start; the setting can only turn it off
         if (!AppPrefs.magnetDefault(context)) state.magnet = false
+        // the experimental features (simple mode and the magnetic timeline; off unless turned on)
+        state.experimental = AppPrefs.experimental(context)
         // the magnetic timeline (off unless turned on)
         state.magnetic = AppPrefs.magneticTimeline(context)
         // simple or advanced (app-wide; simple always edits on the magnetic timeline – the setting above stays the advanced mode's)
@@ -1315,6 +1317,15 @@ private fun KlippAppContent(
                 onCenterDefault = { state.centerPlayhead = it },
                 onMagnetDefault = { state.magnet = it },
                 onMagnetic = { state.magnetic = it; state.selectedGap = null; if (!it && tool == Tool.POSITION) tool = Tool.SELECT },
+                experimental = state.experimental,
+                // on: the choices made before come back; off: advanced mode on tracks (the choices are kept)
+                onExperimental = { on ->
+                    state.experimental = on
+                    state.switchMode(AppPrefs.simpleMode(context), keep = false)
+                    state.magnetic = AppPrefs.magneticTimeline(context)
+                    state.selectedGap = null
+                    if (!state.magnetic && tool == Tool.POSITION) tool = Tool.SELECT
+                },
             )
         }
 

@@ -15,8 +15,15 @@ undo history.
 The mode is `EditorState.simple`. It is switched with `EditorState.switchMode()` and stored in
 `AppPrefs.simpleMode`.
 
-A fresh install asks once which mode to use (`ModeChooser` in `Simple.kt`). Picking *Advanced* asks next how the
-timeline works: *Tracks* or *Magnetic timeline*, the same setting as Settings → Timeline (`AppPrefs.magneticTimeline`).
+Simple mode and the magnetic timeline are **experimental features**: Settings → Experimental has one switch for them
+(`AppPrefs.experimental`, off by default), and under it the mode and the magnetic timeline. While it is off, Klipp is in
+advanced mode on tracks whatever was chosen: the ⋯ menu offers neither, a fresh install is not asked, and the choices
+made are kept for when it is turned on again. Turning it off from simple mode goes to advanced mode at once; the project
+stays as it is.
+
+With the experimental features on, a fresh install asks once which mode to use (`ModeChooser` in `Simple.kt`). Picking
+*Advanced* asks next how the timeline works: *Tracks* or *Magnetic timeline*, the same setting as Settings → Experimental
+(`AppPrefs.magneticTimeline`).
 Skipping keeps advanced mode on tracks, as for everyone who used the app before the modes. Existing installs are not
 asked. With the magnetic timeline on, V1's header carries the storyline mark, so it is clear which track closes up.
 

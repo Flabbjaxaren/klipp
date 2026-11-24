@@ -177,4 +177,8 @@
     <string name="simple_trim_cut_away">Cut away\n%1$s</string>
     <string name="simple_trim_release">Let go to shorten – the rest moves up</string>
     <string name="simple_trim_release_row">Let go to shorten it</string>
+    <string name="settings_group_experimental">Experimental</string>
+    <string name="settings_cat_experimental">Simple mode and the magnetic timeline</string>
+    <string name="experimental_switch">Experimental features</string>
+    <string name="experimental_switch_hint">Simple mode and the magnetic timeline are still being built and can change. Turned off, Klipp is in advanced mode on tracks – your projects stay as they are.</string>
 </resources>
