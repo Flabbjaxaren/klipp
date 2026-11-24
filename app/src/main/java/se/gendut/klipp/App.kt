@@ -1172,15 +1172,23 @@ private fun KlippAppContent(
             FullViewer(state, controller, playback, sourcePlayback, sourceMedia, grade, title, gs) { fullscreen = false }
         } else {
         if (landscape) {
-            // landscape: picture (and source) on the left, the modes with the timeline on the right
+            // landscape: picture (and source) on the left, the modes with the timeline on the right; the split between
+            // them can be dragged (the grip between them; double tap = back to 46 %)
+            var split by remember { androidx.compose.runtime.mutableFloatStateOf(AppPrefs.landscapeSplit(context)) }
+            val rowPx = with(density) { maxWidth.toPx() }
             Row(Modifier.fillMaxSize().safeArea()) {
-                Column(Modifier.weight(0.46f).fillMaxHeight()) {
+                Column(Modifier.weight(split).fillMaxHeight()) {
                     topBar()
                     Column(Modifier.weight(1f)) { TopArea(fill = true, monitorMod = Modifier.fillMaxWidth().weight(1f)) }
                     // room for the floating toolbar under the picture (the timeline keeps the whole right side)
                     if (sourceMedia == null) Spacer(Modifier.height(92.dp))
                 }
-                Box(Modifier.weight(0.54f).fillMaxHeight()) {
+                SplitHandle(
+                    onDrag = { dx -> split = (split + dx / rowPx).coerceIn(0.3f, 0.75f) },
+                    onEnd = { AppPrefs.setLandscapeSplit(context, split) },
+                    onReset = { haptics.tick(); split = AppPrefs.LANDSCAPE_SPLIT; AppPrefs.setLandscapeSplit(context, split) },
+                )
+                Box(Modifier.weight(1f - split).fillMaxHeight()) {
                     Pages(Modifier.fillMaxSize())
                 }
             }
@@ -1525,6 +1533,24 @@ internal fun LabelPicker(current: ClipLabel?, onPick: (ClipLabel?) -> Unit) {
             )
         }
     }
+}
+
+/** The grip between the picture and the timeline in landscape: drag sideways; double tap = back to the default. */
+@Composable
+private fun SplitHandle(onDrag: (Float) -> Unit, onEnd: () -> Unit, onReset: () -> Unit) {
+    // (the gestures stay while the handle does: they call the latest lambdas, which know the row's width now)
+    val drag by rememberUpdatedState(onDrag)
+    val end by rememberUpdatedState(onEnd)
+    val reset by rememberUpdatedState(onReset)
+    val label = stringResource(R.string.app_split_handle)
+    Box(
+        Modifier.width(14.dp).fillMaxHeight()
+            .pointerInput(Unit) { detectHorizontalDragGestures(onDragEnd = { end() }) { ch, dx -> ch.consume(); drag(dx) } }
+            .pointerInput(Unit) { detectTapGestures(onDoubleTap = { reset() }) }
+            .semantics { contentDescription = label }
+            .testTag("splitHandle"),
+        contentAlignment = Alignment.Center,
+    ) { Box(Modifier.size(4.dp, 40.dp).clip(RoundedCornerShape(2.dp)).background(K.OutlineVar)) }
 }
 
 /** The grip under the transport: drag to make the picture taller or shorter; double tap = back to the project's shape. */

@@ -117,6 +117,7 @@
     <string name="app_back">Back</string>
     <string name="app_ramp">Ramp</string>
     <string name="app_conform">Slow-mo %1$s→%2$s</string>
+    <string name="app_split_handle">Divider between the picture and the timeline</string>
     <string name="app_freeze">Freeze</string>
     <string name="app_label">Label</string>
     <string name="app_label_none">None</string>

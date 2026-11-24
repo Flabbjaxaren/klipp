@@ -126,6 +126,11 @@ object AppPrefs {
     fun captionSeconds(c: Context): Float = p(c).getFloat("captionSec", 2f).coerceIn(0.5f, 20f)
     fun setCaptionSeconds(c: Context, s: Float) { p(c).edit().putFloat("captionSec", s).apply() }
 
+    /** The picture's share of the width in landscape (the rest is the timeline). */
+    const val LANDSCAPE_SPLIT = 0.46f
+    fun landscapeSplit(c: Context): Float = p(c).getFloat("landscapeSplit", LANDSCAPE_SPLIT).coerceIn(0.3f, 0.75f)
+    fun setLandscapeSplit(c: Context, f: Float) { p(c).edit().putFloat("landscapeSplit", f).apply() }
+
     /**
      * The program monitor's height in portrait (dp) per picture shape (key: width/height, 3 decimals); 0 = fit the
      * shape. A height set before it was kept per shape (one for every project) is taken as the 16:9 one.
