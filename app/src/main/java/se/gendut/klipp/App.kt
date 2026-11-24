@@ -1131,6 +1131,8 @@ private fun KlippAppContent(
                                                         updateCrawGrades(gs, controller.snapshot.sequence, clip.item, before, settings)
                                                     }
                                                 }
+                                                // a MotionCam clip's develop: EI and output, developed again from the .mcraw
+                                                else McrawRawButton(gs, colorClips(), clip)
                                             },
                                         ) {
                                             ColorPanel(grade, { lutTarget = null; lutPicker.launch(arrayOf("*/*")) }, scroll = false)
