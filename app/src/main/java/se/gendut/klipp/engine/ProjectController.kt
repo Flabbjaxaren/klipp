@@ -115,6 +115,8 @@ class ProjectController(
     private val mcrawRelink: (Uri, Uri) -> Unit = { old, new -> relinkMcraw(old, new) }
     private val mcrawHas: (Uri) -> Boolean = { u -> uris.containsValue(u) }
     private val mcrawRemove: (Uri) -> Unit = { u -> uris.filterValues { it == u }.keys.toList().takeIf { it.isNotEmpty() }?.let { deleteMedia(it, emptyList()) } }
+    // (an import done: what it left as placeholders is developed now, not at the project's next change)
+    private val mcrawKick: () -> Unit = { runCatching { McrawStore.finishDrafts(context, uris.values.toList()) } }
 
     init {
         state.backend = this
@@ -122,6 +124,7 @@ class ProjectController(
         McrawStore.relink = mcrawRelink
         McrawStore.has = mcrawHas
         McrawStore.remove = mcrawRemove
+        McrawStore.kick = mcrawKick
     }
 
     /**
@@ -3298,6 +3301,7 @@ class ProjectController(
         if (McrawStore.relink === mcrawRelink) McrawStore.relink = null
         if (McrawStore.has === mcrawHas) McrawStore.has = null
         if (McrawStore.remove === mcrawRemove) McrawStore.remove = null
+        if (McrawStore.kick === mcrawKick) McrawStore.kick = null
         // a pending save happens now (a couple of seconds at most), before the engine is released
         if (saveJob?.isActive == true) {
             saveJob?.cancel()

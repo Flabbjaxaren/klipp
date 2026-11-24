@@ -34,6 +34,8 @@ suspend fun importMcraw(ctx: Context, picked: List<Uri>, onEach: (List<Uri>) -> 
     try { importAll(ctx, picked, names, onEach, status) } finally {
         McrawStore.importing = false
         if (McrawStore.drafts == 0) Proxies.hold(false)
+        // (a placeholder left by a develop that failed: tried again now)
+        withContext(Dispatchers.Main) { McrawStore.kick?.invoke() }
     }
 }
 
@@ -65,9 +67,8 @@ private suspend fun importAll(ctx: Context, picked: List<Uri>, names: List<Strin
             // the placeholder must be in the project before it can be replaced (its import runs on its own)
             var waited = 0
             while (waited < 20_000 && withContext(Dispatchers.Main) { store.has?.invoke(p) } == false) { delay(100); waited += 100 }
-            withContext(Dispatchers.Main) {
-                if (r.uri != null) store.relink?.invoke(p, r.uri) else store.remove?.invoke(p)
-            }
+            // (not developed: the placeholder stays – it is noted, and developed again once the import is done)
+            if (r.uri != null) withContext(Dispatchers.Main) { store.relink?.invoke(p, r.uri) }
             if (r.uri == null) { status(Str.t(R.string.mcraw_not_developed, name, r.summary.lineSequence().firstOrNull().orEmpty())); delay(2500) }
         }
         return

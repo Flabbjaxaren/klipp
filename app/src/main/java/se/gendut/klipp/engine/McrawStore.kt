@@ -130,6 +130,8 @@ object McrawStore {
     @Volatile var has: ((Uri) -> Boolean)? = null
     /** Takes this file's media out of the open project, with its clips (a placeholder whose develop failed). */
     @Volatile var remove: ((Uri) -> Unit)? = null
+    /** Develops what the open project still has as quick develops or placeholders (set by the open project). */
+    @Volatile var kick: (() -> Unit)? = null
 
     /** The develop running in the background: "name: 42 %", null = none. */
     var working by mutableStateOf<String?>(null)
@@ -172,13 +174,17 @@ object McrawStore {
      * time, each put in the draft's place when done ([relink]). Called whenever the project changes, so a project
      * opened again finishes what was left (a full develop already made is reused at once). Main thread.
      */
+    /** How many times a placeholder left behind was developed in this run (two at most: a file that can't be developed isn't tried for good). */
+    private val tries = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
     fun finishDrafts(c: Context, uris: Collection<Uri>) {
         val app = c.applicationContext
         for (u in uris) {
             // a quick develop's full one; and a placeholder no import is developing any more (the app was closed
             // meanwhile – it stayed a placeholder for good)
-            val left = Placeholder.isPlaceholder(u) && !importing
+            val left = Placeholder.isPlaceholder(u) && !importing && (tries[u.toString()] ?: 0) < 2
             if (!(isDraft(app, u) || left) || !queued.add(u.toString())) continue
+            if (left) tries[u.toString()] = (tries[u.toString()] ?: 0) + 1
             if (drafts++ == 0) Proxies.hold(true)
             bg.launch {
                 // a moment first: the import that brought the draft in is still adding it to the project
