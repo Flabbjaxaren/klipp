@@ -362,6 +362,12 @@ object McpBridge {
             }
         },
         Tool("logs", "The app's recent event trail (the same as in crash reports).") { texts(CrashReport.trail().joinToString("\n")) },
+        Tool("threads", "The app's threads and where each one is (stack traces), for a hang: name = part of the thread's name to show only those.",
+            JSONObject().put("name", prop("string", "part of a thread name (optional)"))) { a ->
+            val want = a.optString("name")
+            texts(Thread.getAllStackTraces().entries.filter { want.isEmpty() || it.key.name.contains(want, true) }.sortedBy { it.key.name }
+                .joinToString("\n\n") { (t, st) -> "${t.name} (${t.state})\n" + st.take(40).joinToString("\n") { "  at $it" } })
+        },
         Tool("import_files", "Import files by path (e.g. the app's external files dir) through the app's own import, as the picker does.",
             JSONObject().put("paths", JSONObject().put("type", "array").put("items", prop("string", "absolute path")))) { a ->
             val arr = a.getJSONArray("paths")
