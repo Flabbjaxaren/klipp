@@ -1378,6 +1378,12 @@ class ProjectController(
         state.setTrackRows(rows)
         state.applyEngine(toUi(snap, rows), snap.undoIds, snap.redoIds, snap.editSerial)
         state.linkedSelection = snap.linkedSelection
+        // an edit or an undo that shortens the film leaves no playhead after its end: it stayed there (a black picture),
+        // and was saved with the project
+        snap.sequence?.duration?.takeIf { it >= 0.0 && !state.playing && state.playhead > it + 1e-3 }?.let { end ->
+            state.playhead = end.toFloat()
+            engine.tryExec("playhead.set", JSONObject().put("time", frameTicks(end)))
+        }
         snap.sequence?.let { q ->
             state.markers = q.markers.map { it.time.toFloat() }
             q.video.indexOfFirst { it.id == q.videoTarget }.takeIf { it >= 0 }?.let { state.targetVideo = rows.videoRow(it) }
