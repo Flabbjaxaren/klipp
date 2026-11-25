@@ -11,8 +11,10 @@ A multi-track video editor for Android phones, built for touch. A Kotlin/Jetpack
 </p>
 
 > 🚧 **Status:** a hobby project in active development. Android 10+ (arm64). Tested on a **vivo X300 Ultra** and a
-> **OnePlus 12**. It comes with **no warranty** – keep copies of footage you care about. Issues are welcome; support is
-> best effort.
+> **OnePlus 12**. It comes with **no warranty** – keep copies of footage you care about. Support is best effort.
+
+🐞 **Found a bug or missing something?** [Report a bug or suggest a feature](https://github.com/Flabbjaxaren/klipp/issues/new/choose)
+– there are short forms for both.
 
 ## 📲 Install
 
@@ -23,34 +25,36 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
 ## ✨ Features
 
 - ✂️ **Editing:** up to six video and ten audio tracks, insert/overwrite from a source monitor, ripple, roll, slip,
-  razor, linked audio, compound clips, markers, sync by sound (camera + separate recorder), undo/redo for everything.
+  razor, linked audio, compound clips, markers (also on the music's beat), sync by sound (camera + separate recorder),
+  undo/redo for everything.
   **Slow-mo** plays a high-frame-rate clip at the project's rate with every frame used once (120 fps in a 24 fps
   project = 20 %), and a new project takes the nearest standard frame rate of a phone clip (59.6 fps → 60).
 - 👆 **Touch first:** swipe down through a clip to cut it (slide back up before you let go to cancel), drag any
   edge to trim (with a loupe and a two-frame trim view), long-press to lift, pinch to zoom; scrub on the ruler or the
-  picture and slide the finger down for ½, ¼, ⅛ speed; two-finger tap = undo, three = redo (not yet inside the Add
-  sheets).
+  picture and slide the finger down for ½, ¼, ⅛ speed; two-finger tap = undo, three = redo, also inside the Add
+  sheets.
 - 📝 **Text-based editing:** on-device speech recognition (whisper.cpp with voice activity detection; Swedish,
   English and multilingual models in three quality steps) turns the audio into text. In the timeline: delete words to
   cut the video, remove pauses and filler words. In the source monitor (tap a clip in Media): read it as sentences and
   tap the ones you want to insert – one transcript per clip, shared by both. Automatic captions.
-- 🎨 **Color:** node-based grading (wheels, curves, qualifiers, power windows with object tracking), LUTs, scopes,
-  spektrafilm film simulation, OpenDRT, floating point through the whole video chain. Log input from phones and
+- 🎨 **Color:** node-based grading (wheels, curves, qualifiers, power windows with object and face tracking), LUTs,
+  scopes, spektrafilm film simulation, OpenDRT, floating point through the whole video chain. Log input from phones and
   cinema cameras: Apple Log, vivo Log, S-Log3, V-Log, LogC3/LogC4, F-Log2, Log3G10, DaVinci Intermediate, ACEScct, T-Log.
 - 🎞️ **Video layers:** transitions, titles and templates, captions, blend modes, masks with keyframes and tracking,
   keyframed motion, opacity and volume – linear, easy ease, ease in/out or hold, and a value graph with bezier
-  handles (evaluated with the engine's own curve math, so preview and export match).
+  handles (evaluated with the engine's own curve math, so preview and export match). Auto reframe: a clip is zoomed to
+  fill the frame and follows the face (e.g. 16:9 footage in a 9:16 project).
 - 🎧 **Audio:** volume lines on the clips in the timeline (tap for a keyframe, drag the line or a keyframe, double tap
-  to delete), mixer with automation, effects (noise reduction, speech enhance, EQ, compressor …), auto ducking,
-  loudness measurement, voice-over, downloadable sound effect packs.
+  to delete), mixer with automation, effects (noise reduction, speech enhance, EQ, compressor …), ducking under
+  speech, loudness measurement, voice-over, text to speech (the phone's voices), built-in sound effect packs.
 - 📷 **RAW and pro formats:** ProRes import, MotionCam RAW (`.mcraw`) and Cinematic RAW Studio (`.CRAW`) developed on
   the phone into an editable log copy (see Known limitations).
 - 📱 **Fits the screen:** the picture follows the project's shape (16:9, 9:16, 4:3 …) and its height is kept per
   shape; in landscape the divider between the picture and the timeline can be dragged (double tap = back). Interface
   size *Normal*, *Compact* or *Small* and a full screen without the system bars in **Settings → Appearance**.
 - ⚡ **Performance:** proxies, pre-rendering of heavy parts, render cache, HDR and 10-bit.
-- 🔒 **Private:** nothing leaves the phone: speech recognition and all processing run locally; the network is only used to
-  download speech models and sound packs you ask for.
+- 🔒 **Private:** nothing leaves the phone: speech recognition and all processing run locally, and Klipp collects no
+  usage data. The network is only used to download the speech models you ask for.
 
 ## 🔬 Experimental features
 
@@ -59,9 +63,10 @@ tracks, as before. Turning them on or off, or switching between them, never chan
 tracks, effects and undo history in every mode.
 
 - 🐣 **Simple mode:** a second, beginner face on the same editor. The clips as a strip of thumbnails (tap to select,
-  drag the edges to trim, hold and drag to reorder, swipe down to cut), and four buttons: **Add**, **Sounds** (sound packs, text
-  to speech, ducking under speech, fade out at the end), **Text** (four title styles, 3 s, 5 s or the whole clip) and
-  **Filter** (look, exposure, contrast, warmth, saturation – for one clip or all). **Save video** exports in *Good*
+  drag the edges to trim, hold and drag to reorder, swipe down to cut), and five buttons: **Add**, **Sounds** (sound packs, text
+  to speech, ducking under speech, fade out at the end), **Text** (four title styles, 3 s, 5 s or the whole clip),
+  **Filter** (look, exposure, contrast, warmth, saturation – for one clip or all) and **Format** (the video's size and
+  orientation). **Save video** exports in *Good*
   (Full HD) or *Best* (4K) and can share straight away. Everything in it is an advanced-mode function: work done in
   advanced mode that simple mode has no control for is kept and shown as a mark on the clip. Details in
   [`docs/simple-mode.md`](docs/simple-mode.md).
@@ -86,7 +91,10 @@ development, any contribution is greatly appreciated!
 
 - `app/` – the Android app (Compose, Media3 for playback and export)
 - `rust/` – `klipp-bridge`, the JNI bridge to FilmCraft (`Session::execute`)
-- `third_party/` – Media3 effect (modified), whisper.cpp (trimmed), the Silero VAD model – see `THIRD_PARTY.md`
+- `app/src/main/cpp/` – the JNI wrappers for whisper.cpp and the RAW developers (built by Gradle with CMake)
+- `third_party/` – Media3 effect, transformer and ExoPlayer (modified), whisper.cpp (trimmed), the Cinematic RAW Studio
+  and MotionCam decoders – see `THIRD_PARTY.md`
+- `tools/` – the FFmpeg build, the spektrafilm table export, the regression run (`tools/regress`), the source package
 
 ## 🌍 Languages
 
@@ -95,8 +103,8 @@ app language can be chosen per app in the system settings (Android 13+).
 
 ## 🎞️ Video layers
 
-- **Export:** Media3 Transformer with the multi-layer compositor (`LayerCompositor`): V3 → V2 → V1 plus cross dissolve
-  layers, titles and captions as overlays (`TimedOverlay`), templates and animations in `Titles.kt`.
+- **Export:** Media3 Transformer with the multi-layer compositor (`LayerCompositor`): the top video track down to V1
+  plus cross dissolve layers, titles and captions as overlays (`TimedOverlay`), templates and animations in `Titles.kt`.
 - **Preview:** Media3's CompositionPlayer doesn't support multiple video sequences yet, so the main player shows the
   bottom layer and `UpperLayers` draws the upper layers (their own muted ExoPlayers in a TextureView, synced to the
   playhead), titles and captions on top. While you drag a slider, `LivePreview` draws a still frame.
@@ -129,7 +137,8 @@ Requirements: Android Studio (or SDK + JDK 21), Rust (rustup), Android NDK.
    tools/ffmpeg/build.sh
    ```
 
-4. Open the project in Android Studio and run, or build from the terminal:
+4. Open the project in Android Studio and run, or build from the terminal (Gradle builds the C++ parts – whisper.cpp
+   and the RAW developers – itself):
 
    ```
    ./gradlew assembleDebug
@@ -169,16 +178,20 @@ replace an installed Klipp.
 - vivo Log has no published specification; its curve was measured and its colors fitted to vivo's own vivo Log →
   Rec.709 LUT.
 - Speech recognition runs on the CPU (the GPU path was tried and dropped: unstable drivers, slower on phones).
+- HLG export works, but the preview on the phone stays SDR.
 
 ## 🧪 Tests
 
 - Rust (the bridge against real files): `KLIPP_TEST_MEDIA=<folder> cargo test --release` – the folder needs
-  `klipp_a.mp4`, `klipp_b.mp4` and `tal.m4a`; the workflow shows how to generate them with ffmpeg.
+  `klipp_a.mp4`, `klipp_b.mp4`, `tal.m4a`, `three.mov` and `df_noise.wav`; the workflow shows how to generate them with
+  ffmpeg.
 - Kotlin (gestures, snapping, ripple, the Rust → Kotlin contract, video layers, properties, screenshots):
   `./gradlew testDebugUnitTest` and `./gradlew recordRoborazziDebug`
 - GPU (on a connected phone): the film and the grade nodes rendered by the phone's GPU, as playback runs them, against
   the CPU path: `./gradlew connectedGpuTestAndroidTest`. They run in their own app (`se.gendut.klipp.gputest`), so
   the installed Klipp and its projects are never touched.
+- Regression run (on a connected phone, through the app's agent bridge): frame-exact playback and export checks in a
+  project of their own – see `tools/regress/README.md`.
 
 The FilmCraft version is pinned in `rust/Cargo.toml` (`rev`). Update it deliberately.
 
@@ -202,6 +215,9 @@ Parts from other projects:
 - **OpenDRT** (Jed Smith, https://github.com/jedypod/open-display-transform) – GPL-3.0, in `engine/OpenDrt.kt`.
 - **FilmCraft** (the editing engine, Rust), **Media3** (Apache-2.0), **whisper.cpp** (MIT), **FFmpeg** (LGPL-2.1+,
   only its ProRes decoder and MOV reading/writing, for the ProRes import).
+- **DeepFilterNet** (noise reduction and speech enhance), **MediaPipe** and **YuNet** (face following), **Beat This!**
+  (beat markers), **ONNX Runtime** (word edges, beat markers), **Silero VAD**, the **Cinematic RAW Studio** and
+  **MotionCam** decoders – licenses in `THIRD_PARTY.md`.
 - **Media3 effect** (Apache-2.0) as source code in `third_party/media3-effect`, modified so that the whole video chain
   computes in floating point (RGBA16F) – see `third_party/media3-effect/KLIPP.md`.
 - **Media3 transformer** (Apache-2.0) as source code in `third_party/media3-transformer`, modified for live playback's cuts
