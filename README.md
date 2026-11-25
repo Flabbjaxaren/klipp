@@ -24,6 +24,8 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
 
 - ✂️ **Editing:** up to six video and ten audio tracks, insert/overwrite from a source monitor, ripple, roll, slip,
   razor, linked audio, compound clips, markers, sync by sound (camera + separate recorder), undo/redo for everything.
+  **Slow-mo** plays a high-frame-rate clip at the project's rate with every frame used once (120 fps in a 24 fps
+  project = 20 %), and a new project takes the nearest standard frame rate of a phone clip (59.6 fps → 60).
 - 👆 **Touch first:** swipe down through a clip to cut it (slide back up before you let go to cancel), drag any
   edge to trim (with a loupe and a two-frame trim view), long-press to lift, pinch to zoom; scrub on the ruler or the
   picture and slide the finger down for ½, ¼, ⅛ speed; two-finger tap = undo, three = redo (not yet inside the Add
@@ -43,6 +45,9 @@ version and keep your projects. Requires Android 10+ on a 64-bit ARM phone.
   loudness measurement, voice-over, downloadable sound effect packs.
 - 📷 **RAW and pro formats:** ProRes import, MotionCam RAW (`.mcraw`) and Cinematic RAW Studio (`.CRAW`) developed on
   the phone into an editable log copy (see Known limitations).
+- 📱 **Fits the screen:** the picture follows the project's shape (16:9, 9:16, 4:3 …) and its height is kept per
+  shape; in landscape the divider between the picture and the timeline can be dragged (double tap = back). Interface
+  size *Normal*, *Compact* or *Small* and a full screen without the system bars in **Settings → Appearance**.
 - ⚡ **Performance:** proxies, pre-rendering of heavy parts, render cache, HDR and 10-bit.
 - 🔒 **Private:** nothing leaves the phone: speech recognition and all processing run locally; the network is only used to
   download speech models and sound packs you ask for.
