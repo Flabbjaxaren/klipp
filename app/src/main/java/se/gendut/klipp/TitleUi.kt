@@ -138,6 +138,9 @@ fun sizeFor(t: TitleTemplate, h: Int): Double = h * when (t) {
     TitleTemplate.LOWER_THIRD -> 0.062; TitleTemplate.CHAPTER -> 0.085; TitleTemplate.ROLL -> 0.05; TitleTemplate.FREE -> 0.09
 }
 
+/** The size slider's top: as tall as the picture (at least 400 px, the old top) – a word can fill the frame. */
+fun titleSizeMax(seqH: Int): Float = seqH.toFloat().coerceAtLeast(400f)
+
 /** The title as it enters the frame – plays in a loop. */
 @Composable
 fun TitlePreview(look: TitleLook, text: String, modifier: Modifier = Modifier, color: Int = 0xFFFFFF, playing: Boolean = true, replayKey: Any? = null) {
@@ -524,7 +527,7 @@ fun TitleSection(state: EditorState, p: ClipProps, backend: PropsBackend, tab: I
             // the text's look: size, color, its own opacity, font, weight, spacing
             PanelCard(Modifier.padding(top = 10.dp)) {
             PropSlider(
-                stringResource(R.string.titleui_size), p.textSize, 8f, 400f, sizeFor(look.template, p.seqH).roundToInt().toFloat(), { "%.0f px".format(it) }, "size",
+                stringResource(R.string.titleui_size), p.textSize, 8f, titleSizeMax(p.seqH), sizeFor(look.template, p.seqH).roundToInt().toFloat(), { "%.0f px".format(it) }, "size", curve = 2f,
                 onLive = { v -> state.setLive((state.live?.takeIf { it.id == p.id } ?: p).copy(textSize = v)) },
             ) { backend.setTitle(p.id, size = it); scope.launch { state.endLive() } }
             SectionLabel(stringResource(R.string.titleui_text_color))

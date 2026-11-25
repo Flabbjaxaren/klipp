@@ -68,4 +68,32 @@ class PropSliderCommitTest {
         rule.waitForIdle()
         assertEquals(1f, commits.last(), 0f)
     }
+
+    /** Title size: the slider reaches the picture's height, and its lower half is the small sizes (curve 2). */
+    @Test fun titleSizeReachesThePictureHeight() {
+        assertEquals(2160f, titleSizeMax(2160), 0f)
+        assertEquals(400f, titleSizeMax(360), 0f)
+        var value by mutableStateOf(194f)
+        val commits = mutableListOf<Float>()
+        rule.setContent {
+            KlippTheme {
+                PropSlider("Storlek", value, 8f, titleSizeMax(2160), 194f, { "%.0f px".format(it) }, "size", curve = 2f) { commits += it; value = it }
+            }
+        }
+        // the middle of the track is a quarter of the range, the right end the whole picture height
+        rule.onNodeWithTag("prop:size").performTouchInput {
+            down(Offset(width * 0.3f, height / 2f))
+            for (i in 1..10) moveTo(Offset(width * (0.3f + 0.02f * i), height / 2f))
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals(8f + 0.25f * (2160f - 8f), commits.last(), 15f)
+        rule.onNodeWithTag("prop:size").performTouchInput {
+            down(Offset(width * 0.5f, height / 2f))
+            for (i in 1..10) moveTo(Offset(width * (0.5f + 0.06f * i), height / 2f))
+            up()
+        }
+        rule.waitForIdle()
+        assertEquals(2160f, commits.last(), 0.5f)
+    }
 }
