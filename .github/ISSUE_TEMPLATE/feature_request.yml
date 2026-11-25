@@ -1,0 +1,28 @@
+name: 💡 Feature request
+description: Something you would like Klipp to do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea! One idea per request, please – it makes them easier to discuss and plan.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Klipp to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What would you use it for?
+      description: The situation or the kind of video – it helps to find the right way to build it.
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Klipp version and phone
+      description: Optional, but useful if the idea depends on the phone.
+    validations:
+      required: false

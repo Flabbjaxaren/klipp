@@ -1,0 +1,42 @@
+name: 🐞 Bug report
+description: Something in Klipp doesn't work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! One bug per report, please. In the app, **Settings → About → Report a bug** fills in the version and phone for you.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A screenshot or screen recording helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How do you make it happen?
+      placeholder: |
+        1. Open a project with …
+        2. Tap …
+        3. …
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Klipp version and phone
+      description: Settings → About shows the version. Which phone and Android version?
+      placeholder: |
+        Klipp 0.22.0-beta.2
+        Android 16
+        Phone model
+    validations:
+      required: true
