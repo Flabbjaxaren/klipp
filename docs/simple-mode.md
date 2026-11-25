@@ -92,7 +92,8 @@ In simple mode the edit page shows a clip strip (`SimpleStrip.kt`) in place of t
   becomes a layer over the film, and *Delete* in the bar takes a clip out. The gesture tips in simple mode name the swipe
   and the strip's own trim and ruler, and leave out the transcript tip (`SIMPLE_TIPS` in `Tips.kt`).
 - **Delete** (the bar) takes the selected clip out at once: a storyline clip closes up, a layer just goes. (The
-  timeline's removal animation, which finishes a delete in advanced mode, is not part of the strip.) A lime line shows where it will go in, and it is dropped at the
+  timeline's removal animation, which finishes a delete in advanced mode, is not part of the strip.)
+- **Reorder:** hold a clip and drag it along the strip. A lime line shows where it will go in, and it is dropped at the
   storyline's edit point nearest to where its start is. This is the magnetic timeline's own reorder
   (`MagTimeline.move`): the gap it leaves closes, nothing is overwritten, its linked sound and connected clips go
   with it, and it is one undo step. A clip joined to a neighbour by a transition is not moved; it explains why and
