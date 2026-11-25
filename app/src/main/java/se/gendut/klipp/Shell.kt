@@ -872,7 +872,9 @@ private fun ClipDock(state: EditorState) {
             // the clip's level, set freely: heard while dragging, saved on release (keyframes are in the clip's sheet).
             // The slider lies in a well of the page's surface: its track has the dock's own color
             RoundIcon(Ic.Back, back, modifier = Modifier.size(44.dp, 56.dp)) { row(DockRow.NONE) }
-            val p = state.selected?.let { id -> state.props?.props(id) }
+            // (a video clip's sound is in its linked sound clips: the slider shows the first one's level and sets them all)
+            val targets = state.selected?.let { state.levelTargets(it) }.orEmpty()
+            val p = targets.firstOrNull()?.let { id -> state.props?.props(id) }
             if (p != null) Box(Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(24.dp)).background(K.Surface).padding(top = 2.dp).testTag("dockVolume")) {
                 val scope = rememberCoroutineScope()
                 CompositionLocalProvider(LocalSliderInset provides 14.dp) {
@@ -882,7 +884,7 @@ private fun ClipDock(state: EditorState) {
                     PropSlider(
                         stringResource(if (keyed && simple) R.string.simple_reason_volume_curve else if (keyed) R.string.app_clip_volume_keyframe else R.string.app_volume), p.levelDb, -40f, 15f, 0f, { "%+.1f dB".format(it).replace('-', '−') }, "level",
                         onLive = { v -> state.setLive(p.copy(levelDb = v)) }, enabled = !(keyed && simple),
-                    ) { state.props?.setProps(p.id, levelDb = it); scope.launch { state.endLive() } }
+                    ) { v -> targets.forEach { id -> state.props?.setProps(id, levelDb = v) }; scope.launch { state.endLive() } }
                 }
             }
         } else if (r == DockRow.LABEL) DockScroll(onBack = { row(DockRow.NONE) }) {
@@ -979,7 +981,9 @@ private fun ClipDock(state: EditorState) {
                         // position), delete – each the advanced action of that name
                         add(DockItem(Ic.Split, stringResource(R.string.simple_split_here), "ctx:split") { state.selected?.let { state.split(it, state.playhead) } })
                         add(DockItem(Ic.Speed, stringResource(R.string.app_speed), "ctx:speed") { row(DockRow.SPEED) })
-                        if (state.props != null) add(DockItem(Ic.Speaker, stringResource(R.string.simple_sound), "ctx:volume") { row(DockRow.VOLUME) })
+                        // (only where there is sound to set: a video clip without linked sound has no level)
+                        if (state.props != null && sel != null && state.levelTargets(sel.id).isNotEmpty())
+                            add(DockItem(Ic.Speaker, stringResource(R.string.simple_sound), "ctx:volume") { row(DockRow.VOLUME) })
                         state.onAddAction?.let { a -> add(DockItem(Ic.Wheels, stringResource(R.string.simple_filter), "ctx:filter") { a(AddAction.FILTER) }) }
                         if (state.props != null) add(DockItem(Ic.Crop, stringResource(R.string.simple_zoom_clip), "ctx:picture") { open(GROUP_PICTURE) })
                         // (delete last, as in the mockup: the row reads from the gentle actions to the final one)

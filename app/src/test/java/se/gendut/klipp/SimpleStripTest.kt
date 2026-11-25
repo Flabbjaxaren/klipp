@@ -489,7 +489,8 @@ class SimpleStripTest {
     }
 
     @Test fun theMockupsBarsAreTheAdvancedActions() {
-        val st = EditorState().apply { props = FakeProps(); playhead = 3f }
+        // (B-roll_hamn with its sound linked, as an imported clip has it; C012_marknad without)
+        val st = EditorState(EditorState.initialClips().map { if (it.id == 2L || it.id == 9L) it.copy(link = 42) else it }).apply { props = FakeProps(); playhead = 3f }
         rule.setContent { KlippTheme { KlippApp(st) } }
         rule.waitForIdle()
         st.switchMode(true)
@@ -501,7 +502,11 @@ class SimpleStripTest {
         // the bottom bar with nothing selected: Add, Music, Text, Filter, Format
         for (t in listOf("add:media", "add:sound", "add:title", "add:filter", "add:format")) rule.onNodeWithTag(t).assertIsDisplayed()
         rule.onNodeWithTag("add:captions").assertDoesNotExist()
-        // a clip selected: split here, speed, sound, filter, zoom, delete – delete last
+        // a video clip without sound of its own: nothing for Sound to set, so no Sound (its level would be refused)
+        st.selected = 4L
+        rule.waitForIdle()
+        rule.onNodeWithTag("ctx:volume").assertDoesNotExist()
+        // with its sound linked: split here, speed, sound, filter, zoom, delete – delete last
         st.selected = 2L
         rule.waitForIdle()
         val tags = listOf("ctx:split", "ctx:speed", "ctx:volume", "ctx:filter", "ctx:picture", "ctx:delete")

@@ -419,6 +419,18 @@ class EditorState(initial: List<Clip> = initialClips()) {
     var linkedSelection by mutableStateOf(true)
     var onLinkedSelection: ((Boolean) -> Unit)? by mutableStateOf(null)
 
+    /**
+     * The clips whose level the clip volume slider sets for the clip [id]: a sound clip itself; for a video clip its
+     * linked sound clips – the video holds no level of its own, its sound is in them. Empty: nothing to set.
+     */
+    fun levelTargets(id: Long): List<Long> {
+        val c = clips.firstOrNull { it.id == id } ?: return emptyList()
+        fun sound(k: ClipKind) = k == ClipKind.AUDIO || k == ClipKind.MUSIC
+        if (sound(c.kind)) return listOf(id)
+        if (c.kind != ClipKind.VIDEO || c.link == null) return emptyList()
+        return clips.filter { it.id != id && it.link == c.link && it.id !in removing && sound(it.kind) }.map { it.id }
+    }
+
     /** Clips that follow [c] when it is moved/trimmed (same link group, linked selection on). */
     fun partnersOf(c: Clip): List<Clip> =
         if (!linkedSelection || c.link == null) emptyList() else clips.filter { it.id != c.id && it.link == c.link && it.id !in removing }
