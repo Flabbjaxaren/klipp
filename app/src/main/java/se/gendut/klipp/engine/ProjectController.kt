@@ -2888,7 +2888,7 @@ class ProjectController(
                 engine.tryExec("graphics.setText", JSONObject().put("clip", id).put("text", it)).onFailure { e -> onMessage(friendly(e.message)) }
                 engine.tryExec("clip.rename", JSONObject().put("clip", id).put("name", it.lines().firstOrNull()?.take(40) ?: Str.t(R.string.projectcontroller_default_title)))
             }
-            size?.let { setParam(id, "graphic_text", "size", it.toDouble()) }
+            size?.let { setParam(id, "graphic_text", "size", it.coerceIn(1f, se.gendut.klipp.TITLE_SIZE_ENGINE_MAX).toDouble()) }
             color?.let { setParam(id, "graphic_text", "fill_color", "#%06x".format(it and 0xFFFFFF)) }
             look?.let { setParam(id, "graphic_text", "name", it) }
             refresh()

@@ -138,8 +138,14 @@ fun sizeFor(t: TitleTemplate, h: Int): Double = h * when (t) {
     TitleTemplate.LOWER_THIRD -> 0.062; TitleTemplate.CHAPTER -> 0.085; TitleTemplate.ROLL -> 0.05; TitleTemplate.FREE -> 0.09
 }
 
-/** The size slider's top: as tall as the picture (at least 400 px, the old top) – a word can fill the frame. */
-fun titleSizeMax(seqH: Int): Float = seqH.toFloat().coerceAtLeast(400f)
+/** The engine's largest title size (its graphic_text `size` range is 1–2000). */
+const val TITLE_SIZE_ENGINE_MAX = 2000f
+
+/**
+ * The size slider's top: as tall as the picture (at least 400 px, the old top) – a word can fill the frame – but no
+ * more than the engine takes (a 4K frame: 2000 of 2160 px).
+ */
+fun titleSizeMax(seqH: Int): Float = seqH.toFloat().coerceIn(400f, TITLE_SIZE_ENGINE_MAX)
 
 /** The title as it enters the frame – plays in a loop. */
 @Composable

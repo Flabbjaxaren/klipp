@@ -69,9 +69,10 @@ class PropSliderCommitTest {
         assertEquals(1f, commits.last(), 0f)
     }
 
-    /** Title size: the slider reaches the picture's height, and its lower half is the small sizes (curve 2). */
+    /** Title size: the slider reaches the picture's height (at most the engine's 2000), and its lower half is the small sizes (curve 2). */
     @Test fun titleSizeReachesThePictureHeight() {
-        assertEquals(2160f, titleSizeMax(2160), 0f)
+        assertEquals(1080f, titleSizeMax(1080), 0f)
+        assertEquals(2000f, titleSizeMax(2160), 0f) // the engine's top
         assertEquals(400f, titleSizeMax(360), 0f)
         var value by mutableStateOf(194f)
         val commits = mutableListOf<Float>()
@@ -87,13 +88,13 @@ class PropSliderCommitTest {
             up()
         }
         rule.waitForIdle()
-        assertEquals(8f + 0.25f * (2160f - 8f), commits.last(), 15f)
+        assertEquals(8f + 0.25f * (2000f - 8f), commits.last(), 15f)
         rule.onNodeWithTag("prop:size").performTouchInput {
             down(Offset(width * 0.5f, height / 2f))
             for (i in 1..10) moveTo(Offset(width * (0.5f + 0.06f * i), height / 2f))
             up()
         }
         rule.waitForIdle()
-        assertEquals(2160f, commits.last(), 0.5f)
+        assertEquals(2000f, commits.last(), 0.5f)
     }
 }
