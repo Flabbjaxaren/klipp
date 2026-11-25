@@ -31,4 +31,17 @@
     <string name="about_open_origin">Öppna källans sida</string>
     <string name="about_missing">Den här texten saknas i appen: %1$s</string>
     <string name="about_notice_cut">… Här visas början: hela texten (%1$d kB) finns i appen som %2$s och i källkoden.</string>
+    <string name="about_feedback_bug">Rapportera en bugg</string>
+    <string name="about_feedback_bug_hint">Något som inte fungerar som det ska</string>
+    <string name="about_feedback_idea">Föreslå en funktion</string>
+    <string name="about_feedback_idea_hint">Något du vill att Klipp ska kunna</string>
+    <string name="about_feedback_intro">Du skriver och skickar själv – Klipp skickar ingenting på egen hand. Bara det här fylls i, så att vi vet vilken version och telefon det gäller:</string>
+    <string name="about_feedback_github">På GitHub</string>
+    <string name="about_feedback_github_hint">Kräver ett GitHub-konto. Rapporterna där är offentliga.</string>
+    <string name="about_feedback_email">Med e-post</string>
+    <string name="about_feedback_no_email">Ingen e-postapp hittades – skriv till %1$s</string>
+    <string name="about_feedback_subject_bug">Klipp %1$s – bugg: </string>
+    <string name="about_feedback_subject_idea">Klipp %1$s – idé: </string>
+    <string name="about_feedback_body_bug">Vad hände?\n\n\nVad väntade du dig skulle hända?\n\n\nHur gör man för att få det att hända?\n1. \n2. \n\n—\n%1$s</string>
+    <string name="about_feedback_body_idea">Vad vill du att Klipp ska kunna?\n\n\nVad skulle du använda det till?\n\n\n—\n%1$s</string>
 </resources>

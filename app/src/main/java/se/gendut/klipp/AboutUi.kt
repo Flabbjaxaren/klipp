@@ -98,6 +98,7 @@ internal object LicenseInventory {
 /** Where the About pages are: the top page, the license list, one component, or one text. */
 internal sealed interface AboutStep {
     data object Licenses : AboutStep
+    data class Feedback(val kind: se.gendut.klipp.Feedback.Kind) : AboutStep
     data class Item(val item: LicenseItem) : AboutStep
     data class Notice(val title: String, val path: String) : AboutStep
 }
@@ -112,6 +113,7 @@ internal class AboutNav {
 internal fun aboutTitle(nav: AboutNav): String? = when (val s = nav.stack.lastOrNull()) {
     null -> null
     AboutStep.Licenses -> stringResource(R.string.about_licenses)
+    is AboutStep.Feedback -> stringResource(if (s.kind == Feedback.Kind.BUG) R.string.about_feedback_bug else R.string.about_feedback_idea)
     is AboutStep.Item -> s.item.name
     is AboutStep.Notice -> s.title
 }
@@ -124,6 +126,7 @@ internal fun AboutPage(nav: AboutNav) {
     when (val s = nav.stack.lastOrNull()) {
         null -> PanelCard(Modifier.padding(top = 8.dp).testTag("about")) { AboutTop(nav) }
         AboutStep.Licenses -> LicensesList(items, nav)
+        is AboutStep.Feedback -> PanelCard(Modifier.padding(top = 8.dp).testTag("feedback")) { FeedbackPage(s.kind) }
         is AboutStep.Item -> PanelCard(Modifier.padding(top = 8.dp)) { ItemDetail(s.item, nav) }
         is AboutStep.Notice -> PanelCard(Modifier.padding(top = 8.dp)) { NoticeText(s.path) }
     }
@@ -141,6 +144,58 @@ private fun ColumnScope.AboutTop(nav: AboutNav) {
     Text(stringResource(R.string.about_copyright), color = K.OnSurface, fontSize = 14.sp, lineHeight = 20.sp,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp).testTag("about:gpl"))
     LinkRow(stringResource(R.string.about_licenses), stringResource(R.string.about_licenses_hint), "about:licenses") { nav.stack.add(AboutStep.Licenses) }
+    LinkRow("🐞 " + stringResource(R.string.about_feedback_bug), stringResource(R.string.about_feedback_bug_hint), "about:bug") { nav.stack.add(AboutStep.Feedback(Feedback.Kind.BUG)) }
+    LinkRow("💡 " + stringResource(R.string.about_feedback_idea), stringResource(R.string.about_feedback_idea_hint), "about:idea") { nav.stack.add(AboutStep.Feedback(Feedback.Kind.IDEA)) }
+}
+
+/**
+ * A bug report or a feature wish: the user writes and sends it – on GitHub or by email – nothing is sent by Klipp. Only
+ * the version and the phone are filled in, and they are shown here first.
+ */
+@Composable
+private fun ColumnScope.FeedbackPage(kind: Feedback.Kind) {
+    val ctx = LocalContext.current
+    val links = LocalUriHandler.current
+    val info = remember { Feedback.info() }
+    Text(stringResource(R.string.about_feedback_intro), color = K.OnSurface, fontSize = 14.sp, lineHeight = 20.sp,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+    SelectionContainer {
+        Text(info, color = K.OnSurfaceVar, fontSize = 12.sp, lineHeight = 17.sp, fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp).testTag("feedback:info"))
+    }
+    LinkRow(stringResource(R.string.about_feedback_github), stringResource(R.string.about_feedback_github_hint), "feedback:github") {
+        runCatching { links.openUri(Feedback.githubUrl(kind, info)) }
+    }
+    val subject = stringResource(if (kind == Feedback.Kind.BUG) R.string.about_feedback_subject_bug else R.string.about_feedback_subject_idea, BuildConfigShim.version)
+    val body = stringResource(if (kind == Feedback.Kind.BUG) R.string.about_feedback_body_bug else R.string.about_feedback_body_idea, info)
+    val noMail = stringResource(R.string.about_feedback_no_email, Feedback.EMAIL)
+    LinkRow(stringResource(R.string.about_feedback_email), Feedback.EMAIL, "feedback:email") {
+        runCatching { ctx.startActivity(Feedback.emailIntent(subject, body)) }
+            .onFailure { android.widget.Toast.makeText(ctx, noMail, android.widget.Toast.LENGTH_LONG).show() }
+    }
+}
+
+/** Where bug reports and feature wishes go, and what they carry (the version and the phone – nothing else). */
+internal object Feedback {
+    const val EMAIL = "klipp@gendutvideo.com"
+    const val ISSUES = "https://github.com/Flabbjaxaren/klipp/issues/new"
+
+    /** The GitHub issue form for each (.github/ISSUE_TEMPLATE); both have an `environment` field the link fills in. */
+    enum class Kind(val template: String) { BUG("bug_report.yml"), IDEA("feature_request.yml") }
+
+    fun info(
+        version: String = BuildConfigShim.version, code: Int = BuildConfig.VERSION_CODE, commit: String = BuildConfig.GIT_COMMIT,
+        os: String = android.os.Build.VERSION.RELEASE.orEmpty(), api: Int = android.os.Build.VERSION.SDK_INT,
+        phone: String = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
+    ): String = "Klipp $version (build $code, ${commit.take(12)})\nAndroid $os (API $api)\n$phone"
+
+    fun githubUrl(kind: Kind, info: String): String =
+        "$ISSUES?template=${kind.template}&environment=" + android.net.Uri.encode(info)
+
+    fun emailIntent(subject: String, body: String) = android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:"))
+        .putExtra(android.content.Intent.EXTRA_EMAIL, arrayOf(EMAIL))
+        .putExtra(android.content.Intent.EXTRA_SUBJECT, subject)
+        .putExtra(android.content.Intent.EXTRA_TEXT, body)
 }
 
 @Composable
