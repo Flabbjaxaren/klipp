@@ -114,6 +114,9 @@ android {
         // cargo ndk also copies DeepFilterNet's own cdylib (libdf-<hash>.so) into jniLibs; its code is linked into
         // libklipp_bridge.so already and nothing loads it
         jniLibs.excludes += "**/libdf-*.so"
+        // the native libraries go into the APK compressed (~104 → ~46 MB): the download is about 55 MB smaller, and
+        // Android unpacks them once at install instead of running them straight from the APK
+        jniLibs.useLegacyPackaging = true
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
