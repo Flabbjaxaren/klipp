@@ -5,8 +5,11 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <csetjmp>
+#include <csignal>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <thread>
@@ -261,6 +264,39 @@ std::optional<int> heldRotation(const Clip& c, const craw::json::Value& meta) {
     return front ? (sensor - device + 360) % 360 : (sensor + device) % 360;
 }
 
+// The file is read through a memory map: if it gets shorter while it is open (cut short, replaced, still being
+// written), touching the lost part raises SIGBUS, which ended the whole app. Every call that reads the file runs on a
+// guarded thread (CRAW_READS below): the signal jumps back to it and becomes an ordinary error ("damaged or
+// incomplete"). Decoder threads never touch the map – a frame's bytes are copied on the guarded thread first
+// (Clip::frameRaw). A SIGBUS on any other thread goes to the handler that was there before.
+thread_local sigjmp_buf* busJump = nullptr;
+struct sigaction previousBus{};
+
+void onBus(int sig, siginfo_t* info, void* context) {
+    if (busJump) siglongjmp(*busJump, 1);
+    if (previousBus.sa_flags & SA_SIGINFO) {
+        if (previousBus.sa_sigaction) { previousBus.sa_sigaction(sig, info, context); return; }
+    } else if (previousBus.sa_handler != SIG_DFL && previousBus.sa_handler != SIG_IGN && previousBus.sa_handler) {
+        previousBus.sa_handler(sig);
+        return;
+    }
+    signal(SIGBUS, SIG_DFL);
+    raise(SIGBUS);
+}
+
+void armBusGuard() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        struct sigaction sa{};
+        sa.sa_sigaction = onBus;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+        sigaction(SIGBUS, &sa, &previousBus);
+    });
+}
+
+struct BusReset { ~BusReset() { busJump = nullptr; } };
+
 void fail(JNIEnv* env, const std::exception& e) {
     if (!env->ExceptionCheck()) {
         env->ThrowNew(env->FindClass("java/io/IOException"), e.what());
@@ -272,8 +308,22 @@ Source& source(jlong handle) { return *reinterpret_cast<Source*>(handle); }
 unsigned quantize(float v) { return unsigned(v + .5f); }
 }
 
+// At the top of a JNI call that reads the file (see armBusGuard): a SIGBUS while reading returns [fallback] with an
+// IOException instead of ending the app.
+#define CRAW_READS(fallback)                                                                          \
+    armBusGuard();                                                                                    \
+    sigjmp_buf busBuffer;                                                                             \
+    if (sigsetjmp(busBuffer, 1)) {                                                                    \
+        busJump = nullptr;                                                                            \
+        fail(env, std::runtime_error("craw: the file got shorter while it was read"));                \
+        return fallback;                                                                              \
+    }                                                                                                 \
+    busJump = &busBuffer;                                                                             \
+    BusReset busReset;
+
 extern "C" JNIEXPORT jlong JNICALL
 Java_se_gendut_klipp_engine_CrawImport_open(JNIEnv* env, jobject, jint fd) {
+    CRAW_READS(0)
     try {
         auto input = std::make_unique<Source>(fd);
         if (!input->clip.frameCount()) throw std::runtime_error("CRAW has no video frames");
@@ -291,6 +341,7 @@ Java_se_gendut_klipp_engine_CrawImport_close(JNIEnv*, jobject, jlong handle) {
 
 extern "C" JNIEXPORT jlongArray JNICALL
 Java_se_gendut_klipp_engine_CrawImport_metadata(JNIEnv* env, jobject, jlong handle) {
+    CRAW_READS(nullptr)
     // (reading frame 0 can throw – a C++ exception leaving a JNI function ends the process)
     try {
     const auto& c = source(handle).clip;
@@ -317,6 +368,7 @@ Java_se_gendut_klipp_engine_CrawImport_metadata(JNIEnv* env, jobject, jlong hand
 extern "C" JNIEXPORT void JNICALL
 Java_se_gendut_klipp_engine_CrawImport_configure(JNIEnv* env, jobject, jlong handle,
     jfloatArray xyzToGamut, jfloatArray curve, jint ei) {
+    CRAW_READS()
     try {
         auto& input = source(handle);
         auto encoding = std::make_unique<LogEncoding>();
@@ -344,6 +396,7 @@ extern "C" JNIEXPORT jlong JNICALL
 Java_se_gendut_klipp_engine_CrawImport_decode(JNIEnv* env, jobject, jlong handle, jint frame,
     jint w, jint h, jobject yBuffer, jint yRow, jint yPixel, jobject uBuffer, jint uRow, jint uPixel,
     jobject vBuffer, jint vRow, jint vPixel) {
+    CRAW_READS(0)
     try {
         const auto& c = source(handle).clip;
         // 4:2:0 writes pixel pairs: an odd size would write one column/row past the planes checked below
@@ -449,6 +502,7 @@ Java_se_gendut_klipp_engine_CrawImport_decode(JNIEnv* env, jobject, jlong handle
 extern "C" JNIEXPORT void JNICALL
 Java_se_gendut_klipp_engine_CrawImport_pcm16(JNIEnv* env, jobject, jlong handle, jlong start,
     jint frames, jobject buffer) {
+    CRAW_READS()
     try {
         const auto& c = source(handle).clip;
         const auto& audio = c.audio();

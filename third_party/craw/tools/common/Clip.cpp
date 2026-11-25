@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Modified for Klipp (2026-11-23): the lens shading map is sized from its JSON before allocation – see "Modified for Klipp".
+// Modified for Klipp (2026-11-25): frameRaw copies the frame's bytes before the decoder's threads read them.
 #include "Clip.h"
 
 #include <thread>
@@ -297,7 +298,10 @@ size_t Clip::readWav(uint64_t offset, uint8_t* dst, size_t len) const {
 RawFrame Clip::frameRaw(size_t i, unsigned threads) const {
     const FrameRecord rec = reader_.frame(i);
     RawFrame out;
-    const FrameInfo fi = decodeFrame(rec.payload, rec.payloadSize, out.pixels, threads);
+    // Modified for Klipp: the decoder's threads read a copy, not the memory-mapped file – a file cut short while it is
+    // read faults only on the calling thread, where Klipp's JNI catches it (see craw_jni.cpp, CRAW_READS).
+    const std::vector<uint8_t> payload(rec.payload, rec.payload + rec.payloadSize);
+    const FrameInfo fi = decodeFrame(payload.data(), payload.size(), out.pixels, threads);
     out.width = fi.width;
     out.height = fi.height;
     out.cfa = static_cast<int>(fi.cfa);

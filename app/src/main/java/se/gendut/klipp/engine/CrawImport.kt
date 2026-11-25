@@ -92,6 +92,10 @@ internal object CrawImport {
                         val video = if (hasAudio) temp(".video.mp4") else output
                         writeVideo(source, video, settings.high, job::ensureActive)
                         if (hasAudio) writeAudioAndCopyVideo(source, video, output, job::ensureActive)
+                    } catch (e: IOException) {
+                        // the decoder's own reasons ("craw: …", e.g. the file got shorter while it was read) are for
+                        // developers: to the user the file is damaged or not finished
+                        if (e.message?.startsWith("craw:") == true) throw IOException(Str.t(R.string.craw_unreadable), e) else throw e
                     } finally {
                         close(handle)
                     }
