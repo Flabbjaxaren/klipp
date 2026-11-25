@@ -226,6 +226,59 @@ object TitleArt {
     fun draw(t: TextSnap, w: Int, h: Int): Bitmap = draw(t, w, h, 1f, null)
 
     /**
+     * The part of the title's own picture that is drawn, as fractions of the [w]×[h] frame ([FRAME] = the frame), and
+     * the resolution [k] it is drawn at. Text that goes past the frame (a big title, then scaled down) is drawn too:
+     * a frame-size picture lost it before the clip's scale, so the scaled title showed cut edges. At most one frame more
+     * on each side, and at most [MAX_PIXELS] frames of pixels (larger regions are drawn at a lower resolution).
+     */
+    data class Region(val left: Float, val top: Float, val right: Float, val bottom: Float, val k: Float) {
+        val isFrame get() = this == FRAME
+        fun rect(w: Int, h: Int) = RectF(left * w, top * h, right * w, bottom * h)
+        companion object { val FRAME = Region(0f, 0f, 1f, 1f, 1f) }
+    }
+
+    private const val MAX_PIXELS = 2f
+    private val regions = object : LinkedHashMap<Triple<TextSnap, Int, Int>, Region>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Triple<TextSnap, Int, Int>, Region>?) = size > 32
+    }
+
+    fun region(t: TextSnap, w: Int, h: Int): Region {
+        if (w <= 0 || h <= 0 || t.look.template == TitleTemplate.ROLL) return Region.FRAME
+        val key = Triple(t, w, h)
+        synchronized(regions) { regions[key] }?.let { return it }
+        // the text's extent: drawn small over 3 × 3 frames and measured
+        val k = min(1f, kotlin.math.sqrt(400_000f / (9f * w * h)))
+        val probe = draw(t, w, h, k, RectF(-w.toFloat(), -h.toFloat(), 2f * w, 2f * h))
+        val m = TitleBounds.measure(probe)
+        probe.recycle()
+        val pad = 2f / k
+        val r = if (m == null) Region.FRAME else {
+            val l = ((m.left - pad) / k - w) / w
+            val tp = ((m.top - pad) / k - h) / h
+            val rt = ((m.right + pad) / k - w) / w
+            val bt = ((m.bottom + pad) / k - h) / h
+            if (l >= 0f && tp >= 0f && rt <= 1f && bt <= 1f) Region.FRAME else {
+                val box = Region(min(0f, l).coerceAtLeast(-1f), min(0f, tp).coerceAtLeast(-1f), max(1f, rt).coerceAtMost(2f), max(1f, bt).coerceAtMost(2f), 1f)
+                val area = (box.right - box.left) * (box.bottom - box.top)
+                box.copy(k = min(1f, kotlin.math.sqrt(MAX_PIXELS / area)))
+            }
+        }
+        synchronized(regions) { regions[key] = r }
+        return r
+    }
+
+    /** Which [Region] each picture from [drawRegion] shows (by identity), so a preview places it right. */
+    private val shown = java.util.Collections.synchronizedMap(java.util.WeakHashMap<Bitmap, Region>())
+    fun regionOf(b: Bitmap): Region = shown[b] ?: Region.FRAME
+
+    /** The title's picture with all of its text ([region]) – the frame-size picture when the text fits in the frame. */
+    fun drawRegion(t: TextSnap, w: Int, h: Int): Bitmap {
+        val r = region(t, w, h)
+        if (r.isFrame) return draw(t, w, h)
+        return draw(t, w, h, r.k, r.rect(w, h)).also { shown[it] = r }
+    }
+
+    /**
      * Only the part [crop] (pixels of the [w]×[h] image) of the title, drawn [k] times larger – sharp text where a
      * pinned title is drawn bigger than its own size (see PinArt). Null crop = the whole image at its size.
      */

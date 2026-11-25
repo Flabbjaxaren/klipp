@@ -686,6 +686,17 @@ object TitleFollow {
     }
 }
 
+/**
+ * The placement of a title drawn as [r] ([TitleArt.drawRegion]) instead of a frame-size picture: the same point of the
+ * text lands on the same spot at the same size (the anchor in the region's own picture; the region's resolution undone).
+ */
+fun Placement.inArt(r: TitleArt.Region): Placement {
+    if (r.isFrame) return this
+    val ax = (ovX + 1f) / 2f
+    val ay = (1f - ovY) / 2f
+    return copy(ovX = (ax - r.left) / (r.right - r.left) * 2f - 1f, ovY = 1f - (ay - r.top) / (r.bottom - r.top) * 2f, scale = scale / r.k)
+}
+
 @OptIn(UnstableApi::class)
 fun Placement.toSettings(): OverlaySettings = inRange().let { p ->
     StaticOverlaySettings.Builder()
@@ -849,7 +860,8 @@ class TimedOverlay(
         val pl = placementOf(item, t, w, h)
         // pinned: the image is already in place – only the opacity (fades, the entrance's fade)
         if (item.clip?.id?.let { TitleFollow.hasPin(it) } == true) return StaticOverlaySettings.Builder().setAlphaScale(pl.alpha.coerceIn(0f, 1f)).build()
-        return pl.toSettings()
+        val title = item.overlay as? Overlay.Title
+        return (if (title != null) pl.inArt(TitleArt.region(title.t, w, h)) else pl).toSettings()
     }
 }
 
@@ -942,7 +954,7 @@ fun fitIn(aspect: Float?, w: Int, h: Int): Pair<Float, Float> {
 object OverlayRenderer {
     fun draw(o: Overlay, w: Int, h: Int): Bitmap = when (o) {
         // the title draws its own image – no needless full-size image (4K: 33 MB)
-        is Overlay.Title -> TitleArt.draw(o.t, w, h)
+        is Overlay.Title -> TitleArt.drawRegion(o.t, w, h)
         is Overlay.Caption -> Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888).also { bmp ->
             bmp.eraseColor(Color.TRANSPARENT)
             drawCaption(Canvas(bmp), o.text, o.style, w, h, o.word, o.shift)

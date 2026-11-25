@@ -197,7 +197,7 @@ private object TitleBitmaps {
     fun cached(t: TextSnap, w: Int, h: Int): ImageBitmap? = synchronized(cache) { cache[Triple(t, w, h)] }
     fun get(t: TextSnap, w: Int, h: Int): ImageBitmap {
         cached(t, w, h)?.let { return it }
-        val img = TitleArt.draw(t, w, h).asImageBitmap()
+        val img = TitleArt.drawRegion(t, w, h).asImageBitmap()
         synchronized(cache) { cache[Triple(t, w, h)] = img }
         return img
     }
