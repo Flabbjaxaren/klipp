@@ -725,9 +725,11 @@ private fun KlippAppContent(
             controller.snapshot.sequence?.video.orEmpty().forEach { track ->
                 for (clip in track.clips) {
                     if (clip.id !in added) continue
-                    val raw = controller.crawSettings(clip.item) ?: continue
+                    // a RAW develop (CRAW or MotionCam) is log: it starts with an OpenDRT node from its own log
+                    val log = controller.crawSettings(clip.item)?.log
+                        ?: se.gendut.klipp.engine.McrawStore.logOf(context, controller.uriOf(clip.item)) ?: continue
                     changes[clip.id] = se.gendut.klipp.engine.ClipGrade(nodes = listOf(
-                        se.gendut.klipp.engine.GradeNode(1, drt = se.gendut.klipp.engine.Drt(input = raw.log.key)),
+                        se.gendut.klipp.engine.GradeNode(1, drt = se.gendut.klipp.engine.Drt(input = log.key)),
                     ))
                 }
             }

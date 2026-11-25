@@ -46,6 +46,14 @@ object McrawStore {
         return File(dir(c), "${base}_ei${ei}${if (out != DEFAULT_OUT) "_$out" else ""}${if (draft) DRAFT else ""}_$h.mp4")
     }
 
+    /** Whether [uri] is one of MotionCam's develops or placeholders (a path check only – safe on the main thread). */
+    fun isMine(c: Context, uri: Uri?): Boolean =
+        uri?.scheme == "file" && File(uri.path ?: "").parentFile?.absolutePath == dir(c).absolutePath
+
+    /** The log a MotionCam clip on [uri] is developed into (for its OpenDRT node); null when it is not one. Main thread. */
+    fun logOf(c: Context, uri: Uri?): OpenDrt.Input? =
+        if (!isMine(c, uri)) null else CameraLog.of(uri) ?: OpenDrt.Input.of(DEFAULT_OUT)
+
     /** A quick (half size) develop, still waiting for its full one ([finishDrafts]). */
     fun isDraft(c: Context, uri: Uri?): Boolean {
         if (uri == null || uri.scheme != "file") return false
@@ -92,6 +100,8 @@ object McrawStore {
         val f = File(placeholder.path ?: return)
         if (f.parentFile?.absolutePath != dir(c).absolutePath) return
         record(c, f, src, name, ei, out, ei <= 0)
+        // the clip's OpenDRT node is made when the placeholder goes in – it needs the develop's log already
+        CameraLog.remember(placeholder, OpenDrt.Input.of(out))
     }
 
     data class Info(val source: Uri, val name: String, val ei: Int, val out: String, val auto: Boolean = false)
