@@ -39,7 +39,7 @@ object BeatNet {
     /** Beats in [pcm] (22 050 Hz mono); null if the network can't run. */
     suspend fun detect(context: Context, pcm: FloatArray): Result? = withContext(Dispatchers.Default) {
         if (pcm.size < RATE) return@withContext Result(emptyList(), emptyList())
-        val env = ai.onnxruntime.OrtEnvironment.getEnvironment()
+        val env = Ort.env
         val bytes = runCatching { context.assets.open(ASSET).use { it.readBytes() } }.getOrNull() ?: return@withContext null
         val session = runCatching { env.createSession(bytes, ai.onnxruntime.OrtSession.SessionOptions().apply { setIntraOpNumThreads(4) }) }.getOrNull()
             ?: return@withContext null

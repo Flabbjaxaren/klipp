@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- the video picker lists the phone's videos (MediaStore) to show their previews -->
@@ -24,6 +25,13 @@
         android:roundIcon="@drawable/ic_launcher"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <!-- ONNX Runtime's start-up provider prepares its usage telemetry (a device id, network and power watching)
+             and loads the 35 MB library at every start: removed – Klipp sends nothing (see engine/Ort.kt) -->
+        <provider
+            android:name="ai.onnxruntime.TelemetryInitializer"
+            android:authorities="${applicationId}.onnxruntime_telemetry_initializer"
+            tools:node="remove" />
+
         <!-- performance measurement of the release build (simpleperf, Android Studio's profiler) -->
         <profileable android:shell="true" />
         <activity

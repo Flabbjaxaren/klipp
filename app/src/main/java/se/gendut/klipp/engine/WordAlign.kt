@@ -63,7 +63,7 @@ object WordAligner {
 
     /** A loaded model (close it; it holds about 1.3 GB). */
     class Session(c: Context) : AutoCloseable {
-        private val env = ai.onnxruntime.OrtEnvironment.getEnvironment()
+        private val env = Ort.env
         private val s = env.createSession(File(dir(c), "model.onnx").absolutePath, ai.onnxruntime.OrtSession.SessionOptions().apply {
             setIntraOpNumThreads((Runtime.getRuntime().availableProcessors() / 2 + 1).coerceIn(2, 6))
             setOptimizationLevel(ai.onnxruntime.OrtSession.SessionOptions.OptLevel.ALL_OPT)
