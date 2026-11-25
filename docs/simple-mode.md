@@ -21,11 +21,10 @@ advanced mode on tracks whatever was chosen: the ⋯ menu offers neither, a fres
 made are kept for when it is turned on again. Turning it off from simple mode goes to advanced mode at once; the project
 stays as it is.
 
-With the experimental features on, a fresh install asks once which mode to use (`ModeChooser` in `Simple.kt`). Picking
-*Advanced* asks next how the timeline works: *Tracks* or *Magnetic timeline*, the same setting as Settings → Experimental
-(`AppPrefs.magneticTimeline`).
-Skipping keeps advanced mode on tracks, as for everyone who used the app before the modes. Existing installs are not
-asked. With the magnetic timeline on, V1's header carries the storyline mark, so it is clear which track closes up.
+The mode is chosen on Settings → Experimental once the switch is on: *Simple* or *Advanced*, and for advanced mode
+*Tracks* or *Magnetic timeline* (`AppPrefs.magneticTimeline`). Nobody is asked at start: the first start's question
+(`ModeChooser` in `Simple.kt`, `AppPrefs.askMode`) only shows with the experimental features on, and they are off on a
+fresh install, so in practice it never shows. With the magnetic timeline on, V1's header carries the storyline mark, so it is clear which track closes up.
 
 ## The layout (from the mockups)
 

@@ -75,8 +75,8 @@ tracks, effects and undo history in every mode.
   from the storyline, overwrite into it or replace it with a gap clip. It can be chosen for advanced mode; simple mode
   always edits on it.
 
-The first time the experimental features are on, Klipp asks once which mode to use. Both may still change between
-versions – feedback in Issues is welcome.
+Turned on, the same page chooses simple or advanced mode and, for advanced mode, tracks or the magnetic timeline. Both
+may still change between versions – feedback in Issues is welcome.
 
 ## 💛 Support Klipp
 
