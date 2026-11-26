@@ -278,14 +278,16 @@ class MagTimeline(
 
     /**
      * Several selected clips dragged together by [dt]: the storyline clips among them go as a block (in their order) to
-     * the edit point nearest their new start; the connected ones move by [dt].
+     * the edit point nearest their new start; the connected ones move by [dt] – but one whose own storyline clip is in
+     * the block goes with that clip, to where it lands (moved by [dt] it was left where the finger let go, beside the
+     * clip it hangs on).
      */
     fun moveBlock(ids: Set<Long>, dt: Float, keep: Boolean = false): MPlan? {
         val w = Work()
         val block = w.els.filter { it.lead != null && it.lead!!.id in ids }
         val units = w.units.filter { u -> !u.caption && u.clips.any { it.id in ids } }
         if (block.isEmpty() && units.isEmpty()) return null
-        for (u in units) { u.explicit = dt; u.wanted = true }
+        for (u in units) if (keep || u.fixed || u.anchor == null || u.anchor !in block) { u.explicit = dt; u.wanted = true }
         if (block.isNotEmpty()) {
             val first = block.first().start
             w.els.removeAll(block)

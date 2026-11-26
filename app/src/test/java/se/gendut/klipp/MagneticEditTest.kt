@@ -282,4 +282,18 @@ class MagneticEditTest {
         val a = out.first { it.id == 1L }
         assertEquals(2f, a.srcIn, 1e-4f); assertEquals(8f, a.length, 1e-4f); assertEquals(0f, a.start, 1e-4f)
     }
+
+    /** A storyline clip dragged past the film's end: its title and its connected sound land with it. */
+    @Test fun connectedClipsLandWithAClipDraggedPastTheEnd() {
+        val st = EditorState(listOf(
+            clip(1, ClipKind.VIDEO, 2, 0f, 3.4f, 1), clip(101, ClipKind.AUDIO, 3, 0f, 3.4f, 1),
+            clip(2, ClipKind.VIDEO, 2, 3.4f, 2.5f, 2), clip(102, ClipKind.AUDIO, 3, 3.4f, 2.5f, 2),
+            clip(3, ClipKind.VIDEO, 2, 5.9f, 2.2f, 3), clip(103, ClipKind.AUDIO, 3, 5.9f, 2.2f, 3),
+            clip(10, ClipKind.TITLE, 0, 0f, 3.4f), clip(20, ClipKind.MUSIC, 4, 0.1f, 0.3f),
+        )).also { it.magnetic = true }
+        assertTrue(st.magMove(st.c(1), 6.08f, 2, position = false))
+        assertEquals(4.7f, st.c(1).start, 1e-3f)
+        assertEquals(4.7f, st.c(10).start, 1e-3f)
+        assertEquals(4.8f, st.c(20).start, 1e-3f)
+    }
 }

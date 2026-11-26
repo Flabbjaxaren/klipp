@@ -503,4 +503,30 @@ class MagneticModelTest {
         val s = MagSide(setOf(1L, 2L), mapOf(1L to 2f, 3L to 1f))
         assertEquals(MagSide(setOf(1L), mapOf(1L to 2f)), s.keepOnly(setOf(1L)))
     }
+
+    /**
+     * A storyline clip dragged past the film's end lands last – and the clips connected to it (a title over it, a sound
+     * under it) land with it: as far from its start as they were, wherever it was let go.
+     */
+    @Test fun connectedClipsLandWithAClipDroppedPastTheEnd() {
+        val tl = MagTimeline(listOf(
+            v(1, 0f, 3f, link = 1), a(11, 0f, 3f, link = 1), v(2, 3f, 2f, link = 2), a(12, 3f, 2f, link = 2), v(3, 5f, 2f, link = 3), a(13, 5f, 2f, link = 3),
+            v(20, 0f, 3f, level = 2), a(21, 0.1f, 0.4f, level = 1),
+        ), emptyList(), MagSide())
+        for (drop in listOf(4.2f, 5.3f, 6.5f, 9f)) {
+            val p = assertNotNull("drop at $drop", tl.move(1, drop, 0)).let { tl.move(1, drop, 0)!! }
+            near(4f, p.start(1), "the clip, dropped at $drop")
+            near(4f, p.start(20), "its title, dropped at $drop")
+            near(4.1f, p.start(21), "its sound, dropped at $drop")
+            // selected and dragged together with it (the block): the same – they land with their clip, not where the
+            // finger let go
+            val b = assertNotNull("block at $drop", tl.moveBlock(setOf(1, 11, 20, 21), drop)).let { tl.moveBlock(setOf(1, 11, 20, 21), drop)!! }
+            near(4f, b.start(1), "the clip in a block, dropped at $drop")
+            near(4f, b.start(20), "its title in the block, dropped at $drop")
+            near(4.1f, b.start(21), "its sound in the block, dropped at $drop")
+        }
+        // a connected clip dragged with a storyline clip it doesn't hang on: by the finger's way, as before
+        val other = tl.moveBlock(setOf(2, 12, 21), 1f)!!
+        near(1.1f, other.start(21), "a connected clip of another storyline clip")
+    }
 }
