@@ -21,6 +21,9 @@
 # The usage-statistics transport (com.google.android.datatransport) is left out on purpose (app/build.gradle.kts):
 # only MediaPipe's RemoteLoggingClient refers to it, and nothing creates that.
 -keep class com.google.mediapipe.** { *; }
+# MediaPipe's graph logs through Flogger, which finds the calling class by walking the stack past its own classes by
+# name: renamed, it found no caller ("no caller found on the stack") and no MediaPipe task could be created
+-keep class com.google.common.flogger.** { *; }
 -keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite { <fields>; }
 -dontwarn com.google.android.datatransport.**
 # Referenced but not in the app, and never used by face following: LiteRT-LM (an optional dependency of the image
