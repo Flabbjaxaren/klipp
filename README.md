@@ -165,8 +165,8 @@ replace an installed Klipp.
 - MotionCam RAW `.mcraw` video: in the video picker, tap **MotionCam RAW** and choose MotionCam's folder once (usually
   `Documents/MotionCam`). Klipp develops each take on the GPU into a 10-bit HEVC log copy with its sound; a quick
   half-size copy goes on the timeline first and the full one replaces it by itself. **MotionCam RAW development** on
-  the Color page develops it again with another log or exposure index. MotionCam clips get no OpenDRT node
-  automatically – add one on the Color page. Thanks to Paulo Gonçalves ([@utalpt](https://github.com/utalpt)) for
+  the Color page develops it again with another log or exposure index. MotionCam clips start with an OpenDRT node
+  from the log they are developed into, as CRAW clips do. Thanks to Paulo Gonçalves ([@utalpt](https://github.com/utalpt)) for
   the developer this is built on.
 - Cinematic RAW Studio `.CRAW` video opens through **Import → Files app** on devices with a compatible
   10-bit HEVC encoder. Klipp develops an editable log copy with AAC audio when present and keeps the source
