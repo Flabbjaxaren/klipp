@@ -414,7 +414,8 @@ internal fun SimpleStrip(state: EditorState, modifier: Modifier = Modifier) {
                     if (x < scroll.value || x > scroll.value + viewPx - sidePx * 2) scroll.scrollTo((x - viewPx / 3).roundToInt().coerceAtLeast(0))
                 }
                 // a clip selected out of view (the dock, a search, a test) comes into view
-                LaunchedEffect(state.selected, pps) {
+                // (when it is selected – not at every zoom step: that pulled the strip to the clip during a pinch)
+                LaunchedEffect(state.selected) {
                     val c = line.firstOrNull { it.id == state.selected } ?: return@LaunchedEffect
                     val a = sidePx + c.start * pps
                     val b = sidePx + c.end * pps
