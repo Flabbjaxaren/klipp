@@ -53,6 +53,8 @@ internal object Placeholder {
         val video = encodeVideo(thumb.bitmap, w, h)
         val audio = if (rate > 0 && channels > 0) encodeSilence(rate, channels.coerceIn(1, 2), durUs) else null
         val mux = MediaMuxer(out.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        // turned as the clip was shot (the develop gets the same), see Mcraw.rotationOf
+        if (thumb.rotation != 0) mux.setOrientationHint(thumb.rotation)
         try {
             val vt = mux.addTrack(video.first)
             val at = audio?.let { mux.addTrack(it.first) }

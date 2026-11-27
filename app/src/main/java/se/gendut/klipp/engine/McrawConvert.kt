@@ -128,6 +128,10 @@ object McrawConvert {
             val t0ns = frames.getLong(0)
             val fps = if (n > 1) (n - 1) / ((frames.getLong(n - 1) - t0ns) / 1e9) else 30.0
             line("convert: $name  ${w}x$hh  $n frames  ${"%.3f".format(fps)} fps")
+            // the phone's orientation while shooting: the file is tagged to be turned (the pixels stay as the sensor gives
+            // them), see Mcraw.rotationOf
+            val rotation = Mcraw.rotationOf(c, ff)
+            if (rotation != 0) line("rotation: $rotation° (orientation ${ff.optInt("orientation")}, sensor ${c.optInt("sensorOrientation", 90)})")
 
             // MotionCam pads the frame's buffer below the picture (4096×3072 holding a 4096×2560 picture): those rows,
             // all at the black level with no noise, are left out – the clip is the picture's own height
@@ -233,6 +237,7 @@ object McrawConvert {
                 val inputSurface = codec.createInputSurface()
                 codec.start()
                 val muxer = MediaMuxer(outPfd.fileDescriptor, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+                if (rotation != 0) muxer.setOrientationHint(rotation)
                 var track = -1
                 var audioTrack = -1
                 val info2 = MediaCodec.BufferInfo()
