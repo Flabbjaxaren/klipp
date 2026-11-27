@@ -178,7 +178,14 @@ private fun McrawCard(f: McrawFolder.File, order: Int, onClick: () -> Unit) {
             .clickable(onClick = onClick).testTag("mcraw:${f.name}")
     ) {
         Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(K.Bg)) {
-            thumb?.bitmap?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxWidth().aspectRatio(16f / 9f), contentScale = ContentScale.Crop) }
+            // turned as the clip was shot (a clip shot with the phone turned round showed upside down)
+            val shown = androidx.compose.runtime.remember(thumb) {
+                thumb?.bitmap?.let { b ->
+                    if (thumb.rotation == 0) b
+                    else android.graphics.Bitmap.createBitmap(b, 0, 0, b.width, b.height, android.graphics.Matrix().apply { postRotate(thumb.rotation.toFloat()) }, true)
+                }
+            }
+            shown?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxWidth().aspectRatio(16f / 9f), contentScale = ContentScale.Crop) }
             thumb?.let {
                 Text(
                     durText(it.seconds), color = K.OnSurface, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
@@ -194,7 +201,7 @@ private fun McrawCard(f: McrawFolder.File, order: Int, onClick: () -> Unit) {
         }
         Text(f.name, color = K.OnSurface, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp, end = 10.dp, top = 8.dp))
         val meta = listOfNotNull(
-            thumb?.let { "${it.width}×${it.height} · ${"%.0f".format(it.fps)} fps" },
+            thumb?.let { if (it.rotation % 180 != 0) "${it.height}×${it.width} · ${"%.0f".format(it.fps)} fps" else "${it.width}×${it.height} · ${"%.0f".format(it.fps)} fps" },
             "%.1f GB".format(f.bytes / 1e9),
             android.text.format.DateFormat.format("d MMM HH:mm", f.time).toString(),
         ).joinToString(" · ")

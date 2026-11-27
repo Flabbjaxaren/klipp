@@ -56,8 +56,25 @@ object Mcraw {
     /** Padding rows at the bottom of the frame last decoded with [decodeTo] (all at or under [limit]). */
     internal fun emptyBottomRows(h: Long, limit: Int): Int = nativeEmptyBottomRows(h, limit)
 
-    /** A picker card's preview (the middle frame, padding rows cut off) and what the file is. */
-    class Thumb(val bitmap: Bitmap?, val width: Int, val height: Int, val fps: Double, val seconds: Double)
+    /**
+     * A picker card's preview (the middle frame, padding rows cut off, as the sensor gives it) and what the file is.
+     * [rotation]: how far (clockwise) to turn the picture to show it as shot, see [rotationOf].
+     */
+    class Thumb(val bitmap: Bitmap?, val width: Int, val height: Int, val fps: Double, val seconds: Double, val rotation: Int = 0)
+
+    /**
+     * How far (degrees, clockwise) a MotionCam clip's picture must be turned to stand as it was shot. MotionCam keeps
+     * the RAW as the sensor gives it: each frame's metadata has the phone's "orientation" (0 portrait, 1 portrait upside
+     * down, 2 landscape, 3 landscape turned round - with MotionCam's Lock orientation on, the orientation locked), and
+     * the container the sensor's mounting ("sensorOrientation", 90 on most back cameras). Checked on Xiaomi 17 Ultra
+     * clips (landscape 2, portrait 0, turned round 3). A file without it (an older MotionCam): 0.
+     */
+    fun rotationOf(container: JSONObject?, firstFrame: JSONObject?): Int {
+        val o = firstFrame?.optInt("orientation", -1) ?: -1
+        val phone = when (o) { 0 -> 0; 1 -> 180; 2 -> 90; 3 -> 270; else -> return 0 }
+        val sensor = container?.optInt("sensorOrientation", 90) ?: 90
+        return ((sensor - phone) % 360 + 360) % 360
+    }
 
     /** Blocking (decodes one frame): call off the main thread. */
     fun thumb(ctx: Context, uri: Uri): Thumb? {
@@ -86,7 +103,7 @@ object Mcraw {
                 }
                 hh = ch
             }
-            return Thumb(bmp, w, hh, fps, dur + if (fps > 0) 1 / fps else 0.0)
+            return Thumb(bmp, w, hh, fps, dur + if (fps > 0) 1 / fps else 0.0, rotationOf(info.optJSONObject("container"), ff))
         } catch (_: Throwable) {
             return null
         } finally { s.close() }
