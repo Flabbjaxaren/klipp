@@ -789,7 +789,7 @@ data class ClipGrade(
     /** Needs the frames' source time (tracked windows, stabilization, motion blur, the mask's keyframes). */
     val needsClock get() = hasTrack || stab != null || mblur != null || layer?.mask?.animated == true || layer?.crop?.animated == true
     /** The whole chain that is computed (the nodes in order). */
-    val chain: List<GradeNode> get() = nodes
+    val chain: List<GradeNode> get() = afterFilm(nodes)
     val isNeutral get() = chain.all { it.isNeutral } && stab == null && mblur == null
     val hasTrack get() = nodes.any { it.win.track != null }
 
@@ -900,7 +900,7 @@ data class ClipGrade(
 
     /** Playback effects when the image up to and including node [point] comes from the node cache: the remaining nodes and the stabilization. */
     fun effectsAfter(point: Int, clip: Long?, clock: ((Long) -> Double?)?, main: Boolean = false, filmRef: Int = 0): List<androidx.media3.common.Effect> =
-        copy(nodes = nodes.drop(point + 1).ifEmpty { listOf(GradeNode(Int.MIN_VALUE)) }).effects(clip, main, filmRef, clock = clock)
+        copy(nodes = afterFilm(nodes).drop(point + 1).ifEmpty { listOf(GradeNode(Int.MIN_VALUE)) }).effects(clip, main, filmRef, clock = clock)
 
     /**
      * Can be exported in HLG: the last node that colors has OpenDRT over the whole image (no qualifier or window, full
@@ -913,6 +913,24 @@ data class ClipGrade(
     }
 
     companion object {
+        /**
+         * An OpenDRT in the same node as a whole film (not "Effects only") or in a node after it is left out. The film
+         * already renders the picture for the display (negative, print and scan); OpenDRT after it read that picture as
+         * log footage and rendered it a second time (crushed blacks, clipped saturated color, and an HLG export stretched
+         * to 1000 nits). With the film as the last rendering, the clip isn't [hlgReady]: an HLG export converts its
+         * picture from SDR (see SdrHlg), as for an ungraded clip.
+         */
+        fun afterFilm(ns: List<GradeNode>): List<GradeNode> {
+            var film = false
+            return ns.map { n ->
+                val whole = n.film?.effectsOnly == false && n.enabled && n.mix > 0.0001f
+                // the same node too: its OpenDRT comes before its film
+                val m = if ((film || whole) && n.drt != null) n.copy(drt = null) else n
+                if (whole) film = true  // "Effects only" keeps the image's own colors
+                m
+            }
+        }
+
         /** Older projects may have "input" (removed log conversion) – it is ignored. */
         fun fromJson(o: JSONObject?): ClipGrade {
             val stab = Stabilization.fromJson(o?.optJSONObject("stab"))
