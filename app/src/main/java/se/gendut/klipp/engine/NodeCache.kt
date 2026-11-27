@@ -119,7 +119,7 @@ object NodeCache {
     private fun compute(clip: ClipSnap, uri: Uri, mediaDur: Double?, g: ClipGrade): Req? {
         val point = g.cachePoint
         if (point < 0) return null
-        val nodes = g.nodes.take(point + 1)
+        val nodes = ClipGrade.afterFilm(g.nodes.take(point + 1))  // no OpenDRT with or after a whole film
         if (nodes.all { it.isNeutral }) return null
         val a = (floor(clip.sourceIn) - HANDLE).coerceAtLeast(0.0)
         var b = ceil(clip.sourceIn + clip.duration * kotlin.math.abs(clip.speed)) + HANDLE
